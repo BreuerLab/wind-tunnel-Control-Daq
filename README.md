@@ -1,1 +1,6 @@
 # wind-tunnel-DAq
+Experiments
+Needs to be filled in here with instructions/links for matlab scripts to use, how to use…
+How to turn on wind tunnel on using wind tunnel software…
+Scripts from Jenya/summer experiments: Gurney Flap 
+Script I Used in april 2020 that works, but was not very modular: voltageToForces.m , this relies on a few other files in this folder: april23Matlab 
