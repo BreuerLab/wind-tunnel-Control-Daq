@@ -1,4 +1,4 @@
-# wind-tunnel-DAq
+# AFAM wind Tunnel Control and Data Acquisition
 
 ## Calibration
 
