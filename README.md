@@ -10,7 +10,7 @@
    -*Note this script needs editing based on how you collect data/ is not complete*
 ## Contribute to this respo
 - Git tool is strongly recommended for colabotation and multi-source control
-- To edit current code, make a fork to your own respo
+- To edit current code, make a branch or fork to your own repo by clicking the fork on top right corner
 - Keep the main respo for general propose usage and always functional
 - So **DO NOT committe directly to the main respo**, make a fork and pull request!
 ## Attached folders
