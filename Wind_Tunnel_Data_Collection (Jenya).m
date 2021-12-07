@@ -4,7 +4,8 @@ close all;
 clc;
 
 angleCounter = 0;              %start angle at zero
-load('C_july21st_LP.mat','C'); %calibration matrix of choice
+% load('C_july21st_LP.mat','C'); %calibration matrix of choice
+ load('C_march31.mat','C'); %calibration matrix of choice
 
 T1 = readtable('C1_inv_A.csv');  % calibration matrices from Aerolab
 T2 = readtable('C1_inv_C2_A.csv');
