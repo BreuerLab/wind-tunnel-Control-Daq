@@ -16,9 +16,9 @@
 - Git tool is strongly recommended for colabotation and multi-source control
 - To edit current code, make a branch or fork to your own repo by clicking the fork on top right corner
 - Keep the main repo for general propose usage and always functional
-- So **DO NOT commit directly to the main respo**, make a fork and pull request!
+- So **DO NOT commit directly to the main repo**, make a fork and pull request!
 
 ## Attached folders
 
-- Scripts from Jenya/summer experiments: **Jenya**
+- Scripts from Jenya/summer experiments: **Jenya's code**
 - Script from Alex april 2020 that works, but was not very modular: voltageToForces.m , this relies on a few other files in this folder: **april23Matlab** 
