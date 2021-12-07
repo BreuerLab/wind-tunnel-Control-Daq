@@ -1,4 +1,4 @@
-# AFAM wind Tunnel Control and Data Acquisition
+# AFAM Wind Tunnel Control and Data Acquisition
 
 ## Calibration
 
