@@ -15,7 +15,7 @@
 
 - Git tool is strongly recommended for colabotation and multi-source control
 - To edit current code, make a branch (collaberators) or fork (everyone else feel interested) to your own repo by clicking the fork on top right corner
-- Keep the main repo for general propose usage and always functional
+- Keep the main branch for general propose usage and always functional
 - So **DO NOT commit directly to the main branch**, make a branch and pull request instead.
 
 ## Attached folders
