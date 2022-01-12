@@ -24,7 +24,8 @@
    
 ## Using ATI load cells
 - ATI Gamma: go to **Gamma65**
-## Referance
+## Reference
 
 - Scripts from Jenya/summer experiments: **Jenya's code**
 - Script from Alex april 2020 that works, but was not very modular: voltageToForces.m , this relies on a few other files in this folder: **Alex's code** 
+- Script from flume: **Flume_Control_code**
