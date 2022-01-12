@@ -17,7 +17,8 @@
 - To edit current code, make a branch (collaberators) or fork (everyone else feel interested) to your own repo by clicking the fork on top right corner
 - Keep the main branch for general propose usage and always functional
 - So **DO NOT commit directly to the main branch**, make a branch and pull request instead.
-- more introductions refer to  https://medium.com/@jonathanmines/the-ultimate-github-collaboration-guide-df816e98fb67
+- To become a collaberator, please contact siyang_hao@brown.edu
+- more introductions for collaberators refer to  https://medium.com/@jonathanmines/the-ultimate-github-collaboration-guide-df816e98fb67
 ## Attached folders
 
 - Scripts from Jenya/summer experiments: **Jenya's code**
