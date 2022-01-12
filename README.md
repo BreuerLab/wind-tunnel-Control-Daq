@@ -9,7 +9,7 @@
 - To become a collaberator, please contact siyang_hao@brown.edu
 - more introductions for collaberators refer to  https://medium.com/@jonathanmines/the-ultimate-github-collaboration-guide-df816e98fb67
 
-## Using AeroLab loadcell 
+## Using AeroLab loadcells 
  Go to **AeroLabSting**
 ### Calibration
 
@@ -22,7 +22,7 @@
 -	Process wind tunnel data (Wind_Tunnel_Data_Processing.m)
    -*Note this script needs editing based on how you collect data/ is not complete*
    
-## Using ATI load cells
+## Using ATI loadcells
 - ATI Gamma: go to **Gamma65**
 ## Reference
 
