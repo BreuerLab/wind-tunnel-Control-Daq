@@ -39,7 +39,7 @@ addAnalogInputChannel(s,'Dev1',5,'Voltage');
 % addTriggerConnection(s,'Dev1/PFI0','startTrigger');
 
 load Wallance_Cal; % load calibration martix
-matrixVals = Gromit_Cal;
+matrixVals = matrixVals;
 timeLength = 1; % each session duration in seconds
 s.Rate = 1000; % sample rate
 s.DurationInSeconds = timeLength; 
