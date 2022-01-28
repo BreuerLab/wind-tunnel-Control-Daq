@@ -52,7 +52,8 @@ t0=clock;
 i=0;
 SessionNumber = input(' How many seesions do we want? \n');
 while  i <SessionNumber %start scan for a period in seconds, approximately 
-       i=i+1;         
+       i=i+1;
+
     [voltVals,time] = s.startForeground; % get the six axis output of loadcell
 %   dlmwrite(trial,voltVals,'-append'); %directly write raw voltage data into file
 %% live monitoring & plotting 
