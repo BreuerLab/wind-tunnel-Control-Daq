@@ -3,7 +3,7 @@
 #include <toneAC.h>
 
 // Wave Generator library
-//
+// 
 
 // Constants
 const int buttonPin = 2;     // the number of the Pushbutton pin
