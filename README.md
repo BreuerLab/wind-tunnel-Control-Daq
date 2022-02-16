@@ -8,7 +8,7 @@
 - So **DO NOT commit directly to the main branch**, make a branch and pull request instead.
 - To become a collaberator, please contact siyang_hao@brown.edu
 - more introductions for collaberators refer to  https://medium.com/@jonathanmines/the-ultimate-github-collaboration-guide-df816e98fb67
-
+## General wind tunnel control
 ## Using AeroLab loadcells 
  Go to **AeroLabSting**
  
