@@ -1,10 +1,10 @@
 # AFAM Wind Tunnel Control and Data Acquisition
-
+- Git tool is strongly recommended for colabotation and multi-source control
 ## Contribute to this repo
 
-- Git tool is strongly recommended for colabotation and multi-source control
+
 - To edit current code, make a branch (collaberators) or fork (everyone else feel interested) to your own repo by clicking the fork on top right corner
-- Keep the main branch for general propose usage and always functional
+- Keep the main branch for **general propose usage** and **always functional**.
 - So **DO NOT commit directly to the main branch**, make a branch and pull request instead.
 - To become a collaberator, please contact siyang_hao@brown.edu
 - more introductions for collaberators refer to  https://medium.com/@jonathanmines/the-ultimate-github-collaboration-guide-df816e98fb67
