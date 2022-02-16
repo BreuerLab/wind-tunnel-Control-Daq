@@ -16,6 +16,8 @@
 - ATI Gamma: go to **Gamma65**
 ## Trigger Box
 - Synchronization for the high speed cameras, motion control and PIV system to have a phased marked data.
+## MPS system
+- Beta version in **PITCH**, which is able to control the pitch motion of mps.
 ## Reference
 
 - Scripts from Jenya/summer experiments: **Jenya's code**
