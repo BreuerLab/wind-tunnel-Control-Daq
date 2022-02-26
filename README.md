@@ -17,8 +17,8 @@
 ## Trigger Box
 - Synchronization for the high speed cameras, motion control and PIV system to have a phased marked data.
 ## MPS system
-- Beta version in **PITCH**, which is able to control the pitch motion of mps.
-## Reference
+- Beta version in **MPS**, which is able to control the pitch motion of mps.
+## Legacy
 
 - Scripts from Jenya/summer experiments: **Jenya's code**
 - Script from Alex april 2020 that works, but was not very modular: voltageToForces.m , this relies on a few other files in this folder: **Alex's code** 
