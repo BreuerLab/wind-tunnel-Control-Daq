@@ -13,7 +13,7 @@ close all;
 %% Initalize the experiment
 fprintf('Initalizing the experiment.\n');
 
-fprintf('\tHoming the pitch axis.\n');
+% fprintf('\tHoming the pitch axis.\n');
 % Pitch_Home(0);
 
 case_name = inputdlg('Enter the case name:', 'Initalization', [1 50],...
@@ -27,14 +27,14 @@ taring = strcmp(taring, 'Yes');
 if taring
     [offset_filename, offset_file_path] = uigetfile('*.csv',...
         'Select the taring file');
-%     [offset_data] = csvread(offset_filename);
+    [offset_data] = csvread(offset_filename);
 else
     fprintf('\tGenerating offset file. This will take one minute.\n');
-%     [offset_data] = Offset(case_name);
+    [offset_data] = offset(case_name);
 end
 
 % Store the six average voltages from taring. 1x6. V.
-% offsets = offset_data(1,:); 
+offsets = offset_data(1,:); 
 
 fprintf('\tWaiting for confirmation on wind tunnel speed.\n');
 uiwait(msgbox( ...
@@ -51,13 +51,13 @@ trial_length = inputdlg( ...
     );
 trial_length = str2double(trial_length{1});
 
-case_alpha = inputdlg( ...
-    'Enter the desired angle of attack in degrees.',...
-    'Initalization', ...
-    [1 50] ...
-    );
-case_alpha = str2double(case_alpha{1});
-
+% case_alpha = inputdlg( ...
+%     'Enter the desired angle of attack in degrees.',...
+%     'Initalization', ...
+%     [1 50] ...
+%     );
+% case_alpha = str2double(case_alpha{1});
+% 
 % Pitch_Home(case_alpha);
 
 euler_angles = [0, case_alpha, 0];
@@ -66,22 +66,22 @@ euler_angles = [0, case_alpha, 0];
 fprintf('Setting up the data acquisition.\n')
 
 % Create daq session, 
-% session = daq.createSession('ni');
-% addAnalogInputChannel(session,'Dev1',0,'Voltage');
-% addAnalogInputChannel(session,'Dev1',1,'Voltage');
-% addAnalogInputChannel(session,'Dev1',2,'Voltage');
-% addAnalogInputChannel(session,'Dev1',3,'Voltage');
-% addAnalogInputChannel(session,'Dev1',4,'Voltage');
-% addAnalogInputChannel(session,'Dev1',5,'Voltage');
+session = daq('ni');
+addinput(session,'cDAQ1Mod1',0,'Voltage');
+addAnalogInputChannel(session,'cDAQ1Mod1',1,'Voltage');
+addAnalogInputChannel(session,'cDAQ1Mod1',2,'Voltage');
+addAnalogInputChannel(session,'cDAQ1Mod1',3,'Voltage');
+addAnalogInputChannel(session,'cDAQ1Mod1',4,'Voltage');
+addAnalogInputChannel(session,'cDAQ1Mod1',5,'Voltage');
 
 % Load the calibration matrix.
-% load Wallance_Cal;
+load Gromit_Cal;
 
 % Set the sampling rate. Hz.
-% session.Rate = 1000;
+session.Rate = 1000;
 
 % Set the test duration. s.
-% session.DurationInSeconds = trial_length; 
+session.DurationInSeconds = trial_length; 
 
 % Set the file name for where the data will be stored info.
 case_data_file = strcat(case_name, '_data');
@@ -101,7 +101,7 @@ start_time = clock;
 raw_volts = all_raw_volts(:, 1:6);
 volts = raw_volts - ones(trial_length * session.Rate, 1) * offsets;
 
-results_sensor_frame = (matrixVals * volts')';
+results_sensor_frame = (Gromit_Cal * volts')';
 avg_results_sensor_frame = mean(results_sensor_frame);
 
 dcm = angle2dcm(euler_angles(1), euler_angles(2), euler_angles(3));

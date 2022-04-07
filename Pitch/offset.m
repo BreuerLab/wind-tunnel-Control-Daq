@@ -1,18 +1,18 @@
 function [offsets] = offset(CaseName)
 %Create daq session, 
-s = daq.createSession('ni');
-addAnalogInputChannel(s,'Dev1',0,'Voltage');
-addAnalogInputChannel(s,'Dev1',1,'Voltage');
-addAnalogInputChannel(s,'Dev1',2,'Voltage');
-addAnalogInputChannel(s,'Dev1',3,'Voltage');
-addAnalogInputChannel(s,'Dev1',4,'Voltage');
-addAnalogInputChannel(s,'Dev1',5,'Voltage');
+s = daq('ni');
+addinput(s,'cDAQ1Mod1',0,'Voltage');
+addinput(s,'cDAQ1Mod1',1,'Voltage');
+addinput(s,'cDAQ1Mod1',2,'Voltage');
+addinput(s,'cDAQ1Mod1',3,'Voltage');
+addinput(s,'cDAQ1Mod1',4,'Voltage');
+addinput(s,'cDAQ1Mod1',5,'Voltage');
 
 %Get offsets for current trial
 %Select rate and duration for bias averaging
 s.Rate = 1000;
 s.DurationInSeconds = 10;
-[bias,time] = s.startForeground;
+[bias,~] = s.startForeground;
 for i = 1:6
     offsets(1,i) = mean(bias(:,i));
     offsets(2,i) = std(bias(:,i))/sqrt(60*1000);    
