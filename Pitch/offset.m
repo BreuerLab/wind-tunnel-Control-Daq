@@ -1,5 +1,6 @@
 function [offsets] = offset(CaseName)
 %Create daq session, 
+% TODO: Check with Siyang if this is correct.
 s = daq.createSession('ni');
 addAnalogInputChannel(s,'Dev1',0,'Voltage');
 addAnalogInputChannel(s,'Dev1',1,'Voltage');
@@ -12,7 +13,7 @@ addAnalogInputChannel(s,'Dev1',5,'Voltage');
 %Select rate and duration for bias averaging
 s.Rate = 1000;
 s.DurationInSeconds = 10;
-[bias,time] = s.startForeground;
+[bias,~] = s.startForeground;
 for i = 1:6
     offsets(1,i) = mean(bias(:,i));
     offsets(2,i) = std(bias(:,i))/sqrt(60*1000);    
@@ -24,9 +25,6 @@ trial = strcat('offsets_',CaseName);
 csvwrite(trial,offsets);
 
 end
-
-
-
 
 
 
