@@ -65,16 +65,18 @@ euler_angles = [0, case_alpha, 0];
 %% Set up the data acquisition
 fprintf('Setting up the data acquisition.\n')
 
-% Create daq session, 
-session = daq('ni');
-addinput(session,'cDAQ1Mod1',0,'Voltage');
-addAnalogInputChannel(session,'cDAQ1Mod1',1,'Voltage');
-addAnalogInputChannel(session,'cDAQ1Mod1',2,'Voltage');
-addAnalogInputChannel(session,'cDAQ1Mod1',3,'Voltage');
-addAnalogInputChannel(session,'cDAQ1Mod1',4,'Voltage');
-addAnalogInputChannel(session,'cDAQ1Mod1',5,'Voltage');
+% Create daq session.
+% TODO: Check with Siyang if this is correct.
+session = daq.createSession('ni');
+addAnalogInputChannel(session,'Dev1',0,'Voltage');
+addAnalogInputChannel(session,'Dev1',1,'Voltage');
+addAnalogInputChannel(session,'Dev1',2,'Voltage');
+addAnalogInputChannel(session,'Dev',3,'Voltage');
+addAnalogInputChannel(session,'Dev1',4,'Voltage');
+addAnalogInputChannel(session,'Dev1',5,'Voltage');
 
 % Load the calibration matrix.
+% TODO: Check with Siyang if this is correct.
 load Gromit_Cal;
 
 % Set the sampling rate. Hz.

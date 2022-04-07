@@ -1,12 +1,13 @@
 function [offsets] = offset(CaseName)
 %Create daq session, 
-s = daq('ni');
-addinput(s,'cDAQ1Mod1',0,'Voltage');
-addinput(s,'cDAQ1Mod1',1,'Voltage');
-addinput(s,'cDAQ1Mod1',2,'Voltage');
-addinput(s,'cDAQ1Mod1',3,'Voltage');
-addinput(s,'cDAQ1Mod1',4,'Voltage');
-addinput(s,'cDAQ1Mod1',5,'Voltage');
+% TODO: Check with Siyang if this is correct.
+s = daq.createSession('ni');
+addAnalogInputChannel(s,'Dev1',0,'Voltage');
+addAnalogInputChannel(s,'Dev1',1,'Voltage');
+addAnalogInputChannel(s,'Dev1',2,'Voltage');
+addAnalogInputChannel(s,'Dev1',3,'Voltage');
+addAnalogInputChannel(s,'Dev1',4,'Voltage');
+addAnalogInputChannel(s,'Dev1',5,'Voltage');
 
 %Get offsets for current trial
 %Select rate and duration for bias averaging
@@ -24,9 +25,6 @@ trial = strcat('offsets_',CaseName);
 csvwrite(trial,offsets);
 
 end
-
-
-
 
 
 
