@@ -42,20 +42,20 @@ Pitch.OFF = mData.OFF;
 Pitch.PLS = mData.PLS;  % Limit switch status
 Pitch.PLM = mData.PLM;  % Limit switch mode
 
-fprintf('ACC: %16.16X; [%10.3f RPM/s]\n', mData.ACC, bitand(mData.ACC , 0xFFFFFFFF)/ACC_Conversion);
-fprintf('DEC: %16.16X; [%10.3f RPM/s]\n', mData.DEC, bitand(mData.DEC , 0xFFFFFFFF)/DEC_Conversion);
-fprintf('  V: %16.16X; [%10.3f RPM]\n',   mData.V, bitshift(mData.V, -32)/  V_Conversion);
-fprintf('  P: %16.16X; [%10.3f Counts]\n', uint64(mData.P),  Pitch.P);
-fprintf('POSITION:  %ld \n', mData.POS);
-fprintf('OFFSET:    %ld \n', mData.OFF);
-fprintf('PL Status: %d \n', mData.PLS);
-fprintf('PL Mode:   %d \n', mData.PLM);
+% fprintf('ACC: %16.16X; [%10.3f RPM/s]\n', mData.ACC, bitand(mData.ACC , 0xFFFFFFFF)/ACC_Conversion);
+% fprintf('DEC: %16.16X; [%10.3f RPM/s]\n', mData.DEC, bitand(mData.DEC , 0xFFFFFFFF)/DEC_Conversion);
+% fprintf('  V: %16.16X; [%10.3f RPM]\n',   mData.V, bitshift(mData.V, -32)/  V_Conversion);
+% fprintf('  P: %16.16X; [%10.3f Counts]\n', uint64(mData.P),  Pitch.P);
+% fprintf('POSITION:  %ld \n', mData.POS);
+% fprintf('OFFSET:    %ld \n', mData.OFF);
+% fprintf('PL Status: %d \n', mData.PLS);
+% fprintf('PL Mode:   %d \n', mData.PLM);
 
 % Now Write to the offset register to zero out the reading.
 % write(m,'holdingregs', 290+IOFF, 54484850, 'int64');
 
 % Clear the Modbus Object created.
-clear m
-clear serverId
+clear m;
+clear serverId;
 
 return

@@ -48,7 +48,7 @@ write(m,'holdingregs', 544+IOFF, 1,                'int32'); % MT.MOVE
 
 
 % Clear the Modbus Object created.
-clear m
-clear serverId
+clear m;
+clear serverId;
 
 return
