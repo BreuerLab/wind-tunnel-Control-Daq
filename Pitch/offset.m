@@ -16,13 +16,13 @@ s.DurationInSeconds = 10;
 [bias,~] = s.startForeground;
 for i = 1:6
     offsets(1,i) = mean(bias(:,i));
-    offsets(2,i) = std(bias(:,i))/sqrt(60*1000);    
+    offsets(2,i) = std(bias(:,i))/sqrt(s.Rate*s.DurationInSeconds);    
 end
 
 %Write offsets to file,
 % CaseName = erase(date,'-'); name the case by time stamp
 trial = strcat('offsets_',CaseName);
-csvwrite(trial,offsets);
+csvwrite(trial{1},offsets);
 
 end
 
