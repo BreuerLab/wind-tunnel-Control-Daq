@@ -1,4 +1,4 @@
-function [offsets] = offset(case_name)
+function [offsets] = get_offsets(case_name)
 %Create daq session, 
 s = daq.createSession('ni');
 addAnalogInputChannel(s,'Dev1',0,'Voltage');
