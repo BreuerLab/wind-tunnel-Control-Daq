@@ -85,8 +85,7 @@ addAnalogInputChannel(session,"Dev1",4,"Voltage");
 addAnalogInputChannel(session,"Dev1",5,"Voltage");
 
 % Load the calibration matrix.
-% TODO: Check with Siyang if this is correct.
-load Wallance_Cal;
+load wallance_cal;
 
 % Set the sampling rate. Hz.
 session.Rate = 1000;
@@ -106,7 +105,7 @@ fprintf("Acquiring data.\n");
 raw_volts = all_raw_volts(:, 1:6);
 volts = raw_volts - ones(trial_length * session.Rate, 1) * offsets;
 
-results_sensor_frame = (matrixVals * volts')';
+results_sensor_frame = (cal_matrix * volts')';
 avg_results_sensor_frame = mean(results_sensor_frame);
 
 dcm = angle2dcm(euler_angles(1), euler_angles(2), euler_angles(3));
