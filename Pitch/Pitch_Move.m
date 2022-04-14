@@ -1,4 +1,4 @@
-function Pitch_Move(Pitch)
+function pitch_move(pitch)
 
 % Move according to the structure Pitch
 
@@ -13,10 +13,10 @@ IOFF = 1; % This seems to be necessary to get the addresses correct
 
 
 % Prepare the word for the Modbus
-mbus.ACC = uint64(Pitch.ACC*ACC_Conversion);
-mbus.DEC = uint64(Pitch.DEC*DEC_Conversion);
-mbus.V   = uint32(Pitch.V*V_Conversion);
-mbus.P   =  int32(Pitch.P*P_Conversion);
+mbus.ACC = uint64(pitch.ACC*ACC_Conversion);
+mbus.DEC = uint64(pitch.DEC*DEC_Conversion);
+mbus.V   = uint32(pitch.V*V_Conversion);
+mbus.P   =  int32(pitch.P*P_Conversion);
 
 % fprintf('DEC: %16.16X\n', mbus.DEC);
 % fprintf('ACC: %16.16X\n', mbus.ACC);

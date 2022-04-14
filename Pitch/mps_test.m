@@ -21,7 +21,7 @@ uiwait(...
     "Initalization"));
 
 fprintf("\tHoming the pitch axis.\n");
-Pitch_Home(0);
+pitch_home(0);
 
 case_name = inputdlg("Enter the case name:", "Initalization", [1 50],...
     "trial");
@@ -35,7 +35,7 @@ case_alpha = inputdlg( ...
 case_alpha = str2double(case_alpha{1});
 
 fprintf("\tPitching to appropriate angle of attack.\n");
-Pitch_Home(case_alpha);
+pitch_home(case_alpha);
 pause(5);
 
 taring = questdlg("Is there a taring file?", "Initalization", "Yes",...
