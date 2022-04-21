@@ -20,6 +20,9 @@ debug = true;
 code_path = pwd;
 load wallance_cal;
 
+% Set the number of steps per rotation of the stepper motor.
+steps_per_rot = 3200;
+
 % Specify the flapping frequency (Hz) and number of cycles.
 f = 1;
 num_cycles = 10;
@@ -57,10 +60,15 @@ dmc = fileread(dmc_file_name);
 dmc = string(dmc);
 
 % Replace the place holders in the .dmc file with the values specified
-% here. Be very careful about the order of the placeHolders! Other
-% parameters can be changed directly in .dmc file.
-dmc = strrep(dmc,'placeHolder1',num2str(f));
-dmc = strrep(dmc,'placeHolder2',num2str(num_cycles));
+% here. Other parameters can be changed directly in .dmc file.
+dmc = strrep( ...
+    dmc, ...
+    'speed_placeholder', ...
+    num2str(f * steps_per_rot));
+dmc = strrep( ...
+    dmc, ...
+    'distance_placeholder', ...
+    num2str(num_cycles * steps_per_rot));
 
 % Load the program described by the .dmc file to the Galil device.
 if ~debug
