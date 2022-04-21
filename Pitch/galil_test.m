@@ -20,20 +20,14 @@ debug = true;
 code_path = pwd;
 load wallance_cal;
 
-% ToDo: Identify these variables and their units.
-f = 4;
-c = 1000/1024;
-sigma = 50;
-num_cycles = 50;
-data_site = 3500;
+% Specify the flapping frequency (Hz) and number of cycles.
+f = 1;
+num_cycles = 10;
 
 % Set the DAq samping rate (Hz).
 rate = 1000;
 
 % Calculate the sampling interval for the Galil.
-% ToDo: Check if this equation is correct. Is 1000 supposed to be fs? Where
-% does 2 come from? What are the units?
-sampling_int = ceil(log(1000 * num_cycles/(c * f * data_site)) / log(2));
 run_time_stamp = now();
 
 %% Setup the Galil device
@@ -50,9 +44,6 @@ if ~debug
     galil.address = '';
     model_number = galil.command(strcat(char(18), char(22)));
     disp('Model Number: ' + model_number)
-
-    % ToDo: Determine what this command does.
-    galil.command('SHAB');
 end
 
 % Create the carraige return and linefeed variable from the .dmc file in
@@ -65,10 +56,7 @@ dmc = string(dmc);
 % here. Be very careful about the order of the placeHolders! Other
 % parameters can be changed directly in .dmc file.
 dmc = strrep(dmc,'placeHolder1',num2str(f));
-dmc = strrep(dmc,'placeHolder2',num2str(sampling_int));
-dmc = strrep(dmc,'placeHolder3',num2str(data_site));
-dmc = strrep(dmc,'placeHolder4',num2str(sigma));
-dmc = strrep(dmc,'placeHolder5',num2str(num_cycles));
+dmc = strrep(dmc,'placeHolder2',num2str(num_cycles));
 
 % Load the program described by the .dmc file to the Galil device.
 if ~debug
