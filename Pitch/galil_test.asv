@@ -24,9 +24,7 @@ load wallance_cal;
 f = 1;
 num_cycles = 10;
 
-% Specify how long (s) to continue taking data after the flapping has
-% stopped.
-end_padding = 5;
+% End p
 
 % Set the DAq samping rate (Hz).
 rate = 1000;
@@ -140,6 +138,9 @@ angles = [
     ];
 experiment_name = strjoin(lower(split(experiment_name_raw)), "_");
 
+% ToDo: Determine what this commented out line means.
+% disp('Change fps in PCC!')
+
 % load offset data
 is_offset = questdlg( ...
     "Is there an offset file for this case?", ...
@@ -193,6 +194,7 @@ end
 
 %% Process the Galil data
 
+% ToDo: Determine why, previously, there were 7 channels. 
 % Create DAq session and set its aquisition rate (Hz).
 this_daq = daq('ni');
 this_daq.Rate = rate;
@@ -206,7 +208,10 @@ addInput(this_daq, 'Dev2', 4, 'Voltage');
 addInput(this_daq, 'Dev2', 5, 'Voltage');
 
 % Calculate the duration of each session (s).
-session_duration = ceil(num_cycles / f + end_padding);
+% ToDo: Determine if we should really be rounding by number of cycles here.
+% Can the DAq not handle non-integer durations? Also, where does 5 come
+% from?
+session_duration = round(num_cycles / f + 5);
 
 %% Read in sensor data.
 
@@ -225,14 +230,37 @@ force_vals = cal_matrix * volt_vals(:, 1:6)';
 force_vals = force_vals';
 results = [times force_vals];
 
-%% Clean up
+%% Extract the torque and velocity data from the Galil device.
+tqA = extract_matrix(galil, data_site, 'tqA');
+tqB = extract_matrix(galil, data_site, 'tqB');
+vA = extract_matrix(galil, data_site, 'vA');
+vB = extract_matrix(galil, data_site, 'vB');
+pA = extract_matrix(galil, data_site, 'pA');
+pB = extract_matrix(galil, data_site, 'pB');
 
-% Save the data.
+%% Save the data
 results_file_name = strjoin( ...
     [experiment_name, "results", datestr(now, 'mmddyy')], ...
     "_" ...
     );
 uisave(who, results_file_name);
+
+%% Monitor the force data, trigger timing, and phase average
+
+% ToDo: Determine what the option object is.
+option.verbose = 1;
+
+cd(post_processing_folder_path);
+results_folder_path = data_folder_path + "\" + results_file_name;
+
+% ToDo: Ask Xiaozhou to send me the procFile_v8 function.
+if ~debug
+    procFile_v8(results_folder_path, fc, rate, option);
+end
+
+cd(code_folder_path);
+
+%% Clean up
 
 % Delete all resources for the Galil DMCShell object.
 delete(galil);
