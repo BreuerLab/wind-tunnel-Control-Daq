@@ -1,15 +1,15 @@
 % This script is designed to gather data from the 1 DOF flapper. This
 % script is adapted from twoDoFPVT_v5.m by Xiaozhou Fan.
 
-% Wind Tunnel: AFAM
-% Load Cell: ATI-F/T Gamma IP65
-% DAq: NI
-% DMC: Galil DMC-4020
-% Motor: 
-
 % galil_test.m
 % Cameron Urban
 % 04/12/2022
+
+% Data is read in from the ATI-F/T Gamma IP65 load sensor in AFAM wind
+% tunnel. The sensor outputs six voltages (three corresponding to forces
+% and three corresponding to torques) into a CSV file.
+
+% ToDo: Rename the sections to be more descriptive.
 
 clc;
 clear variables;
@@ -18,8 +18,7 @@ close all;
 %% Collect user input on the experimental setup
 
 % Ask the user to input the name of this experiment, the desired speed of
-% the wind tunnel, the desired angle of attack, the desired flapping
-% frequency, and the number of flaps to execute.
+% the wind tunnel, and the desired angle of attack.
 experiment_name_raw = inputdlg( ...
     "Give this experiment a name.", ...
     "User Input", ...
@@ -37,6 +36,7 @@ alpha_raw = inputdlg( ...
     "User Input", ...
     [1, 50], ...
     "0.0");
+
 flapping_frequency_raw = inputdlg( ...
     "Input the desired flapping frequency (Hz).", ...
     "User Input", ...
@@ -62,8 +62,8 @@ is_offset = questdlg( ...
 experiment_name = strjoin(lower(split(experiment_name_raw)), "_");
 freestream_speed = str2double(freestream_speed_raw);
 angles = [0, str2double(alpha_raw), 0];
-flapping_frequency = str2double(flapping_frequency_raw);
-num_cycles = round(str2double(num_cyles_raw));
+flapping_frequency = round(str2double(flapping_frequency_raw));
+num
 
 %% Initalize the experiment
 
@@ -77,6 +77,10 @@ code_path = pwd;
 
 % Set the number of steps per rotation of the stepper motor.
 steps_per_rot = 3200;
+
+% Specify the flapping frequency (Hz) and number of cycles.
+f = 1;
+num_cycles = 10;
 
 % Specify how long (s) to continue taking data after the flapping has
 % stopped.
@@ -112,7 +116,7 @@ dmc = string(dmc);
 dmc = strrep( ...
     dmc, ...
     'speed_placeholder', ...
-    num2str(flapping_frequency * steps_per_rot));
+    num2str(f * steps_per_rot));
 dmc = strrep( ...
     dmc, ...
     'distance_placeholder', ...
@@ -213,7 +217,7 @@ addInput(this_daq, 'Dev2', 4, 'Voltage');
 addInput(this_daq, 'Dev2', 5, 'Voltage');
 
 % Calculate the duration of each session (s).
-session_duration = ceil(num_cycles / flapping_frequency + end_padding);
+session_duration = ceil(num_cycles / f + end_padding);
 
 %% Begin the experiment and record data
 
