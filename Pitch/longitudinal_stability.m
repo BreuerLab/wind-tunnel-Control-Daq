@@ -30,6 +30,11 @@ steps_per_rot = 3200;
 % Set the DAq samping rate (Hz).
 rate = 1000;
 
+% If not debugging, home the MPS to 0 degrees.
+if ~debug
+    pitch_home(0)
+end
+
 %% Collect user input on the experimental setup
 
 % Ask the user to input the name of this experiment, the desired speed of
@@ -183,30 +188,56 @@ session_duration = ceil(num_cycles / flapping_frequency);
 % Save the time data began being recorded.
 run_time_stamp = now();
 
-if ~debug
+angles = min_alpha:max_alpha;
+[~, num_angles] = size(angles);
 
-    % Start the DAq session and read the data.
-    this_daq.start;
-    [volt_vals, times] = read(this_daq, seconds(session_duration));
+raw_data = cell(num_angles, 1);
 
-    % Command the galil to execute the program.
-    galil.command("XQ");
+angle_id = 1;
+
+for angle=angles
+    if ~debug
+
+        % Move the MPS to this angle
+        pitch_home(angle);
+    
+        % Start the DAq session and read the data.
+        this_daq.start;
+        these_raw_data = read(this_daq, seconds(session_duration));
+
+        % Command the galil to execute the program.
+        galil.command("XQ");
+
+        raw_data{angle_id, 1} = these_raw_data;
+    end
+
+    angle_id = angle_id + 1;
 end
 
 %% Process the data
-if ~debug
-    recording_size = size(volt_vals);
-    num_recordings = recording_size(1);
+results = cell(num_angles, 1);
 
-    offsets_matrix = ones(num_recordings, 1) * offsets;
+for angle_id = 1:num_angles
+    if ~debug
+        
+        [volt_vals, times] = raw_data{angle_id, 1};
 
-    % Offset the data and multiply by the calibration matrix.
-    volt_vals = volt_vals(:, 1:6) - offsets_matrix;
-    force_vals = cal_matrix * volt_vals';
-
-    % Transpose the forces and store them (with the times) as the results.
-    force_vals = force_vals';
-    results = [times force_vals];
+        recording_size = size(volt_vals);
+        num_recordings = recording_size(1);
+    
+        offsets_matrix = ones(num_recordings, 1) * offsets;
+    
+        % Offset the data and multiply by the calibration matrix.
+        volt_vals = volt_vals(:, 1:6) - offsets_matrix;
+        force_vals = cal_matrix * volt_vals';
+    
+        % Transpose the forces and store them (with the times) as the
+        % results.
+        force_vals = force_vals';
+        these_results = [times force_vals];
+        
+        results{angle_id, 1} = these_results;
+    end
 end
 
 %% Clean up
@@ -217,11 +248,16 @@ if ~debug
 
     % Clear the DAq object.
     clear this_daq;
+
+    % Home the MPS to 0 degrees.
+    pitch_home(0);
 end
 
 % Delete unecessary variables.
 clear alpha_max_raw
 clear alpha_min_raw
+clear angles
+clear angle_id
 clear code_path
 clear dmc_file_name
 clear experiment_name_raw
