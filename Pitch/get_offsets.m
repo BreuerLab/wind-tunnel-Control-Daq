@@ -1,30 +1,33 @@
-function [offsets] = get_offsets(case_name)
+% TODO: Update this method's documentation.
 
-%Create daq session,
-s = daq.createSession('ni');
-addAnalogInputChannel(s,'Dev1',0,'Voltage');
-addAnalogInputChannel(s,'Dev1',1,'Voltage');
-addAnalogInputChannel(s,'Dev1',2,'Voltage');
-addAnalogInputChannel(s,'Dev1',3,'Voltage');
-addAnalogInputChannel(s,'Dev1',4,'Voltage');
-addAnalogInputChannel(s,'Dev1',5,'Voltage');
+function [offsets] = get_offsets(case_name, rate, session_duration)
 
-%Get offsets for current trial
-%Select rate and duration for bias averaging
-s.Rate = 1000;
-s.DurationInSeconds = 1;
-[bias,~] = s.startForeground;
+% Create DAq session.
+offsets_daq = daq("ni");
+
+offsets_daq.addinput("Dev1", 0, "Voltage");
+offsets_daq.addinput("Dev1", 1, "Voltage");
+offsets_daq.addinput("Dev1", 2, "Voltage");
+offsets_daq.addinput("Dev1", 3, "Voltage");
+offsets_daq.addinput("Dev1", 4, "Voltage");
+offsets_daq.addinput("Dev1", 5, "Voltage");
+
+offsets_daq.Rate = rate;
+
+% Get offsets for current trial.
+offsets_daq.start;
+[bias, ~] = read(offsets_daq, seconds(session_duration));
 
 % Preallocate an array to hold the offsets.
 offsets = zeros(2, 6);
 
 for i = 1:6
-    offsets(1,i) = mean(bias(:,i));
-    offsets(2,i) = std(bias(:,i))/sqrt(s.Rate*s.DurationInSeconds);
+    offsets(1, i) = mean(bias(:, i));
+    offsets(2, i) = std(bias(:, i)) / sqrt(rate * session_duration);
 end
 
-%Write offsets to file,
+% Write the offsets to a CSV file.
 trial = "offsets_" + case_name + ".csv";
-csvwrite(trial,offsets);
+writematrix(offsets, trial);
 
 end
