@@ -61,7 +61,7 @@ flapping_frequency_raw = inputdlg( ...
     [1, 50], ...
     "1.0" ...
     );
-num_cyles_raw = inputdlg( ...
+num_cycles_raw = inputdlg( ...
     "Input the desired number of flaps to execute.", ...
     "User Input", ...
     [1, 50], ...
@@ -81,7 +81,7 @@ experiment_name = strjoin(lower(split(experiment_name_raw)), "_");
 freestream_speed = str2double(freestream_speed_raw);
 angles = [0, str2double(alpha_raw), 0];
 flapping_frequency = str2double(flapping_frequency_raw);
-num_cycles = round(str2double(num_cyles_raw));
+num_cycles = round(str2double(num_cycles_raw));
 
 %% Setup the Galil DMC
 
@@ -124,7 +124,7 @@ switch is_offset
         offsets_file_name = uigetfile( ...
             "*.mat", ...
             "Select the offsets file.", ...
-            "offsets_test.mat"...
+            "test_offsets.mat"...
             );
         offsets = readmatrix(offsets_file_name);
     otherwise
@@ -195,10 +195,14 @@ end
 %% Process the data
 
 if ~debug
+    recording_size = size(volt_vals);
+    num_recordings = recording_size(1);
+
+    offsets_matrix = ones(num_recordings, 1) * offsets;
+
     % Offset the data and multiply by the calibration matrix.
-    volt_vals = volt_vals(:, 1:6) - ones(session_duration * rate, 1) *...
-        offsets;
-    force_vals = cal_matrix * volt_vals(:, 1:6)';
+    volt_vals = volt_vals(:, 1:6) - offsets_matrix;
+    force_vals = cal_matrix * volt_vals';
     
     % Transpose the forces and store them (with the times) as the results.
     force_vals = force_vals';
@@ -223,7 +227,7 @@ clear end_padding
 clear experiment_name_raw
 clear flapping_frequency_raw
 clear freestream_speed_raw
-clear num_cycle_raw
+clear num_cycles_raw
 clear offset_duration_raw
 clear results_file_name
 clear session_duration
