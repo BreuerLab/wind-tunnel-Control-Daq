@@ -1,3 +1,4 @@
+% TODO: Document this function.
 function pitch_move(pitch)
 
 % Move according to the structure Pitch

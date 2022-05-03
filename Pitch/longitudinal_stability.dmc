@@ -1,0 +1,44 @@
+'This is a simple DMC script to run the 1-DOF flapper at f Hz for n flaps.
+'This code is executed by a seperate MATLAB file that will replace the
+'placeholder variables.
+
+'Controller:
+'Galil DMC-4020
+
+'Motor:
+'VEXTA PH266-E1.2 stepper motor
+
+'Configuration:
+'The motor is connected to axis 2. Its encoder is disconnected. 
+
+'Other Equipment:
+'1-DOF Flapper
+
+'Autor: Cameron Urban
+'Date: 04/21/2022
+
+`Stop the motors and then turn them off.
+ST
+MO
+
+'Turn on motor B, and configure its type, microstepping, and accelerations.
+SHB
+MTB=-2
+YAB=16
+ACB=120000
+DCB=120000
+
+'Set the motor B speed to f Hz, and tell it to run for n rotations.
+SPB=speed_placeholder
+PRB=distance_placeholder
+
+'Begin the motor B motion and wait for it to complete.
+BGB
+AMB
+
+'Stop motor B, and then turn it off.
+STB
+MOB
+
+'End the program.
+EN

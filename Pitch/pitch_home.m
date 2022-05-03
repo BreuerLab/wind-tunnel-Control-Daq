@@ -1,3 +1,4 @@
+% TODO: Document this function.
 function pitch_home(target)
 pause('on');
 P.ACC = 1000;   % rpm/s

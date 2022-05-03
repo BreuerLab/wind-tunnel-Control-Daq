@@ -39,7 +39,7 @@ experiment_name_raw = inputdlg( ...
     "Give this experiment a name.", ...
     "User Input", ...
     [1, 50], ...
-    "trial" ...
+    "longitudinal_stability" ...
     );
 freestream_speed_raw = inputdlg( ...
     "Input the freestream speed (m/s).", ...
@@ -71,7 +71,7 @@ num_cycles_raw = inputdlg( ...
 
 % Ask the user to select the .dmc file.
 dmc_file_name = uigetfile("*.dmc", "Select the DMC file.",...
-    "galil_test.dmc");
+    "longitudinal_stability.dmc");
 
 % Ask if there is already an offset file for this experiment
 pre_existing_offsets = questdlg( ...
@@ -126,9 +126,9 @@ end
 switch pre_existing_offsets
     case "Yes"
         offsets_file_name = uigetfile( ...
-            "*.mat", ...
+            "*.csv", ...
             "Select the offsets file.", ...
-            "trial_offsets.mat"...
+            "longitudinal_stability_offsets_05032022.csv"...
             );
         offsets = readmatrix(offsets_file_name);
     otherwise
@@ -144,15 +144,10 @@ switch pre_existing_offsets
             "30.0" ...
             );
         offset_duration = str2double(offset_duration_raw);
-        
-        fprintf("The offset file is generating. " +...
-            "This will take %4.1f seconds.\n", offset_duration);
-        
+
         if ~debug
             offsets = get_offsets(experiment_name, rate, offset_duration);
         end
-        
-        disp("The offset file is complete.");
 end
 
 if ~debug
@@ -161,7 +156,7 @@ end
 
 if freestream_speed ~= 0
     uiwait(warndlg("Command the wind tunnel to run at the desired " + ...
-        "speed. Click OK once the speed has stabilized.", "User Input"));
+        "speed. Click OK once the speed has stabilized.", "Information"));
 end
 
 %% Set up the DAq
@@ -170,7 +165,7 @@ if ~debug
     % Create DAq session and set its aquisition rate (Hz).
     this_daq = daq("ni");
     this_daq.Rate = rate;
-    
+
     % Add the input channels.
     this_daq.addinput("Dev1", 0, "Voltage");
     this_daq.addinput("Dev1", 1, "Voltage");
@@ -189,16 +184,16 @@ session_duration = ceil(num_cycles / flapping_frequency);
 run_time_stamp = now();
 
 if ~debug
+
     % Start the DAq session and read the data.
     this_daq.start;
     [volt_vals, times] = read(this_daq, seconds(session_duration));
-    
+
     % Command the galil to execute the program.
     galil.command("XQ");
 end
 
 %% Process the data
-
 if ~debug
     recording_size = size(volt_vals);
     num_recordings = recording_size(1);
@@ -208,7 +203,7 @@ if ~debug
     % Offset the data and multiply by the calibration matrix.
     volt_vals = volt_vals(:, 1:6) - offsets_matrix;
     force_vals = cal_matrix * volt_vals';
-    
+
     % Transpose the forces and store them (with the times) as the results.
     force_vals = force_vals';
     results = [times force_vals];
@@ -219,7 +214,7 @@ end
 if ~debug
     % Delete all resources for the Galil DMCShell object.
     delete(galil);
-    
+
     % Clear the DAq object.
     clear this_daq;
 end
@@ -238,14 +233,11 @@ clear num_recordings
 clear offset_duration_raw
 clear offsets_matrix
 clear recording_size
-clear results_file_name
 clear session_duration
 clear steps_per_rot
 clear volt_vals
 
 % Save the data.
-results_file_name = strjoin( ...
-    [experiment_name, "results", datestr(now, "mmddyy")], ...
-    "_" ...
+uisave(who,...
+    strjoin([experiment_name, "results", datestr(now, "mmddyy")], "_")...
     );
-uisave(who, results_file_name);
