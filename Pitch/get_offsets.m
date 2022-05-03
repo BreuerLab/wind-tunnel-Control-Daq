@@ -26,8 +26,8 @@ for i = 1:6
     offsets(2, i) = std(bias(:, i)) / sqrt(rate * session_duration);
 end
 
-% Write the offsets to a CSV file.
-trial = "offsets_" + case_name + ".csv";
+% Write the offsets to a MAT file.
+trial = case_name + "_offsets.mat";
 writematrix(offsets, trial);
 
 end

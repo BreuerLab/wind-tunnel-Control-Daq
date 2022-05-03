@@ -5,7 +5,7 @@
 % Load Cell: ATI-F/T Gamma IP65
 % DAq: NI
 % DMC: Galil DMC-4020
-% Motor: 
+% Motor: VEXTA PH266-E1.2 stepper motor
 
 % galil_test.m
 % Cameron Urban
@@ -122,9 +122,9 @@ end
 switch is_offset
     case "Yes"
         offsets_file_name = uigetfile( ...
-            "*.csv", ...
-            "Select the offsets file." ...
-            "offsets_test.csv"...
+            "*.mat", ...
+            "Select the offsets file.", ...
+            "offsets_test.mat"...
             );
         offsets = readmatrix(offsets_file_name);
     otherwise
@@ -144,7 +144,7 @@ switch is_offset
             "This will take %4.1f seconds.\n", offset_duration);
         
         if ~debug
-            offsets = get_offsets(experiment_name);
+            offsets = get_offsets(experiment_name, rate, offset_duration);
         end
         
         disp("The offset file is complete.");

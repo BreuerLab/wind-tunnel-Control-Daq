@@ -6,7 +6,7 @@
 % Load Cell: ATI-F/T Gamma IP65
 % DAq: NI
 % DMC: Galil DMC-4020
-% Motor: 
+% Motor: VEXTA PH266-E1.2 stepper motor
 
 % longitudinal_stability.m
 % Cameron Urban
@@ -33,7 +33,7 @@ rate = 1000;
 %% Collect user input on the experimental setup
 
 % Ask the user to input the name of this experiment, the desired speed of
-% the wind tunnel, the desired angle of attack, the desired flapping
+% the wind tunnel, the desired angles of attack, the desired flapping
 % frequency, and the number of flaps to execute.
 experiment_name_raw = inputdlg( ...
     "Give this experiment a name.", ...
@@ -69,6 +69,10 @@ num_cyles_raw = inputdlg( ...
     [1, 50], ...
     "10");
 
+% Ask the user to select the .dmc file.
+dmc_file_name = uigetfile("*.dmc", "Select the DMC file.",...
+    "galil_test.dmc");
+
 % Ask if there is already an offset file for this experiment
 is_offset = questdlg( ...
     "Is there an offset file for this experiment?", ...
@@ -98,10 +102,7 @@ if ~debug
     model_number = galil.command(strcat(char(18), char(22)));
 end
 
-% Create the carraige return and linefeed variable from the .dmc file in
-% this directory.
-dmc_file_name = uigetfile("*.dmc", "Select the DMC file.",...
-    "galil_test.dmc");
+% Create the carraige return and linefeed variable from the .dmc file.
 dmc = fileread(dmc_file_name);
 dmc = string(dmc);
 
@@ -147,7 +148,7 @@ switch is_offset
             "This will take %4.1f seconds.\n", offset_duration);
         
         if ~debug
-            offsets = get_offsets(experiment_name);
+            offsets = get_offsets(experiment_name, rate, offset_duration);
         end
         
         disp("The offset file is complete.");
