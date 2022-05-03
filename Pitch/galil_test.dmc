@@ -17,21 +17,16 @@
 'Autor: Cameron Urban
 'Date: 04/21/2022
 
-'Stop the motors, turn them off, and then reset the controller.
+`Stop the motors and then turn them off.
 ST
 MO
-RS
 
-`Stop motor A, and then turn it off.
-STA
-MOA
-
-'Configure the motor B type, microstepping, and accelerations.
+'Turn on motor B, and configure its type, microstepping, and accelerations.
+SHB
 MTB=-2
 YAB=16
 ACB=120000
 DCB=120000
-
 
 'Set the motor B speed to f Hz, and tell it to run for n rotations.
 SPB=speed_placeholder
