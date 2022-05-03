@@ -11,19 +11,17 @@
 % Cameron Urban
 % 04/12/2022
 
+%% Initalize the experiment
 clc;
 clear variables;
 close all;
 
-%% Initalize the experiment
-
 % Set debug to false if you are connected to all the equipment or running a
 % real experiment.
-debug = false;
+debug = true;
 
-% Load data from the calibration matrix and save the current path.
+% Load data from the calibration matrix.
 load wallance_cal;
-code_path = pwd;
 
 % Set the number of steps per rotation of the stepper motor.
 steps_per_rot = 3200;
@@ -75,7 +73,7 @@ is_offset = questdlg( ...
     "User Input", ...
     "Yes", ...
     "No", ...
-    "Yes" ...
+    "No" ...
     );
 
 % Sanitize and process the user inputs.
@@ -89,21 +87,18 @@ num_cycles = round(str2double(num_cyles_raw));
 
 if ~debug
     % Connect to the Galil device.
-    galil = actxserver('galil');
-
-    % Display the Galil's library version.
-    disp("Library Version: " + string(galil.libraryVersion));
+    galil = actxserver("galil");
 
     % Open the connections dialog box and send ^R^V to query the
     % controller's model number. Then, display the response.
-    galil.address = '';
+    galil.address = "";
     model_number = galil.command(strcat(char(18), char(22)));
-%     disp('Model Number: ' + model_number)
 end
 
 % Create the carraige return and linefeed variable from the .dmc file in
 % this directory.
-dmc_file_name = uigetfile("*.dmc", "Select the DMC file.");
+dmc_file_name = uigetfile("*.dmc", "Select the DMC file.",...
+    "galil_test.dmc");
 dmc = fileread(dmc_file_name);
 dmc = string(dmc);
 
@@ -111,11 +106,11 @@ dmc = string(dmc);
 % here. Other parameters can be changed directly in .dmc file.
 dmc = strrep( ...
     dmc, ...
-    'speed_placeholder', ...
+    "speed_placeholder", ...
     num2str(flapping_frequency * steps_per_rot));
 dmc = strrep( ...
     dmc, ...
-    'distance_placeholder', ...
+    "distance_placeholder", ...
     num2str(num_cycles * steps_per_rot));
 
 % Load the program described by the .dmc file to the Galil device.
@@ -129,6 +124,7 @@ switch is_offset
         offsets_file_name = uigetfile( ...
             "*.csv", ...
             "Select the offsets file." ...
+            "offsets_test.csv"...
             );
         offsets = readmatrix(offsets_file_name);
     otherwise
@@ -144,7 +140,8 @@ switch is_offset
             );
         offset_duration = str2double(offset_duration_raw);
         
-        fprintf("The offset file is generating. This will take %4.1f seconds.\n", offset_duration);
+        fprintf("The offset file is generating. " +...
+            "This will take %4.1f seconds.\n", offset_duration);
         
         if ~debug
             offsets = get_offsets(experiment_name);
@@ -166,16 +163,16 @@ end
 
 if ~debug
     % Create DAq session and set its aquisition rate (Hz).
-    this_daq = daq('ni');
+    this_daq = daq("ni");
     this_daq.Rate = rate;
     
     % Add the input channels.
-    this_daq.addinput('Dev1', 0, 'Voltage');
-    this_daq.addinput('Dev1', 1, 'Voltage');
-    this_daq.addinput('Dev1', 2, 'Voltage');
-    this_daq.addinput('Dev1', 3, 'Voltage');
-    this_daq.addinput('Dev1', 4, 'Voltage');
-    this_daq.addinput('Dev1', 5, 'Voltage');
+    this_daq.addinput("Dev1", 0, "Voltage");
+    this_daq.addinput("Dev1", 1, "Voltage");
+    this_daq.addinput("Dev1", 2, "Voltage");
+    this_daq.addinput("Dev1", 3, "Voltage");
+    this_daq.addinput("Dev1", 4, "Voltage");
+    this_daq.addinput("Dev1", 5, "Voltage");
 end
 
 % Calculate the duration of each session (s).
@@ -192,14 +189,15 @@ if ~debug
     [volt_vals, times] = read(this_daq, seconds(session_duration));
     
     % Command the galil to execute the program.
-    galil.command('XQ');
+    galil.command("XQ");
 end
 
 %% Process the data
 
 if ~debug
     % Offset the data and multiply by the calibration matrix.
-    volt_vals = volt_vals(:, 1:6) - ones(session_duration * rate, 1) * offsets;
+    volt_vals = volt_vals(:, 1:6) - ones(session_duration * rate, 1) *...
+        offsets;
     force_vals = cal_matrix * volt_vals(:, 1:6)';
     
     % Transpose the forces and store them (with the times) as the results.
@@ -217,16 +215,23 @@ if ~debug
     clear this_daq;
 end
 
+% Delete unecessary variables.
+clear alpha_raw
+clear code_path
+clear dmc_file_name
+clear end_padding
+clear experiment_name_raw
+clear flapping_frequency_raw
+clear freestream_speed_raw
+clear num_cycle_raw
+clear offset_duration_raw
+clear results_file_name
+clear session_duration
+clear steps_per_rot
+
 % Save the data.
 results_file_name = strjoin( ...
-    [experiment_name, "results", datestr(now, 'mmddyy')], ...
+    [experiment_name, "results", datestr(now, "mmddyy")], ...
     "_" ...
     );
 uisave(who, results_file_name);
-
-% Change the current folder to the folder of this m-file. Check if this
-% script is being run within MATLAB or an external application. If it's
-% within MATLAB, move to the folder where this script is saved.
-if ~isdeployed
-    cd(fileparts(which(mfilename)));
-end
