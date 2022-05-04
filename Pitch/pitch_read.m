@@ -1,40 +1,48 @@
-% TODO: Document this function.
+% This function reads the current state of the MPS pitch axis. It returns
+% as structure (pitch) with five fields (ACC, DCC, V, P, POS) that have
+% units of RPM/s, RPM/s, RPM, counts, and steps respectively.
+
+% Wind Tunnel: AFAM with MPS
+
+% pitch_read.m
+% Siyang Hao, Cameron Urban
+% 05/04/2022
+
 function pitch = pitch_read
 
-% Conversion factors:
-ACC_Conversion = 17476.3; % to RPM/sec
-DEC_Conversion = 17476.3; % to RPM/sec
-V_Conversion = 17476.3; % to RPM
-P_Conversion = 16.0;    % to counts (still need to convert to degrees)
+% TODO: Determine what units these are converting from.
+% Create conversion variables (to_rpm_per_s, to_rpm, steps_per_count). 
+to_rpm_per_s = 17476.3;
+to_rpm = 17476.3;
+steps_per_count = 16.0;
 
-% Create a Modbus Object.
-m = modbus("tcpip", "192.168.1.202");
-mData.Timeout = 3;
-serverId = 1;
+% Create a modbus object, a variable to hold the server's ID, and an
+% address offset variable.
+this_bus = modbus("tcpip", "192.168.1.202");
+server_id = 1;
+offset = 1;
 
-IOFF = 1; % This seems to be necessary to get the addresses correct
+% Read data from the modbus.
+bus_data.ACC = read(this_bus, "holdingregs", 526 + offset, 1, server_id,...
+    "uint64"); 
+bus_data.DEC = read(this_bus, "holdingregs", 536 + offset, 1, server_id,...
+    "uint64");
+bus_data.P   = read(this_bus, "holdingregs", 552 + offset, 1, server_id,...
+    "int32");
+bus_data.V   = read(this_bus, "holdingregs", 566 + offset, 1, server_id,...
+    "int64");
+bus_data.POS = read(this_bus, "holdingregs", 588 + offset, 1, server_id,...
+    "int64");
 
-% Read from the modbus: 
-mData.OFF = read(m, "holdingregs", 290+IOFF, 1, serverId, "uint64");
-mData.ACC = read(m, "holdingregs", 526+IOFF, 1, serverId, "uint64"); 
-mData.DEC = read(m, "holdingregs", 536+IOFF, 1, serverId, "uint64");
-mData.P   = read(m, "holdingregs", 552+IOFF, 1, serverId, "int32");
-mData.V   = read(m, "holdingregs", 566+IOFF, 1, serverId, "int64");
-mData.POS = read(m, "holdingregs", 588+IOFF, 1, serverId, "int64");
-mData.PLS = read(m, "holdingregs", 618+IOFF, 1, serverId, "int32");
-mData.PLM = read(m, "holdingregs", 620+IOFF, 1, serverId, "int32");
+% TODO: Find the difference between bus_data.P and bus_data.POS.
+% Convert the modbus data and save it to the structure.
+pitch.ACC = bitand(bus_data.ACC , 0xFFFFFFFF) / to_rpm_per_s;
+pitch.DEC = bitand(bus_data.DEC , 0xFFFFFFFF) / to_rpm_per_s;
+pitch.V   = bitshift(bus_data.V, -32) / to_rpm;
+pitch.P   = int32(bus_data.P / steps_per_count);
+pitch.POS = bus_data.POS;
 
-pitch.ACC = bitand(mData.ACC , 0xFFFFFFFF)/ACC_Conversion;
-pitch.DEC = bitand(mData.DEC , 0xFFFFFFFF)/DEC_Conversion;
-pitch.V   = bitshift(mData.V, -32)/  V_Conversion;
-pitch.P   = int32(mData.P /  P_Conversion);
-pitch.POS = mData.POS;
-pitch.OFF = mData.OFF;
-pitch.PLS = mData.PLS;  % Limit switch status
-pitch.PLM = mData.PLM;  % Limit switch mode
-
-% Clear the Modbus Object created.
-clear m;
-clear serverId;
+% Delete the modbus object we created.
+clear this_bus;
 
 return

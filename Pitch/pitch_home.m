@@ -17,7 +17,7 @@ mps_pitch_state = pitch_read;
 
 % Create a structure (motion_struct) with fields (ACC, DEC, and V) that
 % hold reasonable values for the motion of the MPS. The units are RPM/s,
-% RPM/s, and RPS respectively.
+% RPM/s, and RPM respectively.
 motion_struct.ACC = 1000;
 motion_struct.DEC = 1000;
 motion_struct.V   = 100;
