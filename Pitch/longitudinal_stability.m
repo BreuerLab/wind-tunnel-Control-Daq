@@ -75,7 +75,6 @@ num_cycles = round(str2double(num_cycles_raw));
 pre_existing_offsets = strcmp(pre_existing_offsets, "True");
 
 %% Setup the Galil DMC
-
 if ~debug
     % Connect to the Galil device.
     galil = actxserver("galil");
@@ -128,7 +127,6 @@ if freestream_speed ~= 0
 end
 
 %% Set up the DAq
-
 if ~debug
     % Create DAq session and set its aquisition rate (Hz).
     this_daq = daq("ni");
@@ -204,7 +202,6 @@ for angle_id = 1:num_angles
 end
 
 %% Clean up
-
 if ~debug
     % Delete all resources for the Galil DMCShell object.
     delete(galil);
@@ -237,6 +234,6 @@ clear session_duration
 clear steps_per_rot
 clear volt_vals
 
-% Save the data.
+% Save the non-deleted variables to a MAT file.
 uisave(who,...
     strjoin([experiment_name, "results", datestr(now, "mmddyy")], "_"));
