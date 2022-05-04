@@ -79,11 +79,6 @@ pre_existing_offsets = strcmp(pre_existing_offsets, "True");
 if ~debug
     % Connect to the Galil device.
     galil = actxserver("galil");
-
-    % Open the connections dialog box and send ^R^V to query the
-    % controller's model number. Then, display the response.
-    galil.address = "";
-    model_number = galil.command(strcat(char(18), char(22)));
 end
 
 % Create the carraige return and linefeed variable from the .dmc file.
