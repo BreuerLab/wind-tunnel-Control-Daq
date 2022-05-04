@@ -12,13 +12,14 @@ function pitch = pitch_read
 
 % TODO: Determine what units these are converting from.
 % Create conversion variables (to_rpm_per_s, to_rpm, steps_per_count). 
-to_rpm_per_s = 17476.3;
-to_rpm = 17476.3;
+mps_to_rpm_per_s = 1 / 17476.3;
+mps_to_rpm = 1 / 17476.3;
 steps_per_count = 16.0;
 
 % Create a modbus object, a variable to hold the server's ID, and an
 % address offset variable.
 this_bus = modbus("tcpip", "192.168.1.202");
+this_bus.Timeout = 3;
 server_id = 1;
 offset = 1;
 
@@ -36,9 +37,9 @@ bus_data.POS = read(this_bus, "holdingregs", 588 + offset, 1, server_id,...
 
 % TODO: Find the difference between bus_data.P and bus_data.POS.
 % Convert the modbus data and save it to the structure.
-pitch.ACC = bitand(bus_data.ACC , 0xFFFFFFFF) / to_rpm_per_s;
-pitch.DEC = bitand(bus_data.DEC , 0xFFFFFFFF) / to_rpm_per_s;
-pitch.V   = bitshift(bus_data.V, -32) / to_rpm;
+pitch.ACC = bitand(bus_data.ACC , 0xFFFFFFFF) * mps_to_rpm_per_s;
+pitch.DEC = bitand(bus_data.DEC , 0xFFFFFFFF) * mps_to_rpm_per_s;
+pitch.V   = bitshift(bus_data.V, -32) * mps_to_rpm;
 pitch.P   = int32(bus_data.P / steps_per_count);
 pitch.POS = bus_data.POS;
 
