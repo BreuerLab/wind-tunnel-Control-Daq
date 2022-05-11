@@ -52,7 +52,6 @@ new_state = pitch_read;
 new_state_pos = new_state.POS;
 
 diff = abs(last_state_pos - new_state_pos);
-disp(diff);
 
 % Continue waiting until the new state's positoin and the last state's
 % position haven't changed more than 350 steps (determined to be the 99%
@@ -64,8 +63,6 @@ while diff > 350
     new_state_pos = new_state.POS;
     
     diff = abs(last_state_pos - new_state_pos);
-    disp(diff);
-    disp("");
 end
 
 beep

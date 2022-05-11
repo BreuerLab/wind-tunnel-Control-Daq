@@ -87,7 +87,6 @@ dmc = strrep(dmc, "speed_placeholder",...
 dmc = strrep(dmc, "distance_placeholder",...
     num2str(num_cycles * steps_per_rot));
 
-
 if ~debug
     % Connect to the Galil device.
     galil = actxserver("galil");

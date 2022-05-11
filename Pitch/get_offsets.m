@@ -16,14 +16,17 @@ offsets_daq.Rate = rate;
 
 % Get the offsets for current trial.
 offsets_daq.start;
-[bias, ~] = read(offsets_daq, seconds(session_duration));
+[bias_timetable, ~] = read(offsets_daq, seconds(session_duration));
+
+bias_table = timetable2table(bias_timetable);
+bias_array = table2array(bias_table(:,2:7));
 
 % Preallocate an array to hold the offsets.
 offsets = zeros(2, 6);
 
 for i = 1:6
-    offsets(1, i) = mean(bias(:, i));
-    offsets(2, i) = std(bias(:, i)) / sqrt(rate * session_duration);
+    offsets(1, i) = mean(bias_array(:, i));
+    offsets(2, i) = std(bias_array(:, i)) / sqrt(rate * session_duration);
 end
 
 % Write the offsets to a .csv file.
