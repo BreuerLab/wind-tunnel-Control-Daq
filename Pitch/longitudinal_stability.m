@@ -152,7 +152,7 @@ run_time_stamp = now();
 angles = min_alpha:max_alpha;
 [~, num_angles] = size(angles);
 
-raw_data = cell(num_angles, 1);
+raw_data = cell(num_angles, 2);
 
 angle_id = 1;
 
@@ -171,7 +171,16 @@ for angle=angles
         % Read the data from this DAq session.
         these_raw_data = read(this_daq, seconds(session_duration));
         
-        raw_data{angle_id, 1} = these_raw_data;
+        these_raw_data_table = timetable2table(these_raw_data);
+        
+        these_raw_data_table_times = these_raw_data_table(:, 1);
+        these_raw_data_table_volt_vals = these_raw_data_table(:, 2:7);
+        
+        these_raw_times = seconds(table2array(these_raw_data_table_times));
+        these_raw_volt_vals = table2array(these_raw_data_table_volt_vals);
+        
+        raw_data{angle_id, 1} = these_raw_times;
+        raw_data{angle_id, 2} = these_raw_volt_vals;
     end
 
     angle_id = angle_id + 1;
@@ -182,8 +191,9 @@ results = cell(num_angles, 1);
 
 for angle_id = 1:num_angles
     if ~debug
-
-        [volt_vals, times] = raw_data{angle_id, 1};
+           
+        times = raw_data{angle_id, 1};
+        volt_vals = raw_data{angle_id, 2};
 
         recording_size = size(volt_vals);
         num_recordings = recording_size(1);
@@ -227,13 +237,24 @@ clear experiment_name_raw
 clear flapping_frequency_raw
 clear force_vals
 clear freestream_speed_raw
+clear num_angles
+clear num_cycles
 clear num_cycles_raw
 clear num_recordings
 clear offset_duration_raw
 clear offsets_matrix
+clear raw_data
 clear recording_size
 clear session_duration
 clear steps_per_rot
+clear these_raw_data
+clear these_raw_data_table
+clear these_raw_data_table_times
+clear these_raw_data_table_volt_vals
+clear these_raw_times
+clear these_raw_volt_vals
+clear these_results
+clear times
 clear volt_vals
 
 % Save the non-deleted variables to a MAT file.
