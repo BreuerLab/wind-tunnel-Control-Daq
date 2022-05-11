@@ -26,9 +26,6 @@ load wallance_cal;
 % Set the number of steps per rotation of the stepper motor.
 steps_per_rot = 3200;
 
-% Set the DAq samping rate (Hz).
-rate = 1000;
-
 % If not debugging, home the MPS to 0 degrees.
 if ~debug
     pitch_home(0)
@@ -45,16 +42,16 @@ freestream_speed_raw = inputdlg("Input the freestream speed (m/s).",...
     "User Input", [1, 50], "5.0");
 alpha_min_raw = inputdlg(...
     "Input the desired minimum angle of attack (deg).", "User Input",...
-    [1, 50], "-5.0");
+    [1, 50], "-10.0");
 alpha_max_raw = inputdlg(...
     "Input the desired maximum angle of attack (deg).", "User Input",...
-    [1, 50], "5.0");
+    [1, 50], "10.0");
 flapping_frequency_raw = inputdlg(...
     "Input the desired flapping frequency (Hz).", "User Input", [1, 50],...
-    "2.0");
+    "1.0");
 num_cycles_raw = inputdlg(...
     "Input the desired number of flaps to execute.", "User Input",...
-    [1, 50], "5");
+    [1, 50], "12");
 
 % Ask the user to select the .dmc file.
 dmc_file_name = uigetfile("*.dmc", "Select the DMC file.",...
@@ -97,6 +94,10 @@ if ~debug
 end
 
 %% Get offset data for this experiment
+
+% Set the DAq samping rate (Hz).
+rate = 100 * flapping_frequency;
+
 if pre_existing_offsets
     offsets_file_name = uigetfile("*.csv", "Select the offsets file.",...
         "longitudinal_stability_offsets_05032022.csv");
@@ -121,10 +122,8 @@ if ~debug
     offsets = offsets(1,:);
 end
 
-if freestream_speed ~= 0
-    uiwait(warndlg("Command the wind tunnel to run at the desired " + ...
-        "speed. Click OK once the speed has stabilized.", "Information"));
-end
+uiwait(warndlg("Command the wind tunnel to run at the desired " + ...
+    "speed. Click OK once the speed has stabilized.", "Information"));
 
 %% Set up the DAq
 if ~debug

@@ -11,22 +11,36 @@ load(results_file_name, 'max_alpha', 'min_alpha', 'offsets', 'results');
 num_angles = max_alpha - min_alpha + 1;
 angles = min_alpha:max_alpha;
 
+
+
+mean_forces = zeros(num_angles, 6);
+se_forces = zeros(num_angles, 6);
+
 for angle_id = 1:num_angles
     angle = angles(angle_id);
-    disp(angle);
-    forces = results{angle_id, 1};
-    times = results{angle_id, 1};
+    disp("Angle: " + angle);
+    these_results = results{angle_id, 1};
+    forces = these_results(:, 2:7);
     
-    for force=forces
-        mean_force = mean(force);
-        median_force = median(force);
-        std_force = std(force);
-        se_force = std_force / sqrt(length(force));
+    
+    for force_id = 1:6
+        force = forces(:, force_id);
         
-        disp(mean_force);
-        disp(median_force);
-        disp(std_force);
-        disp(se_force);
-        disp("");
+        mean_force = mean(force);
+        se_force = std(force) / sqrt(length(force));
+        
+        mean_forces(angle_id, force_id) = mean_force;
+        se_forces(angle_id, force_id) = se_force;
+
+        disp("Mean: " + mean_force);
+%         disp(median_force);
+%         disp(std_force);
+        disp("Standard Error: " + se_force);
     end
+end
+
+hold on;
+for force_id = 1:6
+    mean_force = mean_forces(:, force_id);
+    plot(angles, mean_force)
 end
