@@ -18,7 +18,7 @@ close all;
 
 % Set debug to false if you are connected to all the equipment or running a
 % real experiment.
-debug = true;
+debug = false;
 
 % Load the load cell's calibration matrix.
 load wallance_cal;
@@ -75,10 +75,6 @@ num_cycles = round(str2double(num_cycles_raw));
 pre_existing_offsets = strcmp(pre_existing_offsets, "True");
 
 %% Setup the Galil DMC
-if ~debug
-    % Connect to the Galil device.
-    galil = actxserver("galil");
-end
 
 % Create the carraige return and linefeed variable from the .dmc file.
 dmc = fileread(dmc_file_name);
@@ -91,8 +87,13 @@ dmc = strrep(dmc, "speed_placeholder",...
 dmc = strrep(dmc, "distance_placeholder",...
     num2str(num_cycles * steps_per_rot));
 
-% Load the program described by the .dmc file to the Galil device.
+
 if ~debug
+    % Connect to the Galil device.
+    galil = actxserver("galil");
+    % Set the Galil's address.
+    galil.address = "";
+    % Load the program described by the .dmc file to the Galil device.
     galil.programDownload(dmc);
 end
 

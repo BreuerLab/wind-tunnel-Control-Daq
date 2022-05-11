@@ -46,16 +46,28 @@ motion_struct.P = target_counts - current_counts;
 pitch_move(motion_struct);
 
 % Save the current state, wait 0.1 s, and then save the new state.
-last_state = mps_pitch_state;
+last_state_pos = mps_pitch_state.POS;
 pause(0.1)
 new_state = pitch_read;
+new_state_pos = new_state.POS;
+
+diff = abs(last_state_pos - new_state_pos);
+disp(diff);
 
 % Continue waiting until the new state's positoin and the last state's
-% position haven't changed in the last 0.1 s.
-while new_state.POS ~= last_state.POS
+% position haven't changed more than 350 steps (determined to be the 99%
+% CI) in the last 0.1 s.
+while diff > 350
     pause(0.1);
-    last_state = new_state;
+    last_state_pos = new_state_pos;
     new_state = pitch_read;
+    new_state_pos = new_state.POS;
+    
+    diff = abs(last_state_pos - new_state_pos);
+    disp(diff);
+    disp("");
 end
+
+beep
 
 end
