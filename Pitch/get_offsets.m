@@ -15,9 +15,8 @@ offsets_daq.addinput("Dev1", 5, "Voltage");
 offsets_daq.Rate = rate;
 
 % Get the offsets for current trial.
-offsets_daq.start;
+start(offsets_daq, "Duration", session_duration);
 [bias_timetable, ~] = read(offsets_daq, seconds(session_duration));
-
 bias_table = timetable2table(bias_timetable);
 bias_array = table2array(bias_table(:,2:7));
 

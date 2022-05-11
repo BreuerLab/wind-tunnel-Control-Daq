@@ -65,6 +65,4 @@ while diff > 350
     diff = abs(last_state_pos - new_state_pos);
 end
 
-beep
-
 end

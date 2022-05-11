@@ -45,16 +45,16 @@ freestream_speed_raw = inputdlg("Input the freestream speed (m/s).",...
     "User Input", [1, 50], "5.0");
 alpha_min_raw = inputdlg(...
     "Input the desired minimum angle of attack (deg).", "User Input",...
-    [1, 50], "-10.0");
+    [1, 50], "-5.0");
 alpha_max_raw = inputdlg(...
     "Input the desired maximum angle of attack (deg).", "User Input",...
-    [1, 50], "10.0");
+    [1, 50], "5.0");
 flapping_frequency_raw = inputdlg(...
     "Input the desired flapping frequency (Hz).", "User Input", [1, 50],...
-    "1.0");
+    "2.0");
 num_cycles_raw = inputdlg(...
     "Input the desired number of flaps to execute.", "User Input",...
-    [1, 50], "10");
+    [1, 50], "5");
 
 % Ask the user to select the .dmc file.
 dmc_file_name = uigetfile("*.dmc", "Select the DMC file.",...
@@ -109,7 +109,7 @@ else
 
     offset_duration_raw = inputdlg( ...
         "Enter the duration to collect offset data (s).", "User Input", ...
-        [1, 50], "30.0");
+        [1, 50], "10.0");
     offset_duration = str2double(offset_duration_raw);
 
     if ~debug
@@ -162,13 +162,15 @@ for angle=angles
         % Move the MPS to this angle
         pitch_home(angle);
 
-        % Start the DAq session and read the data.
-        this_daq.start;
-        these_raw_data = read(this_daq, seconds(session_duration));
+        % Start the DAq session.
+        start(this_daq, "Duration", session_duration);
 
         % Command the galil to execute the program.
         galil.command("XQ");
-
+        
+        % Read the data from this DAq session.
+        these_raw_data = read(this_daq, seconds(session_duration));
+        
         raw_data{angle_id, 1} = these_raw_data;
     end
 
