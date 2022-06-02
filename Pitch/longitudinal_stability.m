@@ -227,7 +227,6 @@ clear num_cycles_raw
 clear num_recordings
 clear offset_duration_raw
 clear offsets_matrix
-clear raw_data
 clear recording_size
 clear session_duration
 clear steps_per_rot
