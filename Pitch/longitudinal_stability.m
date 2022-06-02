@@ -57,11 +57,6 @@ num_cycles_raw = inputdlg(...
 dmc_file_name = uigetfile("*.dmc", "Select the DMC file.",...
     "longitudinal_stability.dmc");
 
-% Ask if there is already an offset file for this experiment
-pre_existing_offsets = questdlg( ...
-    "Is there an offset file for this experiment?", "User Input",...
-    "True", "False", "False");
-
 % Sanitize and process the user inputs.
 experiment_name = string(strjoin(lower(split(experiment_name_raw)), "_"));
 freestream_speed = str2double(freestream_speed_raw);
@@ -69,7 +64,6 @@ min_alpha = str2double(alpha_min_raw);
 max_alpha = str2double(alpha_max_raw);
 flapping_frequency = str2double(flapping_frequency_raw);
 num_cycles = round(str2double(num_cycles_raw));
-pre_existing_offsets = strcmp(pre_existing_offsets, "True");
 
 %% Setup the Galil DMC
 
@@ -98,27 +92,18 @@ end
 % Set the DAq samping rate (Hz).
 rate = 1000;
 
-if pre_existing_offsets
-    offsets_file_name = uigetfile("*.csv", "Select the offsets file.",...
-        "longitudinal_stability_offsets_05112022.csv");
-    offsets = readmatrix(offsets_file_name);
-else
-    if freestream_speed ~= 0
-        uiwait(warndlg("Turn off the wind tunnel. Click OK once " + ...
-            "the speed has stabilized.", "User Input"));
-    end
+uiwait(warndlg("Turn off the wind tunnel. Click OK once the speed" + ...
+        "has stabilized.", "User Input"));
 
-    offset_duration_raw = inputdlg( ...
-        "Enter the duration to collect offset data (s).", "User Input", ...
-        [1, 50], "60.0");
-    offset_duration = str2double(offset_duration_raw);
+% Ask how long they'd like to take offset data.
+offset_duration_raw = inputdlg( ...
+    "Enter the duration to collect offset data (s).", "User Input", ...
+    [1, 50], "60.0");
+offset_duration = str2double(offset_duration_raw);
 
-    if ~debug
-        offsets = get_offsets(experiment_name, rate, offset_duration);
-    end
-end
-
+% Call the offset function and parse the results.
 if ~debug
+    offsets = get_offsets(experiment_name, rate, offset_duration);
     offsets = offsets(1,:);
 end
 
