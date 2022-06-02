@@ -28,7 +28,7 @@ steps_per_rot = 3200;
 
 % If not debugging, home the MPS to 0 degrees.
 if ~debug
-    pitch_home(0)
+    pitch_home(0);
 end
 
 %% Collect user input on the experimental setup
@@ -51,7 +51,7 @@ flapping_frequency_raw = inputdlg(...
     "1.0");
 num_cycles_raw = inputdlg(...
     "Input the desired number of flaps to execute.", "User Input",...
-    [1, 50], "7");
+    [1, 50], "120");
 
 % Ask the user to select the .dmc file.
 dmc_file_name = uigetfile("*.dmc", "Select the DMC file.",...
@@ -96,7 +96,7 @@ end
 %% Get offset data for this experiment
 
 % Set the DAq samping rate (Hz).
-rate = 100 * flapping_frequency;
+rate = 1000;
 
 if pre_existing_offsets
     offsets_file_name = uigetfile("*.csv", "Select the offsets file.",...
