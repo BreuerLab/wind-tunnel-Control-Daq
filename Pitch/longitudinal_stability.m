@@ -93,7 +93,7 @@ end
 rate = 1000;
 
 uiwait(warndlg("Turn off the wind tunnel. Click OK once the speed" + ...
-        "has stabilized.", "User Input"));
+        " has stabilized.", "User Input"));
 
 % Ask how long they'd like to take offset data.
 offset_duration_raw = inputdlg( ...
@@ -143,8 +143,9 @@ angle_id = 1;
 for angle=angles
     if ~debug
 
-        % Move the MPS to this angle
+        % Move the MPS to this angle and print it to the console.
         pitch_home(angle);
+        fprintf("Current angle of attack:\t%.2f deg\n", angle);
 
         % Start the DAq session.
         start(this_daq, "Duration", session_duration);
