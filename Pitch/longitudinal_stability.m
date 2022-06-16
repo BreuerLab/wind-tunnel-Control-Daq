@@ -98,16 +98,33 @@ rate = 1000;
 uiwait(warndlg("Turn off the wind tunnel. Click OK once the speed" + ...
         " has stabilized.", "User Input"));
 
-% Ask how long they'd like to take offset data.
+% Ask for how long they'd like to take offset data (at each angle).
 offset_duration_raw = inputdlg( ...
     "Enter the duration to collect offset data (s).", "User Input", ...
     [1, 50], "60.0");
 offset_duration = str2double(offset_duration_raw);
+offsets_cell = cell(num_angles, 1);
 
-% Call the offset function and parse the results.
-if ~debug
-    offsets = get_offsets(experiment_name, rate, offset_duration);
-    offsets = offsets(1,:);
+% Iterate through the angles and get the offset data for each.
+for angle=angles
+
+    % Call the offset function and parse the results.
+    if ~debug
+
+        % Move the MPS to this angle and print it to the console.
+        pitch_home(angle);
+        fprintf("Current angle of attack:\t%.2f deg\n", angle);
+        
+        % Get the offsets at this angle.
+        these_offsets = get_offsets( ...
+            experiment_name, rate, offset_duration);
+        these_offsets = these_offsets(1,:);
+        
+        % Add the offsets at this angle to the cell array.
+        offsets_cell{angle_id, 1} = these_offsets;
+    end
+
+    angle_id = angle_id + 1;
 end
 
 uiwait(warndlg("Command the wind tunnel to run at the desired " + ...
@@ -143,6 +160,7 @@ raw_data = cell(num_angles, 2);
 
 angle_id = 1;
 
+% Iterate through the angles.
 for angle=angles
     if ~debug
 
@@ -185,8 +203,11 @@ for angle_id = 1:num_angles
 
         recording_size = size(volt_vals);
         num_recordings = recording_size(1);
-
-        offsets_matrix = ones(num_recordings, 1) * offsets;
+        
+        % Get the offsets associated with this angle and transform them
+        % into a matrix.
+        these_offsets = offsets_cell{angle_id, 1};
+        offsets_matrix = ones(num_recordings, 1) * these_offsets;
 
         % Offset the data and multiply by the calibration matrix.
         volt_vals = volt_vals(:, 1:6) - offsets_matrix;
@@ -234,6 +255,7 @@ clear offsets_matrix
 clear recording_size
 clear session_duration
 clear steps_per_rot
+clear these_offsets
 clear these_raw_data
 clear these_raw_data_table
 clear these_raw_data_table_times
