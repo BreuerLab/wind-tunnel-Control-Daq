@@ -120,7 +120,8 @@ for angle=angles
 
         % Move the MPS to this angle and print it to the console.
         pitch_home(angle);
-        fprintf("Current angle of attack:\t%.2f deg\n", angle);
+        fprintf("Current angle for offset calculation:\t%.2f deg\n", ...
+            angle);
         
         % Get the offsets at this angle.
         these_offsets = get_offsets( ...
@@ -171,7 +172,7 @@ for angle=angles
 
         % Move the MPS to this angle and print it to the console.
         pitch_home(angle);
-        fprintf("Current angle of attack:\t%.2f deg\n", angle);
+        fprintf("Current angle for data collection:\t%.2f deg\n", angle);
 
         % Start the DAq session.
         start(this_daq, "Duration", session_duration);
