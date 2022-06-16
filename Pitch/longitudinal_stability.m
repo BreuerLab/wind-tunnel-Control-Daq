@@ -18,7 +18,7 @@ close all;
 
 % Set debug to false if you are connected to all the equipment or running a
 % real experiment.
-debug = false;
+debug = true;
 
 % Load the load cell's calibration matrix.
 load wallance_cal;
@@ -79,10 +79,13 @@ dmc = strrep(dmc, "distance_placeholder",...
     num2str(num_cycles * steps_per_rot));
 
 if ~debug
+    
     % Connect to the Galil device.
     galil = actxserver("galil");
+
     % Set the Galil's address.
-    galil.address = "";
+    galil.address = "192.168.1.15";
+    
     % Load the program described by the .dmc file to the Galil device.
     galil.programDownload(dmc);
 end
