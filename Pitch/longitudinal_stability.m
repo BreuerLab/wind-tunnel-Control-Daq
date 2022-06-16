@@ -1,5 +1,5 @@
 % This script is designed to gather data regarding the longitudinal
-% stability of the the 1 DOF flapper.
+% stability of the 1 DOF flapper.
 
 % Wind Tunnel: AFAM with MPS
 % Load Cell: ATI-F/T Gamma IP65
@@ -9,7 +9,7 @@
 
 % longitudinal_stability.m
 % Cameron Urban
-% 06/02/2022
+% 06/16/2022
 
 %% Initalize the experiment
 clc;
