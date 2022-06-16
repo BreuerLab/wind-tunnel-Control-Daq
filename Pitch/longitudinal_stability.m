@@ -65,6 +65,10 @@ max_alpha = str2double(alpha_max_raw);
 flapping_frequency = str2double(flapping_frequency_raw);
 num_cycles = round(str2double(num_cycles_raw));
 
+% Create a list of the angles and find the number of angles.
+angles = min_alpha:max_alpha;
+[~, num_angles] = size(angles);
+
 %% Setup the Galil DMC
 
 % Create the carraige return and linefeed variable from the .dmc file.
@@ -103,7 +107,10 @@ offset_duration_raw = inputdlg( ...
     "Enter the duration to collect offset data (s).", "User Input", ...
     [1, 50], "60.0");
 offset_duration = str2double(offset_duration_raw);
-offsets_cell = cell(num_angles, 1);
+offsets = cell(num_angles, 1);
+
+% Create an index variable to track which angle we are currently on.
+angle_id = 1;
 
 % Iterate through the angles and get the offset data for each.
 for angle=angles
@@ -121,7 +128,7 @@ for angle=angles
         these_offsets = these_offsets(1,:);
         
         % Add the offsets at this angle to the cell array.
-        offsets_cell{angle_id, 1} = these_offsets;
+        offsets{angle_id, 1} = these_offsets;
     end
 
     angle_id = angle_id + 1;
@@ -153,11 +160,9 @@ session_duration = ceil(num_cycles / flapping_frequency);
 % Save the time data began being recorded.
 run_time_stamp = now();
 
-angles = min_alpha:max_alpha;
-[~, num_angles] = size(angles);
-
 raw_data = cell(num_angles, 2);
 
+% Create an index variable to track which angle we are currently on.
 angle_id = 1;
 
 % Iterate through the angles.
@@ -206,7 +211,7 @@ for angle_id = 1:num_angles
         
         % Get the offsets associated with this angle and transform them
         % into a matrix.
-        these_offsets = offsets_cell{angle_id, 1};
+        these_offsets = offsets{angle_id, 1};
         offsets_matrix = ones(num_recordings, 1) * these_offsets;
 
         % Offset the data and multiply by the calibration matrix.
