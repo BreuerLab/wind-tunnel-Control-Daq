@@ -18,7 +18,7 @@ close all;
 
 % Set debug to false if you are connected to all the equipment or running a
 % real experiment.
-debug = true;
+debug = false;
 
 % Load the load cell's calibration matrix.
 load wallance_cal;
@@ -105,7 +105,7 @@ uiwait(warndlg("Turn off the wind tunnel. Click OK once the speed" + ...
 % Ask for how long they'd like to take offset data (at each angle).
 offset_duration_raw = inputdlg( ...
     "Enter the duration to collect offset data (s).", "User Input", ...
-    [1, 50], "60.0");
+    [1, 50], "10.0");
 offset_duration = str2double(offset_duration_raw);
 offsets = cell(num_angles, 1);
 
@@ -134,6 +134,9 @@ for angle=angles
 
     angle_id = angle_id + 1;
 end
+
+% Beep to signal that the offset data has been gathered.
+beep;
 
 uiwait(warndlg("Command the wind tunnel to run at the desired " + ...
     "speed. Click OK once the speed has stabilized.", "Information"));
@@ -272,6 +275,12 @@ clear these_results
 clear times
 clear volt_vals
 
+% Beep to signal that the data must be saved.
+beep;
+
 % Save the non-deleted variables to a MAT file.
 uisave(who,...
     strjoin([experiment_name, "results", datestr(now, "mmddyy")], "_"));
+
+% Beep to signal the experiment is finished.
+beep;
