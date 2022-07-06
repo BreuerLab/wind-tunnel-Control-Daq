@@ -67,33 +67,41 @@ max_alpha = str2double(alpha_max_raw);
 flapping_frequency = str2double(flapping_frequency_raw);
 num_cycles = round(str2double(num_cycles_raw));
 
+if flapping_frequency == 0
+    glide_duration_raw = inputdlg( ...
+    "Enter the duration to collect glide data (s).", "User Input", ...
+    [1, 50], "30.0");
+    glide_duration = str2double(glide_duration_raw);
+end
+
 % Create a list of the angles and find the number of angles.
 angles = min_alpha:max_alpha;
 [~, num_angles] = size(angles);
 
 %% Setup the Galil DMC
+if flapping_frequency ~= 0
+    % Create the carraige return and linefeed variable from the .dmc file.
+    dmc = fileread(dmc_file_name);
+    dmc = string(dmc);
 
-% Create the carraige return and linefeed variable from the .dmc file.
-dmc = fileread(dmc_file_name);
-dmc = string(dmc);
+    % Replace the place holders in the .dmc file with the values specified
+    % here. Other parameters can be changed directly in .dmc file.
+    dmc = strrep(dmc, "speed_placeholder",...
+        num2str(flapping_frequency * steps_per_rot));
+    dmc = strrep(dmc, "distance_placeholder",...
+        num2str(num_cycles * steps_per_rot));
 
-% Replace the place holders in the .dmc file with the values specified
-% here. Other parameters can be changed directly in .dmc file.
-dmc = strrep(dmc, "speed_placeholder",...
-    num2str(flapping_frequency * steps_per_rot));
-dmc = strrep(dmc, "distance_placeholder",...
-    num2str(num_cycles * steps_per_rot));
+    if ~debug
 
-if ~debug
-    
-    % Connect to the Galil device.
-    galil = actxserver("galil");
+        % Connect to the Galil device.
+        galil = actxserver("galil");
 
-    % Set the Galil's address.
-    galil.address = "192.168.1.15";
-    
-    % Load the program described by the .dmc file to the Galil device.
-    galil.programDownload(dmc);
+        % Set the Galil's address.
+        galil.address = "192.168.1.15";
+
+        % Load the program described by the .dmc file to the Galil device.
+        galil.programDownload(dmc);
+    end
 end
 
 %% Get offset data for this experiment
@@ -159,7 +167,11 @@ if ~debug
 end
 
 % Calculate the duration of each session (s).
-session_duration = ceil(num_cycles / flapping_frequency);
+if flapping_frequency == 0
+    session_duration = glide_duration;
+else
+    session_duration = ceil(num_cycles / flapping_frequency);
+end
 
 %% Begin the experiment and record data
 
@@ -181,9 +193,12 @@ for angle=angles
 
         % Start the DAq session.
         start(this_daq, "Duration", session_duration);
-
-        % Command the galil to execute the program.
-        galil.command("XQ");
+        
+        % Command the galil to execute the program if the flapping
+        % frequency isn't zero.
+        if flapping_frequency ~= 0
+            galil.command("XQ");
+        end
         
         % Read the data from this DAq session.
         these_raw_data = read(this_daq, seconds(session_duration));
@@ -235,8 +250,12 @@ end
 
 %% Clean up
 if ~debug
-    % Delete all resources for the Galil DMCShell object.
-    delete(galil);
+    
+    % Delete all resources for the Galil DMCShell object if we aren't
+    % gliding (for gliding flights we didn't create the object).
+    if flapping_frequency ~= 0
+        delete(galil);
+    end
 
     % Clear the DAq object.
     clear this_daq;
@@ -253,10 +272,12 @@ clear angles
 clear angle_id
 clear code_path
 clear dmc_file_name
-clear experiment_name_raw
+clear experiment_number_raw
+clear trial_number_raw
 clear flapping_frequency_raw
 clear force_vals
 clear freestream_speed_raw
+clear glide_dration_raw
 clear num_angles
 clear num_cycles
 clear num_cycles_raw
