@@ -18,7 +18,7 @@ close all;
 
 % Set debug to false if you are connected to all the equipment or running a
 % real experiment.
-debug = false;
+debug = true;
 
 % Load the load cell's calibration matrix.
 load wallance_cal;
@@ -36,8 +36,10 @@ end
 % Ask the user to input the name of this experiment, the desired speed of
 % the wind tunnel, the desired angles of attack, the desired flapping
 % frequency, and the number of flaps to execute.
-experiment_name_raw = inputdlg("Give this experiment a name.",...
-    "User Input", [1, 50], "longitudinal_stability");
+experiment_number_raw = inputdlg("Give this experiment a number.",...
+    "User Input", [1, 50], "4");
+trial_number_raw = inputdlg("Give this trial a number.",...
+    "User Input", [1, 50], "1");
 freestream_speed_raw = inputdlg("Input the freestream speed (m/s).",...
     "User Input", [1, 50], "5.0");
 alpha_min_raw = inputdlg(...
@@ -58,7 +60,7 @@ dmc_file_name = uigetfile("*.dmc", "Select the DMC file.",...
     "longitudinal_stability.dmc");
 
 % Sanitize and process the user inputs.
-experiment_name = string(strjoin(lower(split(experiment_name_raw)), "_"));
+experiment_name = experiment_number_raw + "_" + trial_number_raw;
 freestream_speed = str2double(freestream_speed_raw);
 min_alpha = str2double(alpha_min_raw);
 max_alpha = str2double(alpha_max_raw);
