@@ -9,7 +9,7 @@
 
 % longitudinal_stability.m
 % Cameron Urban
-% 06/16/2022
+% 07/6/2022
 
 %% Initalize the experiment
 clc;
