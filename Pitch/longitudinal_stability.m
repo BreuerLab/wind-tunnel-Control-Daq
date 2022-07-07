@@ -18,7 +18,7 @@ close all;
 
 % Set debug to false if you are connected to all the equipment or running a
 % real experiment.
-debug = true;
+debug = false;
 
 % Load the load cell's calibration matrix.
 load wallance_cal;
@@ -51,9 +51,6 @@ alpha_max_raw = inputdlg(...
 flapping_frequency_raw = inputdlg(...
     "Input the desired flapping frequency (Hz).", "User Input", [1, 50],...
     "1.0");
-num_cycles_raw = inputdlg(...
-    "Input the desired number of flaps to execute.", "User Input",...
-    [1, 50], "120");
 
 % Ask the user to select the .dmc file.
 dmc_file_name = uigetfile("*.dmc", "Select the DMC file.",...
@@ -65,13 +62,17 @@ freestream_speed = str2double(freestream_speed_raw);
 min_alpha = str2double(alpha_min_raw);
 max_alpha = str2double(alpha_max_raw);
 flapping_frequency = str2double(flapping_frequency_raw);
-num_cycles = round(str2double(num_cycles_raw));
 
 if flapping_frequency == 0
     glide_duration_raw = inputdlg( ...
     "Enter the duration to collect glide data (s).", "User Input", ...
     [1, 50], "30.0");
     glide_duration = str2double(glide_duration_raw);
+else
+    num_cycles_raw = inputdlg(...
+    "Input the desired number of flaps to execute.", "User Input",...
+    [1, 50], "120");
+    num_cycles = round(str2double(num_cycles_raw));
 end
 
 % Create a list of the angles and find the number of angles.
@@ -182,6 +183,9 @@ raw_data = cell(num_angles, 2);
 
 % Create an index variable to track which angle we are currently on.
 angle_id = 1;
+
+% Clear the console.
+clc;
 
 % Iterate through the angles.
 for angle=angles

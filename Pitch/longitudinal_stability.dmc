@@ -3,12 +3,11 @@ MO
 SHB
 MTB=-2
 YAB=16
-ACB=120000
-DCB=120000
+ACB=12000
+DCB=12000
 SPB=speed_placeholder
 PRB=distance_placeholder
 BGB
 AMB
 STB
-MOB
 EN
