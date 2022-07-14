@@ -9,16 +9,20 @@
 
 % longitudinal_stability.m
 % Cameron Urban
-% 07/6/2022
+% 07/14/2022
 
 %% Initalize the experiment
 clc;
 clear variables;
 close all;
 
+% Set benchtop to false if you are connected to the wind tunnel and the
+% MPS.
+benchtop = true;
+
 % Set debug to false if you are connected to all the equipment or running a
 % real experiment.
-debug = false;
+debug = true;
 
 % Load the load cell's calibration matrix.
 load wallance_cal;
@@ -26,8 +30,8 @@ load wallance_cal;
 % Set the number of steps per rotation of the stepper motor.
 steps_per_rot = 3200;
 
-% If not debugging, home the MPS to 0 degrees.
-if ~debug
+% If not debugging or not a benchtop test, home the MPS to 0 degrees.
+if ~debug || ~benchtop
     pitch_home(0);
 end
 
@@ -129,8 +133,11 @@ for angle=angles
     % Call the offset function and parse the results.
     if ~debug
 
-        % Move the MPS to this angle and print it to the console.
-        pitch_home(angle);
+        % Move the MPS to this angle and print it to the console. Don't
+        % actually move it if this is a benchtop test.
+        if ~benchtop
+            pitch_home(angle);
+        end
         fprintf("Current angle for offset calculation:\t%.2f deg\n", ...
             angle);
         
@@ -191,8 +198,11 @@ clc;
 for angle=angles
     if ~debug
 
-        % Move the MPS to this angle and print it to the console.
-        pitch_home(angle);
+        % Move the MPS to this angle and print it to the console. Don't
+        % actually move it if this is a benchtop test.
+        if ~benchtop
+            pitch_home(angle);
+        end
         fprintf("Current angle for data collection:\t%.2f deg\n", angle);
 
         % Start the DAq session.
@@ -264,8 +274,10 @@ if ~debug
     % Clear the DAq object.
     clear this_daq;
 
-    % Home the MPS to 0 degrees.
-    pitch_home(0);
+    % Home the MPS to 0 degrees unless this is a benchtop test.
+    if ~benchtop
+        pitch_home(0);
+    end
 end
 
 % Delete unecessary variables.
