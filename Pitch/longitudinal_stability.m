@@ -35,6 +35,8 @@ microsteps = 2;
 % Calculate the number of microsteps per rotation.
 microsteps_per_rot = steps_per_rot * microsteps;
 
+
+
 % If not debugging or not a benchtop test, home the MPS to 0 degrees.
 if ~debug || ~benchtop
     pitch_home(0);
@@ -90,6 +92,12 @@ angles = min_alpha:max_alpha;
 
 %% Setup the Galil DMC
 if flapping_frequency ~= 0
+    
+    % Calculate the appropriate acceleration value for the motor such that
+    % it will reach top speed within 5 flaps.
+    num_rot_to_accel = 1;
+    accel = round(2 * microsteps_per_rot * flapping_frequency ^ 2 / num_rot_to_accel);
+
     % Create the carraige return and linefeed variable from the .dmc file.
     dmc = fileread(dmc_file_name);
     dmc = string(dmc);
@@ -98,6 +106,8 @@ if flapping_frequency ~= 0
     % here. Other parameters can be changed directly in .dmc file.
     dmc = strrep(dmc, "microsteps_placeholder",...
         num2str(microsteps));
+    dmc = strrep(dmc, "accel_placeholder",...
+        num2str(accel));
     dmc = strrep(dmc, "speed_placeholder",...
         num2str(flapping_frequency * microsteps_per_rot));
     dmc = strrep(dmc, "distance_placeholder",...

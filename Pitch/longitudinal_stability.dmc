@@ -4,8 +4,8 @@ SHB
 MTB=-2
 YAB=microsteps_placeholder
 AGB=2
-ACB=12000
-DCB=12000
+ACB=accel_placeholder
+DCB=accel_placeholder
 SPB=speed_placeholder
 PRB=distance_placeholder
 BGB
