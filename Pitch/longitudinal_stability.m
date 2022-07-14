@@ -27,8 +27,13 @@ debug = true;
 % Load the load cell's calibration matrix.
 load wallance_cal;
 
-% Set the number of steps per rotation of the stepper motor.
-steps_per_rot = 3200;
+% Set the number of full steps per rotation of the stepper motor, and the
+% number of microsteps per step.
+steps_per_rot = 200;
+microsteps = 2;
+
+% Calculate the number of microsteps per rotation.
+microsteps_per_rot = steps_per_rot * microsteps;
 
 % If not debugging or not a benchtop test, home the MPS to 0 degrees.
 if ~debug || ~benchtop
@@ -91,10 +96,12 @@ if flapping_frequency ~= 0
 
     % Replace the place holders in the .dmc file with the values specified
     % here. Other parameters can be changed directly in .dmc file.
+    dmc = strrep(dmc, "microsteps_placeholder",...
+        num2str(microsteps));
     dmc = strrep(dmc, "speed_placeholder",...
-        num2str(flapping_frequency * steps_per_rot));
+        num2str(flapping_frequency * microsteps_per_rot));
     dmc = strrep(dmc, "distance_placeholder",...
-        num2str(num_cycles * steps_per_rot));
+        num2str(num_cycles * microsteps_per_rot));
 
     if ~debug
 
@@ -303,6 +310,7 @@ clear offsets_matrix
 clear recording_size
 clear session_duration
 clear steps_per_rot
+clear microsteps_per_rot
 clear these_offsets
 clear these_raw_data
 clear these_raw_data_table
