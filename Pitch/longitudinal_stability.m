@@ -22,7 +22,7 @@ benchtop = true;
 
 % Set debug to false if you are connected to all the equipment or running a
 % real experiment.
-debug = true;
+debug = false;
 
 % Load the load cell's calibration matrix.
 load wallance_cal;
@@ -35,11 +35,11 @@ microsteps = 2;
 % Calculate the number of microsteps per rotation.
 microsteps_per_rot = steps_per_rot * microsteps;
 
-
-
 % If not debugging or not a benchtop test, home the MPS to 0 degrees.
-if ~debug || ~benchtop
-    pitch_home(0);
+if ~debug
+    if ~benchtop
+        pitch_home(0);
+    end
 end
 
 %% Collect user input on the experimental setup
@@ -48,7 +48,7 @@ end
 % the wind tunnel, the desired angles of attack, the desired flapping
 % frequency, and the number of flaps to execute.
 experiment_number_raw = inputdlg("Give this experiment a number.",...
-    "User Input", [1, 50], "4");
+    "User Input", [1, 50], "5");
 trial_number_raw = inputdlg("Give this trial a number.",...
     "User Input", [1, 50], "1");
 freestream_speed_raw = inputdlg("Input the freestream speed (m/s).",...
@@ -94,7 +94,7 @@ angles = min_alpha:max_alpha;
 if flapping_frequency ~= 0
     
     % Calculate the appropriate acceleration value for the motor such that
-    % it will reach top speed within 5 flaps.
+    % it will reach top speed within one flap.
     num_rot_to_accel = 1;
     accel = round(2 * microsteps_per_rot * flapping_frequency ^ 2 / num_rot_to_accel);
 
