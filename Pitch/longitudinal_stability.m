@@ -2,14 +2,14 @@
 % stability of the 1 DOF flapper.
 
 % Wind Tunnel: AFAM with MPS
-% Load Cell: ATI-F/T Gamma IP65
+% Load Cell: ATI-F/T Delta IP65
 % DAq: NI
 % DMC: Galil DMC-4020
 % Motor: VEXTA PH266-E1.2 stepper motor
 
 % longitudinal_stability.m
 % Cameron Urban
-% 07/14/2022
+% 07/21/2022
 
 %% Initalize the experiment
 clc;
@@ -18,11 +18,11 @@ close all;
 
 % Set benchtop to false if you are connected to the wind tunnel and the
 % MPS.
-benchtop = true;
+benchtop = false;
 
 % Set debug to false if you are connected to all the equipment or running a
 % real experiment.
-debug = false;
+debug = true;
 
 % Load the load cell's calibration matrix.
 load wallance_cal;
@@ -48,7 +48,7 @@ end
 % the wind tunnel, the desired angles of attack, the desired flapping
 % frequency, and the number of flaps to execute.
 experiment_number_raw = inputdlg("Give this experiment a number.",...
-    "User Input", [1, 50], "5");
+    "User Input", [1, 50], "6");
 trial_number_raw = inputdlg("Give this trial a number.",...
     "User Input", [1, 50], "1");
 freestream_speed_raw = inputdlg("Input the freestream speed (m/s).",...
@@ -194,11 +194,14 @@ if ~debug
     this_daq.addinput("Dev1", 6, "Voltage");
 end
 
-% Calculate the duration of each session (s).
+% Calculate the duration of each session (s) Some amount of padding is
+% added to this so that we will record the trigger pulses from the DMC
+% indicating the beginning and end of flapping.
+session_padding = 5;
 if flapping_frequency == 0
-    session_duration = glide_duration + 5;
+    session_duration = glide_duration + session_padding;
 else
-    session_duration = ceil(num_cycles / flapping_frequency) + 5;
+    session_duration = ceil(num_cycles / flapping_frequency) + session_padding;
 end
 
 %% Begin the experiment and record data
@@ -235,6 +238,10 @@ for angle=angles
         if flapping_frequency ~= 0
             galil.command("XQ");
         end
+        
+        % Wait for the extra padding. The DAq will stop reading before this
+        % pause is up, but it's added anyway for safety.
+        pause(session_padding)
         
         % Read the data from this DAq session.
         these_raw_data = read(this_daq, seconds(session_duration));
@@ -324,10 +331,12 @@ clear num_angles
 clear num_cycles
 clear num_cycles_raw
 clear num_recordings
+clear num_rotate_to_accel
 clear offset_duration_raw
 clear offsets_matrix
 clear recording_size
 clear session_duration
+clear session_padding
 clear steps_per_rot
 clear microsteps_per_rot
 clear these_offsets
