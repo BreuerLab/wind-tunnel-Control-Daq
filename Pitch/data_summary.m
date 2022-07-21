@@ -2,7 +2,7 @@ clear variables;
 clc;
 close all;
 
-results_file_name = "longitudinal_stability_results_051122.mat";
+results_file_name = "5_1_results_071522.mat";
 
 load(results_file_name, 'max_alpha', 'min_alpha', 'offsets', 'results');
 % disp(max_alpha);
@@ -33,8 +33,6 @@ for angle_id = 1:num_angles
         se_forces(angle_id, force_id) = se_force;
 
         disp("Mean: " + mean_force);
-%         disp(median_force);
-%         disp(std_force);
         disp("Standard Error: " + se_force);
     end
 end

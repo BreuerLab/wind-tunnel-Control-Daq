@@ -8,7 +8,9 @@ ACB=accel_placeholder
 DCB=accel_placeholder
 SPB=speed_placeholder
 PRB=distance_placeholder
+SB1
 BGB
 AMB
+CB1
 STB
 EN

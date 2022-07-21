@@ -30,7 +30,7 @@ load wallance_cal;
 % Set the number of full steps per rotation of the stepper motor, and the
 % number of microsteps per step.
 steps_per_rot = 200;
-microsteps = 2;
+microsteps = 16;
 
 % Calculate the number of microsteps per rotation.
 microsteps_per_rot = steps_per_rot * microsteps;
@@ -94,9 +94,11 @@ angles = min_alpha:max_alpha;
 if flapping_frequency ~= 0
     
     % Calculate the appropriate acceleration value for the motor such that
-    % it will reach top speed within one flap.
-    num_rot_to_accel = 1;
+    % it will reach top speed within one flap. The minimum acceptable
+    % acceleration is 1024 microsteps per second per second.
+    num_rot_to_accel = 5;
     accel = round(2 * microsteps_per_rot * flapping_frequency ^ 2 / num_rot_to_accel);
+    accel = max(accel, 1024);
 
     % Create the carraige return and linefeed variable from the .dmc file.
     dmc = fileread(dmc_file_name);
@@ -189,13 +191,14 @@ if ~debug
     this_daq.addinput("Dev1", 3, "Voltage");
     this_daq.addinput("Dev1", 4, "Voltage");
     this_daq.addinput("Dev1", 5, "Voltage");
+    this_daq.addinput("Dev1", 6, "Voltage");
 end
 
 % Calculate the duration of each session (s).
 if flapping_frequency == 0
-    session_duration = glide_duration;
+    session_duration = glide_duration + 5;
 else
-    session_duration = ceil(num_cycles / flapping_frequency);
+    session_duration = ceil(num_cycles / flapping_frequency) + 5;
 end
 
 %% Begin the experiment and record data
@@ -203,7 +206,7 @@ end
 % Save the time data began being recorded.
 run_time_stamp = now();
 
-raw_data = cell(num_angles, 2);
+raw_data = cell(num_angles, 3);
 
 % Create an index variable to track which angle we are currently on.
 angle_id = 1;
@@ -219,6 +222,8 @@ for angle=angles
         % actually move it if this is a benchtop test.
         if ~benchtop
             pitch_home(angle);
+        else
+            pause(3);
         end
         fprintf("Current angle for data collection:\t%.2f deg\n", angle);
 
@@ -238,12 +243,15 @@ for angle=angles
         
         these_raw_data_table_times = these_raw_data_table(:, 1);
         these_raw_data_table_volt_vals = these_raw_data_table(:, 2:7);
+        these_raw_data_table_trigger_vals = these_raw_data_table(:, 8);
         
         these_raw_times = seconds(table2array(these_raw_data_table_times));
         these_raw_volt_vals = table2array(these_raw_data_table_volt_vals);
+        these_raw_trigger_vals = table2array(these_raw_data_table_trigger_vals);
         
         raw_data{angle_id, 1} = these_raw_times;
         raw_data{angle_id, 2} = these_raw_volt_vals;
+        raw_data{angle_id, 3} = these_raw_trigger_vals;
     end
 
     angle_id = angle_id + 1;
@@ -257,6 +265,7 @@ for angle_id = 1:num_angles
            
         times = raw_data{angle_id, 1};
         volt_vals = raw_data{angle_id, 2};
+        trigger_vals = raw_data{angle_id, 3};
 
         recording_size = size(volt_vals);
         num_recordings = recording_size(1);
@@ -273,7 +282,7 @@ for angle_id = 1:num_angles
         % Transpose the forces and store them (with the times) as the
         % results.
         force_vals = force_vals';
-        these_results = [times force_vals];
+        these_results = [times force_vals trigger_vals];
 
         results{angle_id, 1} = these_results;
     end
@@ -326,11 +335,14 @@ clear these_raw_data
 clear these_raw_data_table
 clear these_raw_data_table_times
 clear these_raw_data_table_volt_vals
+clear these_raw_data_table_trigger_vals
 clear these_raw_times
 clear these_raw_volt_vals
+clear these_raw_trigger_vals
 clear these_results
 clear times
 clear volt_vals
+clear trigger_vals
 
 % Beep to signal that the data must be saved.
 beep;
