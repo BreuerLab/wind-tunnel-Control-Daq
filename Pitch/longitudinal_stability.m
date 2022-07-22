@@ -313,49 +313,59 @@ if ~debug
     end
 end
 
-% Beep to signal that the data must be saved.
-beep;
-
+%% Display preliminary data
 for angle_id = 1:num_angles
+    
+    % For each angle of attack, get the loads and times stored.
     this_angle = angles(angle_id);
     these_results = results{angle_id, 1};
     these_forces = these_results(:, 2:7);
     these_times = these_results(:, 1);
     
+    % Open a new figure.
     figure;
     
+    % Create three subplots to show the force time histories. 
     subplot(2, 3, 1);
     plot(these_times, these_forces(:, 1));
-    title("F_x")
+    title("X-Component of Force");
+    xlabel("Time (s)");
+    ylabel("Force (N)");
     subplot(2, 3, 2);
     plot(these_times, these_forces(:, 2));
-    title("F_y")
+    title("Y-Component of Force");
+    xlabel("Time (s)");
+    ylabel("Force (N)");
     subplot(2, 3, 3);
     plot(these_times, these_forces(:, 3));
-    title("F_z")
+    title("Z-Component of Force");
+    xlabel("Time (s)");
+    ylabel("Force (N)");
     
+    % Create three subplots to show the moment time histories.
     subplot(2, 3, 4);
     plot(these_times, these_forces(:, 4));
-    title("T_x")
+    title("X-Component of Torque");
+    xlabel("Time (s)");
+    ylabel("Torque (N m)");
     subplot(2, 3, 5);
     plot(these_times, these_forces(:, 5));
-    title("T_y")
+    title("Y-Component of Torque");
+    xlabel("Time (s)");
+    ylabel("Torque (N m)");
     subplot(2, 3, 6);
     plot(these_times, these_forces(:, 6));
-    title("T_z")
+    title("Z-Component of Torque");
+    xlabel("Time (s)");
+    ylabel("Torque (N m)");
     
-    sgtitle("Angle: " + this_angle + " degrees") ;
+    % Label the whole figure.
+    sgtitle("Time Series of Loads at " + this_angle + "°") ;
 end
 
+%% Save the data
 
-% Save the non-deleted variables to a MAT file.
-uisave(who,...
-    strjoin([experiment_name, "results", datestr(now, "mmddyy")], "_"));
-
-% Beep to signal the experiment is finished.
-beep;
-
-% Delete unecessary variables.
+% Delete unecessary variables so they don't clutter saved results.
 clear alpha_max_raw
 clear alpha_min_raw
 clear angle
@@ -397,3 +407,13 @@ clear these_times
 clear times
 clear volt_vals
 clear trigger_vals
+
+% Beep to signal that the data must be saved.
+beep;
+
+% Save the non-deleted variables to a MAT file.
+uisave(who,...
+    strjoin([experiment_name, "results", datestr(now, "mmddyy")], "_"));
+
+% Beep to signal the experiment is finished.
+beep;
