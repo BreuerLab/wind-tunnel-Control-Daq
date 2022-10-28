@@ -1,0 +1,30 @@
+ST
+MO
+SHB
+MTB= -2
+YAB= 16
+ACB= 120000
+DCB= 120000
+SPB= 3200
+i=0
+cyc=cycholder
+#for
+i = i + 1;
+SB1
+PRB= 622
+BGB
+AMB
+CB1
+WT 3000
+SB1
+PRB= -622
+BGB
+AMB
+CB1
+WT 1000
+
+JP#for, (i<= cyc)
+STB
+MOB
+EN
+
