@@ -1,0 +1,72 @@
+' drive code for flapper 
+' inf loop 
+' anti-drifting over cycles by supplyment 
+' use middel length airfoil, 
+' flapping from -15 to 15 
+' Siyang Hao, Brown 
+' 07112022
+' for matlab usage only
+' call 213-245-9551 for troble shooting 
+' ***********************initalization****************
+MOA;
+TLA=9.9982;		 		' Torque limit (Voltage)
+OE 3,3,,,3,3; 		' Switch off on error 
+TKA=9.9982; 				' Peak torque limit
+'PID
+KIA= 0.0635; 			' Integral gain
+KPA= 5.7500; 			' Proportional gain
+KDA= 9.21250; 			' Differential gain
+'************************VARIABLES*******************
+neupos= 2000;
+amp= 666;
+tpspd= 27925;
+t=25;
+SH	;				' Turn on Motors
+AGA=1;      'gain
+CE ;        'configure encoder
+start =amp+neupos; ' Set start pos here,200 increse for pos ATA
+
+'*********************** Set Origin *************
+count = 10;
+PA start;
+#LOOP1
+WT 100; ' refresh rate of holding at start position, use 1,5,10 ms
+count = count-1; 
+BGA
+AMA
+TPA
+JP #LOOP1,(count>0);
+
+'****************************************************
+' Program the PV Loop 
+
+cycnum=0;
+#LOOP2
+cycnum=cycnum+1;
+
+PA start;
+BGA
+AMA
+MG "Start POS SET TO"
+TPA;
+
+count = 0;
+IF cycnum >5
+OCA=2400,0;
+SB1;
+ENDIF
+PVA=0,0,-1;      'Initialize PVT buffer
+#PVTLOOP
+count= count+1
+PVA=-amp, -tpspd, t;
+PVA=-amp, 0.0, t;
+PVA=amp, tpspd, t;
+PVA=amp, 0.0, t; ' End the PV loop
+JP #PVTLOOP, count<num_cycles_holder;
+BTA;						' Start the PV trajectory
+AMA;						' After move is over,
+JP #LOOP2;		'loop back
+       
+'							' End of cycle:
+MOA;						' Motors off
+EN;						' End of Program

@@ -1,0 +1,40 @@
+TLA=9.9982;
+OE 3,3,,,3,3;
+TKA=9.9982;
+KIA= 0.5615 ;
+KPA= 60 ;
+KDA= 100;
+SHA;
+AGA =1;
+CE
+start=6500;
+c=0.5;
+count = 50;
+PA start;
+BGA;
+AMA;
+MG "START POS SET TO"
+TPA;
+cnt=10;
+#LOOP2
+cnt=cnt-1;
+count=1000;
+SHA;
+PA start;
+BGA;
+AMA
+#LOOP3
+OCA=2000,0;
+PVA=0,0,-1;
+PVA=0,0,-1;
+PVA=-666, -41888, 25;
+PVA=-666, 0.0, 25;
+PVA=666, 41888, 25;
+PVA=666, 0.0, 25;
+BTA;
+AMA;
+count=count-1;
+JP #LOOP3, (count>0);
+JP #LOOP2,(cnt>0);
+MOA;
+EN;
