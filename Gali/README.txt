@@ -1,4 +1,4 @@
-Instroctions For Weak Generator
+Instroctions For Wake Generator
 1. install the wing profile and aline the trailing edge with marker on the motor shaft.
 This provide a start position of the flapper
 2. deploy the flapper with aid rail system and suction cups;
