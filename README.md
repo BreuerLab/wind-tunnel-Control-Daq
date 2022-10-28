@@ -9,6 +9,7 @@
 - To become a collaberator, please contact siyang_hao@brown.edu
 - more introductions for collaberators refer to  https://medium.com/@jonathanmines/the-ultimate-github-collaboration-guide-df816e98fb67
 ## General wind tunnel control
+- Comming soon
 ## Using AeroLab loadcells 
 - Go to **AeroLabSting**
  
@@ -20,7 +21,7 @@
 - Beta version in **PITCH**, which is able to control the pitch motion of mps.
 ## TeststandDriver
 - Comerhansive driving code for wind tunnel data acquisition, utilizing tools and functions from all packages.  
-## Reference
+## Legacy
 
 - Scripts from Jenya/summer experiments: **Jenya's code**
 - Script from Alex april 2020 that works, but was not very modular: voltageToForces.m , this relies on a few other files in this folder: **Alex's code** 
