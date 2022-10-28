@@ -1,0 +1,20 @@
+TLA=9.9982;
+OE 3,3,,,3,3;
+KIA= 1 ;
+KPA= 30 ;
+KDA= 500 ;
+SHA;
+AGA=1;
+PTA=1;
+count = 1000;
+start = holdposholder;
+#LOOP1
+PA start;
+TPA;
+WT 50
+JP #LOOP1,(count>0);
+MG "pos control over"
+PTA=0;
+TPA;
+MOA;
+EN;

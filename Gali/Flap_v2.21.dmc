@@ -1,0 +1,57 @@
+' drive code for flapper 
+' inf loop 
+' anti-drifting over cycles by supplyment 
+' use middel length airfoil, 
+' flapping from -10 to 10 
+' Siyang Hao, Brown 
+' 04262021
+' call 213-245-9551 for troble shooting 
+' ***********************initalization****************
+TLA=9.9982;		 		' Torque limit (Volts)
+OE 3,3,,,3,3; 		' Switch off on error 
+TKA=9.9982; 				' Peak torque limit
+KIA= 1 ; 			' Integral gain
+KPA= 100 ; 			' Proportional gain
+KDA= 580 ; 			' Differential gain
+nep=2000;
+amp=667;
+start =2700; ' Set start pos here,2400 increse for pos ATA
+spd=41888;
+dt=26;
+SHA	;				' Turn on Motors
+AGA =0.5;
+CE 
+'*********************** Set Origin *************
+PA 2700;
+SHA;
+BGA;
+AMA
+MG "START POS SET TO"
+TPA;
+'**************** anti-drifting refresh*************
+#LOOP2
+count=1000; ' refresh every 1000 cycles
+SHA;
+PA start;
+BGA;
+AMA
+TPA;
+'****************************************************
+' Program the PV Loop 
+#LOOP3
+OCA=2000,0;
+'*********************(Cut and Paste from Spreadsheet)*********************
+'2/3 and 3/3 wing:
+PVA=0,0,-1;
+PVA=-amp, -spd, dt;
+PVA=-amp, 0.0, dt;
+PVA=amp, spd, dt;
+PVA=amp, 0.0, dt;' End the PV loop
+'*******************************************************
+BTA;						' Start the PV trajectory
+AMA;						' After move is over,
+count=count-1;			' Decrement count
+JP #LOOP3, (count>0);		'loop back
+JP #LOOP2, ;        'inf reload
+MOA;						' Motors off
+EN;						' End of Program
