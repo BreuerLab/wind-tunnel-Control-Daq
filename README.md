@@ -1,5 +1,5 @@
 # AFAM Wind Tunnel Control and Data Acquisition
-- Git tool is strongly recommended for colabotation and multi-source control
+ Git tool is strongly recommended for colabotation and multi-source control
 ## Contribute to this repo
 
 
@@ -10,7 +10,7 @@
 - more introductions for collaberators refer to  https://medium.com/@jonathanmines/the-ultimate-github-collaboration-guide-df816e98fb67
 ## General wind tunnel control
 ## Using AeroLab loadcells 
- Go to **AeroLabSting**
+- Go to **AeroLabSting**
  
 ## Using ATI loadcells
 - Go to **ATI**
@@ -18,6 +18,8 @@
 - Synchronization for the high speed cameras, motion control and PIV system to have a phased marked data.
 ## MPS system
 - Beta version in **PITCH**, which is able to control the pitch motion of mps.
+## TeststandDriver
+- Comerhansive driving code for wind tunnel data acquisition, utilizing tools and functions from all packages.  
 ## Reference
 
 - Scripts from Jenya/summer experiments: **Jenya's code**
