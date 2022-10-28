@@ -13,7 +13,7 @@
  Go to **AeroLabSting**
  
 ## Using ATI loadcells
-- ATI Gamma: go to **Gamma65**
+- Go to **ATI**
 ## Trigger Box
 - Synchronization for the high speed cameras, motion control and PIV system to have a phased marked data.
 ## MPS system
