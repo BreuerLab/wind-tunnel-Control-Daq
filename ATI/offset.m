@@ -21,7 +21,7 @@ end
 %Write offsets to file,
 % CaseName = erase(date,'-'); name the case by time stamp
 trial = strcat('offsets_',CaseName);
-csvwrite(trial,offsets);
+%csvwrite(trial,offsets);
 
 end
 
