@@ -1,0 +1,38 @@
+ST;
+MO;
+
+MTB=-2;
+OEB=1;
+AGB=1;
+AUB=12;
+LCB=1;
+
+KSB=16;
+YAB=16;
+YBB=200;
+
+SH B;
+WT100;
+
+ACB=2000;
+DCB=2000;
+SPB=20000;
+
+PRB=53000;
+
+BG B;
+MC B;
+ST B;
+MO B;
+
+SH B;
+WT1000;
+
+PRB=-53000;
+
+BG B;
+MC B;
+ST B;
+MO B;
+
+EN;
