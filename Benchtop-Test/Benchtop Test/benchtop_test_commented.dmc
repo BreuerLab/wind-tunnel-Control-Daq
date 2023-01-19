@@ -18,7 +18,7 @@ YAB=16; 'Step Drive Resolution (counts/motor-step)
 YBB=200; 'Step Motor Resolution (motor-steps/rev)
 
 SH B; 'Servo the motor - resetting motor's coordinate system
-WT100; 'Wait for 100 ms
+WT2000; 'Wait for 2 sec
 
 ACB=accel_placeholder; 'Set acceleration of motor (counts/second^2)
 DCB=accel_placeholder; 'Set deceleration of motor (counts/second^2)
