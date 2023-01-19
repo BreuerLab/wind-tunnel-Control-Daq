@@ -270,7 +270,7 @@ for i = 1:length(files)
 
 %     [s,f,t] = stft(force_vals(:, 3),fs);
 %     stft(s(64,:),fs);
-    force_vals(:, 3) = force_vals(:, 3) - mean(force_vals(:, 3));
+%     force_vals(:, 3) = force_vals(:, 3) - mean(force_vals(:, 3));
 %     stft(force_vals(:, 3),fs,'Window',kaiser(1024,5),'OverlapLength',500,'FFTLength',1024, 'FrequencyRange','centered');
 
 %     pspectrum(force_vals(:, 3),fs,'spectrogram');
