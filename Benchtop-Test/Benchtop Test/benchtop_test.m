@@ -20,20 +20,20 @@ close all;
 % ----------Parameters to Adjust for Your Specific Experiment------------
 % -----------------------------------------------------------------------
 % Data Logging Parameters
-case_name = "3Hz_100cycles_CBwing_2000acc";
+case_name = "6Hz_body";
 
 % Stepper Motor Parameters
 galil_address = "192.168.1.20";
 dmc_file_name = "benchtop_test_commented.dmc";
 rev = 51200; % should be 3200 instead
-accel = 3000;
-speed = 1*rev;
-distance = 118*rev;
+accel = 150000;
+speed = 6*rev;
+distance = 113*rev;
 
 % Force Transducer Parameters
 rate = 1000; % DAQ recording frequency (Hz)
 offset_duration = 2; % Taring/Offset/Zeroing Time
-session_duration = 139; % Measurement Time
+session_duration = 25; % Measurement Time
 
 %% Setup the Galil DMC
 
