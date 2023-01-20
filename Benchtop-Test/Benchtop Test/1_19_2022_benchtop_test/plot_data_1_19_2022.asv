@@ -132,9 +132,7 @@ xlabel("Time (s)");
 ylabel("Force (N)");
 hold on
 
-for i = 1:length(files)
-    %%
-    
+for i = 1:length(files) 
     % Get case name from file name
     case_name = erase(files(i), "_experiment_011923.csv");
     case_name = strrep(case_name,'_',' ');
@@ -171,8 +169,6 @@ legend("Location","Southwest");
 ax1 = axes('Position',[0.35 0.2 0.2 0.2]);
 hold on
 for i = 1:length(files)
-    %%
-    
     % Get case name from file name
     case_name = erase(files(i), "_experiment_011923.csv");
     case_name = strrep(case_name,'_',' ');
@@ -238,8 +234,6 @@ ylabel("Force (N)");
 hold on
 
 for i = 1:length(files)
-    %%
-    
     % Get case name from file name
     case_name = erase(files(i), "_experiment_011923.csv");
     case_name = strrep(case_name,'_',' ');
@@ -293,8 +287,6 @@ xlabel("Time (s)");
 ylabel("Force (N)");
 hold on
 for i = 1:length(files)
-    %%
-    
     % Get case name from file name
     case_name = erase(files(i), "_experiment_011923.csv");
     case_name = strrep(case_name,'_',' ');
@@ -339,8 +331,6 @@ xlabel("Time (s)");
 ylabel("Force (N)");
 hold on
 for i = 1:length(files)
-    %%
-    
     % Get case name from file name
     case_name = erase(files(i), "_experiment_011923.csv");
     case_name = strrep(case_name,'_',' ');
@@ -399,8 +389,6 @@ xlabel("Wingbeat Number");
 ylabel("Force (N)");
 hold on
 for i = 1:length(files)
-    %%
-    
     % Get case name from file name
     case_name = erase(files(i), "_experiment_011923.csv");
     case_name = strrep(case_name,'_',' ');
@@ -467,8 +455,6 @@ legend("Location","Southwest");
 ax1 = axes('Position',[0.15 0.26 0.2 0.2]);
 hold on
 for i = 1:length(files)
-    %%
-    
     % Get case name from file name
     case_name = erase(files(i), "_experiment_011923.csv");
     case_name = strrep(case_name,'_',' ');
@@ -526,7 +512,7 @@ for i = 1:length(files)
     wingbeats = linspace(0,wingbeat_count,length(filtered_lift_vals));
 
     % Plot lift force
-    plot(ax1, wingbeats, filtered_lift_vals, 'DisplayName', case_name, "LineWidth",3);
+    plot(ax1, wingbeats, filtered_lift_vals);
 end
 xlim([0, 3])
 ylim([-3, 3])
@@ -547,8 +533,6 @@ xlabel("Wingbeat Number");
 ylabel("Force (N)");
 hold on
 for i = 1:length(files)
-    %%
-    
     % Get case name from file name
     case_name = erase(files(i), "_experiment_011923.csv");
     case_name = strrep(case_name,'_',' ');
@@ -614,8 +598,6 @@ legend("Location","Southwest");
 ax2 = axes('Position',[0.6 0.26 0.2 0.2]);
 hold on
 for i = 1:length(files)
-    %%
-    
     % Get case name from file name
     case_name = erase(files(i), "_experiment_011923.csv");
     case_name = strrep(case_name,'_',' ');
@@ -673,7 +655,7 @@ for i = 1:length(files)
     wingbeats = linspace(0,wingbeat_count,length(filtered_lift_vals));
 
     % Plot lift force
-    plot(ax2, wingbeats, filtered_lift_vals, 'DisplayName', case_name, "LineWidth",3);
+    plot(ax2, wingbeats, filtered_lift_vals);
 end
 xlim([0, 3])
 ylim([-3, 3])
@@ -682,6 +664,8 @@ box on
 annotation('arrow',[0.7 0.58], [0.46 0.48])
 
 sgtitle(["Filtered Lift Force (z-direction)" "Moving Average Filter (Window = 100 ms)"]);
+
+%%
 
 % ----------------------------------------------------------------
 % -------Plot Wingless Data Subtracted from PDMS Data-------------
@@ -726,22 +710,22 @@ plot(wingbeats_sub_2Hz, Lift_sub_2Hz, 'DisplayName', '2 Hz', "LineWidth",3);
 plot(wingbeats_sub_1Hz, Lift_sub_1Hz, 'DisplayName', '1 Hz', "LineWidth",3);
 xlabel("Wingbeat Number");
 ylabel("Force (N)");
-title(["Aerodynamic Force Production" "Subtracting Force without Wings from Force with Wings"]);
+title(["Aerodynamic Force Production" "(Subtracting Force without Wings from Force with Wings)"]);
 legend("Location","Southwest");
-ax1 = axes('Position',[0.6 0.26 0.2 0.2]);
+ax1 = axes('Position',[0.15 0.3 0.2 0.2]);
 hold on
-plot(ax1, wingbeats_sub_3Hz, Lift_sub_3Hz, 'DisplayName', '3 Hz', "LineWidth",3);
-plot(ax1, wingbeats_sub_2Hz, Lift_sub_2Hz, 'DisplayName', '2 Hz', "LineWidth",3);
-plot(ax1, wingbeats_sub_1Hz, Lift_sub_1Hz, 'DisplayName', '1 Hz', "LineWidth",3);
+plot(ax1, wingbeats_sub_3Hz, Lift_sub_3Hz, "LineWidth",2);
+plot(ax1, wingbeats_sub_2Hz, Lift_sub_2Hz, "LineWidth",2);
+plot(ax1, wingbeats_sub_1Hz, Lift_sub_1Hz, "LineWidth",2);
 xlim([0, 3])
 ylim([-3, 3])
 y_axis = line(xlim, [0 0], 'Color','black');
 box on
-annotation('arrow',[0.7 0.58], [0.46 0.48])
+annotation('arrow',[0.25 0.14], [0.5 0.59])
 
 
-% %%
-% 
+%%
+
 % % ----------------------------------------------------------------
 % % ---------------------------Trashed Code-------------------------
 % % ----------------------------------------------------------------

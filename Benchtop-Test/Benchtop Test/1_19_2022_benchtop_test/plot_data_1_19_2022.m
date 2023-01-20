@@ -30,8 +30,6 @@ files = ["1Hz_body_experiment_011923.csv"
          "4Hz_PDMS_experiment_011923.csv"];
 
 for i = 1:length(files)
-    %%
-    
     % Get case name from file name
     case_name = erase(files(i), "_experiment_011923.csv");
     case_name = strrep(case_name,'_',' ');
@@ -132,9 +130,7 @@ xlabel("Time (s)");
 ylabel("Force (N)");
 hold on
 
-for i = 1:length(files)
-    %%
-    
+for i = 1:length(files) 
     % Get case name from file name
     case_name = erase(files(i), "_experiment_011923.csv");
     case_name = strrep(case_name,'_',' ');
@@ -171,8 +167,6 @@ legend("Location","Southwest");
 ax1 = axes('Position',[0.35 0.2 0.2 0.2]);
 hold on
 for i = 1:length(files)
-    %%
-    
     % Get case name from file name
     case_name = erase(files(i), "_experiment_011923.csv");
     case_name = strrep(case_name,'_',' ');
@@ -238,8 +232,6 @@ ylabel("Force (N)");
 hold on
 
 for i = 1:length(files)
-    %%
-    
     % Get case name from file name
     case_name = erase(files(i), "_experiment_011923.csv");
     case_name = strrep(case_name,'_',' ');
@@ -293,8 +285,6 @@ xlabel("Time (s)");
 ylabel("Force (N)");
 hold on
 for i = 1:length(files)
-    %%
-    
     % Get case name from file name
     case_name = erase(files(i), "_experiment_011923.csv");
     case_name = strrep(case_name,'_',' ');
@@ -339,8 +329,6 @@ xlabel("Time (s)");
 ylabel("Force (N)");
 hold on
 for i = 1:length(files)
-    %%
-    
     % Get case name from file name
     case_name = erase(files(i), "_experiment_011923.csv");
     case_name = strrep(case_name,'_',' ');
@@ -399,8 +387,6 @@ xlabel("Wingbeat Number");
 ylabel("Force (N)");
 hold on
 for i = 1:length(files)
-    %%
-    
     % Get case name from file name
     case_name = erase(files(i), "_experiment_011923.csv");
     case_name = strrep(case_name,'_',' ');
@@ -467,8 +453,6 @@ legend("Location","Southwest");
 ax1 = axes('Position',[0.15 0.26 0.2 0.2]);
 hold on
 for i = 1:length(files)
-    %%
-    
     % Get case name from file name
     case_name = erase(files(i), "_experiment_011923.csv");
     case_name = strrep(case_name,'_',' ');
@@ -547,8 +531,6 @@ xlabel("Wingbeat Number");
 ylabel("Force (N)");
 hold on
 for i = 1:length(files)
-    %%
-    
     % Get case name from file name
     case_name = erase(files(i), "_experiment_011923.csv");
     case_name = strrep(case_name,'_',' ');
@@ -614,8 +596,6 @@ legend("Location","Southwest");
 ax2 = axes('Position',[0.6 0.26 0.2 0.2]);
 hold on
 for i = 1:length(files)
-    %%
-    
     % Get case name from file name
     case_name = erase(files(i), "_experiment_011923.csv");
     case_name = strrep(case_name,'_',' ');
@@ -683,6 +663,8 @@ annotation('arrow',[0.7 0.58], [0.46 0.48])
 
 sgtitle(["Filtered Lift Force (z-direction)" "Moving Average Filter (Window = 100 ms)"]);
 
+%%
+
 % ----------------------------------------------------------------
 % -------Plot Wingless Data Subtracted from PDMS Data-------------
 % ---------------------at 1 Hz, 2 Hz, and 3 Hz--------------------
@@ -740,8 +722,8 @@ box on
 annotation('arrow',[0.25 0.14], [0.5 0.59])
 
 
-% %%
-% 
+%%
+
 % % ----------------------------------------------------------------
 % % ---------------------------Trashed Code-------------------------
 % % ----------------------------------------------------------------
