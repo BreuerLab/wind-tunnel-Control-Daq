@@ -6,7 +6,7 @@ rev_ticks = 51200;
 init_pos = 0;
 init_vel = 0;
 acc = 150000; % 2000 counts/sec
-desired_vel = 6*rev_ticks; % 1  rev/sec
+desired_vel = 3*rev_ticks; % 1  rev/sec
 measure_revs = 100;
 wait_time = 2;
 
