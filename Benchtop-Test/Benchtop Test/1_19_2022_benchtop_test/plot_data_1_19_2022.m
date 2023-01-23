@@ -341,9 +341,9 @@ for i = 1:length(cases)
     data = data(start_index:end_index,:);
     filtered_lift_vals = filtered_lift_vals(start_index:end_index);
     wingbeats = linspace(0,wingbeat_count,length(filtered_lift_vals));
-
-    disp(wingbeat_count)
-    disp(length(filtered_lift_vals))
+    disp("For the " + case_name + " trial, " + wingbeat_count + ...
+         " wingbeats were identified elapsing " + ...
+         length(filtered_lift_vals) + " frames.");
     
     force_vals = data(1:end,2:7);
     % Plot lift force
@@ -414,8 +414,9 @@ for i = 1:length(cases)
     filtered_lift_vals = filtered_lift_vals(start_index:end_index);
     wingbeats = linspace(0,wingbeat_count,length(filtered_lift_vals));
 
-    disp(wingbeat_count)
-    disp(length(filtered_lift_vals))
+    disp("For the " + case_name + " trial, " + wingbeat_count + ...
+         " wingbeats were identified elapsing " + ...
+         length(filtered_lift_vals) + " frames.");
     
     force_vals = data(1:end,2:7);
     % Plot lift force
@@ -479,7 +480,7 @@ for i = 1:length(cases)
     load(mat_name,'filtered_lift_vals','wingbeats');
     
     % Plot lift force
-    plot(ax1, wingbeats, filtered_lift_vals);
+    plot(ax1, wingbeats, filtered_lift_vals, "LineWidth",2);
 end
 xlim([0, 3])
 ylim([-3, 3])
@@ -514,7 +515,7 @@ for i = 1:length(cases)
     load(mat_name,'filtered_lift_vals','wingbeats');
 
     % Plot lift force
-    plot(ax2, wingbeats, filtered_lift_vals);
+    plot(ax2, wingbeats, filtered_lift_vals, "LineWidth",2);
 end
 xlim([0, 3])
 ylim([-3, 3])
@@ -531,57 +532,63 @@ sgtitle(["Filtered Lift Force (z-direction)" "Moving Average Filter (Window = 10
 % ---------------------at 1 Hz, 2 Hz, and 3 Hz--------------------
 % ----------------------------------------------------------------
 
-load Lift_body_1Hz.mat;
-Lift_body_1Hz = filtered_lift_vals;
-load Lift_body_2Hz.mat;
-Lift_body_2Hz = filtered_lift_vals;
-load Lift_body_3Hz.mat;
-Lift_body_3Hz = filtered_lift_vals;
-
-load Lift_PDMS_1Hz.mat;
-Lift_PDMS_1Hz = filtered_lift_vals;
-wingbeats_PDMS_1Hz = wingbeats;
-load Lift_PDMS_2Hz.mat;
-Lift_PDMS_2Hz = filtered_lift_vals;
-wingbeats_PDMS_2Hz = wingbeats;
-load Lift_PDMS_3Hz.mat;
-Lift_PDMS_3Hz = filtered_lift_vals;
-wingbeats_PDMS_3Hz = wingbeats;
-
-min_length = min(length(Lift_body_1Hz), length(Lift_PDMS_1Hz));
-Lift_sub_1Hz = Lift_PDMS_1Hz(1:min_length) - Lift_body_1Hz(1:min_length);
-wingbeats_sub_1Hz = wingbeats_PDMS_1Hz(1:min_length);
-
-min_length = min(length(Lift_body_2Hz), length(Lift_PDMS_2Hz));
-Lift_sub_2Hz = Lift_PDMS_2Hz(1:min_length) - Lift_body_2Hz(1:min_length);
-wingbeats_sub_2Hz = wingbeats_PDMS_2Hz(1:min_length);
-
-min_length = min(length(Lift_body_3Hz), length(Lift_PDMS_3Hz));
-Lift_sub_3Hz = Lift_PDMS_3Hz(1:min_length) - Lift_body_3Hz(1:min_length);
-wingbeats_sub_3Hz = wingbeats_PDMS_3Hz(1:min_length);
+body_cases = ["Body_3Hz", "Body_2Hz", "Body_1Hz"];
+wing_cases = ["PDMS_3Hz", "PDMS_2Hz", "PDMS_1Hz"];
 
 % Open a new figure.
 f = figure;
 f.Position = [200 50 900 560];
-hold on
-plot(wingbeats_sub_3Hz, Lift_sub_3Hz, 'DisplayName', '3 Hz', "LineWidth",3);
-plot(wingbeats_sub_2Hz, Lift_sub_2Hz, 'DisplayName', '2 Hz', "LineWidth",3);
-plot(wingbeats_sub_1Hz, Lift_sub_1Hz, 'DisplayName', '1 Hz', "LineWidth",3);
+title(["Aerodynamic Force Production" "(Subtracting Force without Wings from Force with Wings)"]);
 xlabel("Wingbeat Number");
 ylabel("Force (N)");
-title(["Aerodynamic Force Production" "(Subtracting Force without Wings from Force with Wings)"]);
+hold on
+for i = 1:3
+    case_name = char(body_cases(i));
+    speed = case_name(6:end);
+    
+    % Load body data
+    mat_name = body_cases(i) + ".mat";
+    load(mat_name, 'filtered_lift_vals');
+    lift_body = filtered_lift_vals;
+    
+    % Load wing data
+    mat_name = wing_cases(i) + ".mat";
+    load(mat_name,'filtered_lift_vals','wingbeats');
+    lift_PDMS = filtered_lift_vals;
+
+    min_length = min(length(lift_body), length(lift_PDMS));
+    lift_sub = lift_PDMS(1:min_length) - lift_body(1:min_length);
+    wingbeats_sub = wingbeats(1:min_length);
+    
+    % Plot lift force
+    plot(wingbeats_sub, lift_sub, 'DisplayName', speed, "LineWidth",3);
+end
 legend("Location","Southwest");
 ax1 = axes('Position',[0.15 0.3 0.2 0.2]);
 hold on
-plot(ax1, wingbeats_sub_3Hz, Lift_sub_3Hz, "LineWidth",2);
-plot(ax1, wingbeats_sub_2Hz, Lift_sub_2Hz, "LineWidth",2);
-plot(ax1, wingbeats_sub_1Hz, Lift_sub_1Hz, "LineWidth",2);
+for i = 1:3
+    % Load body data
+    mat_name = body_cases(i) + ".mat";
+    load(mat_name, 'filtered_lift_vals');
+    lift_body = filtered_lift_vals;
+    
+    % Load wing data
+    mat_name = wing_cases(i) + ".mat";
+    load(mat_name,'filtered_lift_vals','wingbeats');
+    lift_PDMS = filtered_lift_vals;
+
+    min_length = min(length(lift_body), length(lift_PDMS));
+    lift_sub = lift_PDMS(1:min_length) - lift_body(1:min_length);
+    wingbeats_sub = wingbeats(1:min_length);
+    
+    % Plot lift force
+    plot(ax1, wingbeats_sub, lift_sub, "LineWidth",3);
+end
 xlim([0, 3])
 ylim([-3, 3])
 y_axis = line(xlim, [0 0], 'Color','black');
 box on
 annotation('arrow',[0.25 0.14], [0.5 0.59])
-
 
 %%
 
