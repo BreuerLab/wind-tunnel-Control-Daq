@@ -20,26 +20,26 @@ close all;
 % ----------Parameters to Adjust for Your Specific Experiment------------
 % -----------------------------------------------------------------------
 % Data Logging Parameters
-case_name = "6Hz_body";
+case_name = "2Hz_body";
 
 % Stepper Motor Parameters
 galil_address = "192.168.1.20";
 dmc_file_name = "benchtop_test_commented.dmc";
 rev_ticks = 51200; % ticks per rev, should be 3200 instead
-acc = 150000; % ticks / sec^2
-vel = 6*rev; % ticks / sec
+acc = 3*rev_ticks; % ticks / sec^2
+vel = 2*rev_ticks; % ticks / sec
 measure_revs = 100;
 padding_revs = 10; % dropped from front and back during data processing
 wait_time = 5000; % 5 seconds
-distance; % ticks
+distance = 0; % ticks
 
 % Force Transducer Parameters
 rate = 1000; % DAQ recording frequency (Hz)
 offset_duration = 2; % Taring/Offset/Zeroing Time
-session_duration; % Measurement Time
+session_duration = 0; % Measurement Time
 
-estimate_params = {rev_ticks, acc, vel, measure_revs, padding_revs, wait_time};
-[distance, session_duration] = estimate_duration(estimate_params);
+estimate_params = {rev_ticks acc vel measure_revs padding_revs wait_time};
+[distance, session_duration] = estimate_duration(estimate_params{:});
 
 %% Setup the Galil DMC
 

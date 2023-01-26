@@ -17,9 +17,13 @@ function [distance, session_duration] = estimate_duration(rev_ticks, acc, vel, m
 
     num_revs = measure_revs + 2*padding_revs + 2*(at_speed_pos/rev_ticks);
     distance = num_revs*rev_ticks;
-    session_duration = (measure_revs + 2*padding_revs)/(vel/rev_ticks) + 2*time_to_speed + 2*wait_time;
+    session_duration = (measure_revs + 2*padding_revs)/(vel/rev_ticks) ...
+                     + 2*time_to_speed + 2*(wait_time/1000);
     disp("The session duration at the speed of " + ...
          (vel/rev_ticks) + " Hz, would be " + num_revs + ...
          " revs or " + session_duration + " seconds")
+     
+     distance = round(distance);
+     session_duration = round(session_duration);
     
 end
