@@ -52,7 +52,9 @@ dmc = string(dmc);
 dmc = strrep(dmc, "accel_placeholder", num2str(acc));
 dmc = strrep(dmc, "speed_placeholder", num2str(vel));
 dmc = strrep(dmc, "distance_placeholder", num2str(distance));
-dmc = strrep(dmc, "wait_time_placeholder", num2str(wait_time));
+dmc = strrep(dmc, "wait_time_placeholder", num2str(wait_time + 3000));
+% later added extra 3 seconds in galil waiting time to account for
+% extra time spent executing operations
 
 % Connect to the Galil device.
 galil = actxserver("galil");
@@ -74,6 +76,8 @@ beep;
 
 %% Set up the DAQ
 % Command the galil to execute the program
+format shortg
+
 galil.command("XQ");
 
 results = FT_obj.measure_force(case_name, rate, session_duration, offsets);
