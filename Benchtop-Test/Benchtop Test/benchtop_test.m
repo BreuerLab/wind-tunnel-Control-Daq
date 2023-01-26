@@ -71,18 +71,17 @@ FT_obj = ForceTransducer;
 offsets = FT_obj.get_force_offsets(case_name + "_before", rate, offset_duration);
 offsets = offsets(1,:); % just taking means, no SDs
 
-% Beep to signal that the offset data has been gathered.
-beep;
+disp("Initial offset data has been gathered");
+beep2;
 
 %% Set up the DAQ
 % Command the galil to execute the program
-format shortg
-
 galil.command("XQ");
 
 results = FT_obj.measure_force(case_name, rate, session_duration, offsets);
 
-beep; 
+disp("Experiment data has been gathered");
+beep2; 
 
 %% Get offset data after flapping
 FT_obj = ForceTransducer;
@@ -90,14 +89,11 @@ FT_obj = ForceTransducer;
 offsets = FT_obj.get_force_offsets(case_name + "_after", rate, offset_duration);
 offsets = offsets(1,:); % just taking means, no SDs
 
-% Beep to signal that the offset data has been gathered.
-beep;
+disp("Final offset data has been gathered");
+beep2;
 
 %% Clean up
 delete(galil);
 
 %% Display preliminary data
 FT_obj.plot_results(results);
-
-% Beep to signal the experiment is finished.
-beep;
