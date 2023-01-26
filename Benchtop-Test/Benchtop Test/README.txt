@@ -44,6 +44,18 @@ If you'd like to just test the stepper motor or the force transducer, begin
 instead with the code in the Motor Driver and Force Transducer folders.
 
 -------------------------------------------------------------------------------
+Procedure
+-------------------------------------------------------------------------------
+
+- Remove force transducer from case and let sit at room temperature for several 
+  hours
+- Mount interface plate on table
+- Mount force transducer to interface plate and then robot to force transducer
+- Plug in force transducer, DAQ, and DMC
+- Connect DMC cable to PC and DAQ cable to PC
+- Open benchtop_test.m, change parameters for specific trial, hit run
+
+-------------------------------------------------------------------------------
 File Structure
 -------------------------------------------------------------------------------
 

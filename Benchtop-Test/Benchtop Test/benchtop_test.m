@@ -25,15 +25,21 @@ case_name = "6Hz_body";
 % Stepper Motor Parameters
 galil_address = "192.168.1.20";
 dmc_file_name = "benchtop_test_commented.dmc";
-rev = 51200; % should be 3200 instead
-accel = 150000;
-speed = 6*rev;
-distance = 113*rev;
+rev_ticks = 51200; % ticks per rev, should be 3200 instead
+acc = 150000; % ticks / sec^2
+vel = 6*rev; % ticks / sec
+measure_revs = 100;
+padding_revs = 10; % dropped from front and back during data processing
+wait_time = 5000; % 5 seconds
+distance; % ticks
 
 % Force Transducer Parameters
 rate = 1000; % DAQ recording frequency (Hz)
 offset_duration = 2; % Taring/Offset/Zeroing Time
-session_duration = 25; % Measurement Time
+session_duration; % Measurement Time
+
+estimate_params = {rev_ticks, acc, vel, measure_revs, padding_revs, wait_time};
+[distance, session_duration] = estimate_duration(estimate_params);
 
 %% Setup the Galil DMC
 
@@ -43,9 +49,10 @@ dmc = string(dmc);
 
 % Replace the place holders in the .dmc file with the values specified
 % here. Other parameters can be changed directly in .dmc file.
-dmc = strrep(dmc, "accel_placeholder", num2str(accel));
-dmc = strrep(dmc, "speed_placeholder", num2str(speed));
+dmc = strrep(dmc, "accel_placeholder", num2str(acc));
+dmc = strrep(dmc, "speed_placeholder", num2str(vel));
 dmc = strrep(dmc, "distance_placeholder", num2str(distance));
+dmc = strrep(dmc, "wait_time_placeholder", num2str(wait_time));
 
 % Connect to the Galil device.
 galil = actxserver("galil");
@@ -56,10 +63,10 @@ galil.address = galil_address;
 % Load the program described by the .dmc file to the Galil device.
 galil.programDownload(dmc);
 
-%% Get offset data for this experiment
+%% Get offset data before flapping
 FT_obj = ForceTransducer;
 % Get the offsets at this angle.
-offsets = FT_obj.get_force_offsets(case_name, rate, offset_duration);
+offsets = FT_obj.get_force_offsets(case_name + "_before", rate, offset_duration);
 offsets = offsets(1,:); % just taking means, no SDs
 
 % Beep to signal that the offset data has been gathered.
@@ -72,6 +79,15 @@ galil.command("XQ");
 results = FT_obj.measure_force(case_name, rate, session_duration, offsets);
 
 beep; 
+
+%% Get offset data after flapping
+FT_obj = ForceTransducer;
+% Get the offsets at this angle.
+offsets = FT_obj.get_force_offsets(case_name + "_after", rate, offset_duration);
+offsets = offsets(1,:); % just taking means, no SDs
+
+% Beep to signal that the offset data has been gathered.
+beep;
 
 %% Clean up
 delete(galil);
