@@ -25,7 +25,9 @@ case_name = "2Hz_body";
 % Stepper Motor Parameters
 galil_address = "192.168.1.20";
 dmc_file_name = "benchtop_test_commented.dmc";
-rev_ticks = 51200; % ticks per rev, should be 3200 instead
+microsteps = 256; % fixed parameter of AMP-43547
+steps_per_rev = 200; % fixed parameter of PH266-E1.2
+rev_ticks = microsteps*steps_per_rev; % ticks per rev
 acc = 3*rev_ticks; % ticks / sec^2
 vel = 2*rev_ticks; % ticks / sec
 measure_revs = 100;
@@ -68,8 +70,8 @@ galil.programDownload(dmc);
 %% Get offset data before flapping
 FT_obj = ForceTransducer;
 % Get the offsets at this angle.
-offsets = FT_obj.get_force_offsets(case_name + "_before", rate, offset_duration);
-offsets = offsets(1,:); % just taking means, no SDs
+offsets_before = FT_obj.get_force_offsets(case_name + "_before", rate, offset_duration);
+offsets_before = offsets_before(1,:); % just taking means, no SDs
 
 disp("Initial offset data has been gathered");
 beep2;
@@ -86,8 +88,8 @@ beep2;
 %% Get offset data after flapping
 FT_obj = ForceTransducer;
 % Get the offsets at this angle.
-offsets = FT_obj.get_force_offsets(case_name + "_after", rate, offset_duration);
-offsets = offsets(1,:); % just taking means, no SDs
+offsets_after = FT_obj.get_force_offsets(case_name + "_after", rate, offset_duration);
+offsets_after = offsets_after(1,:); % just taking means, no SDs
 
 disp("Final offset data has been gathered");
 beep2;
@@ -97,3 +99,7 @@ delete(galil);
 
 %% Display preliminary data
 FT_obj.plot_results(results);
+
+drift = mean(offsets_after - offsets_before);
+disp("Over the course of the experiment, the force transducer drifted" ...
+    + drift + "on average across all axes");

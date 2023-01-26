@@ -2,6 +2,10 @@
 'Galil Single DOF Flapper Control
 'Author: Cameron Urban
 'Modified by: Ronan Gissler (November 2022)
+'Run on Galil DMC 4143 with AMP-43547
+'The amplifier plays a critical role in determining how the stepper is run.
+'Make sure not only to read up on 4143 manual, but pay specific attention to
+'sections discussing the AMP-43547.
 '***************************************************************************
 ST; 'Stop program and and motion for all motors
 MO; 'Turns off all motors
@@ -14,7 +18,6 @@ AUB=12; 'Amplifier current loop, inductance 8mH -> 12
 LCB=1; '25% holding current immediately after move finishes
 
 KSB=16; 'Set stepper smoothing
-YAB=16; 'Step Drive Resolution (counts/motor-step)
 YBB=200; 'Step Motor Resolution (motor-steps/rev)
 
 SH B; 'Servo the motor - resetting motor's coordinate system
@@ -23,8 +26,6 @@ WTwait_time_placeholder; 'Allow DAQ to record some data before start
 ACB=accel_placeholder; 'Set acceleration of motor (counts/second^2)
 DCB=accel_placeholder; 'Set deceleration of motor (counts/second^2)
 SPB=speed_placeholder; 'Set speed of motor (counts/second)
-
-'Move forward one revolution
 PRB=distance_placeholder; 'Set distance and direction of next move (counts)
 
 BG B; 'Begin motion using preset value

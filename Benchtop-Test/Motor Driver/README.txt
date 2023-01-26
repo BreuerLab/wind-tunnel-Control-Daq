@@ -64,5 +64,9 @@ indicates a shorted connection.
 Unresolved
 -------------------------------------------------------------------------------
 Why is not 3200 ticks for one revolution? Instead it is closer to 53000.
+	It is actually 51200. Microsteps cannot be set for the AMP-43547
+	amplifier on the Galil DMC 4143. Instead the microsteps per step
+	is fixed at 256. 256*200 = 51200. Boy was that a pain to troubleshoot.
 
 Why are the gears skipping? Are they not separated correctly?
+	Yes, we've ordered a gearbox to correct this.
