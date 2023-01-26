@@ -80,7 +80,7 @@ beep2;
 % Command the galil to execute the program
 galil.command("XQ");
 
-results = FT_obj.measure_force(case_name, rate, session_duration, offsets);
+results = FT_obj.measure_force(case_name, rate, session_duration, offsets_before);
 
 disp("Experiment data has been gathered");
 beep2; 
@@ -100,6 +100,7 @@ delete(galil);
 %% Display preliminary data
 FT_obj.plot_results(results);
 
-drift = mean(offsets_after - offsets_before);
-disp("Over the course of the experiment, the force transducer drifted" ...
-    + drift + "on average across all axes");
+drift = offsets_after - offsets_before;
+disp("Over the course of the experiment, the force transducer drifted ");
+disp('     F_x       F_y       F_z       M_x       M_y       M_z');
+disp(drift);
