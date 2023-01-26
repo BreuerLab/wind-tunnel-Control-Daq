@@ -18,20 +18,20 @@ close all
 % ------------------------Plot All Data---------------------------
 % ----------------------------------------------------------------
 
-files = ["1Hz_body_experiment_011923.csv"
-         "Experiment Data\2Hz_body_experiment_011923.csv"
-         "C:\Experiment Data\3Hz_body_experiment_011923.csv"
-         "C:\Experiment Data\4Hz_body_experiment_011923.csv"
-         "C:\Experiment Data\5Hz_body_experiment_011923.csv"
-         "C:\Experiment Data\6Hz_body_experiment_011923.csv"
-         "C:\Experiment Data\1Hz_PDMS_experiment_011923.csv"
-         "C:\Experiment Data\2Hz_PDMS_experiment_011923.csv"
-         "C:\Experiment Data\3Hz_PDMS_experiment_011923.csv"
-         "C:\Experiment Data\4Hz_PDMS_experiment_011923.csv"];
+files = ["..\Experiment Data\1Hz_body_experiment_011923.csv"
+         "..\Experiment Data\2Hz_body_experiment_011923.csv"
+         "..\Experiment Data\3Hz_body_experiment_011923.csv"
+         "..\Experiment Data\4Hz_body_experiment_011923.csv"
+         "..\Experiment Data\5Hz_body_experiment_011923.csv"
+         "..\Experiment Data\6Hz_body_experiment_011923.csv"
+         "..\Experiment Data\1Hz_PDMS_experiment_011923.csv"
+         "..\Experiment Data\2Hz_PDMS_experiment_011923.csv"
+         "..\Experiment Data\3Hz_PDMS_experiment_011923.csv"
+         "..\Experiment Data\4Hz_PDMS_experiment_011923.csv"];
 
 for i = 1:length(files)
     % Get case name from file name
-    case_name = erase(files(i), "_experiment_011923.csv");
+    case_name = erase(files(i), ["_experiment_011923.csv", "..\Experiment Data\"]);
     case_name = strrep(case_name,'_',' ');
     
     % Get data from file
@@ -443,6 +443,117 @@ box on
 annotation('arrow',[0.7 0.58], [0.46 0.48])
 
 sgtitle("Lift Force (z-direction)");
+
+%%
+
+% ----------------------------------------------------------------
+% -------Plot PDMS and Wingless Data at 1 Hz, 2 Hz, and 3 Hz------
+% ------normalized by wing cycles and then wingbeat averaged------
+% ----------------------------------------------------------------
+     
+cases = ["PDMS_1Hz", "PDMS_3Hz", "PDMS_2Hz"];
+
+% Open a new figure.
+f = figure;
+f.Position = [200 50 900 560];
+subplot(1,2,1)
+title("PDMS Wings");
+xlabel("Wingbeat Number");
+ylabel("Force (N)");
+hold on
+for i = 1:length(cases)
+    % Load data
+    mat_name = cases(i) + ".mat";
+    load(mat_name);
+
+    force_vals = data(1:end,2:7);
+    num_wingbeats = wingbeats(end);
+    frames_per_beat = round(length(wingbeats)/(num_wingbeats - 1));
+
+    % If frames_per_beat was rounded up, reduce wingbeats so
+    % that we don't index out of bounds later
+    if (num_wingbeats*frames_per_beat > length(force_vals(:,3)))
+        num_wingbeats = num_wingbeats - 1;
+    end
+
+    wingbeat_lifts = zeros(num_wingbeats, frames_per_beat);
+    for j = 1:num_wingbeats
+        for k = 1:frames_per_beat
+            wingbeat_lifts(j,k) = force_vals(k + (frames_per_beat*(j-1)), 3);
+        end
+    end
+
+    % Average the lift value across 50 wingbeats at a given frame
+    % corresponding to a specific time during the wingbeat.
+    % 50 wingbeats instead of all because there is some error that
+    % accumulates since num_wingbeats*frames_per_beat doesn't exactly
+    % equal the length of the force data array
+    wingbeat_avg_lift = zeros(1,frames_per_beat);
+    for j = 1:frames_per_beat
+        wingbeat_avg_lift(j) = mean(wingbeat_lifts(1:50,j));
+    end
+
+    frames = linspace(0,1,frames_per_beat);
+    
+    case_name = strrep(cases(i),'_',' ');
+
+    % Plot lift force
+    plot(frames, wingbeat_avg_lift, 'DisplayName', case_name, "LineWidth",3);
+end
+legend("Location","Southwest");
+
+%-------------------------Body Only Plot-----------------------------
+cases = ["Body_1Hz", "Body_3Hz", "Body_2Hz"];
+
+subplot(1,2,2)
+title("Body Only");
+xlabel("Wingbeat Number");
+ylabel("Force (N)");
+hold on
+for i = 1:length(cases)
+    % Load data
+    mat_name = cases(i) + ".mat";
+    load(mat_name);
+
+    force_vals = data(1:end,2:7);
+    num_wingbeats = wingbeats(end);
+    frames_per_beat = round(length(wingbeats)/(num_wingbeats - 1));
+
+    % If frames_per_beat was rounded up, reduce wingbeats so
+    % that we don't index out of bounds later
+    if (num_wingbeats*frames_per_beat > length(force_vals(:,3)))
+        num_wingbeats = num_wingbeats - 1;
+    end
+
+    wingbeat_lifts = zeros(num_wingbeats, frames_per_beat);
+    for j = 1:num_wingbeats
+        for k = 1:frames_per_beat
+            wingbeat_lifts(j,k) = force_vals(k + (frames_per_beat*(j-1)), 3);
+        end
+    end
+
+    % Average the lift value across 50 wingbeats at a given frame
+    % corresponding to a specific time during the wingbeat.
+    % 50 wingbeats instead of all because there is some error that
+    % accumulates since num_wingbeats*frames_per_beat doesn't exactly
+    % equal the length of the force data array
+    wingbeat_avg_lift = zeros(1,frames_per_beat);
+    for j = 1:frames_per_beat
+        wingbeat_avg_lift(j) = mean(wingbeat_lifts(1:50,j));
+    end
+
+    frames = linspace(0,1,frames_per_beat);
+    
+    case_name = strrep(cases(i),'_',' ');
+
+    % Plot lift force
+    plot(frames, wingbeat_avg_lift, 'DisplayName', case_name, "LineWidth",3);
+end
+legend("Location","Southwest");
+
+sgtitle(["Wingbeat Averaged Lift (50 cycles)"]);
+
+
 
 %%
 

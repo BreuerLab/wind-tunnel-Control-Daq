@@ -37,7 +37,6 @@ for i = 1:length(files)
     % Get data from file
     data = readmatrix(files(i));
 
-    times = data(1:end,1);
     force_vals = data(1:end,2:7);
 
     % Trimming off end of data (it appears beginning is already
@@ -364,8 +363,8 @@ for i = 1:length(cases)
     plot(ax1, wingbeats, force_vals(:,3));
 end
 xlim([0, 3])
-ylim([-3, 3])
-y_axis = line(xlim, [0 0], 'Color','black');
+ylim([-5, 5])
+line(xlim, [0 0], 'Color','black'); % y-axis
 box on
 annotation('arrow',[0.25 0.14], [0.46 0.52])
 
@@ -437,12 +436,121 @@ for i = 1:length(cases)
     plot(ax2, wingbeats, force_vals(:,3));
 end
 xlim([0, 3])
-ylim([-3, 3])
-y_axis = line(xlim, [0 0], 'Color','black');
+ylim([-5, 5])
+line(xlim, [0 0], 'Color','black'); % y-axis
 box on
 annotation('arrow',[0.7 0.58], [0.46 0.48])
 
 sgtitle("Lift Force (z-direction)");
+
+%%
+
+% ----------------------------------------------------------------
+% -------Plot PDMS and Wingless Data at 1 Hz, 2 Hz, and 3 Hz------
+% ------normalized by wing cycles and then wingbeat averaged------
+% ----------------------------------------------------------------
+     
+cases = ["PDMS_1Hz", "PDMS_3Hz", "PDMS_2Hz"];
+
+% Open a new figure.
+f = figure;
+f.Position = [200 50 900 560];
+subplot(1,2,1)
+title("PDMS Wings");
+xlabel("Wingbeat Number");
+ylabel("Force (N)");
+hold on
+for i = 1:length(cases)
+    % Load data
+    mat_name = cases(i) + ".mat";
+    load(mat_name);
+
+    force_vals = data(1:end,2:7);
+    num_wingbeats = wingbeats(end);
+    frames_per_beat = round(length(wingbeats)/(num_wingbeats - 1));
+
+    % If frames_per_beat was rounded up, reduce wingbeats so
+    % that we don't index out of bounds later
+    if (num_wingbeats*frames_per_beat > length(force_vals(:,3)))
+        num_wingbeats = num_wingbeats - 1;
+    end
+
+    wingbeat_lifts = zeros(num_wingbeats, frames_per_beat);
+    for j = 1:num_wingbeats
+        for k = 1:frames_per_beat
+            wingbeat_lifts(j,k) = force_vals(k + (frames_per_beat*(j-1)), 3);
+        end
+    end
+
+    % Average the lift value across 50 wingbeats at a given frame
+    % corresponding to a specific time during the wingbeat.
+    % 50 wingbeats instead of all because there is some error that
+    % accumulates since num_wingbeats*frames_per_beat doesn't exactly
+    % equal the length of the force data array
+    wingbeat_avg_lift = zeros(1,frames_per_beat);
+    for j = 1:frames_per_beat
+        wingbeat_avg_lift(j) = mean(wingbeat_lifts(1:50,j));
+    end
+
+    frames = linspace(0,1,frames_per_beat);
+    
+    case_name = strrep(cases(i),'_',' ');
+
+    % Plot lift force
+    plot(frames, wingbeat_avg_lift, 'DisplayName', case_name, "LineWidth",3);
+end
+legend("Location","Southwest");
+
+%-------------------------Body Only Plot-----------------------------
+cases = ["Body_1Hz", "Body_3Hz", "Body_2Hz"];
+
+subplot(1,2,2)
+title("Body Only");
+xlabel("Wingbeat Number");
+ylabel("Force (N)");
+hold on
+for i = 1:length(cases)
+    % Load data
+    mat_name = cases(i) + ".mat";
+    load(mat_name);
+
+    force_vals = data(1:end,2:7);
+    num_wingbeats = wingbeats(end);
+    frames_per_beat = round(length(wingbeats)/(num_wingbeats - 1));
+
+    % If frames_per_beat was rounded up, reduce wingbeats so
+    % that we don't index out of bounds later
+    if (num_wingbeats*frames_per_beat > length(force_vals(:,3)))
+        num_wingbeats = num_wingbeats - 1;
+    end
+
+    wingbeat_lifts = zeros(num_wingbeats, frames_per_beat);
+    for j = 1:num_wingbeats
+        for k = 1:frames_per_beat
+            wingbeat_lifts(j,k) = force_vals(k + (frames_per_beat*(j-1)), 3);
+        end
+    end
+
+    % Average the lift value across 50 wingbeats at a given frame
+    % corresponding to a specific time during the wingbeat.
+    % 50 wingbeats instead of all because there is some error that
+    % accumulates since num_wingbeats*frames_per_beat doesn't exactly
+    % equal the length of the force data array
+    wingbeat_avg_lift = zeros(1,frames_per_beat);
+    for j = 1:frames_per_beat
+        wingbeat_avg_lift(j) = mean(wingbeat_lifts(1:50,j));
+    end
+
+    frames = linspace(0,1,frames_per_beat);
+    
+    case_name = strrep(cases(i),'_',' ');
+
+    % Plot lift force
+    plot(frames, wingbeat_avg_lift, 'DisplayName', case_name, "LineWidth",3);
+end
+legend("Location","Southwest");
+
+sgtitle("Wingbeat Averaged Lift (50 wingbeats)");
 
 %%
 
@@ -484,7 +592,7 @@ for i = 1:length(cases)
 end
 xlim([0, 3])
 ylim([-3, 3])
-y_axis = line(xlim, [0 0], 'Color','black');
+line(xlim, [0 0], 'Color','black'); % y-axis
 box on
 annotation('arrow',[0.25 0.14], [0.46 0.52])
 
@@ -519,11 +627,116 @@ for i = 1:length(cases)
 end
 xlim([0, 3])
 ylim([-3, 3])
-y_axis = line(xlim, [0 0], 'Color','black');
+line(xlim, [0 0], 'Color','black'); % y-axis
 box on
 annotation('arrow',[0.7 0.58], [0.46 0.48])
 
 sgtitle(["Filtered Lift Force (z-direction)" "Moving Average Filter (Window = 100 ms)"]);
+
+% ----------------------------------------------------------------
+% -------Plot PDMS and Wingless Data at 1 Hz, 2 Hz, and 3 Hz------
+% normalized by wing cycles, filtered, and then wingbeat averaged-
+% ----------------------------------------------------------------
+     
+cases = ["PDMS_1Hz", "PDMS_3Hz", "PDMS_2Hz"];
+
+% Open a new figure.
+f = figure;
+f.Position = [200 50 900 560];
+subplot(1,2,1)
+title("PDMS Wings");
+xlabel("Wingbeat Number");
+ylabel("Force (N)");
+hold on
+for i = 1:length(cases)
+    % Load data
+    mat_name = cases(i) + ".mat";
+    load(mat_name);
+
+    num_wingbeats = wingbeats(end);
+    frames_per_beat = round(length(wingbeats)/(num_wingbeats - 1));
+
+    % If frames_per_beat was rounded up, reduce wingbeats so
+    % that we don't index out of bounds later
+    if (num_wingbeats*frames_per_beat > length(filtered_lift_vals))
+        num_wingbeats = num_wingbeats - 1;
+    end
+
+    wingbeat_lifts = zeros(num_wingbeats, frames_per_beat);
+    for j = 1:num_wingbeats
+        for k = 1:frames_per_beat
+            wingbeat_lifts(j,k) = filtered_lift_vals(k + (frames_per_beat*(j-1)));
+        end
+    end
+
+    % Average the lift value across 50 wingbeats at a given frame
+    % corresponding to a specific time during the wingbeat.
+    % 50 wingbeats instead of all because there is some error that
+    % accumulates since num_wingbeats*frames_per_beat doesn't exactly
+    % equal the length of the force data array
+    wingbeat_avg_lift = zeros(1,frames_per_beat);
+    for j = 1:frames_per_beat
+        wingbeat_avg_lift(j) = mean(wingbeat_lifts(1:50,j));
+    end
+
+    frames = linspace(0,1,frames_per_beat);
+    
+    case_name = strrep(cases(i),'_',' ');
+
+    % Plot lift force
+    plot(frames, wingbeat_avg_lift, 'DisplayName', case_name, "LineWidth",3);
+end
+legend("Location","Southwest");
+
+%-------------------------Body Only Plot-----------------------------
+cases = ["Body_1Hz", "Body_3Hz", "Body_2Hz"];
+
+subplot(1,2,2)
+title("Body Only");
+xlabel("Wingbeat Number");
+ylabel("Force (N)");
+hold on
+for i = 1:length(cases)
+    % Load data
+    mat_name = cases(i) + ".mat";
+    load(mat_name);
+
+    num_wingbeats = wingbeats(end);
+    frames_per_beat = round(length(wingbeats)/(num_wingbeats - 1));
+
+    % If frames_per_beat was rounded up, reduce wingbeats so
+    % that we don't index out of bounds later
+    if (num_wingbeats*frames_per_beat > length(filtered_lift_vals))
+        num_wingbeats = num_wingbeats - 1;
+    end
+
+    wingbeat_lifts = zeros(num_wingbeats, frames_per_beat);
+    for j = 1:num_wingbeats
+        for k = 1:frames_per_beat
+            wingbeat_lifts(j,k) = filtered_lift_vals(k + (frames_per_beat*(j-1)));
+        end
+    end
+
+    % Average the lift value across 50 wingbeats at a given frame
+    % corresponding to a specific time during the wingbeat.
+    % 50 wingbeats instead of all because there is some error that
+    % accumulates since num_wingbeats*frames_per_beat doesn't exactly
+    % equal the length of the force data array
+    wingbeat_avg_lift = zeros(1,frames_per_beat);
+    for j = 1:frames_per_beat
+        wingbeat_avg_lift(j) = mean(wingbeat_lifts(1:50,j));
+    end
+
+    frames = linspace(0,1,frames_per_beat);
+    
+    case_name = strrep(cases(i),'_',' ');
+
+    % Plot lift force
+    plot(frames, wingbeat_avg_lift, 'DisplayName', case_name, "LineWidth",3);
+end
+legend("Location","Southwest");
+
+sgtitle(["Wingbeat Averaged Filtered Lift (50 wingbeats)" "Moving Average Filter (Window = 100 ms)"]);
 
 %%
 
