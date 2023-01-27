@@ -113,7 +113,7 @@ function [these_results] = measure_force(obj, case_name, rate, session_duration,
     force_vals = obj.cal_matrix * volt_vals';
     force_vals = force_vals';
 
-    these_results = [these_raw_times force_vals];
+    these_results = [these_raw_times force_vals these_raw_trigger_vals];
 
     % Clear the DAq object.
     clear this_daq;
