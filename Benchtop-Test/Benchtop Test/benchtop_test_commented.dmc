@@ -31,10 +31,14 @@ SPB=speed_placeholder; 'Set speed of motor (counts/second)
 PRB=distance_placeholder; 'Set distance and direction of next move (counts)
 
 BG B; 'Begin motion using preset value
-ADB=wait_ticks_placeholder; 'Trigger after acceleration
+
+'Trigger after acceleration
+ADB=wait_ticks_placeholder;
 SB 1; 'Set digital output 1 indicating motion beginning
-ADB=(distance_placeholder - wait_ticks_placeholder); 'Trigger before deceleration
+'Trigger before deceleration
+ADB=(distance_placeholder - wait_ticks_placeholder);
 CB 1; 'Clear digital output 1 indicating motion complete
+
 MC B; 'Wait until motion is complete before moving on (MC better than AM)
 ST B; 'Stop motor
 MO B; 'Turn off power to motor

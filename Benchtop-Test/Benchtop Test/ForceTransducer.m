@@ -115,6 +115,21 @@ function [these_results] = measure_force(obj, case_name, rate, session_duration,
 
     these_results = [these_raw_times force_vals these_raw_trigger_vals];
 
+    trigger_start_frame = -1;
+    trigger_end_frame = -1;
+
+    for i = 1:length(these_raw_trigger_vals)
+        if (trigger_start_frame == -1) % unassigned?
+            if (these_raw_trigger_vals(i) < 1) % pulled low?
+                trigger_start_frame = i;
+            end
+        elseif (trigger_end_frame == -1) % unassigned?
+            if (these_raw_trigger_vals(i) > 1) % pulled high?
+                trigger_end_frame = i;
+            end
+        end
+    end
+
     % Clear the DAq object.
     clear this_daq;
 
@@ -132,6 +147,8 @@ function plot_results(obj, these_results)
     % Create three subplots to show the force time histories. 
     subplot(2, 3, 1);
     plot(these_results(:, 1), these_results(:, 2));
+    plot(these_results(trigger_start_frame:trigger_end_frame, 1), ...
+        these_results(trigger_start_frame:trigger_end_frame, 2));
     title("F_x");
     xlabel("Time (s)");
     ylabel("Force (N)");
