@@ -41,7 +41,7 @@ offset_duration = 2; % Taring/Offset/Zeroing Time
 session_duration = 0; % Measurement Time
 
 estimate_params = {rev_ticks acc vel measure_revs padding_revs wait_time};
-[distance, session_duration] = estimate_duration(estimate_params{:});
+[distance, session_duration, trigger_pos] = estimate_duration(estimate_params{:});
 
 %% Setup the Galil DMC
 
@@ -55,6 +55,7 @@ dmc = strrep(dmc, "accel_placeholder", num2str(acc));
 dmc = strrep(dmc, "speed_placeholder", num2str(vel));
 dmc = strrep(dmc, "distance_placeholder", num2str(distance));
 dmc = strrep(dmc, "wait_time_placeholder", num2str(wait_time + 3000));
+dmc = strrep(dmc, "wait_ticks_placeholder", num2str(at_speed_pos));
 % later added extra 3 seconds in galil waiting time to account for
 % extra time spent executing operations
 
@@ -102,5 +103,5 @@ FT_obj.plot_results(results);
 
 drift = offsets_after - offsets_before;
 disp("Over the course of the experiment, the force transducer drifted ");
-fprintf('\t F_x \t F_y \t F_z \t M_x \t M_y \tM_z\n');
+disp('     F_x       F_y       F_z       M_x       M_y       M_z');
 disp(drift);

@@ -4,7 +4,9 @@
 
 % Ronan Gissler January 2022
 
-function [distance, session_duration] = estimate_duration(rev_ticks, acc, vel, measure_revs, padding_revs, wait_time)
+function [distance, session_duration, trigger_pos] = estimate_duration...
+         (rev_ticks, acc, vel, measure_revs, padding_revs, wait_time)
+    
     time_to_speed = vel / acc;
     disp("It will take " + time_to_speed + ...
          " seconds, for the system to reach " + (vel/rev_ticks) ...
@@ -15,7 +17,10 @@ function [distance, session_duration] = estimate_duration(rev_ticks, acc, vel, m
          + " Hz, it will have travelled " + (at_speed_pos/rev_ticks) ...
          + " revolutions")
 
-    num_revs = measure_revs + 2*padding_revs + 2*(at_speed_pos/rev_ticks);
+    % round up to nearest integer (ex: 0.4 -> 1)
+    trigger_pos = round((at_speed_pos/rev_ticks) + 0.5);
+
+    num_revs = measure_revs + 2*padding_revs + 2*trigger_pos;
     distance = round(num_revs*rev_ticks);
     session_duration = round((measure_revs + 2*padding_revs)/(vel/rev_ticks) ...
                      + 2*time_to_speed + 2*(wait_time/1000));

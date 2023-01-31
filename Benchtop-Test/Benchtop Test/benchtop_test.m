@@ -30,18 +30,18 @@ steps_per_rev = 200; % fixed parameter of PH266-E1.2
 rev_ticks = microsteps*steps_per_rev; % ticks per rev
 acc = 3*rev_ticks; % ticks / sec^2
 vel = 2*rev_ticks; % ticks / sec
-measure_revs = 100;
-padding_revs = 10; % dropped from front and back during data processing
+measure_revs = 100; % we want 100 wingbeats of data
+padding_revs = 0; % dropped from front and back during data processing
 wait_time = 5000; % 5 seconds
 distance = 0; % ticks
 
 % Force Transducer Parameters
-rate = 1000; % DAQ recording frequency (Hz)
+rate = 1280; % DAQ recording frequency (Hz) (51200 / 1280) = 40
 offset_duration = 2; % Taring/Offset/Zeroing Time
 session_duration = 0; % Measurement Time
 
 estimate_params = {rev_ticks acc vel measure_revs padding_revs wait_time};
-[distance, session_duration] = estimate_duration(estimate_params{:});
+[distance, session_duration, trigger_pos] = estimate_duration(estimate_params{:});
 
 %% Setup the Galil DMC
 
@@ -55,6 +55,7 @@ dmc = strrep(dmc, "accel_placeholder", num2str(acc));
 dmc = strrep(dmc, "speed_placeholder", num2str(vel));
 dmc = strrep(dmc, "distance_placeholder", num2str(distance));
 dmc = strrep(dmc, "wait_time_placeholder", num2str(wait_time + 3000));
+dmc = strrep(dmc, "wait_ticks_placeholder", num2str(trigger_pos));
 % later added extra 3 seconds in galil waiting time to account for
 % extra time spent executing operations
 
