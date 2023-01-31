@@ -115,9 +115,21 @@ function [these_results] = measure_force(obj, case_name, rate, session_duration,
 
     these_results = [these_raw_times force_vals these_raw_trigger_vals];
 
+    % Clear the DAq object.
+    clear this_daq;
+
+    % Write the offsets to a .csv file.
+    trial_name = strjoin([case_name, "experiment", datestr(now, "mmddyy")], "_");
+    trial_file_name = trial_name + ".csv";
+    writematrix(these_results, trial_file_name);
+end
+
+function plot_results(obj, these_results)
     trigger_start_frame = -1;
     trigger_end_frame = -1;
 
+    these_raw_trigger_vals = these_results(:, 8);
+    
     for i = 1:length(these_raw_trigger_vals)
         if (trigger_start_frame == -1) % unassigned?
             if (these_raw_trigger_vals(i) < 1) % pulled low?
@@ -129,23 +141,15 @@ function [these_results] = measure_force(obj, case_name, rate, session_duration,
             end
         end
     end
-
-    % Clear the DAq object.
-    clear this_daq;
-
-    % Write the offsets to a .csv file.
-    trial_name = strjoin([case_name, "experiment", datestr(now, "mmddyy")], "_");
-    trial_file_name = trial_name + ".csv";
-    writematrix(these_results, trial_file_name);
-end
-
-function plot_results(obj, these_results)
-% Open a new figure.
+    
+    
+    % Open a new figure.
     f = figure;
     f.Position = [200 50 900 560];
 
     % Create three subplots to show the force time histories. 
     subplot(2, 3, 1);
+    hold on
     plot(these_results(:, 1), these_results(:, 2));
     plot(these_results(trigger_start_frame:trigger_end_frame, 1), ...
         these_results(trigger_start_frame:trigger_end_frame, 2));
@@ -153,29 +157,44 @@ function plot_results(obj, these_results)
     xlabel("Time (s)");
     ylabel("Force (N)");
     subplot(2, 3, 2);
+    hold on
     plot(these_results(:, 1), these_results(:, 3));
+    plot(these_results(trigger_start_frame:trigger_end_frame, 1), ...
+        these_results(trigger_start_frame:trigger_end_frame, 3));
     title("F_y");
     xlabel("Time (s)");
     ylabel("Force (N)");
     subplot(2, 3, 3);
+    hold on
     plot(these_results(:, 1), these_results(:, 4));
+    plot(these_results(trigger_start_frame:trigger_end_frame, 1), ...
+        these_results(trigger_start_frame:trigger_end_frame, 4));
     title("F_z");
     xlabel("Time (s)");
     ylabel("Force (N)");
 
     % Create three subplots to show the moment time histories.
     subplot(2, 3, 4);
+    hold on
     plot(these_results(:, 1), these_results(:, 5));
+    plot(these_results(trigger_start_frame:trigger_end_frame, 1), ...
+        these_results(trigger_start_frame:trigger_end_frame, 5));
     title("M_x");
     xlabel("Time (s)");
     ylabel("Torque (N m)");
     subplot(2, 3, 5);
+    hold on
     plot(these_results(:, 1), these_results(:, 6));
+    plot(these_results(trigger_start_frame:trigger_end_frame, 1), ...
+        these_results(trigger_start_frame:trigger_end_frame, 6));
     title("M_y");
     xlabel("Time (s)");
     ylabel("Torque (N m)");
     subplot(2, 3, 6);
+    hold on
     plot(these_results(:, 1), these_results(:, 7));
+    plot(these_results(trigger_start_frame:trigger_end_frame, 1), ...
+        these_results(trigger_start_frame:trigger_end_frame, 7));
     title("M_z");
     xlabel("Time (s)");
     ylabel("Torque (N m)");

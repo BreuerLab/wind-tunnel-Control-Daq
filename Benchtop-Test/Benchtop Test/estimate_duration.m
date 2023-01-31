@@ -20,7 +20,7 @@ function [distance, session_duration, trigger_pos] = estimate_duration...
     % round up to nearest integer (ex: 0.4 -> 1)
     trigger_pos = rev_ticks*round((at_speed_pos/rev_ticks) + 0.5);
 
-    num_revs = measure_revs + 2*padding_revs + 2*trigger_pos;
+    num_revs = measure_revs + 2*padding_revs + 2*(trigger_pos/rev_ticks);
     distance = round(num_revs*rev_ticks);
     session_duration = round((measure_revs + 2*padding_revs)/(vel/rev_ticks) ...
                      + 2*time_to_speed + 2*(wait_time/1000));
