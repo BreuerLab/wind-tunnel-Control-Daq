@@ -146,18 +146,20 @@ function plot_results(obj, these_results)
     % Open a new figure.
     f = figure;
     f.Position = [200 50 900 560];
-
+    tcl = tiledlayout(2,3);
+    
     % Create three subplots to show the force time histories. 
-    subplot(2, 3, 1);
+    nexttile(tcl)
     hold on
-    plot(these_results(:, 1), these_results(:, 2), 'DisplayName', 'raw');
-    plot(these_results(trigger_start_frame:trigger_end_frame, 1), ...
+    raw_line = plot(these_results(:, 1), these_results(:, 2), 'DisplayName', 'raw');
+    trigger_line = plot(these_results(trigger_start_frame:trigger_end_frame, 1), ...
         these_results(trigger_start_frame:trigger_end_frame, 2), ...
         'DisplayName', 'trigger');
     title("F_x");
     xlabel("Time (s)");
     ylabel("Force (N)");
-    subplot(2, 3, 2);
+    
+    nexttile(tcl)
     hold on
     plot(these_results(:, 1), these_results(:, 3));
     plot(these_results(trigger_start_frame:trigger_end_frame, 1), ...
@@ -165,7 +167,8 @@ function plot_results(obj, these_results)
     title("F_y");
     xlabel("Time (s)");
     ylabel("Force (N)");
-    subplot(2, 3, 3);
+    
+    nexttile(tcl)
     hold on
     plot(these_results(:, 1), these_results(:, 4));
     plot(these_results(trigger_start_frame:trigger_end_frame, 1), ...
@@ -175,7 +178,7 @@ function plot_results(obj, these_results)
     ylabel("Force (N)");
 
     % Create three subplots to show the moment time histories.
-    subplot(2, 3, 4);
+    nexttile(tcl)
     hold on
     plot(these_results(:, 1), these_results(:, 5));
     plot(these_results(trigger_start_frame:trigger_end_frame, 1), ...
@@ -183,7 +186,8 @@ function plot_results(obj, these_results)
     title("M_x");
     xlabel("Time (s)");
     ylabel("Torque (N m)");
-    subplot(2, 3, 5);
+    
+    nexttile(tcl)
     hold on
     plot(these_results(:, 1), these_results(:, 6));
     plot(these_results(trigger_start_frame:trigger_end_frame, 1), ...
@@ -191,7 +195,8 @@ function plot_results(obj, these_results)
     title("M_y");
     xlabel("Time (s)");
     ylabel("Torque (N m)");
-    subplot(2, 3, 6);
+    
+    nexttile(tcl)
     hold on
     plot(these_results(:, 1), these_results(:, 7));
     plot(these_results(trigger_start_frame:trigger_end_frame, 1), ...
@@ -200,7 +205,10 @@ function plot_results(obj, these_results)
     xlabel("Time (s)");
     ylabel("Torque (N m)");
 
-    legend("Location","Southwest");
+    hL = legend([raw_line, trigger_line]);
+    % Move the legend to the right side of the figure
+    hL.Layout.Tile = 'East';
+
     % Label the whole figure.
     sgtitle("Time Series of Loads for benchtop");
 end

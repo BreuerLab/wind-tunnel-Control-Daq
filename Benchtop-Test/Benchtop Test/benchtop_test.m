@@ -20,7 +20,7 @@ close all;
 % ----------Parameters to Adjust for Your Specific Experiment------------
 % -----------------------------------------------------------------------
 % Adjust Every Trial
-case_name = "2Hz_body";
+case_name = "3Hz_CB";
 
 % Stepper Motor Parameters
 galil_address = "192.168.1.20";
@@ -29,7 +29,7 @@ microsteps = 256; % fixed parameter of AMP-43547
 steps_per_rev = 200; % fixed parameter of PH266-E1.2
 rev_ticks = microsteps*steps_per_rev; % ticks per rev
 acc = 3*rev_ticks; % ticks / sec^2
-vel = 2*rev_ticks; % ticks / sec
+vel = 3*rev_ticks; % ticks / sec
 measure_revs = 100; % we want 100 wingbeats of data
 padding_revs = 0; % dropped from front and back during data processing
 wait_time = 5000; % 5 seconds (data collected before and after flapping)
