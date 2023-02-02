@@ -24,7 +24,7 @@ close all
 %   frames
 
 % Adjustments to make for next test:
-% - Use measurement period that's divisible by each speed, here we
+% - Use frame rate that's divisible by each speed, here we
 % have the issue: 
 % ((100 cycles) / (3 cycles / sec)) * (1280 frames / sec) = 42666.666
 
@@ -64,29 +64,17 @@ for i = 1:length(files)
     % Get case name from file name
     case_name = erase(files(i), ["_experiment_020223.csv", "..\Experiment Data\"]);
     case_name = strrep(case_name,'_',' ');
-    case_name_chars = convertStringsToChars(case_name);
+    case_name_chars = char(case_name);
     speed = str2double(case_name_chars(1));
     
     % Get data from file
     data = readmatrix(files(i));
     
 
-    trigger_start_frame = -1;
-    trigger_end_frame = -1;
-
-    these_raw_trigger_vals = data(:, 8);
-    
-    for j = 1:length(these_raw_trigger_vals)
-        if (trigger_start_frame == -1) % unassigned?
-            if (these_raw_trigger_vals(j) < 1) % pulled low?
-                trigger_start_frame = j;
-            end
-        elseif (trigger_end_frame == -1) % unassigned?
-            if (these_raw_trigger_vals(j) > 1) % pulled high?
-                trigger_end_frame = j - 1;
-            end
-        end
-    end
+    these_trigs = data(:, 8);
+    these_low_trigs_indices = find(these_trigs < 2);
+    trigger_start_frame = these_low_trigs_indices(1);
+    trigger_end_frame = these_low_trigs_indices(end);
 
     trimmed_data = data(trigger_start_frame:trigger_end_frame, :);
 
@@ -99,6 +87,8 @@ for i = 1:length(files)
     % time taken to execute the last AD command. We assume here the
     % first and last AD command take the same time to run and result
     % in the same trigger error
+    % Whether or not I shift all the data back by trigger_error has no
+    % clear effect on the wingbeat averaged lift data.
     trimmed_data = data(trigger_start_frame - round(trigger_error):...
         trigger_end_frame - round(2*trigger_error), :);
 
@@ -291,7 +281,7 @@ for i = 1:length(cases)
     load(mat_name);
     
     case_name = strrep(cases(i),'_',' ');
-    case_name_chars = convertStringsToChars(case_name);
+    case_name_chars = char(case_name);
     speed = str2double(case_name_chars(1));
 
     num_wingbeats = 100;
@@ -312,7 +302,7 @@ for i = 1:length(cases)
     load(mat_name);
     
     case_name = strrep(cases(i),'_',' ');
-    case_name_chars = convertStringsToChars(case_name);
+    case_name_chars = char(case_name);
     speed = str2double(case_name_chars(1));
     
     % Plot lift force
@@ -347,7 +337,7 @@ for i = 1:length(cases)
     load(mat_name);
     
     case_name = strrep(cases(i),'_',' ');
-    case_name_chars = convertStringsToChars(case_name);
+    case_name_chars = char(case_name);
     speed = str2double(case_name_chars(1));
 
     num_wingbeats = 100;
@@ -368,7 +358,7 @@ for i = 1:length(cases)
     load(mat_name);
     
     case_name = strrep(cases(i),'_',' ');
-    case_name_chars = convertStringsToChars(case_name);
+    case_name_chars = char(case_name);
     speed = str2double(case_name_chars(1));
     
     % Plot lift force
@@ -404,7 +394,7 @@ for i = 1:length(cases)
     load(mat_name);
     
     case_name = strrep(cases(i),'_',' ');
-    case_name_chars = convertStringsToChars(case_name);
+    case_name_chars = char(case_name);
     speed = str2double(case_name_chars(1));
 
     num_wingbeats = 100;
@@ -426,13 +416,22 @@ for i = 1:length(cases)
     
     % Plot lift force
     plot(frames, wingbeat_avg_lift, 'DisplayName', case_name, "LineWidth", 2, 'Color', colors(speed,:));
+    save(cases(i) + ".mat", 'data','trimmed_data','trimmed_time','wingbeats', 'frames', 'wingbeat_avg_lift');
 end
 legend("Location","Southwest");
+
+% ----------------------------------------------------------------
+% -------Plot Wingless Data normalized by wingbeat cycles---------
+% ----------------and then wingbeat cycle averaged----------------
+% ----------------------------------------------------------------
+
+cases = ["1Hz_body", "2Hz_body"];
+colors = [[0 0.4470 0.7410]; [0.8500 0.3250 0.0980]; [0.9290 0.6940 0.1250]];
 
 % Open a new figure.
 f = figure;
 f.Position = [200 50 900 560];
-title("Lift Force (z-direction) - PDMS Wings");
+title("Lift Force (z-direction) - Wingless");
 xlabel("Wingbeat Number");
 ylabel("Force (N)");
 hold on
@@ -443,7 +442,7 @@ for i = 1:length(cases)
     load(mat_name);
     
     case_name = strrep(cases(i),'_',' ');
-    case_name_chars = convertStringsToChars(case_name);
+    case_name_chars = char(case_name);
     speed = str2double(case_name_chars(1));
 
     num_wingbeats = 100;
@@ -458,13 +457,52 @@ for i = 1:length(cases)
 
     wingbeat_avg_lift = zeros(1,frames_per_beat);
     for k = 1:frames_per_beat
-        wingbeat_avg_lift(k) = mean(wingbeat_lifts(25:75,k));
+        wingbeat_avg_lift(k) = mean(wingbeat_lifts(:,k));
     end
 
     frames = linspace(0,1,frames_per_beat);
     
     % Plot lift force
     plot(frames, wingbeat_avg_lift, 'DisplayName', case_name, "LineWidth", 2, 'Color', colors(speed,:));
+    save(cases(i) + ".mat", 'data','trimmed_data','trimmed_time','wingbeats', 'frames', 'wingbeat_avg_lift');
+end
+legend("Location","Southwest");
+
+%%
+
+% ----------------------------------------------------------------
+% -------Plot Wingless Data Subtracted from PDMS Data-------------
+% ---------------------at 1 Hz, 2 Hz, and 3 Hz--------------------
+% ----------------------------------------------------------------
+
+body_cases = ["1Hz_body", "2Hz_body"];
+wing_cases = ["1Hz_PDMS", "2Hz_PDMS"];
+
+% Open a new figure.
+f = figure;
+f.Position = [200 50 900 560];
+title(["Aerodynamic Force Production" "(Subtracting Force without Wings from Force with Wings)"]);
+xlabel("Wingbeat Number");
+ylabel("Force (N)");
+hold on
+for i = 1:2
+    case_name_chars = char(body_cases(i));
+    speed = case_name_chars(1:3);
+    
+    % Load body data
+    mat_name = body_cases(i) + ".mat";
+    load(mat_name, 'wingbeat_avg_lift');
+    lift_body = wingbeat_avg_lift;
+    
+    % Load wing data
+    mat_name = wing_cases(i) + ".mat";
+    load(mat_name,'wingbeat_avg_lift','frames');
+    lift_PDMS = wingbeat_avg_lift;
+
+    lift_sub = lift_PDMS - lift_body;
+    
+    % Plot lift force
+    plot(frames, lift_sub, 'DisplayName', speed, "LineWidth",2);
 end
 legend("Location","Southwest");
 
@@ -492,7 +530,7 @@ for i = 1:length(cases)
     load(mat_name);
     
     case_name = strrep(cases(i),'_',' ');
-    case_name_chars = convertStringsToChars(case_name);
+    case_name_chars = char(case_name);
     speed = str2double(case_name_chars(1));
 
     num_wingbeats = 100;
@@ -507,7 +545,6 @@ for i = 1:length(cases)
     
     % Plot lift force
     plot(wingbeats, filtered_data, 'DisplayName', case_name, "LineWidth", 2, 'Color', colors(speed,:));
-    save(cases(i) + ".mat", 'data','trimmed_data','trimmed_time','wingbeats');
 end
 legend("Location","Southwest");
 ax1 = axes('Position',[0.35 0.2 0.2 0.2]);
@@ -518,7 +555,7 @@ for i = 1:length(cases)
     load(mat_name);
     
     case_name = strrep(cases(i),'_',' ');
-    case_name_chars = convertStringsToChars(case_name);
+    case_name_chars = char(case_name);
     speed = str2double(case_name_chars(1));
 
     fc = 100;
