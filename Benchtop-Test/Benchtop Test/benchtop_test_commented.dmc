@@ -35,6 +35,7 @@ BG B; 'Begin motion using preset value
 'Trigger after acceleration
 ADB=wait_ticks_placeholder;
 SB 1; 'Set digital output 1 indicating motion beginning
+
 'Trigger before deceleration
 ADB=(distance_placeholder - wait_ticks_placeholder);
 CB 1; 'Clear digital output 1 indicating motion complete
