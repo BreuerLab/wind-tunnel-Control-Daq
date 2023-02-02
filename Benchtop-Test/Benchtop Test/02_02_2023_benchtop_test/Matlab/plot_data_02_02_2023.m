@@ -27,12 +27,23 @@ close all
 % - Use measurement period that's divisible by each speed, here we
 % have the issue: 
 % ((100 cycles) / (3 cycles / sec)) * (1280 frames / sec) = 42666.666
+
 % - Why are there extra frames recorded?
 % ((100 cycles) / (1 cycles / sec)) * (1280 frames / sec) = 128000
 % while instead we got 128018, 128018, 128019
 % Is it possible that the Galil misses counting some ticks increasing
 % the measurement period as its still try to reach the prescribed
-% number of ticks
+% number of ticks?
+% On page 110 of the manual, they state: "The accuracy of the
+% trippoint is the speed multiplied by the sample period."
+% Not sure what units are to be used here for speed and sample period
+
+% - Figure out how to set stepper motor so that when that it begins
+% moving at the bottom or top of motion rather than somewhere
+% arbitrary
+
+% - Record many more wingbeat periods (maybe 300 periods) to increase
+% smoothing effect due to averaging across trials
 
 %%
 
@@ -53,6 +64,8 @@ for i = 1:length(files)
     % Get case name from file name
     case_name = erase(files(i), ["_experiment_020223.csv", "..\Experiment Data\"]);
     case_name = strrep(case_name,'_',' ');
+    case_name_chars = convertStringsToChars(case_name);
+    speed = str2double(case_name_chars(1));
     
     % Get data from file
     data = readmatrix(files(i));
@@ -63,20 +76,33 @@ for i = 1:length(files)
 
     these_raw_trigger_vals = data(:, 8);
     
-    for i = 1:length(these_raw_trigger_vals)
+    for j = 1:length(these_raw_trigger_vals)
         if (trigger_start_frame == -1) % unassigned?
-            if (these_raw_trigger_vals(i) < 1) % pulled low?
-                trigger_start_frame = i;
+            if (these_raw_trigger_vals(j) < 1) % pulled low?
+                trigger_start_frame = j;
             end
         elseif (trigger_end_frame == -1) % unassigned?
-            if (these_raw_trigger_vals(i) > 1) % pulled high?
-                trigger_end_frame = i - 1;
+            if (these_raw_trigger_vals(j) > 1) % pulled high?
+                trigger_end_frame = j - 1;
             end
         end
     end
 
     trimmed_data = data(trigger_start_frame:trigger_end_frame, :);
-    display(case_name + ": " + length(trimmed_data))
+
+    expected_length = (100 / speed) * 1280;
+    trigger_error = length(trimmed_data) - expected_length;
+    trigger_error_percent = round(trigger_error / expected_length, 4);
+
+    % assuming it counts the exact amount of ticks before sending the
+    % next output, the trigger error observed is entirely due to the
+    % time taken to execute the last AD command. We assume here the
+    % first and last AD command take the same time to run and result
+    % in the same trigger error
+    trimmed_data = data(trigger_start_frame - round(trigger_error):...
+        trigger_end_frame - round(2*trigger_error), :);
+
+    trimmed_time = trimmed_data(:,1) - trimmed_data(1,1);
 
     times = data(1:end,1);
     force_vals = data(1:end,2:7);
@@ -84,47 +110,427 @@ for i = 1:length(files)
     force_means = round(mean(force_vals), 3);
     force_SDs = round(std(force_vals), 3);
     
-    % Open a new figure.
+     % Open a new figure.
     f = figure;
     f.Position = [200 50 900 560];
-
+    tcl = tiledlayout(2,3);
+    
     % Create three subplots to show the force time histories. 
-    subplot(2, 3, 1);
-    plot(times, force_vals(:, 1));
+    nexttile(tcl)
+    hold on
+    raw_line = plot(data(:, 1), data(:, 2), 'DisplayName', 'raw');
+    trigger_line = plot(trimmed_data(:,1), trimmed_data(:, 2), ...
+        'DisplayName', 'trigger');
     title(["F_x" ("avg: " + force_means(1) + " SD: " + force_SDs(1))]);
     xlabel("Time (s)");
     ylabel("Force (N)");
-    subplot(2, 3, 2);
-    plot(times, force_vals(:, 2));
+    
+    nexttile(tcl)
+    hold on
+    plot(data(:, 1), data(:, 3));
+    plot(trimmed_data(:,1), trimmed_data(:, 3));
     title(["F_y" ("avg: " + force_means(2) + " SD: " + force_SDs(2))]);
     xlabel("Time (s)");
     ylabel("Force (N)");
-    subplot(2, 3, 3);
-    plot(times, force_vals(:, 3));
+    
+    nexttile(tcl)
+    hold on
+    plot(data(:, 1), data(:, 4));
+    plot(trimmed_data(:,1), trimmed_data(:, 4));
     title(["F_z" ("avg: " + force_means(3) + " SD: " + force_SDs(3))]);
     xlabel("Time (s)");
     ylabel("Force (N)");
 
     % Create three subplots to show the moment time histories.
-    subplot(2, 3, 4);
-    plot(times, force_vals(:, 4));
+    nexttile(tcl)
+    hold on
+    plot(data(:, 1), data(:, 5));
+    plot(trimmed_data(:,1), trimmed_data(:, 5));
     title(["M_x" ("avg: " + force_means(4) + " SD: " + force_SDs(4))]);
     xlabel("Time (s)");
     ylabel("Torque (N m)");
-    subplot(2, 3, 5);
-    plot(times, force_vals(:, 5));
+    
+    nexttile(tcl)
+    hold on
+    plot(data(:, 1), data(:, 6));
+    plot(trimmed_data(:,1), trimmed_data(:, 6));
     title(["M_y" ("avg: " + force_means(5) + " SD: " + force_SDs(5))]);
     xlabel("Time (s)");
     ylabel("Torque (N m)");
-    subplot(2, 3, 6);
-    plot(times, force_vals(:, 6));
+    
+    nexttile(tcl)
+    hold on
+    plot(data(:, 1), data(:, 7));
+    plot(trimmed_data(:,1), trimmed_data(:, 7));
     title(["M_z" ("avg: " + force_means(6) + " SD: " + force_SDs(6))]);
     xlabel("Time (s)");
     ylabel("Torque (N m)");
+
+    hL = legend([raw_line, trigger_line]);
+    % Move the legend to the right side of the figure
+    hL.Layout.Tile = 'East';
     
     % Label the whole figure.
-    sgtitle("Force Transducer Measurement for " + case_name);
+    sgtitle({"Force Transducer Measurement for " + case_name ...
+             "Trigger Error: " + trigger_error + " frames " + trigger_error_percent + "%"});
     
     case_parts = char(split(case_name));
-    save([case_parts(2,:),'_',case_parts(1,1:end-1),'.mat'], 'data')
+    save([case_parts(1,1:end-1),'_',case_parts(2,:),'.mat'], 'data','trimmed_data','trimmed_time')
 end
+
+%%
+
+% ----------------------------------------------------------------
+% -------------------------Plot PDMS Data-------------------------
+% ----------------------------------------------------------------
+     
+cases = ["1Hz_PDMS", "2Hz_PDMS", "3Hz_PDMS"];
+
+% Open a new figure.
+f = figure;
+f.Position = [200 50 900 560];
+title("Lift Force (z-direction) - PDMS Wings");
+xlabel("Time (s)");
+ylabel("Force (N)");
+hold on
+
+for i = 1:length(cases)
+    % Load data
+    mat_name = cases(i) + ".mat";
+    load(mat_name);
+    
+    case_name = strrep(cases(i),'_',' ');
+    
+    % Plot lift force
+    plot(trimmed_time, trimmed_data(:, 4), 'DisplayName', case_name, "LineWidth",2);
+end
+legend("Location","Southwest");
+ax1 = axes('Position',[0.35 0.2 0.2 0.2]);
+hold on
+for i = 1:length(cases)
+    % Load data
+    mat_name = cases(i) + ".mat";
+    load(mat_name);
+    
+    case_name = strrep(cases(i),'_',' ');
+    
+    % Plot lift force
+    plot(ax1, trimmed_time, trimmed_data(:, 4))
+    line(xlim, [0 0], 'Color','black'); % x-axis
+end
+xlim([30, 36])
+ylim([-14, 14])
+box on
+annotation('arrow',[0.45 0.39], [0.4 0.52])
+
+%%
+
+% ----------------------------------------------------------------
+% ----------------------Plot Wingless Data------------------------
+% ----------------------------------------------------------------
+     
+cases = ["1Hz_Body", "2Hz_Body", "3Hz_Body"];
+
+% Open a new figure.
+f = figure;
+f.Position = [200 50 900 560];
+title("Lift Force (z-direction) - Wingless");
+xlabel("Time (s)");
+ylabel("Force (N)");
+hold on
+
+for i = 1:length(cases)
+    % Load data
+    mat_name = cases(i) + ".mat";
+    load(mat_name);
+    
+    case_name = strrep(cases(i),'_',' ');
+    
+    % Plot lift force
+    plot(trimmed_time, trimmed_data(:, 4), 'DisplayName', case_name, "LineWidth",2);
+end
+legend("Location","Southwest");
+ax1 = axes('Position',[0.35 0.2 0.2 0.2]);
+hold on
+for i = 1:length(cases)
+    % Load data
+    mat_name = cases(i) + ".mat";
+    load(mat_name);
+    
+    case_name = strrep(cases(i),'_',' ');
+    
+    % Plot lift force
+    plot(ax1, trimmed_time, trimmed_data(:, 4))
+    line(xlim, [0 0], 'Color','black'); % x-axis
+end
+xlim([30, 36])
+ylim([-14, 14])
+box on
+annotation('arrow',[0.45 0.39], [0.4 0.52])
+
+%%
+
+% ----------------------------------------------------------------
+% --------Plot PDMS Data normalized by wingbeat cycles------------
+% ----------------------------------------------------------------
+     
+cases = ["1Hz_PDMS", "2Hz_PDMS"];
+colors = [[0 0.4470 0.7410]; [0.8500 0.3250 0.0980]; [0.9290 0.6940 0.1250]];
+
+% Open a new figure.
+f = figure;
+f.Position = [200 50 900 560];
+title("Lift Force (z-direction) - PDMS Wings");
+xlabel("Wingbeat Number");
+ylabel("Force (N)");
+hold on
+
+for i = 1:length(cases)
+    % Load data
+    mat_name = cases(i) + ".mat";
+    load(mat_name);
+    
+    case_name = strrep(cases(i),'_',' ');
+    case_name_chars = convertStringsToChars(case_name);
+    speed = str2double(case_name_chars(1));
+
+    num_wingbeats = 100;
+    frames_per_beat = (1280 / speed);
+
+    wingbeats = linspace(0, num_wingbeats, frames_per_beat*num_wingbeats);
+    
+    % Plot lift force
+    plot(wingbeats, trimmed_data(:, 4), 'DisplayName', case_name, "LineWidth", 2, 'Color', colors(speed,:));
+    save(cases(i) + ".mat", 'data','trimmed_data','trimmed_time','wingbeats');
+end
+legend("Location","Southwest");
+ax1 = axes('Position',[0.35 0.2 0.2 0.2]);
+hold on
+for i = 1:length(cases)
+    % Load data
+    mat_name = cases(i) + ".mat";
+    load(mat_name);
+    
+    case_name = strrep(cases(i),'_',' ');
+    case_name_chars = convertStringsToChars(case_name);
+    speed = str2double(case_name_chars(1));
+    
+    % Plot lift force
+    plot(ax1, wingbeats, trimmed_data(:, 4), 'Color', colors(speed,:))
+    line(xlim, [0 0], 'Color','black'); % x-axis
+end
+xlim([32, 34])
+ylim([-14, 14])
+box on
+annotation('arrow',[0.45 0.39], [0.4 0.52])
+
+%%
+
+% ----------------------------------------------------------------
+% --------Plot Wingless Data normalized by wingbeat cycles------------
+% ----------------------------------------------------------------
+     
+cases = ["1Hz_Body", "2Hz_Body"];
+colors = [[0 0.4470 0.7410]; [0.8500 0.3250 0.0980]; [0.9290 0.6940 0.1250]];
+
+% Open a new figure.
+f = figure;
+f.Position = [200 50 900 560];
+title("Lift Force (z-direction) - Wingless");
+xlabel("Wingbeat Number");
+ylabel("Force (N)");
+hold on
+
+for i = 1:length(cases)
+    % Load data
+    mat_name = cases(i) + ".mat";
+    load(mat_name);
+    
+    case_name = strrep(cases(i),'_',' ');
+    case_name_chars = convertStringsToChars(case_name);
+    speed = str2double(case_name_chars(1));
+
+    num_wingbeats = 100;
+    frames_per_beat = (1280 / speed);
+
+    wingbeats = linspace(0, num_wingbeats, frames_per_beat*num_wingbeats);
+    
+    % Plot lift force
+    plot(wingbeats, trimmed_data(:, 4), 'DisplayName', case_name, "LineWidth", 2, 'Color', colors(speed,:));
+    save(cases(i) + ".mat", 'data','trimmed_data','trimmed_time','wingbeats');
+end
+legend("Location","Southwest");
+ax1 = axes('Position',[0.35 0.2 0.2 0.2]);
+hold on
+for i = 1:length(cases)
+    % Load data
+    mat_name = cases(i) + ".mat";
+    load(mat_name);
+    
+    case_name = strrep(cases(i),'_',' ');
+    case_name_chars = convertStringsToChars(case_name);
+    speed = str2double(case_name_chars(1));
+    
+    % Plot lift force
+    plot(ax1, wingbeats, trimmed_data(:, 4), 'Color', colors(speed,:))
+    line(xlim, [0 0], 'Color','black'); % x-axis
+end
+xlim([32, 34])
+ylim([-14, 14])
+box on
+annotation('arrow',[0.45 0.39], [0.4 0.52])
+
+%%
+
+% ----------------------------------------------------------------
+% --------Plot PDMS Data normalized by wingbeat cycles------------
+% ----------------and then wingbeat cycle averaged----------------
+% ----------------------------------------------------------------
+     
+cases = ["1Hz_PDMS", "2Hz_PDMS"];
+colors = [[0 0.4470 0.7410]; [0.8500 0.3250 0.0980]; [0.9290 0.6940 0.1250]];
+
+% Open a new figure.
+f = figure;
+f.Position = [200 50 900 560];
+title("Lift Force (z-direction) - PDMS Wings");
+xlabel("Wingbeat Number");
+ylabel("Force (N)");
+hold on
+
+for i = 1:length(cases)
+    % Load data
+    mat_name = cases(i) + ".mat";
+    load(mat_name);
+    
+    case_name = strrep(cases(i),'_',' ');
+    case_name_chars = convertStringsToChars(case_name);
+    speed = str2double(case_name_chars(1));
+
+    num_wingbeats = 100;
+    frames_per_beat = (1280 / speed);
+    
+    wingbeat_lifts = zeros(num_wingbeats, frames_per_beat);
+    for j = 1:num_wingbeats
+        for k = 1:frames_per_beat
+            wingbeat_lifts(j,k) = trimmed_data(k + (frames_per_beat*(j-1)), 4);
+        end
+    end
+
+    wingbeat_avg_lift = zeros(1,frames_per_beat);
+    for k = 1:frames_per_beat
+        wingbeat_avg_lift(k) = mean(wingbeat_lifts(:,k));
+    end
+
+    frames = linspace(0,1,frames_per_beat);
+    
+    % Plot lift force
+    plot(frames, wingbeat_avg_lift, 'DisplayName', case_name, "LineWidth", 2, 'Color', colors(speed,:));
+end
+legend("Location","Southwest");
+
+% Open a new figure.
+f = figure;
+f.Position = [200 50 900 560];
+title("Lift Force (z-direction) - PDMS Wings");
+xlabel("Wingbeat Number");
+ylabel("Force (N)");
+hold on
+
+for i = 1:length(cases)
+    % Load data
+    mat_name = cases(i) + ".mat";
+    load(mat_name);
+    
+    case_name = strrep(cases(i),'_',' ');
+    case_name_chars = convertStringsToChars(case_name);
+    speed = str2double(case_name_chars(1));
+
+    num_wingbeats = 100;
+    frames_per_beat = (1280 / speed);
+    
+    wingbeat_lifts = zeros(num_wingbeats, frames_per_beat);
+    for j = 1:num_wingbeats
+        for k = 1:frames_per_beat
+            wingbeat_lifts(j,k) = trimmed_data(k + (frames_per_beat*(j-1)), 4);
+        end
+    end
+
+    wingbeat_avg_lift = zeros(1,frames_per_beat);
+    for k = 1:frames_per_beat
+        wingbeat_avg_lift(k) = mean(wingbeat_lifts(25:75,k));
+    end
+
+    frames = linspace(0,1,frames_per_beat);
+    
+    % Plot lift force
+    plot(frames, wingbeat_avg_lift, 'DisplayName', case_name, "LineWidth", 2, 'Color', colors(speed,:));
+end
+legend("Location","Southwest");
+
+%%
+
+% ----------------------------------------------------------------
+% --------Plot PDMS Data normalized by wingbeat cycles------------
+% -------Filtered with Butterworth using Cutoff of 100 Hz---------
+% ----------------------------------------------------------------
+     
+cases = ["1Hz_PDMS", "2Hz_PDMS"];
+colors = [[0 0.4470 0.7410]; [0.8500 0.3250 0.0980]; [0.9290 0.6940 0.1250]];
+
+% Open a new figure.
+f = figure;
+f.Position = [200 50 900 560];
+title(["Filtered Lift Force (z-direction) - PDMS Wings" "Butterworth Filter (cutoff frequency = 100 Hz)"]);
+xlabel("Wingbeat Number");
+ylabel("Force (N)");
+hold on
+
+for i = 1:length(cases)
+    % Load data
+    mat_name = cases(i) + ".mat";
+    load(mat_name);
+    
+    case_name = strrep(cases(i),'_',' ');
+    case_name_chars = convertStringsToChars(case_name);
+    speed = str2double(case_name_chars(1));
+
+    num_wingbeats = 100;
+    frames_per_beat = (1280 / speed);
+
+    wingbeats = linspace(0, num_wingbeats, frames_per_beat*num_wingbeats);
+
+    fc = 100;
+    fs = 1280;
+    [b,a] = butter(6,fc/(fs/2));
+    filtered_data = filter(b,a,trimmed_data(:, 4));
+    
+    % Plot lift force
+    plot(wingbeats, filtered_data, 'DisplayName', case_name, "LineWidth", 2, 'Color', colors(speed,:));
+    save(cases(i) + ".mat", 'data','trimmed_data','trimmed_time','wingbeats');
+end
+legend("Location","Southwest");
+ax1 = axes('Position',[0.35 0.2 0.2 0.2]);
+hold on
+for i = 1:length(cases)
+    % Load data
+    mat_name = cases(i) + ".mat";
+    load(mat_name);
+    
+    case_name = strrep(cases(i),'_',' ');
+    case_name_chars = convertStringsToChars(case_name);
+    speed = str2double(case_name_chars(1));
+
+    fc = 100;
+    fs = 1280;
+    [b,a] = butter(6,fc/(fs/2));
+    filtered_data = filter(b,a,trimmed_data(:, 4));
+    
+    % Plot lift force
+    plot(ax1, wingbeats, filtered_data, 'Color', colors(speed,:))
+    line(xlim, [0 0], 'Color','black'); % x-axis
+end
+xlim([32, 34])
+ylim([-4, 4])
+box on
+annotation('arrow',[0.45 0.39], [0.4 0.52])
