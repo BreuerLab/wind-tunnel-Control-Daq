@@ -19,7 +19,7 @@ close all;
 % -----------------------------------------------------------------------
 % ----------Parameters to Adjust for Your Specific Experiment------------
 % -----------------------------------------------------------------------
-% Data Logging Parameters
+% Adjust Every Trial
 case_name = "2Hz_body";
 
 % Stepper Motor Parameters
@@ -32,8 +32,8 @@ acc = 3*rev_ticks; % ticks / sec^2
 vel = 2*rev_ticks; % ticks / sec
 measure_revs = 100; % we want 100 wingbeats of data
 padding_revs = 0; % dropped from front and back during data processing
-wait_time = 5000; % 5 seconds
-distance = 0; % ticks
+wait_time = 5000; % 5 seconds (data collected before and after flapping)
+distance = 0; % ticks to travel this trial
 
 % Force Transducer Parameters
 rate = 1280; % DAQ recording frequency (Hz) (51200 / 1280) = 40
