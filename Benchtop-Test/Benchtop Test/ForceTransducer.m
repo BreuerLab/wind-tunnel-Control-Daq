@@ -150,9 +150,10 @@ function plot_results(obj, these_results)
     % Create three subplots to show the force time histories. 
     subplot(2, 3, 1);
     hold on
-    plot(these_results(:, 1), these_results(:, 2));
+    plot(these_results(:, 1), these_results(:, 2), 'DisplayName', 'raw');
     plot(these_results(trigger_start_frame:trigger_end_frame, 1), ...
-        these_results(trigger_start_frame:trigger_end_frame, 2));
+        these_results(trigger_start_frame:trigger_end_frame, 2), ...
+        'DisplayName', 'trigger');
     title("F_x");
     xlabel("Time (s)");
     ylabel("Force (N)");
@@ -199,6 +200,7 @@ function plot_results(obj, these_results)
     xlabel("Time (s)");
     ylabel("Torque (N m)");
 
+    legend("Location","Southwest");
     % Label the whole figure.
     sgtitle("Time Series of Loads for benchtop");
 end

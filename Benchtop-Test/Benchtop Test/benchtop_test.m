@@ -56,8 +56,8 @@ dmc = strrep(dmc, "speed_placeholder", num2str(vel));
 dmc = strrep(dmc, "distance_placeholder", num2str(distance));
 dmc = strrep(dmc, "wait_time_placeholder", num2str(wait_time + 3000));
 dmc = strrep(dmc, "wait_ticks_placeholder", num2str(trigger_pos));
-% later added extra 3 seconds in galil waiting time to account for
-% extra time spent executing operations
+% added extra 3 seconds in galil waiting time as seen above to account
+% for extra time spent executing operations
 
 % Connect to the Galil device.
 galil = actxserver("galil");
