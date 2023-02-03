@@ -45,6 +45,9 @@ close all
 % - Record many more wingbeat periods (maybe 300 periods) to increase
 % smoothing effect due to averaging across trials
 
+% - Extend delay after acceleration and before acceleration for
+% trigger
+
 %%
 
 % ----------------------------------------------------------------
@@ -89,8 +92,8 @@ for i = 1:length(files)
     % in the same trigger error
     % Whether or not I shift all the data back by trigger_error has no
     % clear effect on the wingbeat averaged lift data.
-    trimmed_data = data(trigger_start_frame - round(trigger_error):...
-        trigger_end_frame - round(2*trigger_error), :);
+    trimmed_data = data(trigger_start_frame - round(0):...
+        trigger_end_frame - round(trigger_error), :);
 
     trimmed_time = trimmed_data(:,1) - trimmed_data(1,1);
 
@@ -369,6 +372,86 @@ xlim([32, 34])
 ylim([-14, 14])
 box on
 annotation('arrow',[0.45 0.39], [0.4 0.52])
+
+%%
+
+% ----------------------------------------------------------------
+% --------Plot PDMS Data normalized by wingbeat cycles------------
+% --------------animation of each wingbeat at a time--------------
+% ----------------------------------------------------------------
+     
+cases = ["1Hz_PDMS", "2Hz_PDMS"];
+colors = [[0 0.4470 0.7410]; [0.8500 0.3250 0.0980]; [0.9290 0.6940 0.1250]];
+
+num_wingbeats = 100;
+wingbeats_animation = struct('cdata', cell(1,num_wingbeats), 'colormap', cell(1,num_wingbeats));
+
+for n = 1:num_wingbeats
+    % Open a new figure.
+    f = figure;
+    f.Visible = "off";
+    f.Position = [200 50 900 560];
+    title({"Lift Force (z-direction) - PDMS Wings" "Wingbeat Number: " + n});
+    xlabel("Wingbeat Number");
+    ylabel("Force (N)");
+    ylim([-20 20]);
+    hold on
+for i = 1:length(cases)
+    % Load data
+    mat_name = cases(i) + ".mat";
+    load(mat_name);
+    
+    case_name = strrep(cases(i),'_',' ');
+    case_name_chars = char(case_name);
+    speed = str2double(case_name_chars(1));
+
+    frames_per_beat = (1280 / speed);
+    
+    wingbeat_lifts = zeros(num_wingbeats, frames_per_beat);
+    for j = 1:num_wingbeats
+        for k = 1:frames_per_beat
+            wingbeat_lifts(j,k) = trimmed_data(k + (frames_per_beat*(j-1)), 4);
+        end
+    end
+
+    frames = linspace(0,1,frames_per_beat);
+    
+    % Plot lift force
+    plot(frames, wingbeat_lifts(n,:), 'DisplayName', case_name, "LineWidth", 2, 'Color', colors(speed,:));
+end
+legend("Location","Southwest");
+
+% Save plot along with axes labels and titles
+ax = gca;
+ax.Units = 'pixels';
+pos = ax.Position;
+ti = ax.TightInset;
+rect = [-ti(1), -ti(2), pos(3)+ti(1)+ti(3), pos(4)+ti(2)+ti(4)];
+F = getframe(ax,rect);
+
+% Add plot to array of plots to serve animation
+wingbeats_animation(n) = F;
+end
+
+% Play movie
+% h = figure;
+% h.Position = [200 50 900 560];
+% movie(h,wingbeats_animation,5,5);
+
+% Save movie
+video_name = 'PDMS.mp4';
+v = VideoWriter(video_name, 'MPEG-4');
+v.FrameRate = 5; % fps
+v.Quality = 100; % [0 - 100]
+open(v);
+writeVideo(v,wingbeats_animation);
+close(v);
+
+% From beginning to end, it looks like the data for each wingbeat is
+% slowly shifting right. This would indicate that the assumed wingbeat
+% period is a little shorter than the true wingbeat period or we are
+% not quite looking at a full 100 wingbeats
+
 
 %%
 

@@ -19,6 +19,8 @@ function [distance, session_duration, trigger_pos] = estimate_duration...
 
     % round up to nearest integer (ex: 0.4 -> 1)
     trigger_pos = rev_ticks*round((at_speed_pos/rev_ticks) + 0.5);
+    % Add another revolution for good measure
+    trigger_pos = trigger_pos + 1;
 
     num_revs = measure_revs + 2*padding_revs + 2*(trigger_pos/rev_ticks);
     distance = round(num_revs*rev_ticks);
