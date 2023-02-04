@@ -29,14 +29,14 @@ microsteps = 256; % fixed parameter of AMP-43547
 steps_per_rev = 200; % fixed parameter of PH266-E1.2
 rev_ticks = microsteps*steps_per_rev; % ticks per rev
 acc = 3*rev_ticks; % ticks / sec^2
-vel = 3*rev_ticks; % ticks / sec
-measure_revs = 100; % we want 100 wingbeats of data
+vel = 1*rev_ticks; % ticks / sec
+measure_revs = 300; % we want 100 wingbeats of data
 padding_revs = 0; % dropped from front and back during data processing
 wait_time = 5000; % 5 seconds (data collected before and after flapping)
 distance = 0; % ticks to travel this trial
 
 % Force Transducer Parameters
-rate = 1280; % DAQ recording frequency (Hz) (51200 / 1280) = 40
+rate = 1500; % DAQ recording frequency (Hz)
 offset_duration = 2; % Taring/Offset/Zeroing Time
 session_duration = 0; % Measurement Time
 
