@@ -620,13 +620,13 @@ legend("Location","Southwest");
 % -------Filtered with Butterworth using Cutoff of 100 Hz---------
 % ----------------------------------------------------------------
      
-cases = ["1Hz_PDMS", "2Hz_PDMS"];
+cases = ["2Hz_PDMS", "1Hz_PDMS"];
 colors = [[0 0.4470 0.7410]; [0.8500 0.3250 0.0980]; [0.9290 0.6940 0.1250]];
 
 % Open a new figure.
 f = figure;
 f.Position = [200 50 900 560];
-title(["Filtered Lift Force (z-direction) - PDMS Wings" "Butterworth Filter (cutoff frequency = 100 Hz)"]);
+title(["Filtered Lift Force (z-direction) - PDMS Wings" "Butterworth Filter (Cutoff: 100 Hz)"]);
 xlabel("Wingbeat Number");
 ylabel("Force (N)");
 hold on
@@ -678,3 +678,77 @@ xlim([32, 34])
 ylim([-4, 4])
 box on
 annotation('arrow',[0.45 0.39], [0.4 0.52])
+
+%%
+
+% ----------------------------------------------------------------
+% --------Plot PDMS Data normalized by wingbeat cycles------------
+% ----------------and then wingbeat cycle averaged----------------
+% -------Filtered with Butterworth using Cutoff of 100 Hz---------
+% ----------------------------------------------------------------
+     
+cases = ["1Hz_PDMS", "2Hz_PDMS"];
+
+% Open a new figure.
+f = figure;
+f.Position = [200 50 900 560];
+title({"Lift Force (z-direction) - PDMS Wings" "Butterworth Filter (Cutoff: 100 Hz)"});
+xlabel("Wingbeat Number");
+ylabel("Force (N)");
+hold on
+
+for i = 1:length(cases)
+    % Load data
+    mat_name = cases(i) + ".mat";
+    load(mat_name);
+    
+    case_name = strrep(cases(i),'_',' ');
+    case_name_chars = char(case_name);
+    speed = str2double(case_name_chars(1));
+    
+    fc = 100;
+    fs = 1280;
+    [b,a] = butter(6,fc/(fs/2));
+    filtered_data = filter(b,a,wingbeat_avg_lift);
+    
+    % Plot lift force
+    plot(frames, filtered_data, 'DisplayName', case_name, "LineWidth", 2);
+end
+legend("Location","Southwest");
+    
+%%
+
+% ----------------------------------------------------------------
+% --------Plot PDMS Data normalized by wingbeat cycles------------
+% ----------------and then wingbeat cycle averaged----------------
+% ------------Moving Average Filter Window (100 ms)---------------
+% ----------------------------------------------------------------
+     
+cases = ["1Hz_PDMS", "2Hz_PDMS"];
+
+% Open a new figure.
+f = figure;
+f.Position = [200 50 900 560];
+title({"Lift Force (z-direction) - PDMS Wings" "Moving Average Filter Window (100 ms)"});
+xlabel("Wingbeat Number");
+ylabel("Force (N)");
+hold on
+
+for i = 1:length(cases)
+    % Load data
+    mat_name = cases(i) + ".mat";
+    load(mat_name);
+    
+    case_name = strrep(cases(i),'_',' ');
+    case_name_chars = char(case_name);
+    speed = str2double(case_name_chars(1));
+    
+    % Filtering force data with moving average filter
+    window = 100;
+    b = 1 / window*ones(window,1);
+    filtered_data = filter(b, 1, wingbeat_avg_lift);
+    
+    % Plot lift force
+    plot(frames, filtered_data, 'DisplayName', case_name, "LineWidth", 2);
+end
+legend("Location","Southwest");
