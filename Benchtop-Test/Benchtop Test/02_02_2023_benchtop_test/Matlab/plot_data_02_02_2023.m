@@ -167,8 +167,8 @@ for i = 1:length(files)
     sgtitle({"Force Transducer Measurement for " + case_name ...
              "Trigger Error: " + trigger_error + " frames " + trigger_error_percent + "%"});
     
-    case_parts = char(split(case_name));
-    save([case_parts(1,1:end-1),'_',case_parts(2,:),'.mat'], 'data','trimmed_data','trimmed_time')
+    case_parts = strtrim(split(case_name));
+    save([char(case_parts(1)),'_',char(case_parts(2)),'.mat'], 'data','trimmed_data','trimmed_time')
 end
 
 %%
@@ -752,3 +752,103 @@ for i = 1:length(cases)
     plot(frames, filtered_data, 'DisplayName', case_name, "LineWidth", 2);
 end
 legend("Location","Southwest");
+
+%%
+
+% ----------------------------------------------------------------
+% ------Plot PDMS and CB Data normalized by wingbeat cycles-------
+% ----------------and then wingbeat cycle averaged----------------
+% ----------------------------------------------------------------
+% Open a new figure.
+f = figure;
+f.Position = [200 50 900 560];
+tcl = tiledlayout(2,1);
+
+cases = ["1Hz_PDMS", "2Hz_PDMS"];
+colors = [[0 0.4470 0.7410]; [0.8500 0.3250 0.0980]; [0.9290 0.6940 0.1250]];
+
+% First subplot for PDMS
+nexttile(tcl)
+hold on
+
+for i = 1:length(cases)
+    % Load data
+    mat_name = cases(i) + ".mat";
+    load(mat_name);
+    
+    case_name = strrep(cases(i),'_',' ');
+    case_name_chars = char(case_name);
+    speed = str2double(case_name_chars(1));
+
+    num_wingbeats = 100;
+    frames_per_beat = (1280 / speed);
+    
+    wingbeat_lifts = zeros(num_wingbeats, frames_per_beat);
+    for j = 1:num_wingbeats
+        for k = 1:frames_per_beat
+            wingbeat_lifts(j,k) = trimmed_data(k + (frames_per_beat*(j-1)), 4);
+        end
+    end
+
+    wingbeat_avg_lift = zeros(1,frames_per_beat);
+    for k = 1:frames_per_beat
+        wingbeat_avg_lift(k) = mean(wingbeat_lifts(:,k));
+    end
+
+    frames = linspace(0,1,frames_per_beat);
+    
+    % Plot lift force
+    plot(frames, wingbeat_avg_lift, 'DisplayName', case_name, "LineWidth", 2, 'Color', colors(speed,:));
+    save(cases(i) + ".mat", 'data','trimmed_data','trimmed_time','wingbeats', 'frames', 'wingbeat_avg_lift');
+end
+title("Lift Force (z-direction) - PDMS Wings");
+xlabel("Wingbeat Number");
+ylabel("Force (N)");
+legend("Location","Northeast");
+ylim([-4 4]);
+
+cases = ["1Hz_CB", "2Hz_CB"];
+colors = [[0 0.4470 0.7410]; [0.8500 0.3250 0.0980]; [0.9290 0.6940 0.1250]];
+
+% First subplot for PDMS
+nexttile(tcl)
+hold on
+
+for i = 1:length(cases)
+    % Load data
+    mat_name = cases(i) + ".mat";
+    load(mat_name);
+    
+    case_name = strrep(cases(i),'_',' ');
+    case_name_chars = char(case_name);
+    speed = str2double(case_name_chars(1));
+
+    num_wingbeats = 100;
+    frames_per_beat = (1280 / speed);
+    
+    wingbeat_lifts = zeros(num_wingbeats, frames_per_beat);
+    for j = 1:num_wingbeats
+        for k = 1:frames_per_beat
+            wingbeat_lifts(j,k) = trimmed_data(k + (frames_per_beat*(j-1)), 4);
+        end
+    end
+
+    wingbeat_avg_lift = zeros(1,frames_per_beat);
+    for k = 1:frames_per_beat
+        wingbeat_avg_lift(k) = mean(wingbeat_lifts(:,k));
+    end
+
+    frames = linspace(0,1,frames_per_beat);
+    
+    % Plot lift force
+    plot(frames, wingbeat_avg_lift, 'DisplayName', case_name, "LineWidth", 2, 'Color', colors(speed,:));
+    save(cases(i) + ".mat", 'data','trimmed_data','trimmed_time','wingbeats', 'frames', 'wingbeat_avg_lift');
+end
+title("Lift Force (z-direction) - CB Wings");
+xlabel("Wingbeat Number");
+ylabel("Force (N)");
+legend("Location","Northeast");
+ylim([-4 4]);
+
+% Label the whole figure.
+sgtitle("Comparing Wingbeat Averaged Lift for PDMS and CB Wings");
