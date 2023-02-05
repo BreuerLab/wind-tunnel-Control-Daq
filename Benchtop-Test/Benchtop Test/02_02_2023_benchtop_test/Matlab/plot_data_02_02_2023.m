@@ -189,8 +189,8 @@ mat_name = "2Hz_PDMS.mat";
 load(mat_name);
 
 % Plot lift force
-plot(data(:,1), data(:, 4), 'DisplayName', 'Raw', "LineWidth",2);
-plot(trimmed_data(:,1), trimmed_data(:, 4), 'DisplayName', 'Trigger', "LineWidth",2);
+plot(data(:,1), data(:, 4), 'DisplayName', 'Raw', "LineWidth",2, 'Color',[0.6350, 0.0780, 0.1840]);
+plot(trimmed_data(:,1), trimmed_data(:, 4), 'DisplayName', 'Trigger', "LineWidth",2, 'Color',[0.3010, 0.7450, 0.9330]);
 
 legend("Location","Southwest");
 xlim([0 61]);
