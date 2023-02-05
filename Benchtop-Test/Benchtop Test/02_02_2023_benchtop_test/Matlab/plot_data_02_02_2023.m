@@ -174,6 +174,29 @@ end
 %%
 
 % ----------------------------------------------------------------
+% ---------Plot Characteristic Figure Showing Trigger-------------
+% ----------------------------------------------------------------
+% Open a new figure.
+f = figure;
+f.Position = [200 50 900 560];
+title("Lift Force (z-direction) - PDMS Wings at 2Hz");
+xlabel("Time (s)");
+ylabel("Force (N)");
+hold on
+
+% Load data
+mat_name = "2Hz_PDMS.mat";
+load(mat_name);
+
+% Plot lift force
+plot(data(:,1), data(:, 4), 'DisplayName', 'Raw', "LineWidth",2);
+plot(trimmed_data(:,1), trimmed_data(:, 4), 'DisplayName', 'Trigger', "LineWidth",2);
+
+legend("Location","Southwest");
+xlim([0 61]);
+%%
+
+% ----------------------------------------------------------------
 % -------------------------Plot PDMS Data-------------------------
 % ----------------------------------------------------------------
      
@@ -379,7 +402,8 @@ annotation('arrow',[0.45 0.39], [0.4 0.52])
 % --------Plot PDMS Data normalized by wingbeat cycles------------
 % --------------animation of each wingbeat at a time--------------
 % ----------------------------------------------------------------
-     
+make_movie = false;
+if (make_movie) 
 cases = ["1Hz_PDMS", "2Hz_PDMS"];
 colors = [[0 0.4470 0.7410]; [0.8500 0.3250 0.0980]; [0.9290 0.6940 0.1250]];
 
@@ -451,7 +475,7 @@ close(v);
 % slowly shifting right. This would indicate that the assumed wingbeat
 % period is a little shorter than the true wingbeat period or we are
 % not quite looking at a full 100 wingbeats
-
+end
 
 %%
 
