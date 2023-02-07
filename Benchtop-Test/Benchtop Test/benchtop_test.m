@@ -36,7 +36,7 @@ wait_time = 5000; % 5 seconds (data collected before and after flapping)
 distance = 0; % ticks to travel this trial
 
 % Force Transducer Parameters
-rate = 1500; % DAQ recording frequency (Hz)
+rate = 6000; % DAQ recording frequency (Hz)
 offset_duration = 2; % Taring/Offset/Zeroing Time
 session_duration = 0; % Measurement Time
 

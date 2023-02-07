@@ -27,6 +27,7 @@ close all
 % - Use frame rate that's divisible by each speed, here we
 % have the issue: 
 % ((100 cycles) / (3 cycles / sec)) * (1280 frames / sec) = 42666.666
+% Also bump up the frame rate since it doesn't hurt to have more data
 
 % - Why are there extra frames recorded?
 % ((100 cycles) / (1 cycles / sec)) * (1280 frames / sec) = 128000
@@ -37,8 +38,12 @@ close all
 % On page 110 of the manual, they state: "The accuracy of the
 % trippoint is the speed multiplied by the sample period."
 % Not sure what units are to be used here for speed and sample period
+% After talking with Wind Tunnel group, it seems likely this error is
+% due to different clocks between the Galil and DAQ. Try to account
+% for this error or synchronize the clocks somehow, using the Galil as
+% the lead and then changing the time count on the DAQ. 
 
-% - Figure out how to set stepper motor so that when that it begins
+% - Figure out how to set stepper motor so that it begins
 % moving at the bottom or top of motion rather than somewhere
 % arbitrary
 
@@ -47,6 +52,10 @@ close all
 
 % - Extend delay after acceleration and before acceleration for
 % trigger
+
+% - Take 25-40 Hz cameras from wind tunnel (or somewhere) to use for
+% this benchtop test to record wingbeat kinematics during trial
+
 
 %%
 
