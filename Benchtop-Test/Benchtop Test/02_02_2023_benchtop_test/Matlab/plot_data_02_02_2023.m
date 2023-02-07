@@ -41,7 +41,14 @@ close all
 % After talking with Wind Tunnel group, it seems likely this error is
 % due to different clocks between the Galil and DAQ. Try to account
 % for this error or synchronize the clocks somehow, using the Galil as
-% the lead and then changing the time count on the DAQ. 
+% the lead and then changing the time count on the DAQ.
+% "TM 1000 will actually set an update rate of 976 microseconds
+% [instead of 1000 microseconds]. Thus the value returned by the TIME
+% operand will be off by 2.4% of the actual time"
+% Plan: offset should be a consistent number, at a high enough
+% sampling frequency you could just say the wingbeat period was 1282
+% datapoints instead of 1280. That error just needs to be some number
+% that's divisible by the number of wingbeats.
 
 % - Figure out how to set stepper motor so that it begins
 % moving at the bottom or top of motion rather than somewhere
