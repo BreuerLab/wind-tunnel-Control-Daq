@@ -1,0 +1,18 @@
+'***************************************************************************
+'Galil Single DOF Flapper Control
+'Author: Cameron Urban
+'Modified by: Ronan Gissler (November 2022)
+'Run on Galil DMC 4143 with AMP-43547
+'The amplifier plays a critical role in determining how the stepper is run.
+'Make sure not only to read up on 4143 manual, but pay specific attention to
+'sections discussing the AMP-43547.
+'There are a lot of comments in this file, if you comment incorrectly you 
+'will get mysterious bugs so be careful adding comments.
+'***************************************************************************
+WT8000; 'Wait for period for NI session to begin
+
+SB 1; 'Set digital output 1 indicating clock beginning
+WT10000; 'Wait for 10 seconds in Galil time
+CB 1; 'Clear digital output 1 indicating clock ended
+
+EN; 'End program

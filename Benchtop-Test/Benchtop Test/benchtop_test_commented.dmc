@@ -15,6 +15,7 @@ MO; 'Turns off all motors
 '(all commands ending with B in regards to that motor)
 MTB=-2; 'Set motor type to -2 (Stepper motor with active high step pulses)
 AGB=1; 'Amplifier gain (0-3), 1 -> 1.5 A/Phase
+TLB=6; 'Torque Limit, limit to 6V
 AUB=12; 'Amplifier current loop, inductance 8mH -> 12
 LCB=1; '25% holding current immediately after move finishes
 
