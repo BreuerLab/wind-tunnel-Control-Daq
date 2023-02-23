@@ -20,7 +20,7 @@ close all;
 % ----------Parameters to Adjust for Your Specific Experiment------------
 % -----------------------------------------------------------------------
 % Adjust Every Trial
-case_name = "3Hz_CB";
+case_name = "4.5Hz_PDMS_v2";
 
 % Stepper Motor Parameters
 galil_address = "192.168.1.20";
@@ -28,17 +28,17 @@ dmc_file_name = "benchtop_test_commented.dmc";
 microsteps = 256; % fixed parameter of AMP-43547
 steps_per_rev = 200; % fixed parameter of PH266-E1.2
 rev_ticks = microsteps*steps_per_rev; % ticks per rev
-acc = 3*rev_ticks; % ticks / sec^2
-vel = 1*rev_ticks; % ticks / sec
-measure_revs = 300; % we want 100 wingbeats of data
-padding_revs = 0; % dropped from front and back during data processing
-wait_time = 5000; % 5 seconds (data collected before and after flapping)
-distance = 0; % ticks to travel this trial
+acc = 0.2*rev_ticks; % ticks / sec^2
+vel = 4.5*rev_ticks; % ticks / sec
+measure_revs = 300; % we want 300 wingbeats of data
+padding_revs = 1; % dropped from front and back during data processing
+wait_time = 8000; % 5 seconds (data collected before and after flapping)
+distance = -1; % ticks to travel this trial
 
 % Force Transducer Parameters
-rate = 6000; % DAQ recording frequency (Hz)
+rate = 9000; % DAQ recording frequency (Hz)
 offset_duration = 2; % Taring/Offset/Zeroing Time
-session_duration = 0; % Measurement Time
+session_duration = -1; % Measurement Time
 
 estimate_params = {rev_ticks acc vel measure_revs padding_revs wait_time};
 [distance, session_duration, trigger_pos] = estimate_duration(estimate_params{:});

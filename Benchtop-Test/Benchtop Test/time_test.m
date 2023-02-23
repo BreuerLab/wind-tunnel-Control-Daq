@@ -16,13 +16,15 @@ clc;
 clear variables;
 close all;
 
+case_name = "time_test";
+
 % Stepper Motor Parameters
 galil_address = "192.168.1.20";
 dmc_file_name = "time_test.dmc";
 
 % Force Transducer Parameters
-rate = 15000; % DAQ recording frequency (Hz)
-session_duration = 20000; % Measurement Time
+rate = 40000; % DAQ recording frequency (Hz)
+session_duration = 20; % Measurement Time
 
 %% Setup the Galil DMC
 
@@ -39,6 +41,15 @@ galil.address = galil_address;
 % Load the program described by the .dmc file to the Galil device.
 galil.programDownload(dmc);
 
+%% Get offset data before flapping
+FT_obj = ForceTransducer;
+% Get the offsets at this angle.
+offsets_before = FT_obj.get_force_offsets(case_name + "_before", rate, 2);
+offsets_before = offsets_before(1,:); % just taking means, no SDs
+
+disp("Initial offset data has been gathered");
+beep2;
+
 %% Set up the DAQ
 % Command the galil to execute the program
 galil.command("XQ");
@@ -54,7 +65,17 @@ delete(galil);
 %% Display preliminary data
 FT_obj.plot_results(results);
 
-drift = offsets_after - offsets_before;
-disp("Over the course of the experiment, the force transducer drifted ");
-disp('     F_x       F_y       F_z       M_x       M_y       M_z');
-disp(drift);
+these_trigs = results(:, 8);
+these_low_trigs_indices = find(these_trigs < 2);
+trigger_start_frame = these_low_trigs_indices(1);
+trigger_end_frame = these_low_trigs_indices(end);
+
+galil_time = 10; % Galil waited 10 seconds
+frames_elapsed = (trigger_end_frame - trigger_start_frame) + 1;
+NI_time = (frames_elapsed / rate);
+NI_time = vpa(NI_time, 10);
+
+disp("Galil measured " + galil_time + " seconds");
+disp("NI measured ");
+disp(NI_time);
+disp(" seconds");
