@@ -20,7 +20,7 @@ close all;
 % ----------Parameters to Adjust for Your Specific Experiment------------
 % -----------------------------------------------------------------------
 % Adjust Every Trial
-case_name = "4.5Hz_PDMS_v2";
+case_name = "1Hz_PDMS";
 
 % Stepper Motor Parameters
 galil_address = "192.168.1.20";
@@ -28,15 +28,15 @@ dmc_file_name = "benchtop_test_commented.dmc";
 microsteps = 256; % fixed parameter of AMP-43547
 steps_per_rev = 200; % fixed parameter of PH266-E1.2
 rev_ticks = microsteps*steps_per_rev; % ticks per rev
-acc = 0.2*rev_ticks; % ticks / sec^2
-vel = 4.5*rev_ticks; % ticks / sec
-measure_revs = 300; % we want 300 wingbeats of data
+acc = 3*rev_ticks; % ticks / sec^2
+vel = 1*rev_ticks; % ticks / sec
+measure_revs = 240; % we want 240 wingbeats of data
 padding_revs = 1; % dropped from front and back during data processing
-wait_time = 8000; % 5 seconds (data collected before and after flapping)
+wait_time = 8000; % 8 seconds (data collected before and after flapping)
 distance = -1; % ticks to travel this trial
 
 % Force Transducer Parameters
-rate = 9000; % DAQ recording frequency (Hz)
+rate = 6000; % DAQ recording frequency (Hz)
 offset_duration = 2; % Taring/Offset/Zeroing Time
 session_duration = -1; % Measurement Time
 
