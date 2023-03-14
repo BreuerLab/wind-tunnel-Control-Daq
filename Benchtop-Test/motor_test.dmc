@@ -15,7 +15,7 @@ MO; 'Turns off all motors
 '(all commands ending with B in regards to that motor)
 MTB=-2; 'Set motor type to -2 (Stepper motor with active high step pulses)
 AGB=1; 'Amplifier gain (0-3), 1 -> 1.5 A/Phase
-AUB=12; 'Amplifier current loop, inductance 8mH -> 12
+AUB=9; 'Amplifier current loop, inductance 1.2mH -> 9
 LCB=1; '25% holding current immediately after move finishes
 
 'Microstepping fixed at 256 microsteps/step for this amplifier
@@ -25,10 +25,10 @@ YBB=200; 'Step Motor Resolution (motor-steps/rev)
 SH B; 'Servo the motor - resetting motor's coordinate system
 WT500; 'Allow DAQ to record some data before start
 
-ACB=3*51200; 'Set acceleration of motor (counts/second^2)
-DCB=3*51200; 'Set deceleration of motor (counts/second^2)
-SPB=10*51200; 'Set speed of motor (counts/second)
-PRB=40*51200; 'Set distance and direction of next move (counts)
+ACB=2*51200; 'Set acceleration of motor (counts/second^2)
+DCB=2*51200; 'Set deceleration of motor (counts/second^2)
+SPB=2*51200; 'Set speed of motor (counts/second)
+PRB=20*51200; 'Set distance and direction of next move (counts)
 
 BG B; 'Begin motion using preset value
 
