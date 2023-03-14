@@ -9,7 +9,7 @@
 - To become a collaberator, please contact siyang_hao@brown.edu
 - more introductions for collaberators refer to  https://medium.com/@jonathanmines/the-ultimate-github-collaboration-guide-df816e98fb67
 ## General wind tunnel control
-- Comming soon
+- See AFAM repo: https://github.com/BreuerLab/AFAM
 ## Using AeroLab loadcells 
 - Go to **AeroLabSting**
  
