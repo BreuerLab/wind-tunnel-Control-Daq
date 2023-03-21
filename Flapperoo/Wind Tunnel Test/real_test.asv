@@ -22,7 +22,8 @@ close all;
 % Parameter Space - What variable ranges are you testing?
 AoA = -14:2:14;
 freq = [0,1,2,3,3.5,4];
-speed = [0,2,4];
+speed = 0;
+wing_type = "PDMS";
 
 % Stepper Motor Parameters
 galil_address = "192.168.1.20";
@@ -30,29 +31,32 @@ dmc_file_name = "benchtop_test_commented.dmc";
 microsteps = 256; % fixed parameter of AMP-43547
 steps_per_rev = 200; % fixed parameter of PH266-E1.2
 rev_ticks = microsteps*steps_per_rev; % ticks per rev
+vel = 0*rev_ticks; % ticks / sec -> calculated each trial
 acc = 3*rev_ticks; % ticks / sec^2
 measure_revs = 100; % we want 240 wingbeats of data
 padding_revs = 1; % dropped from front and back during data processing
-wait_time = 4000; % 8 seconds (data collected before and after flapping)
-distance = -1; % ticks to travel this trial
+wait_time = 4000; % 4 seconds (data collected before and after flapping)
+distance = -1; % ticks to travel this trial -> calculated each trial
 
 % Force Transducer Parameters
 rate = 6000; % DAQ recording frequency (Hz)
 offset_duration = 2; % Taring/Offset/Zeroing Time
-session_duration = -1; % Measurement Time
+session_duration = -1; % Measurement Time -> calculated each trial
+force_limit = 1200; % Newton
+torque_limit = 79; % Newton*meters
 
-for k = 1:length(speed)
-    for i = 1:length(freq)
-        for j = 1:length(AoA)
-            vel = freq*rev_ticks; % ticks / sec
-            curIndex = (k-1)*length(freq)*length(AoA) + (i-1)*length(AoA) + j;
-            AoA_vals(curIndex) = AoA(j);
-            freq_vals(curIndex) = freq(i);
-            speed_vals(curIndex) = speed(k);
+for i = 1:length(freq)
+for j = 1:length(AoA)
 
-% Adjust Every Trial
-case_name = "0m/s_2Hz_PDMS";
+% Set trial specfic case name and wingbeat frequency
+case_name = speed + "m/s_" + freq(i) + "Hz_" + wing_type;
+vel = freq*rev_ticks; % ticks / sec
 
+% Move MPS to correct angle of attack
+Pitch_To(AoA);
+pause(2);
+
+% estimate recording length based on parameters
 estimate_params = {rev_ticks acc vel measure_revs padding_revs wait_time};
 [distance, session_duration, trigger_pos] = estimate_duration(estimate_params{:});
 
@@ -118,3 +122,18 @@ drift = offsets_after - offsets_before;
 disp("Over the course of the experiment, the force transducer drifted ");
 disp('     F_x       F_y       F_z       M_x       M_y       M_z');
 disp(drift);
+
+% Reaching torque or force limits?
+if(max(abs(results(:,2:4))) > 0.7*force_limit)
+    beep3;
+    msgbox("Approaching Force Limit!!!","DANGER!","error");
+end
+if (max(abs(results(:,5:7)))) > 0.7*torque_limit)
+    beep3;
+    msgbox("Approaching Torque Limit!!!","DANGER!","error");
+end
+
+% Allow data to be viewed for 10 seconds
+pause(10)
+end
+end

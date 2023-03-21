@@ -1,3 +1,3 @@
 % Include other directories in this file. Here we just need the MPS
 % code
-addpath ../../MPS
+addpath C:\Users\rgissler\Documents\GitHub\wind-tunnel-Control-Daq\MPS
