@@ -131,6 +131,7 @@ function plot_results(obj, these_results)
     these_low_trigs_indices = find(these_trigs < 2);
     trigger_start_frame = these_low_trigs_indices(1);
     trigger_end_frame = these_low_trigs_indices(end);
+    % disp(trigger_end_frame - trigger_start_frame);
     
     % Open a new figure.
     f = figure;
