@@ -1,54 +1,56 @@
-function Pitch_Move(Pitch)
+% This function moves the MPS pitch axis so that its state matches that of
+% a structure (pitch) with four fields (ACC, DCC, V, P) that have units of
+% RPM/s, RPM/s, RPM, and counts respectively.
 
-% Move according to the structure Pitch
+% Wind Tunnel: AFAM with MPS
 
-% Conversion factors:
-ACC_Conversion = 17476.3; % to RPM/sec
-DEC_Conversion = 17476.3; % to RPM/sec
-  V_Conversion = 17476.3; % to RPM
-  P_Conversion = 16.0;    % to counts (still need to convert to degrees)
-POS_Conversion = 1.0;     % counts
+% pitch_move.m
+% Siyang Hao, Cameron Urban
+% 05/04/2022
 
-IOFF = 1; % This seems to be necessary to get the addresses correct
+function pitch_move(pitch)
 
+% TODO: Determine what units these are converting from.
+% Create conversion variables (to_rpm_per_s, to_rpm, steps_per_count). 
+mps_to_rpm_per_s = 1 / 17476.3;
+mps_to_rpm = 1 / 17476.3;
+steps_per_count = 16.0;
 
-% Prepare the word for the Modbus
-mbus.ACC = uint64(Pitch.ACC*ACC_Conversion);
-mbus.DEC = uint64(Pitch.DEC*DEC_Conversion);
-mbus.V   = uint32(Pitch.V*V_Conversion);
-mbus.P   =  int32(Pitch.P*P_Conversion);
+% Calculate the acceleration, deceleration, velocity, and counts of the
+% motion in MPS units.
+acc_to_write = uint64(pitch.ACC / mps_to_rpm_per_s);
+dec_to_write = uint64(pitch.DEC / mps_to_rpm_per_s);
+v_to_write = uint32(pitch.V / mps_to_rpm);
+p_to_write = int32(pitch.P * steps_per_count);
 
-% fprintf('DEC: %16.16X\n', mbus.DEC);
-% fprintf('ACC: %16.16X\n', mbus.ACC);
-% fprintf('  V: %16.16X\n', mbus.V);
-% fprintf('  P: %16.16X\n', mbus.P);
+% Create a modbus object, a variable to hold the server's ID, and an
+% address offset variable.
+this_bus = modbus("tcpip", "192.168.1.202");
+this_bus.Timeout = 3;
+offset = 1;
 
+% TODO: What is the purpose of these two lines.
+% Write 1s to the num and load addresses.
+write(this_bus,"holdingregs", 548+offset, 1, "int32");
+write(this_bus,"holdingregs", 542+offset, 1, "int32");
 
-% Create a Modbus Object.
-m = modbus('tcpip', '192.168.1.202');
-m.Timeout = 3;
-serverId = 1;
+% Write the motion parameters to their respective addresses.
+write(this_bus,"holdingregs", 526+offset, double(acc_to_write), "int64");
+write(this_bus,"holdingregs", 536+offset, double(dec_to_write), "int64");
+write(this_bus,"holdingregs", 566+offset, double(v_to_write), "int32");
+write(this_bus,"holdingregs", 550+offset, double(p_to_write), "int64");
 
-% Program Motion Task 1
-write(m,'holdingregs', 548+IOFF, 1,                'int32'); % MT.NUM 1
-write(m,'holdingregs', 542+IOFF, 1,                'int32'); % MT.LOAD
+% Write a 1 to the control address to specify relative motion mode.
+write(this_bus,"holdingregs", 532+offset, 1, "int32");
 
-% Write the motion parameters
-write(m,'holdingregs', 526+IOFF, double(mbus.ACC), 'int64'); % MT.ACC
-write(m,'holdingregs', 536+IOFF, double(mbus.DEC), 'int64'); % MT.DEC
-write(m,'holdingregs', 566+IOFF, double(mbus.V),   'int32'); % MT.V
-write(m,'holdingregs', 550+IOFF, double(mbus.P),   'int64'); % MT.P
-write(m,'holdingregs', 532+IOFF, 1,                'int32'); % MT.CTRL 1 (relative motion)
+% Set the motion parameters by writing a 1 to the set address.
+write(this_bus,"holdingregs", 554+offset, 1, "int32");
 
-% Set the motion parameters
-write(m,'holdingregs', 554+IOFF, 1,                'int32'); % MT.SET
+% Move the motor based on the set motion parameters by writing a 1 to the
+% move address.
+write(this_bus,"holdingregs", 544+offset, 1, "int32");
 
-% Move (uncomment to actually move the motor)
-write(m,'holdingregs', 544+IOFF, 1,                'int32'); % MT.MOVE
-
-
-% Clear the Modbus Object created.
-clear m
-clear serverId
+% Delete the modbus object we created.
+clear this_bus;
 
 return

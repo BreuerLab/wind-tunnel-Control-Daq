@@ -1,61 +1,49 @@
-function Pitch = Pitch_Read
+% This function reads the current state of the MPS pitch axis. It returns
+% as structure (pitch) with five fields (ACC, DCC, V, P, POS) that have
+% units of RPM/s, RPM/s, RPM, counts, and steps respectively.
 
-% Conversion factors:
-ACC_Conversion = 17476.3; % to RPM/sec
-DEC_Conversion = 17476.3; % to RPM/sec
-  V_Conversion = 17476.3; % to RPM
-  P_Conversion = 16.0;    % to counts (still need to convert to degrees)
-POS_Conversion = 1.0;     % counts
+% Wind Tunnel: AFAM with MPS
 
-% Create a Modbus Object.
-m = modbus('tcpip', '192.168.1.202');
-mData.Timeout = 3;
-serverId = 1;
+% pitch_read.m
+% Siyang Hao, Cameron Urban
+% 05/04/2022
 
-IOFF = 1; % This seems to be necessary to get the addresses correct
+function pitch = pitch_read
 
+% TODO: Determine what units these are converting from.
+% Create conversion variables (to_rpm_per_s, to_rpm, steps_per_count). 
+mps_to_rpm_per_s = 1 / 17476.3;
+mps_to_rpm = 1 / 17476.3;
+steps_per_count = 16.0;
 
-% Uncomment to read a whole bank of addresses:
-% ISTART = 526;
-% mData.TOTAL = read(m, 'holdingregs', ISTART+IOFF, 4*20, serverId, 'uint16');
-% 
-% for i = 1:4:length(mData.TOTAL)
-%     fprintf('%4d: %4.4X %4.4X %4.4X %4.4X \n', ISTART+i-1, mData.TOTAL(i:i+3))
-% end
+% Create a modbus object, a variable to hold the server's ID, and an
+% address offset variable.
+this_bus = modbus("tcpip", "192.168.1.202");
+this_bus.Timeout = 3;
+server_id = 1;
+offset = 1;
 
-% Read from the modbus: 
-mData.OFF = read(m, 'holdingregs', 290+IOFF, 1, serverId, 'uint64');
-mData.ACC = read(m, 'holdingregs', 526+IOFF, 1, serverId, 'uint64'); 
-mData.DEC = read(m, 'holdingregs', 536+IOFF, 1, serverId, 'uint64');
-mData.P   = read(m, 'holdingregs', 552+IOFF, 1, serverId, 'int32');
-mData.V   = read(m, 'holdingregs', 566+IOFF, 1, serverId, 'int64');
-mData.POS = read(m, 'holdingregs', 588+IOFF, 1, serverId, 'int64');
-mData.PLS = read(m, 'holdingregs', 618+IOFF, 1, serverId, 'int32');
-mData.PLM = read(m, 'holdingregs', 620+IOFF, 1, serverId, 'int32');
+% Read data from the modbus.
+bus_data.ACC = read(this_bus, "holdingregs", 526 + offset, 1, server_id,...
+    "uint64"); 
+bus_data.DEC = read(this_bus, "holdingregs", 536 + offset, 1, server_id,...
+    "uint64");
+bus_data.P   = read(this_bus, "holdingregs", 552 + offset, 1, server_id,...
+    "int32");
+bus_data.V   = read(this_bus, "holdingregs", 566 + offset, 1, server_id,...
+    "int64");
+bus_data.POS = read(this_bus, "holdingregs", 588 + offset, 1, server_id,...
+    "int64");
 
-Pitch.ACC = bitand(mData.ACC , 0xFFFFFFFF)/ACC_Conversion;
-Pitch.DEC = bitand(mData.DEC , 0xFFFFFFFF)/DEC_Conversion;
-Pitch.V   = bitshift(mData.V, -32)/  V_Conversion;
-Pitch.P   = int32(mData.P /  P_Conversion);
-Pitch.POS = mData.POS;
-Pitch.OFF = mData.OFF;
-Pitch.PLS = mData.PLS;  % Limit switch status
-Pitch.PLM = mData.PLM;  % Limit switch mode
+% TODO: Find the difference between bus_data.P and bus_data.POS.
+% Convert the modbus data and save it to the structure.
+pitch.ACC = bitand(bus_data.ACC , 0xFFFFFFFF) * mps_to_rpm_per_s;
+pitch.DEC = bitand(bus_data.DEC , 0xFFFFFFFF) * mps_to_rpm_per_s;
+pitch.V   = bitshift(bus_data.V, -32) * mps_to_rpm;
+pitch.P   = int32(bus_data.P / steps_per_count);
+pitch.POS = bus_data.POS;
 
-fprintf('ACC: %16.16X; [%10.3f RPM/s]\n', mData.ACC, bitand(mData.ACC , 0xFFFFFFFF)/ACC_Conversion);
-fprintf('DEC: %16.16X; [%10.3f RPM/s]\n', mData.DEC, bitand(mData.DEC , 0xFFFFFFFF)/DEC_Conversion);
-fprintf('  V: %16.16X; [%10.3f RPM]\n',   mData.V, bitshift(mData.V, -32)/  V_Conversion);
-fprintf('  P: %16.16X; [%10.3f Counts]\n', uint64(mData.P),  Pitch.P);
-fprintf('POSITION:  %ld \n', mData.POS);
-fprintf('OFFSET:    %ld \n', mData.OFF);
-fprintf('PL Status: %d \n', mData.PLS);
-fprintf('PL Mode:   %d \n', mData.PLM);
-
-% Now Write to the offset register to zero out the reading.
-% write(m,'holdingregs', 290+IOFF, 54484850, 'int64');
-
-% Clear the Modbus Object created.
-clear m
-clear serverId
+% Delete the modbus object we created.
+clear this_bus;
 
 return
