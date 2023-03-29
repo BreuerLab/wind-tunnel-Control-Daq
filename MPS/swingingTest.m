@@ -10,7 +10,7 @@
 clear all;
 %********************initialize ************************
 CaseName = input('name this case \n','s');
-angle = [45;0;0]; % identify the yaw pitch roll angle from the mps system, in deg
+angle = [0;0;0]; % identify the yaw pitch roll angle from the mps system, in deg
  trial = strcat(CaseName);
 % load offset data 
 offsetjudge = input('Do we have a taring for this case?[Y/N] \n','s');
