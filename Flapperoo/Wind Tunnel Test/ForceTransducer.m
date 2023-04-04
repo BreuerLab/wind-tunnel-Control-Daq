@@ -22,7 +22,8 @@ function [offsets] = get_force_offsets(obj, case_name, rate, tare_duration)
     % Create DAq session and set its aquisition rate (Hz).
     this_daq = daq("ni");
     this_daq.Rate = rate;
-    daq_ID = daq.getDevices().ID;
+%     daq_ID = daq.getDevices().ID;
+    daq_ID = "Dev1";
     
     % Add the input channels.
     ch0 = this_daq.addinput(daq_ID, 0, "Voltage");
@@ -74,7 +75,8 @@ function [these_results] = measure_force(obj, case_name, rate, session_duration,
     % Create DAq session and set its aquisition rate (Hz).
     this_daq = daq("ni");
     this_daq.Rate = rate;
-    daq_ID = daq.getDevices().ID;
+%     daq_ID = daq.getDevices().ID;
+    daq_ID = "Dev1";
     
     % Add the input channels.
     ch0 = this_daq.addinput(daq_ID, 0, "Voltage");
@@ -126,7 +128,7 @@ function [these_results] = measure_force(obj, case_name, rate, session_duration,
     writematrix(these_results, trial_file_name);
 end
 
-function plot_results(obj, these_results)
+function plot_results(obj, these_results, case_name)
     these_trigs = these_results(:, 8);
     these_low_trigs_indices = find(these_trigs < 2);
     trigger_start_frame = these_low_trigs_indices(1);
@@ -201,6 +203,8 @@ function plot_results(obj, these_results)
 
     % Label the whole figure.
     sgtitle("Time Series of Loads for benchtop");
+
+    saveas(f,case_name + ".jpg")
 end
 
 end

@@ -20,20 +20,22 @@ close all;
 % ----------Parameters to Adjust for Your Specific Experiment------------
 % -----------------------------------------------------------------------
 % Parameter Space - What variable ranges are you testing?
-AoA = -14:2:14;
-freq = [0,1,2,3,3.5,4];
-speed = 0;
-wing_type = "PDMS";
+% AoA = -14:2:14;
+AoA = 0;
+% freq = [2, 3, 3.5, 4, 4.5, 5];
+freq = [2, 3, 3.5, 4, 4.5, 5];
+speed = 3;
+wing_type = "elastosil";
 
 % Stepper Motor Parameters
 galil_address = "192.168.1.20";
-dmc_file_name = "benchtop_test_commented.dmc";
+dmc_file_name = "real_test_commented.dmc";
 microsteps = 256; % fixed parameter of AMP-43547
 steps_per_rev = 200; % fixed parameter of PH266-E1.2
 rev_ticks = microsteps*steps_per_rev; % ticks per rev
 vel = 0*rev_ticks; % ticks / sec -> calculated each trial
 acc = 3*rev_ticks; % ticks / sec^2
-measure_revs = 100; % we want 240 wingbeats of data
+measure_revs = 180; % we want 180 wingbeats of data
 padding_revs = 1; % dropped from front and back during data processing
 wait_time = 4000; % 4 seconds (data collected before and after flapping)
 distance = -1; % ticks to travel this trial -> calculated each trial
@@ -46,16 +48,17 @@ force_limit = 1200; % Newton
 torque_limit = 79; % Newton*meters
 
 for i = 1:length(freq)
-for j = 1:length(AoA)
+disp("Now running trial with " + freq(i) + " Hz, at " + AoA + "deg  AoA");
 
 % Set trial specfic case name and wingbeat frequency
-case_name = speed + "m/s_" + freq(i) + "Hz_" + wing_type;
-vel = freq*rev_ticks; % ticks / sec
+case_name = AoA + "deg_" + speed + "ms_" + freq(i) + "Hz_" + wing_type;
+vel = freq(i)*rev_ticks; % ticks / sec
 
 % Move MPS to correct angle of attack
-Pitch_To(AoA);
-pause(2);
+% Pitch_To(AoA);
+% pause(2);
 
+if(vel > 0)
 % estimate recording length based on parameters
 estimate_params = {rev_ticks acc vel measure_revs padding_revs wait_time};
 [distance, session_duration, trigger_pos] = estimate_duration(estimate_params{:});
@@ -85,6 +88,11 @@ galil.address = galil_address;
 % Load the program described by the .dmc file to the Galil device.
 galil.programDownload(dmc);
 
+else
+% set session_duration for stationary test
+session_duration = 30;
+end
+
 %% Get offset data before flapping
 FT_obj = ForceTransducer;
 % Get the offsets at this angle.
@@ -95,8 +103,10 @@ disp("Initial offset data has been gathered");
 beep2;
 
 %% Set up the DAQ
+if (vel > 0)
 % Command the galil to execute the program
 galil.command("XQ");
+end
 
 results = FT_obj.measure_force(case_name, rate, session_duration, offsets_before);
 
@@ -113,10 +123,12 @@ disp("Final offset data has been gathered");
 beep2;
 
 %% Clean up
+if (vel > 0)
 delete(galil);
+end
 
 %% Display preliminary data
-FT_obj.plot_results(results);
+FT_obj.plot_results(results, case_name);
 
 drift = offsets_after - offsets_before;
 disp("Over the course of the experiment, the force transducer drifted ");
@@ -136,7 +148,14 @@ if (max(abs(results(:,5:7))) > 0.7*torque_limit)
     msgbox("Approaching Torque Limit!!!","DANGER!","error");
 end
 
-% Allow data to be viewed for 10 seconds
-pause(10)
+% Wait for user input before continuing
+txt = "";
+while (~ strcmp(txt, "Y"))
+    txt = input("Continue? Y or N:   ","s");
+    pause(1);
+    if (strcmp(txt, "N"))
+        return;
+    end
 end
+close all
 end
