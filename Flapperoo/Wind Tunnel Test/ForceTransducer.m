@@ -128,7 +128,7 @@ function [these_results] = measure_force(obj, case_name, rate, session_duration,
     writematrix(these_results, trial_file_name);
 end
 
-function plot_results(obj, these_results, case_name)
+function plot_results(obj, these_results, case_name, drift)
     these_trigs = these_results(:, 8);
     these_low_trigs_indices = find(these_trigs < 2);
     trigger_start_frame = these_low_trigs_indices(1);
@@ -201,8 +201,14 @@ function plot_results(obj, these_results, case_name)
     % Move the legend to the right side of the figure
     hL.Layout.Tile = 'East';
 
+    drift_string = string(drift);
+    drift_string = [sprintf('%s ',drift_string{1:end-1}), drift_string{end}];
+
     % Label the whole figure.
-    sgtitle("Time Series of Loads for benchtop");
+    sgtitle({"Time Series of Loads for benchtop""" ...
+            "Over the course of the experiment, the force transducer drifted" ...
+            "     F_x       F_y       F_z       M_x       M_y       M_z" ...
+            drift_string});
 
     saveas(f,case_name + ".jpg")
 end
