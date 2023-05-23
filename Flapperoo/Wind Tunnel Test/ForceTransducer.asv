@@ -138,12 +138,6 @@ function plot_results(obj, these_results, case_name, drift)
     galil_trigger_start_frame = these_low_galil_trigs_indices(1);
     galil_trigger_end_frame = these_low_galil_trigs_indices(end);
     % disp(trigger_end_frame - trigger_start_frame);
-
-    these_camera_trigs = these_results(:, 9);
-    these_low_camera_trigs_indices = find(these_camera_trigs < 2);
-    camera_trigger_start_frame = these_low_camera_trigs_indices(1);
-    camera_trigger_end_frame = these_low_camera_trigs_indices(end);
-    % disp(trigger_end_frame - trigger_start_frame);
     
     % Open a new figure.
     f = figure;
@@ -154,12 +148,9 @@ function plot_results(obj, these_results, case_name, drift)
     nexttile(tcl)
     hold on
     raw_line = plot(these_results(:, 1), these_results(:, 2), 'DisplayName', 'raw');
-    galil_trigger_line = plot(these_results(galil_trigger_start_frame:galil_trigger_end_frame, 1), ...
+    plot(these_results(galil_trigger_start_frame:galil_trigger_end_frame, 1), ...
         these_results(galil_trigger_start_frame:galil_trigger_end_frame, 2), ...
-        'DisplayName', 'galil trigger');
-    camera_trigger_line = plot(these_results(camera_trigger_start_frame:camera_trigger_end_frame, 1), ...
-        these_results(camera_trigger_start_frame:camera_trigger_end_frame, 2), ...
-        'DisplayName', 'camera trigger');
+        'DisplayName', 'trigger');
     title("F_x");
     xlabel("Time (s)");
     ylabel("Force (N)");
@@ -210,7 +201,7 @@ function plot_results(obj, these_results, case_name, drift)
     xlabel("Time (s)");
     ylabel("Torque (N m)");
 
-    hL = legend([raw_line, galil_trigger_line camera_trigger_line]);
+    hL = legend([raw_line, trigger_line]);
     % Move the legend to the right side of the figure
     hL.Layout.Tile = 'East';
 
