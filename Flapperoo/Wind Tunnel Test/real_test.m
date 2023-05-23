@@ -12,20 +12,7 @@
 
 % Ronan Gissler November 2023
 
-%% Initalize the experiment
-clc;
-clear;
-close all;
-
-% -----------------------------------------------------------------------
-% ----------Parameters to Adjust for Your Specific Experiment------------
-% -----------------------------------------------------------------------
-% Parameter Space - What variable ranges are you testing?
-% AoA = -14:2:14;
-AoA = 0;
-freq = [0, 2, 3, 3.5, 4, 4.5, 5];
-speed = 3;
-wing_type = "elastosil";
+function real_test(AoA, freq, speed, wing_type, debug)
 
 % Stepper Motor Parameters
 galil_address = "192.168.1.20";
@@ -41,12 +28,22 @@ wait_time = 4000; % 4 seconds (data collected before and after flapping)
 distance = -1; % ticks to travel this trial -> calculated each trial
 
 % Force Transducer Parameters
-rate = 6000; % DAQ recording frequency (Hz)
+rate = 9000; % DAQ recording frequency (Hz)
 offset_duration = 2; % Taring/Offset/Zeroing Time
 session_duration = -1; % Measurement Time -> calculated each trial
 force_limit = 1200; % Newton
 torque_limit = 79; % Newton*meters
 
+% Reminder user of setup procedure
+fig = uifigure;
+fig.Position = [600 500 440 160];
+movegui(fig,'center')
+message = "Remember each test should begin with the wings at the bottom of downstroke!";
+title = "Experiment Setup Reminder";
+uiconfirm(fig,message,title,'CloseFcn',@(h,e) close(fig));
+uiwait(fig);
+
+% Begin looping through each wingbeat frequency
 i = 1;
 while(i <= length(freq))
 disp("Now running trial with " + freq(i) + " Hz, at " + AoA + "deg AoA");
@@ -63,6 +60,7 @@ vel = freq(i)*rev_ticks; % ticks / sec
 estimate_params = {rev_ticks acc vel measure_revs padding_revs wait_time};
 [distance, session_duration, trigger_pos] = estimate_duration(estimate_params{:});
 
+if(~debug)
 %% Setup the Galil DMC
 
 % Create the carraige return and linefeed variable from the .dmc file.
@@ -134,9 +132,21 @@ if (max(abs(results(:,5:7))) > 0.7*torque_limit)
     beep3;
     msgbox("Approaching Torque Limit!!!","DANGER!","error");
 end
+end
 
 if (i < length(freq))
     i = handle_next_trial(i, length(freq));
 end
 i = i + 1;
+end
+cleanup = onCleanup(@()myCleanupFun(debug));
+end
+
+function myCleanupFun(debug)
+    disp("Cleanup:")
+    if (~debug)
+        disp("Stopping Motors via Galil")
+        galil.command("ST");
+        galil.command("MO");
+    end
 end
