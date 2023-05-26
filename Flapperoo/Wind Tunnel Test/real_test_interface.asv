@@ -10,9 +10,10 @@ close all;
 % -----------------------------------------------------------------------
 % Parameter Space - What variable ranges are you testing?
 % AoA = -14:2:14;
+% speed = 0, 2, 
 AoA = 0;
 freq = [0, 2, 3, 3.5, 4, 4.5, 5];
 speed = 3;
 wing_type = "elastosil";
 
-real_test(AoA, freq, speed, wing_type)
+real_test(AoA, freq, speed, wing_type, true);

@@ -36,9 +36,11 @@ torque_limit = 79; % Newton*meters
 
 % Reminder user of setup procedure
 fig = uifigure;
-fig.Position = [600 500 440 160];
+fig.Position = [600 500 440 180];
 movegui(fig,'center')
-message = "Remember each test should begin with the wings at the bottom of downstroke!";
+message = ["1. Links should be fully fastened onto threaded rods during robot assembly."...
+           "2. Each test should begin with the wings at the bottom of downstroke."...
+           "3. Highlight each trial in the excel test matrix after completion."];
 title = "Experiment Setup Reminder";
 uiconfirm(fig,message,title,'CloseFcn',@(h,e) close(fig));
 uiwait(fig);
@@ -148,5 +150,6 @@ function myCleanupFun(debug)
         disp("Stopping Motors via Galil")
         galil.command("ST");
         galil.command("MO");
+        galil.command("CB 1");
     end
 end
