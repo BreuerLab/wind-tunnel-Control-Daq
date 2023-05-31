@@ -10,31 +10,6 @@
 % - measure_force (to record force data and tare it)
 % - plot_results (plots force data)
 
-% To use the force transducer you will need the following hardware
-% - force transducer
-% - amplifier for the force transducer
-% - power cord for amplifier
-% - cable to connect force transducer to amplifier
-% - cable to connect amplifier to NI-DAQ
-% - NI-DAQ
-% - power cord for NI-DAQ
-% - USB connection from NI-DAQ to your computer
-
-% You will also need the following software:
-% - Matlab
-% - NI-DAQmx Support from Data Acquisition Matlab Toolbox
-% - NI Device Driver
-% - NI Max
-
-% This code assumes you have wired the force transducer axes to the
-% DAQ in the following order:
-% AI0 - Fx
-% AI1 - Fy
-% AI2 - Fz
-% AI3 - Mx
-% AI4 - My
-% AI5 - Mz
-
 % Author: Ronan Gissler
 % Breuer Lab 2023
 
@@ -62,8 +37,8 @@ end
 % **************************************************************** %
 % This function parses an ATI .cal calibration file into a matrix in
 % Matlab that can be worked with more easily.
-% Inputs: calibration_filepath - The path to a .cal file
-% Returns: cal_mat - A matlab matrix
+% Inputs: The path to a .cal file
+% Returns: A matlab matrix
 function cal_mat = obtain_cal(calibration_filepath)
 
     % Preallocate space for calibration matrix
@@ -115,7 +90,7 @@ end
 % **************************************************************** %
 % *******************Taring the Force Transducer****************** %
 % **************************************************************** %
-% This function measures the forces prior to the experiment so that
+% This function measures the force prior to the experiment so that
 % later measurements can be tared accordingly.
 
 % Inputs: 
@@ -125,10 +100,8 @@ end
 
 % Returns: 
 % offsets - 2x6 matrix whose columns represent each axis (3 forces, 3
-% moments). First row is the means of the measurement and the second
+% moments) and whose first row is the means of the measurement and whose second
 % row is the standard deviations of the measurements
-
-% Note: This function also writes the offsets data to a .csv file
 function [offsets] = get_force_offsets(obj, case_name, rate, tare_duration)
     % Create DAq session and set its aquisition rate (Hz).
     this_daq = daq("ni");
@@ -180,11 +153,6 @@ end
 % **************************************************************** %
 % ***********************Taking Measurements********************** %
 % **************************************************************** %
-% This function measures the forces during the experiment and tares
-% them at the end of measurement. 
-
-
-% Note: This function also writes the tared data to a .csv file
 function [these_results] = measure_force(obj, case_name, rate, session_duration, offsets)
     % Create DAq session and set its aquisition rate (Hz).
     this_daq = daq("ni");

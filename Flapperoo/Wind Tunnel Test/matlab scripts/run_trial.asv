@@ -28,8 +28,8 @@ wait_time = 4000; % 4 seconds (data collected before and after flapping)
 distance = -1; % ticks to travel this trial -> calculated each trial
 
 % Force Transducer Parameters
-voltage = 5;
-calibration_filepath = "../'Force Transducer'/'Calibration Files'/cal_FT43243.cal"; 
+voltag
+calibration_filepath = "../'Force Transducer'/cal_FT43243_5V.mat"; 
 rate = 9000; % DAQ recording frequency (Hz)
 offset_duration = 2; % Taring/Offset/Zeroing Time
 session_duration = -1; % Measurement Time -> calculated each trial
@@ -91,7 +91,7 @@ galil.programDownload(dmc);
 cleanup = onCleanup(@()myCleanupFun(galil));
 
 %% Get offset data before flapping
-FT_obj = ForceTransducer(voltage, calibration_filepath);
+FT_obj = ForceTransducer(calibration_filepath);
 % Get the offsets at this angle.
 offsets_before = FT_obj.get_force_offsets(case_name + "_before", rate, offset_duration);
 offsets_before = offsets_before(1,:); % just taking means, no SDs
@@ -109,10 +109,7 @@ disp("Experiment data has been gathered");
 beep2; 
 
 %% Get offset data after flapping
-% CAN THIS BE DELETED
-% ??????????????????
-% ??????????????????
-% FT_obj = ForceTransducer(voltage, calibration_filepath);
+FT_obj = ForceTransducer;
 % Get the offsets at this angle.
 offsets_after = FT_obj.get_force_offsets(case_name + "_after", rate, offset_duration);
 offsets_after = offsets_after(1,:); % just taking means, no SDs
