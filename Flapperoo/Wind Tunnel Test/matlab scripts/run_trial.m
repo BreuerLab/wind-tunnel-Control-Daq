@@ -12,20 +12,7 @@
 
 % Ronan Gissler November 2023
 
-%% Initalize the experiment
-clc;
-clear;
-close all;
-
-% -----------------------------------------------------------------------
-% ----------Parameters to Adjust for Your Specific Experiment------------
-% -----------------------------------------------------------------------
-% Parameter Space - What variable ranges are you testing?
-% AoA = -14:2:14;
-AoA = 0;
-freq = [0, 2, 3, 3.5, 4, 4.5, 5];
-speed = 3;
-wing_type = "elastosil";
+function run_trial(AoA, freq, speed, wing_type, automatic, debug)
 
 % Stepper Motor Parameters
 galil_address = "192.168.1.20";
@@ -35,24 +22,41 @@ steps_per_rev = 200; % fixed parameter of motor
 rev_ticks = microsteps*steps_per_rev; % ticks per rev
 vel = 0*rev_ticks; % ticks / sec -> calculated each trial
 acc = 3*rev_ticks; % ticks / sec^2
-measure_revs = 180; % we want 180 wingbeats of data
+measure_revs = 1; % we want 180 wingbeats of data
 padding_revs = 1; % dropped from front and back during data processing
 wait_time = 4000; % 4 seconds (data collected before and after flapping)
 distance = -1; % ticks to travel this trial -> calculated each trial
 
 % Force Transducer Parameters
-rate = 6000; % DAQ recording frequency (Hz)
+rate = 9000; % DAQ recording frequency (Hz)
 offset_duration = 2; % Taring/Offset/Zeroing Time
 session_duration = -1; % Measurement Time -> calculated each trial
 force_limit = 1200; % Newton
 torque_limit = 79; % Newton*meters
 
+% Reminder user of setup procedure
+fig = uifigure;
+fig.Position = [600 500 430 160];
+movegui(fig,'center')
+message = ["1. All connections fully fastened?"...
+           "2. MPS Pitch motor enabled via Kollmorgen Workbench?"];
+title = "Experiment Setup Reminder";
+uiconfirm(fig,message,title,'CloseFcn',@(h,e) close(fig));
+uiwait(fig);
+
+j = 1;
+while(j <= length(AoA))
+
+Pitch_To(AoA(j));
+disp("Pitching to AoA: " + AoA(j))
+
+% Begin looping through each wingbeat frequency
 i = 1;
 while(i <= length(freq))
-disp("Now running trial with " + freq(i) + " Hz, at " + AoA + "deg AoA");
+disp("Now running trial with " + freq(i) + " Hz, at " + AoA(j) + "deg AoA");
 
 % Set case name and wingbeat frequency for this trial
-case_name = AoA + "deg_" + speed + "ms_" + freq(i) + "Hz_" + wing_type;
+case_name = wing_type + "_" + speed + "m.s_" + AoA(j) + "deg_" + freq(i) + "Hz";
 vel = freq(i)*rev_ticks; % ticks / sec
 
 % Move MPS to correct angle of attack
@@ -63,6 +67,7 @@ vel = freq(i)*rev_ticks; % ticks / sec
 estimate_params = {rev_ticks acc vel measure_revs padding_revs wait_time};
 [distance, session_duration, trigger_pos] = estimate_duration(estimate_params{:});
 
+if(~debug)
 %% Setup the Galil DMC
 
 % Create the carraige return and linefeed variable from the .dmc file.
@@ -88,6 +93,8 @@ galil.address = galil_address;
 % Load the program described by the .dmc file to the Galil device.
 galil.programDownload(dmc);
 
+cleanup = onCleanup(@()myCleanupFun(galil));
+
 %% Get offset data before flapping
 FT_obj = ForceTransducer;
 % Get the offsets at this angle.
@@ -98,10 +105,8 @@ disp("Initial offset data has been gathered");
 beep2;
 
 %% Set up the DAQ
-if (vel > 0)
 % Command the galil to execute the program
 galil.command("XQ");
-end
 
 results = FT_obj.measure_force(case_name, rate, session_duration, offsets_before);
 
@@ -118,20 +123,12 @@ disp("Final offset data has been gathered");
 beep2;
 
 %% Clean up
-if (vel > 0)
+delete(cleanup);
 delete(galil);
-end
 
 %% Display preliminary data
-FT_obj.plot_results(results, case_name);
-
 drift = offsets_after - offsets_before;
-disp("Over the course of the experiment, the force transducer drifted ");
-disp('     F_x       F_y       F_z       M_x       M_y       M_z');
-disp(drift);
-
-disp(max(abs(results(:,2:4))));
-disp(max(abs(results(:,5:7))));
+FT_obj.plot_results(results, case_name, drift);
 
 % Reaching torque or force limits?
 if(max(abs(results(:,2:4))) > 0.7*force_limit)
@@ -142,9 +139,20 @@ if (max(abs(results(:,5:7))) > 0.7*torque_limit)
     beep3;
     msgbox("Approaching Torque Limit!!!","DANGER!","error");
 end
+end
 
-if (i < length(freq))
+if (i < length(freq) && ~automatic)
     i = handle_next_trial(i, length(freq));
 end
+
 i = i + 1;
+end
+
+if (j < length(AoA) && ~automatic)
+    j = handle_next_AoA(j, AoA);
+end
+
+j = j + 1;
+end
+
 end

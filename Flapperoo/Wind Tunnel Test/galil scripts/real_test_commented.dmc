@@ -17,7 +17,6 @@ MTB=-2; 'Set motor type to -2 (Stepper motor with active high step pulses)
 AGB=2; 'Amplifier gain (0-3), 1 -> 1.5 A/Phase
 AUB=9; 'Amplifier current loop, inductance 1.2mH -> 9
 LCB=1; '25% holding current immediately after move finishes
-TM 1024; 'Correct time
 
 'Microstepping fixed at 256 microsteps/step for this amplifier
 KSB=16; 'Set stepper smoothing
