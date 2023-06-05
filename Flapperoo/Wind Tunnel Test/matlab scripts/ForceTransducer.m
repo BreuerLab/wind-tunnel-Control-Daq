@@ -34,6 +34,7 @@
 % AI3 - Mx
 % AI4 - My
 % AI5 - Mz
+% AI6 - A digital output to mark recording period ("trigger")
 
 % Author: Ronan Gissler
 % Breuer Lab 2023
@@ -41,12 +42,13 @@
 classdef ForceTransducer
 properties
     voltage; % 5 or 10 volts
-    cal_matrix;
+    cal_matrix; % matrix with calibration values (volts -> force)
+    num_triggers; % 0, 1, or 2
 end
 
 methods
     
-function obj = ForceTransducer(voltage, calibration_filepath)
+function obj = ForceTransducer(voltage, calibration_filepath, num_triggers)
     if (voltage == 5 || voltage == 10)
         obj.voltage = voltage;
     else
@@ -55,6 +57,8 @@ function obj = ForceTransducer(voltage, calibration_filepath)
 
     % produce a calibration matrix and assign to this object
     obj.cal_matrix = obtain_cal(calibration_filepath);
+
+    obj.num_triggers = num_triggers;
 end
 
 % **************************************************************** %
@@ -112,24 +116,7 @@ function cal_mat = obtain_cal(calibration_filepath)
 end
 
 
-% **************************************************************** %
-% *******************Taring the Force Transducer****************** %
-% **************************************************************** %
-% This function measures the forces prior to the experiment so that
-% later measurements can be tared accordingly.
-
-% Inputs: 
-% case_name - Name of this experimental case (ex: '0.5Hz_PDMS')
-% rate - DAQ measurement rate in Hz (ex: 3000)
-% tare_durationDuration of measurement in sec (ex: 2)
-
-% Returns: 
-% offsets - 2x6 matrix whose columns represent each axis (3 forces, 3
-% moments). First row is the means of the measurement and the second
-% row is the standard deviations of the measurements
-
-% Note: This function also writes the offsets data to a .csv file
-function [offsets] = get_force_offsets(obj, case_name, rate, tare_duration)
+function this_DAQ = setup_DAQ()
     % Create DAq session and set its aquisition rate (Hz).
     this_daq = daq("ni");
     this_daq.Rate = rate;
@@ -153,6 +140,27 @@ function [offsets] = get_force_offsets(obj, case_name, rate, tare_duration)
     ch4.Range = [-voltage, voltage];
     ch5.Range = [-voltage, voltage];
     ch6.Range = [-voltage, voltage];
+end
+
+% **************************************************************** %
+% *******************Taring the Force Transducer****************** %
+% **************************************************************** %
+% This function measures the forces prior to the experiment so that
+% later measurements can be tared accordingly.
+
+% Inputs: 
+% case_name - Name of this experimental case (ex: '0.5Hz_PDMS')
+% rate - DAQ measurement rate in Hz (ex: 3000)
+% tare_duration - Duration of measurement in sec (ex: 2)
+
+% Returns: 
+% offsets - 2x6 matrix whose columns represent each axis (3 forces, 3
+% moments). First row is the means of the measurement and the second
+% row is the standard deviations of the measurements
+
+% Note: This function also writes "offsets" to a .csv file
+function [offsets] = get_force_offsets(obj, case_name, rate, tare_duration)
+    this_DAQ = setup_DAQ();
 
     % Get the offsets for current trial.
     start(this_daq, "Duration", tare_duration);
@@ -183,8 +191,19 @@ end
 % This function measures the forces during the experiment and tares
 % them at the end of measurement. 
 
+% Inputs: 
+% case_name - Name of this experimental case (ex: '0.5Hz_PDMS')
+% rate - DAQ measurement rate in Hz (ex: 3000)
+% session_duration - Duration of measurement in sec (ex: 2)
+% offsets - the result produced after calling get_force_offsets
 
-% Note: This function also writes the tared data to a .csv file
+% Returns: 
+% these_results - n x 6, n x 7, or n x 8 matrix where n is the number
+% of sampled points. The first six columns represent Fx, Fy, Fz, Mx,
+% My, and Mz. The additional two optional columns are used for data
+% marking ("trigger").
+
+% Note: This function also writes "these_results" to a .csv file
 function [these_results] = measure_force(obj, case_name, rate, session_duration, offsets)
     % Create DAq session and set its aquisition rate (Hz).
     this_daq = daq("ni");
@@ -246,6 +265,11 @@ function [these_results] = measure_force(obj, case_name, rate, session_duration,
     writematrix(these_results, trial_file_name);
 end
 
+% **************************************************************** %
+% **********************Plotting Measurements********************* %
+% **************************************************************** %
+% This function provides preliminary force data in the form of a 2 x 3
+% grid plot. The data has not been filtered.
 function plot_results(obj, these_results, case_name, drift)
     close all
 
