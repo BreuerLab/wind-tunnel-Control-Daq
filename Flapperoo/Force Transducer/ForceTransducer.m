@@ -175,6 +175,8 @@ end
 
 % Note: This function also writes "offsets" to a .csv file
 function [offsets] = get_force_offsets(obj, case_name, rate, tare_duration)
+    disp("Starting to Collect Offsets")
+
     this_DAQ = ForceTransducer.setup_DAQ();
 
     % Get the offsets for current trial.
@@ -198,6 +200,8 @@ function [offsets] = get_force_offsets(obj, case_name, rate, tare_duration)
     trial_name = strjoin([case_name, "offsets", datestr(now, "mmddyy")], "_");
     trial_file_name = "data\offsets data\" + trial_name + ".csv";
     writematrix(offsets, trial_file_name);
+
+    disp("Finished Collecting Offsets")
 end
 
 % **************************************************************** %
@@ -220,6 +224,8 @@ end
 
 % Note: This function also writes "these_results" to a .csv file
 function [these_results] = measure_force(obj, case_name, rate, session_duration, offsets)
+    disp("Starting to Collect Data")
+
     this_DAQ = ForceTransducer.setup_DAQ();
     
     % Start the DAq session.
@@ -266,6 +272,8 @@ function [these_results] = measure_force(obj, case_name, rate, session_duration,
     trial_name = strjoin([case_name, "experiment", datestr(now, "mmddyy")], "_");
     trial_file_name = "data\experiment data\" + trial_name + ".csv";
     writematrix(these_results, trial_file_name);
+
+    disp("Finished Collecting Data")
 end
 
 % **************************************************************** %
