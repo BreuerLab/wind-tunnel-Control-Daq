@@ -8,35 +8,30 @@ close all
 % Author: Ronan Gissler
 % Date: 06/12/2023
 
-addpath 'Calibration Files'
-
 % Experiment Parameters
 rate = 1000; % measurement rate of NI DAQ, in Hz
 offset_duration = 2; % in seconds
 session_duration = 4; % in seconds
-case_name = "force_transducer_test";
-calibration_filepath = "FT43243.cal"; 
+case_name = 'force_transducer_test';
+calibration_filepath = "/'Calibration Files'/cal_FT43243.cal"; 
 voltage = 5; % 5 or 10 volts
 
-% Parameters specifc to Gamma IP65 Force Transducer
+% Parameters specifc to
 force_limit = 1200; % Newton
 torque_limit = 79; % Newton*meters
 
-% Make force transducer object
-FT_obj = ForceTransducer(voltage, calibration_filepath, 0);
-
-% Get the offsets before experiment
+%% Get offset data before flapping
+FT_obj = ForceTransducer(voltage, calibration_filepath);
+% Get the offsets at this angle.
 offsets_before = FT_obj.get_force_offsets(case_name + "_before", rate, offset_duration);
 offsets_before = offsets_before(1,:); % just taking means, no SDs
 
-% Measure data during experiment
 results = FT_obj.measure_force(case_name, rate, session_duration, offsets_before);
 
-% Get the offset after experiment
 offsets_after = FT_obj.get_force_offsets(case_name + "_after", rate, offset_duration);
 offsets_after = offsets_after(1,:); % just taking means, no SDs
 
-% Display preliminary data
+%% Display preliminary data
 drift = offsets_after - offsets_before;
 FT_obj.plot_results(results, case_name, drift);
 

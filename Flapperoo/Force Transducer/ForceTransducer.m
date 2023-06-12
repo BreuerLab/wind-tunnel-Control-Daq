@@ -46,20 +46,7 @@ properties
     num_triggers; % 0, 1, or 2
 end
 
-methods
-    
-function obj = ForceTransducer(voltage, calibration_filepath, num_triggers)
-    if (voltage == 5 || voltage == 10)
-        obj.voltage = voltage;
-    else
-        error("Invalid DAQ voltage for force transducer")
-    end
-
-    % produce a calibration matrix and assign to this object
-    obj.cal_matrix = obtain_cal(calibration_filepath);
-
-    obj.num_triggers = num_triggers;
-end
+methods(Static)
 
 % **************************************************************** %
 % *****************Obtaining a Calibration Matrix***************** %
@@ -72,7 +59,7 @@ function cal_mat = obtain_cal(calibration_filepath)
 
     % Preallocate space for calibration matrix
     cal_mat = zeros(6,6);
-    
+
     file_id = fopen(calibration_filepath);
     
     % Get first line from file
@@ -115,7 +102,6 @@ function cal_mat = obtain_cal(calibration_filepath)
 
 end
 
-
 function this_DAQ = setup_DAQ()
     % Create DAq session and set its aquisition rate (Hz).
     this_daq = daq("ni");
@@ -132,11 +118,6 @@ function this_DAQ = setup_DAQ()
     ch3 = this_daq.addinput(daq_ID, 3, "Voltage");
     ch4 = this_daq.addinput(daq_ID, 4, "Voltage");
     ch5 = this_daq.addinput(daq_ID, 5, "Voltage");
-
-    if (num_triggers == 1)
-
-        e
-    ch6 = this_daq.addinput(daq_ID, 6, "Voltage");
     
     % Set the voltage range of the channels
     voltage = obj.voltage;
@@ -146,7 +127,34 @@ function this_DAQ = setup_DAQ()
     ch3.Range = [-voltage, voltage];
     ch4.Range = [-voltage, voltage];
     ch5.Range = [-voltage, voltage];
-    ch6.Range = [-voltage, voltage];
+
+    if (num_triggers >= 1)
+        ch6 = this_daq.addinput(daq_ID, 6, "Voltage");
+        ch6.Range = [-voltage, voltage];
+    end
+    
+    if (num_triggers == 2)
+        ch7 = this_daq.addinput(daq_ID, 7, "Voltage");
+        ch7.Range = [-voltage, voltage];
+    end
+    
+end
+
+end
+
+methods
+    
+function obj = ForceTransducer(voltage, calibration_filepath, num_triggers)
+    if (voltage == 5 || voltage == 10)
+        obj.voltage = voltage;
+    else
+        error("Invalid DAQ voltage for force transducer")
+    end
+
+    % produce a calibration matrix and assign to this object
+    obj.cal_matrix = ForceTransducer.obtain_cal(calibration_filepath);
+
+    obj.num_triggers = num_triggers;
 end
 
 % **************************************************************** %
@@ -167,7 +175,7 @@ end
 
 % Note: This function also writes "offsets" to a .csv file
 function [offsets] = get_force_offsets(obj, case_name, rate, tare_duration)
-    this_DAQ = setup_DAQ();
+    this_DAQ = ForceTransducer.setup_DAQ();
 
     % Get the offsets for current trial.
     start(this_DAQ, "Duration", tare_duration);
@@ -212,7 +220,7 @@ end
 
 % Note: This function also writes "these_results" to a .csv file
 function [these_results] = measure_force(obj, case_name, rate, session_duration, offsets)
-    this_DAQ = setup_DAQ();
+    this_DAQ = ForceTransducer.setup_DAQ();
     
     % Start the DAq session.
     start(this_daq, "Duration", session_duration);
@@ -224,20 +232,32 @@ function [these_results] = measure_force(obj, case_name, rate, session_duration,
 
     these_raw_data_table_times = these_raw_data_table(:, 1);
     these_raw_data_table_volt_vals = these_raw_data_table(:, 2:7);
-    these_raw_data_table_galil_trigger_vals = these_raw_data_table(:, 8);
-    these_raw_data_table_camera_trigger_vals = these_raw_data_table(:, 9);
 
     these_raw_times = seconds(table2array(these_raw_data_table_times));
     these_raw_volt_vals = table2array(these_raw_data_table_volt_vals);
-    these_raw_galil_trigger_vals = table2array(these_raw_data_table_galil_trigger_vals);
-    these_raw_camera_trigger_vals = table2array(these_raw_data_table_camera_trigger_vals);
+    
+    if (num_triggers >= 1)
+        these_raw_data_table_galil_trigger_vals = these_raw_data_table(:, 8);
+        these_raw_galil_trigger_vals = table2array(these_raw_data_table_galil_trigger_vals);
+    end
+
+    if (num_triggers == 2)
+        these_raw_data_table_camera_trigger_vals = these_raw_data_table(:, 9);
+        these_raw_camera_trigger_vals = table2array(these_raw_data_table_camera_trigger_vals);
+    end
 
     % Offset the data and multiply by the calibration matrix.
     volt_vals = these_raw_volt_vals(:, 1:6) - offsets(1,:);
     force_vals = obj.cal_matrix * volt_vals';
     force_vals = force_vals';
 
-    these_results = [these_raw_times force_vals these_raw_galil_trigger_vals these_raw_camera_trigger_vals];
+    if (num_triggers == 0)
+        these_results = [these_raw_times force_vals];
+    elseif (num_triggers == 1)
+        these_results = [these_raw_times force_vals these_raw_galil_trigger_vals];
+    elseif (num_triggers == 2)
+        these_results = [these_raw_times force_vals these_raw_galil_trigger_vals these_raw_camera_trigger_vals];
+    end
 
     % Clear the DAq object.
     clear this_daq;

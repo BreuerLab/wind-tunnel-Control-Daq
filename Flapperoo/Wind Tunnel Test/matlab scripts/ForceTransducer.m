@@ -55,6 +55,8 @@ function obj = ForceTransducer(voltage, calibration_filepath, num_triggers)
         error("Invalid DAQ voltage for force transducer")
     end
 
+    disp(calibration_filepath)
+
     % produce a calibration matrix and assign to this object
     obj.cal_matrix = obtain_cal(calibration_filepath);
 
