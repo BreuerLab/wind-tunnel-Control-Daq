@@ -27,18 +27,10 @@ WT500; 'Allow DAQ to record some data before start
 
 ACB=3*51200; 'Set acceleration of motor (counts/second^2)
 DCB=3*51200; 'Set deceleration of motor (counts/second^2)
-SPB=2*51200; 'Set speed of motor (counts/second)
+SPB=1*51200; 'Set speed of motor (counts/second)
 PRB=20*51200; 'Set distance and direction of next move (counts)
 
 BG B; 'Begin motion using preset value
-
-'Trigger after acceleration
-ADB=4*51200;
-
-JP#while,((_TPB<10*51200));' Loop if position is under 10 revs
-TTB
-WT10;' Wait 10 mseconds
-EN
 
 MC B; 'Wait until motion is complete before moving on (MC better than AM)
 ST B; 'Stop motor
