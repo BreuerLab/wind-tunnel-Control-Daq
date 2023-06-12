@@ -120,9 +120,11 @@ function this_DAQ = setup_DAQ()
     % Create DAq session and set its aquisition rate (Hz).
     this_daq = daq("ni");
     this_daq.Rate = rate;
-%     daq_ID = daq.getDevices().ID;
     daq_ID = "Dev1";
-    
+    % Don't know your DAQ ID, type "daq.getDevices().ID" into the
+    % command window to see what devices are currently connected to
+    % your computer
+
     % Add the input channels.
     ch0 = this_daq.addinput(daq_ID, 0, "Voltage");
     ch1 = this_daq.addinput(daq_ID, 1, "Voltage");
@@ -130,8 +132,8 @@ function this_DAQ = setup_DAQ()
     ch3 = this_daq.addinput(daq_ID, 3, "Voltage");
     ch4 = this_daq.addinput(daq_ID, 4, "Voltage");
     ch5 = this_daq.addinput(daq_ID, 5, "Voltage");
-    ch6 = this_daq.addinput(daq_ID, 6, "Voltage");
     
+    % Set the voltage range of the channels
     voltage = obj.voltage;
     ch0.Range = [-voltage, voltage];
     ch1.Range = [-voltage, voltage];
@@ -139,7 +141,17 @@ function this_DAQ = setup_DAQ()
     ch3.Range = [-voltage, voltage];
     ch4.Range = [-voltage, voltage];
     ch5.Range = [-voltage, voltage];
-    ch6.Range = [-voltage, voltage];
+
+    if (num_triggers >= 1)
+        ch6 = this_daq.addinput(daq_ID, 6, "Voltage");
+        ch6.Range = [-voltage, voltage];
+    end
+    
+    if (num_triggers == 2)
+        ch7 = this_daq.addinput(daq_ID, 7, "Voltage");
+        ch7.Range = [-voltage, voltage];
+    end
+    
 end
 
 % **************************************************************** %
@@ -163,8 +175,8 @@ function [offsets] = get_force_offsets(obj, case_name, rate, tare_duration)
     this_DAQ = setup_DAQ();
 
     % Get the offsets for current trial.
-    start(this_daq, "Duration", tare_duration);
-    [bias_timetable, ~] = read(this_daq, seconds(tare_duration));
+    start(this_DAQ, "Duration", tare_duration);
+    [bias_timetable, ~] = read(this_DAQ, seconds(tare_duration));
     bias_table = timetable2table(bias_timetable);
     bias_array = table2array(bias_table(:,2:7));
     
@@ -177,7 +189,7 @@ function [offsets] = get_force_offsets(obj, case_name, rate, tare_duration)
     end
     
     % Clear the DAq object.
-    clear this_daq;
+    clear this_DAQ;
     
     % Write the offsets to a .csv file.
     trial_name = strjoin([case_name, "offsets", datestr(now, "mmddyy")], "_");
@@ -205,31 +217,7 @@ end
 
 % Note: This function also writes "these_results" to a .csv file
 function [these_results] = measure_force(obj, case_name, rate, session_duration, offsets)
-    % Create DAq session and set its aquisition rate (Hz).
-    this_daq = daq("ni");
-    this_daq.Rate = rate;
-%     daq_ID = daq.getDevices().ID;
-    daq_ID = "Dev1";
-
-    % Add the input channels.
-    ch0 = this_daq.addinput(daq_ID, 0, "Voltage");
-    ch1 = this_daq.addinput(daq_ID, 1, "Voltage");
-    ch2 = this_daq.addinput(daq_ID, 2, "Voltage");
-    ch3 = this_daq.addinput(daq_ID, 3, "Voltage");
-    ch4 = this_daq.addinput(daq_ID, 4, "Voltage");
-    ch5 = this_daq.addinput(daq_ID, 5, "Voltage");
-    ch6 = this_daq.addinput(daq_ID, 6, "Voltage");
-    ch7 = this_daq.addinput(daq_ID, 7, "Voltage");
-
-    voltage = obj.voltage;
-    ch0.Range = [-voltage, voltage];
-    ch1.Range = [-voltage, voltage];
-    ch2.Range = [-voltage, voltage];
-    ch3.Range = [-voltage, voltage];
-    ch4.Range = [-voltage, voltage];
-    ch5.Range = [-voltage, voltage];
-    ch6.Range = [-voltage, voltage];
-    ch7.Range = [-voltage, voltage];
+    this_DAQ = setup_DAQ();
     
     % Start the DAq session.
     start(this_daq, "Duration", session_duration);
@@ -241,20 +229,32 @@ function [these_results] = measure_force(obj, case_name, rate, session_duration,
 
     these_raw_data_table_times = these_raw_data_table(:, 1);
     these_raw_data_table_volt_vals = these_raw_data_table(:, 2:7);
-    these_raw_data_table_galil_trigger_vals = these_raw_data_table(:, 8);
-    these_raw_data_table_camera_trigger_vals = these_raw_data_table(:, 9);
 
     these_raw_times = seconds(table2array(these_raw_data_table_times));
     these_raw_volt_vals = table2array(these_raw_data_table_volt_vals);
-    these_raw_galil_trigger_vals = table2array(these_raw_data_table_galil_trigger_vals);
-    these_raw_camera_trigger_vals = table2array(these_raw_data_table_camera_trigger_vals);
+    
+    if (num_triggers >= 1)
+        these_raw_data_table_galil_trigger_vals = these_raw_data_table(:, 8);
+        these_raw_galil_trigger_vals = table2array(these_raw_data_table_galil_trigger_vals);
+    end
+
+    if (num_triggers == 2)
+        these_raw_data_table_camera_trigger_vals = these_raw_data_table(:, 9);
+        these_raw_camera_trigger_vals = table2array(these_raw_data_table_camera_trigger_vals);
+    end
 
     % Offset the data and multiply by the calibration matrix.
     volt_vals = these_raw_volt_vals(:, 1:6) - offsets(1,:);
     force_vals = obj.cal_matrix * volt_vals';
     force_vals = force_vals';
 
-    these_results = [these_raw_times force_vals these_raw_galil_trigger_vals these_raw_camera_trigger_vals];
+    if (num_triggers == 0)
+        these_results = [these_raw_times force_vals];
+    elseif (num_triggers == 1)
+        these_results = [these_raw_times force_vals these_raw_galil_trigger_vals];
+    elseif (num_triggers == 2)
+        these_results = [these_raw_times force_vals these_raw_galil_trigger_vals these_raw_camera_trigger_vals];
+    end
 
     % Clear the DAq object.
     clear this_daq;
