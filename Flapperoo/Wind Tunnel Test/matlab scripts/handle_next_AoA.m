@@ -1,4 +1,4 @@
-function i = handle_next_AoA(i, AoA)
+function j = handle_next_AoA(j, num_AoA)
 
 % Wait for user input before continuing
 txt = input("Continue to next AoA?    ","s");
@@ -21,7 +21,17 @@ while (input_val == 0)
         disp("Unaccepted Input...")
         txt = input("Continue to next AoA?    ","s");
     elseif (input_val == 2)
-        i = length(AoA) + 1; % end now
+        txt = input("Return to last AoA group?    ","s");
+        for n = 1:length(positive_responses)
+            if(strcmp(txt, positive_responses(n)))
+                input_val = 3;
+            end
+        end
+        if (input_val == 3)
+            j = j - 1; % go back to last AoA group
+        else
+            j = num_AoA + 1; % end now
+        end
     end
 end
 end

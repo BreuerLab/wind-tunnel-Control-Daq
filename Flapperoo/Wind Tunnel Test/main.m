@@ -18,7 +18,7 @@ AoA = [0, 2];
 freq = [1, 1.2];
 speed = 0; % 0, 2, 4
 wing_type = "test";
-automatic = true;
-debug = false;
+automatic = false;
+debug = true;
 
 run_trial(AoA, freq, speed, wing_type, automatic, debug);

@@ -23,7 +23,7 @@ force_limit = 1200; % Newton
 torque_limit = 79; % Newton*meters
 
 % Make force transducer object
-FT_obj = ForceTransducer(voltage, calibration_filepath, 0);
+FT_obj = ForceTransducer(rate, voltage, calibration_filepath, 0);
 
 % Get the offsets before experiment
 offsets_before = FT_obj.get_force_offsets(case_name + "_before", rate, offset_duration);

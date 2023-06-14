@@ -44,24 +44,10 @@ properties
     voltage; % 5 or 10 volts
     cal_matrix; % matrix with calibration values (volts -> force)
     num_triggers; % 0, 1, or 2
+    daq;
 end
 
-methods
-    
-function obj = ForceTransducer(voltage, calibration_filepath, num_triggers)
-    if (voltage == 5 || voltage == 10)
-        obj.voltage = voltage;
-    else
-        error("Invalid DAQ voltage for force transducer")
-    end
-
-    disp(calibration_filepath)
-
-    % produce a calibration matrix and assign to this object
-    obj.cal_matrix = obtain_cal(calibration_filepath);
-
-    obj.num_triggers = num_triggers;
-end
+methods(Static)
 
 % **************************************************************** %
 % *****************Obtaining a Calibration Matrix***************** %
@@ -74,7 +60,7 @@ function cal_mat = obtain_cal(calibration_filepath)
 
     % Preallocate space for calibration matrix
     cal_mat = zeros(6,6);
-    
+
     file_id = fopen(calibration_filepath);
     
     % Get first line from file
@@ -117,26 +103,24 @@ function cal_mat = obtain_cal(calibration_filepath)
 
 end
 
-
-function this_DAQ = setup_DAQ()
+function this_DAQ = setup_DAQ(voltage, rate)
     % Create DAq session and set its aquisition rate (Hz).
-    this_daq = daq("ni");
-    this_daq.Rate = rate;
+    this_DAQ = daq("ni");
+    this_DAQ.Rate = rate;
     daq_ID = "Dev1";
     % Don't know your DAQ ID, type "daq.getDevices().ID" into the
     % command window to see what devices are currently connected to
     % your computer
 
     % Add the input channels.
-    ch0 = this_daq.addinput(daq_ID, 0, "Voltage");
-    ch1 = this_daq.addinput(daq_ID, 1, "Voltage");
-    ch2 = this_daq.addinput(daq_ID, 2, "Voltage");
-    ch3 = this_daq.addinput(daq_ID, 3, "Voltage");
-    ch4 = this_daq.addinput(daq_ID, 4, "Voltage");
-    ch5 = this_daq.addinput(daq_ID, 5, "Voltage");
+    ch0 = this_DAQ.addinput(daq_ID, 0, "Voltage");
+    ch1 = this_DAQ.addinput(daq_ID, 1, "Voltage");
+    ch2 = this_DAQ.addinput(daq_ID, 2, "Voltage");
+    ch3 = this_DAQ.addinput(daq_ID, 3, "Voltage");
+    ch4 = this_DAQ.addinput(daq_ID, 4, "Voltage");
+    ch5 = this_DAQ.addinput(daq_ID, 5, "Voltage");
     
     % Set the voltage range of the channels
-    voltage = obj.voltage;
     ch0.Range = [-voltage, voltage];
     ch1.Range = [-voltage, voltage];
     ch2.Range = [-voltage, voltage];
@@ -144,16 +128,42 @@ function this_DAQ = setup_DAQ()
     ch4.Range = [-voltage, voltage];
     ch5.Range = [-voltage, voltage];
 
-    if (num_triggers >= 1)
-        ch6 = this_daq.addinput(daq_ID, 6, "Voltage");
+    if (obj.num_triggers >= 1)
+        ch6 = this_DAQ.addinput(daq_ID, 6, "Voltage");
         ch6.Range = [-voltage, voltage];
     end
     
-    if (num_triggers == 2)
-        ch7 = this_daq.addinput(daq_ID, 7, "Voltage");
+    if (obj.num_triggers == 2)
+        ch7 = this_DAQ.addinput(daq_ID, 7, "Voltage");
         ch7.Range = [-voltage, voltage];
     end
     
+end
+
+end
+
+methods
+
+% Constructor for Force Transducer Class
+function obj = ForceTransducer(rate, voltage, calibration_filepath, num_triggers)
+    if (voltage == 5 || voltage == 10)
+        obj.voltage = voltage;
+    else
+        error("Invalid DAQ voltage for force transducer")
+    end
+
+    % produce a calibration matrix and assign to this object
+    obj.cal_matrix = ForceTransducer.obtain_cal(calibration_filepath);
+
+    obj.num_triggers = num_triggers;
+
+    obj.daq = ForceTransducer.setup_DAQ(voltage, rate);
+end
+
+% Destructor for Force Transducer Class
+function delete(obj)
+    delete(obj.daq);
+    clear obj.daq;
 end
 
 % **************************************************************** %
@@ -174,11 +184,11 @@ end
 
 % Note: This function also writes "offsets" to a .csv file
 function [offsets] = get_force_offsets(obj, case_name, rate, tare_duration)
-    this_DAQ = setup_DAQ();
+    disp("Starting to Collect Offsets")
 
     % Get the offsets for current trial.
-    start(this_DAQ, "Duration", tare_duration);
-    [bias_timetable, ~] = read(this_DAQ, seconds(tare_duration));
+    start(obj.daq, "Duration", tare_duration);
+    [bias_timetable, ~] = read(obj.daq, seconds(tare_duration));
     bias_table = timetable2table(bias_timetable);
     bias_array = table2array(bias_table(:,2:7));
     
@@ -190,13 +200,12 @@ function [offsets] = get_force_offsets(obj, case_name, rate, tare_duration)
         offsets(2, i) = std(bias_array(:, i));
     end
     
-    % Clear the DAq object.
-    clear this_DAQ;
-    
     % Write the offsets to a .csv file.
     trial_name = strjoin([case_name, "offsets", datestr(now, "mmddyy")], "_");
     trial_file_name = "data\offsets data\" + trial_name + ".csv";
     writematrix(offsets, trial_file_name);
+
+    disp("Finished Collecting Offsets")
 end
 
 % **************************************************************** %
@@ -219,13 +228,13 @@ end
 
 % Note: This function also writes "these_results" to a .csv file
 function [these_results] = measure_force(obj, case_name, rate, session_duration, offsets)
-    this_DAQ = setup_DAQ();
+    disp("Starting to Collect Data")
     
     % Start the DAq session.
-    start(this_daq, "Duration", session_duration);
+    start(obj.daq, "Duration", session_duration);
 
     % Read the data from this DAq session.
-    these_raw_data = read(this_daq, seconds(session_duration));
+    these_raw_data = read(obj.daq, seconds(session_duration));
 
     these_raw_data_table = timetable2table(these_raw_data);
 
@@ -235,12 +244,12 @@ function [these_results] = measure_force(obj, case_name, rate, session_duration,
     these_raw_times = seconds(table2array(these_raw_data_table_times));
     these_raw_volt_vals = table2array(these_raw_data_table_volt_vals);
     
-    if (num_triggers >= 1)
+    if (obj.num_triggers >= 1)
         these_raw_data_table_galil_trigger_vals = these_raw_data_table(:, 8);
         these_raw_galil_trigger_vals = table2array(these_raw_data_table_galil_trigger_vals);
     end
 
-    if (num_triggers == 2)
+    if (obj.num_triggers == 2)
         these_raw_data_table_camera_trigger_vals = these_raw_data_table(:, 9);
         these_raw_camera_trigger_vals = table2array(these_raw_data_table_camera_trigger_vals);
     end
@@ -250,21 +259,20 @@ function [these_results] = measure_force(obj, case_name, rate, session_duration,
     force_vals = obj.cal_matrix * volt_vals';
     force_vals = force_vals';
 
-    if (num_triggers == 0)
+    if (obj.num_triggers == 0)
         these_results = [these_raw_times force_vals];
-    elseif (num_triggers == 1)
+    elseif (obj.num_triggers == 1)
         these_results = [these_raw_times force_vals these_raw_galil_trigger_vals];
-    elseif (num_triggers == 2)
+    elseif (obj.num_triggers == 2)
         these_results = [these_raw_times force_vals these_raw_galil_trigger_vals these_raw_camera_trigger_vals];
     end
-
-    % Clear the DAq object.
-    clear this_daq;
 
     % Write the experiment data to a .csv file.
     trial_name = strjoin([case_name, "experiment", datestr(now, "mmddyy")], "_");
     trial_file_name = "data\experiment data\" + trial_name + ".csv";
     writematrix(these_results, trial_file_name);
+
+    disp("Finished Collecting Data")
 end
 
 % **************************************************************** %
@@ -272,27 +280,44 @@ end
 % **************************************************************** %
 % This function provides preliminary force data in the form of a 2 x 3
 % grid plot. The data has not been filtered.
-function plot_results(obj, these_results, case_name, drift)
+function plot_results(obj, results, case_name, drift)
     close all
 
     if (contains(case_name, '-'))
         case_name = strrep(case_name,'-','neg');
     end
 
-    try
-    these_galil_trigs = these_results(:, 8);
-    these_low_galil_trigs_indices = find(these_galil_trigs < 2);
-    galil_trigger_start_frame = these_low_galil_trigs_indices(1);
-    galil_trigger_end_frame = these_low_galil_trigs_indices(end);
-    trimmed_results = these_results(galil_trigger_start_frame:galil_trigger_end_frame, :);
-    % disp(trigger_end_frame - trigger_start_frame);
+    A_trigger_detected = true;
+    B_trigger_detected = true;
 
-    these_camera_trigs = these_results(:, 9);
-    these_low_camera_trigs_indices = find(these_camera_trigs < 2);
-    camera_trigger_start_frame = these_low_camera_trigs_indices(1);
-    camera_trigger_end_frame = these_low_camera_trigs_indices(end);
-    % disp(trigger_end_frame - trigger_start_frame);
-    
+    try
+    if (obj.num_triggers == 1)
+        A_trigs = results(:, 8);
+        low_A_trigs_indices = find(A_trigs < 2);
+        A_trigger_start_frame = low_A_trigs_indices(1);
+        A_trigger_end_frame = low_A_trigs_indices(end);
+        A_trimmed_results = results(A_trigger_start_frame:A_trigger_end_frame, :);
+        % disp(A_trigger_end_frame - A_trigger_start_frame);
+    end
+    catch
+        A_trigger_detected = false;
+    end
+
+    try
+    if (obj.num_triggers == 2)
+        B_trigs = results(:, 9);
+        low_B_trigs_indices = find(B_trigs < 2);
+        B_trigger_start_frame = low_B_trigs_indices(1);
+        B_trigger_end_frame = low_B_trigs_indices(end);
+        B_trimmed_results = results(B_trigger_start_frame:B_trigger_end_frame, :);
+        % disp(B_trigger_end_frame - B_trigger_start_frame);
+    end
+    catch
+        B_trigger_detected = false;
+    end
+
+    %% Figure with raw data and trimmed data overlaid
+
     % Open a new figure.
     f = figure;
     f.Position = [1940 600 1150 750];
@@ -301,25 +326,41 @@ function plot_results(obj, these_results, case_name, drift)
     % Create three subplots to show the force time histories. 
     nexttile(tcl)
     hold on
-    raw_line = plot(these_results(:, 1), these_results(:, 2), 'DisplayName', 'raw');
-    galil_trigger_line = plot(trimmed_results(:, 1), trimmed_results(:, 2), ...
-        'DisplayName', 'galil trigger');
+    raw_line = plot(results(:, 1), results(:, 2), 'DisplayName', 'raw');
+    if (obj.num_triggers > 0 && A_trigger_detected)
+    first_trigger_line = plot(A_trimmed_results(:, 1), A_trimmed_results(:, 2), ...
+        'DisplayName', 'first trigger');
+    end
+    if (obj.num_triggers == 2 && B_trigger_detected)
+        second_trigger_line = plot(B_trimmed_results(:, 1), B_trimmed_results(:, 2), ...
+        'DisplayName', 'second trigger');
+    end
     title("F_x");
     xlabel("Time (s)");
     ylabel("Force (N)");
     
     nexttile(tcl)
     hold on
-    plot(these_results(:, 1), these_results(:, 3));
-    plot(trimmed_results(:, 1), trimmed_results(:, 3));
+    plot(results(:, 1), results(:, 3));
+    if (obj.num_triggers > 0 && A_trigger_detected)
+    plot(A_trimmed_results(:, 1), A_trimmed_results(:, 3));
+    end
+    if (obj.num_triggers == 2 && B_trigger_detected)
+        plot(B_trimmed_results(:, 1), B_trimmed_results(:, 3));
+    end
     title("F_y");
     xlabel("Time (s)");
     ylabel("Force (N)");
     
     nexttile(tcl)
     hold on
-    plot(these_results(:, 1), these_results(:, 4));
-    plot(trimmed_results(:, 1), trimmed_results(:, 4));
+    plot(results(:, 1), results(:, 4));
+    if (obj.num_triggers > 0 && A_trigger_detected)
+    plot(A_trimmed_results(:, 1), A_trimmed_results(:, 4));
+    end
+    if (obj.num_triggers == 2 && B_trigger_detected)
+        plot(B_trimmed_results(:, 1), B_trimmed_results(:, 4));
+    end
     title("F_z");
     xlabel("Time (s)");
     ylabel("Force (N)");
@@ -327,31 +368,50 @@ function plot_results(obj, these_results, case_name, drift)
     % Create three subplots to show the moment time histories.
     nexttile(tcl)
     hold on
-    plot(these_results(:, 1), these_results(:, 5));
-    plot(trimmed_results(:, 1), trimmed_results(:, 5));
+    plot(results(:, 1), results(:, 5));
+    if (obj.num_triggers > 0 && A_trigger_detected)
+    plot(A_trimmed_results(:, 1), A_trimmed_results(:, 5));
+    end
+    if (obj.num_triggers == 2 && B_trigger_detected)
+        plot(B_trimmed_results(:, 1), B_trimmed_results(:, 5));
+    end
     title("M_x");
     xlabel("Time (s)");
     ylabel("Torque (N m)");
     
     nexttile(tcl)
     hold on
-    plot(these_results(:, 1), these_results(:, 6));
-    plot(trimmed_results(:, 1), trimmed_results(:, 6));
+    plot(results(:, 1), results(:, 6));
+    if (obj.num_triggers > 0 && A_trigger_detected)
+    plot(A_trimmed_results(:, 1), A_trimmed_results(:, 6));
+    end
+    if (obj.num_triggers == 2 && B_trigger_detected)
+        plot(B_trimmed_results(:, 1), B_trimmed_results(:, 6));
+    end
     title("M_y");
     xlabel("Time (s)");
     ylabel("Torque (N m)");
     
     nexttile(tcl)
     hold on
-    plot(these_results(:, 1), these_results(:, 7));
-    plot(trimmed_results(:, 1), trimmed_results(:, 7));
+    plot(results(:, 1), results(:, 7));
+    if (obj.num_triggers > 0 && A_trigger_detected)
+    plot(A_trimmed_results(:, 1), A_trimmed_results(:, 7));
+    end
+    if (obj.num_triggers == 2 && B_trigger_detected)
+        plot(B_trimmed_results(:, 1), B_trimmed_results(:, 7));
+    end
     title("M_z");
     xlabel("Time (s)");
     ylabel("Torque (N m)");
 
-    hL = legend([raw_line, galil_trigger_line]);
-    % Move the legend to the right side of the figure
-    hL.Layout.Tile = 'East';
+    if (obj.num_triggers == 1 && A_trigger_detected)
+        hL = legend([raw_line, first_trigger_line]);
+        hL.Layout.Tile = 'East';
+    elseif (obj.num_triggers == 2 && A_trigger_detected && B_trigger_detected)
+        hL = legend([raw_line, first_trigger_line, second_trigger_line]);
+        hL.Layout.Tile = 'East';
+    end
 
     drift_string = string(drift);
     % separate numbers by space
@@ -365,6 +425,8 @@ function plot_results(obj, these_results, case_name, drift)
 
     saveas(f,'data\plots\' + case_name + "_raw.jpg")
 
+    %% Figure with trimmed data only (using first trigger)
+    if (obj.num_triggers == 1 && A_trigger_detected)
     % Open a new figure.
     f = figure;
     f.Position = [1940 -260 1150 750];
@@ -373,117 +435,109 @@ function plot_results(obj, these_results, case_name, drift)
     % Create three subplots to show the force time histories. 
     nexttile(tcl)
     hold on
-    plot(trimmed_results(:, 1), trimmed_results(:, 2), ...
+    plot(A_trimmed_results(:, 1), A_trimmed_results(:, 2), ...
         'DisplayName', 'galil trigger');
     title("F_x");
     xlabel("Time (s)");
     ylabel("Force (N)");
     
     nexttile(tcl)
-    plot(trimmed_results(:, 1), trimmed_results(:, 3));
+    plot(A_trimmed_results(:, 1), A_trimmed_results(:, 3));
     title("F_y");
     xlabel("Time (s)");
     ylabel("Force (N)");
     
     nexttile(tcl)
-    plot(trimmed_results(:, 1), trimmed_results(:, 4));
+    plot(A_trimmed_results(:, 1), A_trimmed_results(:, 4));
     title("F_z");
     xlabel("Time (s)");
     ylabel("Force (N)");
 
     % Create three subplots to show the moment time histories.
     nexttile(tcl)
-    plot(trimmed_results(:, 1), trimmed_results(:, 5));
+    plot(A_trimmed_results(:, 1), A_trimmed_results(:, 5));
     title("M_x");
     xlabel("Time (s)");
     ylabel("Torque (N m)");
     
     nexttile(tcl)
-    plot(trimmed_results(:, 1), trimmed_results(:, 6));
+    plot(A_trimmed_results(:, 1), A_trimmed_results(:, 6));
     title("M_y");
     xlabel("Time (s)");
     ylabel("Torque (N m)");
     
     nexttile(tcl)
-    plot(trimmed_results(:, 1), trimmed_results(:, 7));
+    plot(A_trimmed_results(:, 1), A_trimmed_results(:, 7));
     title("M_z");
     xlabel("Time (s)");
     ylabel("Torque (N m)");
 
     % Label the whole figure.
-    sgtitle({"Force Transducer Data" strrep(case_name,'_','  ')});
+    sgtitle({"Trimmed Force Transducer Data" strrep(case_name,'_','  ')});
 
-    saveas(f,'data\plots\' + case_name + "_trigger.jpg")
+    saveas(f,'data\plots\' + case_name + "_A_trimmed.jpg")
 
     disp("Standard deviations from this trimmed trial for each axis:")
     disp(std(abs(trimmed_results(:,2:4))));
     disp(std(abs(trimmed_results(:,5:7))));
+    end
 
-    catch
+    show_plot = false;
+    %% Figure with trimmed data only (using second trigger)
+    if (show_plot && obj.num_triggers == 2 && B_trigger_detected)
     % Open a new figure.
     f = figure;
-    f.Position = [1940 600 1150 750];
+    f.Position = [1940 -260 1150 750];
     tcl = tiledlayout(2,3);
     
     % Create three subplots to show the force time histories. 
     nexttile(tcl)
     hold on
-    raw_line = plot(these_results(:, 1), these_results(:, 2), 'DisplayName', 'raw');
+    plot(B_trimmed_results(:, 1), B_trimmed_results(:, 2), ...
+        'DisplayName', 'galil trigger');
     title("F_x");
     xlabel("Time (s)");
     ylabel("Force (N)");
     
     nexttile(tcl)
-    hold on
-    plot(these_results(:, 1), these_results(:, 3));
+    plot(B_trimmed_results(:, 1), B_trimmed_results(:, 3));
     title("F_y");
     xlabel("Time (s)");
     ylabel("Force (N)");
     
     nexttile(tcl)
-    hold on
-    plot(these_results(:, 1), these_results(:, 4));
+    plot(B_trimmed_results(:, 1), B_trimmed_results(:, 4));
     title("F_z");
     xlabel("Time (s)");
     ylabel("Force (N)");
 
     % Create three subplots to show the moment time histories.
     nexttile(tcl)
-    hold on
-    plot(these_results(:, 1), these_results(:, 5));
+    plot(B_trimmed_results(:, 1), B_trimmed_results(:, 5));
     title("M_x");
     xlabel("Time (s)");
     ylabel("Torque (N m)");
     
     nexttile(tcl)
-    hold on
-    plot(these_results(:, 1), these_results(:, 6));
+    plot(B_trimmed_results(:, 1), B_trimmed_results(:, 6));
     title("M_y");
     xlabel("Time (s)");
     ylabel("Torque (N m)");
     
     nexttile(tcl)
-    hold on
-    plot(these_results(:, 1), these_results(:, 7));
+    plot(B_trimmed_results(:, 1), B_trimmed_results(:, 7));
     title("M_z");
     xlabel("Time (s)");
     ylabel("Torque (N m)");
 
-    hL = legend([raw_line]);
-    % Move the legend to the right side of the figure
-    hL.Layout.Tile = 'East';
-
-    drift_string = string(drift);
-    % separate numbers by space
-    drift_string = [sprintf('%s    ',drift_string{1:end-1}), drift_string{end}];
-
     % Label the whole figure.
-    sgtitle({"Force Transducer Data" strrep(case_name,'_','  ') ...
-            "Over the course of the experiment, the force transducer drifted" ...
-            "F_x                  F_y                   F_z                   M_x                   M_y                   M_z" ...
-            drift_string});
+    sgtitle({"Trimmed Force Transducer Data" strrep(case_name,'_','  ')});
 
-    saveas(f,'data\plots\' + case_name + "_raw.jpg")
+    saveas(f,'data\plots\' + case_name + "_B_trimmed.jpg")
+
+    disp("Standard deviations from this trimmed trial for each axis:")
+    disp(std(abs(trimmed_results(:,2:4))));
+    disp(std(abs(trimmed_results(:,5:7))));
     end
 end
 
