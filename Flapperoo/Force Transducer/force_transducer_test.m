@@ -1,5 +1,6 @@
-clearvars -except offsets
+clear
 close all
+clc
 
 % This file can be used to test the force transducer.
 % Begin by connecting the force transducer to the NI DAQ and the NI DAQ to
