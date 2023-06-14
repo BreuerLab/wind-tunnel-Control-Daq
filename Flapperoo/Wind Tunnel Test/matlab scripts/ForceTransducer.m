@@ -44,7 +44,7 @@ properties
     voltage; % 5 or 10 volts
     cal_matrix; % matrix with calibration values (volts -> force)
     num_triggers; % 0, 1, or 2
-    daq;
+    daq; % National Instruments Data Acquistion Object
 end
 
 methods(Static)
@@ -183,9 +183,7 @@ end
 % row is the standard deviations of the measurements
 
 % Note: This function also writes "offsets" to a .csv file
-function [offsets] = get_force_offsets(obj, case_name, rate, tare_duration)
-    disp("Starting to Collect Offsets")
-
+function [offsets] = get_force_offsets(obj, case_name, tare_duration)
     % Get the offsets for current trial.
     start(obj.daq, "Duration", tare_duration);
     [bias_timetable, ~] = read(obj.daq, seconds(tare_duration));
@@ -204,8 +202,6 @@ function [offsets] = get_force_offsets(obj, case_name, rate, tare_duration)
     trial_name = strjoin([case_name, "offsets", datestr(now, "mmddyy")], "_");
     trial_file_name = "data\offsets data\" + trial_name + ".csv";
     writematrix(offsets, trial_file_name);
-
-    disp("Finished Collecting Offsets")
 end
 
 % **************************************************************** %
@@ -221,58 +217,54 @@ end
 % offsets - the result produced after calling get_force_offsets
 
 % Returns: 
-% these_results - n x 6, n x 7, or n x 8 matrix where n is the number
+% results - n x 6, n x 7, or n x 8 matrix where n is the number
 % of sampled points. The first six columns represent Fx, Fy, Fz, Mx,
 % My, and Mz. The additional two optional columns are used for data
 % marking ("trigger").
 
-% Note: This function also writes "these_results" to a .csv file
-function [these_results] = measure_force(obj, case_name, rate, session_duration, offsets)
-    disp("Starting to Collect Data")
-    
+% Note: This function also writes "results" to a .csv file
+function [results] = measure_force(obj, case_name, session_duration, offsets)
     % Start the DAq session.
     start(obj.daq, "Duration", session_duration);
 
     % Read the data from this DAq session.
-    these_raw_data = read(obj.daq, seconds(session_duration));
+    raw_data = read(obj.daq, seconds(session_duration));
 
-    these_raw_data_table = timetable2table(these_raw_data);
+    raw_data_table = timetable2table(raw_data);
 
-    these_raw_data_table_times = these_raw_data_table(:, 1);
-    these_raw_data_table_volt_vals = these_raw_data_table(:, 2:7);
+    raw_data_table_times = raw_data_table(:, 1);
+    raw_data_table_volt_vals = raw_data_table(:, 2:7);
 
-    these_raw_times = seconds(table2array(these_raw_data_table_times));
-    these_raw_volt_vals = table2array(these_raw_data_table_volt_vals);
+    raw_times = seconds(table2array(raw_data_table_times));
+    raw_volt_vals = table2array(raw_data_table_volt_vals);
     
     if (obj.num_triggers >= 1)
-        these_raw_data_table_galil_trigger_vals = these_raw_data_table(:, 8);
-        these_raw_galil_trigger_vals = table2array(these_raw_data_table_galil_trigger_vals);
+        raw_data_table_galil_trigger_vals = raw_data_table(:, 8);
+        raw_galil_trigger_vals = table2array(raw_data_table_galil_trigger_vals);
     end
 
     if (obj.num_triggers == 2)
-        these_raw_data_table_camera_trigger_vals = these_raw_data_table(:, 9);
-        these_raw_camera_trigger_vals = table2array(these_raw_data_table_camera_trigger_vals);
+        raw_data_table_camera_trigger_vals = raw_data_table(:, 9);
+        raw_camera_trigger_vals = table2array(raw_data_table_camera_trigger_vals);
     end
 
     % Offset the data and multiply by the calibration matrix.
-    volt_vals = these_raw_volt_vals(:, 1:6) - offsets(1,:);
+    volt_vals = raw_volt_vals(:, 1:6) - offsets(1,:);
     force_vals = obj.cal_matrix * volt_vals';
     force_vals = force_vals';
 
     if (obj.num_triggers == 0)
-        these_results = [these_raw_times force_vals];
+        results = [raw_times force_vals];
     elseif (obj.num_triggers == 1)
-        these_results = [these_raw_times force_vals these_raw_galil_trigger_vals];
+        results = [raw_times force_vals raw_galil_trigger_vals];
     elseif (obj.num_triggers == 2)
-        these_results = [these_raw_times force_vals these_raw_galil_trigger_vals these_raw_camera_trigger_vals];
+        results = [raw_times force_vals raw_galil_trigger_vals raw_camera_trigger_vals];
     end
 
     % Write the experiment data to a .csv file.
     trial_name = strjoin([case_name, "experiment", datestr(now, "mmddyy")], "_");
     trial_file_name = "data\experiment data\" + trial_name + ".csv";
-    writematrix(these_results, trial_file_name);
-
-    disp("Finished Collecting Data")
+    writematrix(results, trial_file_name);
 end
 
 % **************************************************************** %

@@ -183,9 +183,7 @@ end
 % row is the standard deviations of the measurements
 
 % Note: This function also writes "offsets" to a .csv file
-function [offsets] = get_force_offsets(obj, case_name, rate, tare_duration)
-    disp("Starting to Collect Offsets")
-
+function [offsets] = get_force_offsets(obj, case_name, tare_duration)
     % Get the offsets for current trial.
     start(obj.daq, "Duration", tare_duration);
     [bias_timetable, ~] = read(obj.daq, seconds(tare_duration));
@@ -204,8 +202,6 @@ function [offsets] = get_force_offsets(obj, case_name, rate, tare_duration)
     trial_name = strjoin([case_name, "offsets", datestr(now, "mmddyy")], "_");
     trial_file_name = "data\offsets data\" + trial_name + ".csv";
     writematrix(offsets, trial_file_name);
-
-    disp("Finished Collecting Offsets")
 end
 
 % **************************************************************** %
@@ -228,8 +224,6 @@ end
 
 % Note: This function also writes "results" to a .csv file
 function [results] = measure_force(obj, case_name, session_duration, offsets)
-    disp("Starting to Collect Data")
-    
     % Start the DAq session.
     start(obj.daq, "Duration", session_duration);
 
@@ -271,8 +265,6 @@ function [results] = measure_force(obj, case_name, session_duration, offsets)
     trial_name = strjoin([case_name, "experiment", datestr(now, "mmddyy")], "_");
     trial_file_name = "data\experiment data\" + trial_name + ".csv";
     writematrix(results, trial_file_name);
-
-    disp("Finished Collecting Data")
 end
 
 % **************************************************************** %

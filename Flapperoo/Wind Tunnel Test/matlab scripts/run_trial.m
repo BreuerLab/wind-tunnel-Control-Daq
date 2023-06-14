@@ -60,7 +60,7 @@ wind_on_off_UI("off");
 % Make force transducer object
 FT_obj = ForceTransducer(rate, voltage, calibration_filepath, 1);
 % Get offset data before flapping at this angle with no wind
-offsets = FT_obj.get_force_offsets(case_name, rate, offset_duration);
+offsets = FT_obj.get_force_offsets(case_name, offset_duration);
 offsets = offsets(1,:); % just taking means, no SDs
 disp("Initial offset data has been gathered");
 beep2;
@@ -106,7 +106,7 @@ dmc = strrep(dmc, "wait_ticks_placeholder", num2str(trigger_pos));
 galil.programDownload(dmc);
 
 % Get offset data before flapping at this angle and windspeed
-offsets_before = FT_obj.get_force_offsets(case_name + "_before", rate, offset_duration);
+offsets_before = FT_obj.get_force_offsets(case_name + "_before", offset_duration);
 offsets_before = offsets_before(1,:); % just taking means, no SDs
 disp("Initial offset data has been gathered");
 beep2;
@@ -115,12 +115,12 @@ beep2;
 galil.command("XQ");
 
 % Collect experiment data during flapping
-results = FT_obj.measure_force(case_name, rate, session_duration, offsets);
+results = FT_obj.measure_force(case_name, session_duration, offsets);
 disp("Experiment data has been gathered");
 beep2; 
 
 % Get offset data after flapping at this angle and windspeed
-offsets_after = FT_obj.get_force_offsets(case_name + "_after", rate, offset_duration);
+offsets_after = FT_obj.get_force_offsets(case_name + "_after", offset_duration);
 offsets_after = offsets_after(1,:); % just taking means, no SDs
 disp("Final offset data has been gathered");
 beep2;
