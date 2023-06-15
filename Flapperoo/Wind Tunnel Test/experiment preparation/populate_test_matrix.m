@@ -27,9 +27,9 @@ for k = 1:length(speed)
             freq_vals(curIndex) = freq(i);
             speed_vals(curIndex) = speed(k);
             if (freq(i) > 0)
-                duration_vals(curIndex) = 10 + (num_wingbeats/freq(i));
+                duration_vals(curIndex) = 30 + (num_wingbeats/freq(i));
             else
-                duration_vals(curIndex) = 30 + 10;
+                duration_vals(curIndex) = 30 + 30;
             end
             if (speed(k) > 0)
                 strouhal_vals(curIndex) = (freq(i) * amp) / speed(k);
