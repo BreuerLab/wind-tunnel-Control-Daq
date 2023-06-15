@@ -145,6 +145,11 @@ if (i < length(freq) && ~automatic)
     i = handle_next_trial(i, length(freq));
 end
 
+% Save wind tunnel dialog
+trial_name = strjoin([case_name, "wind_tunnel", datestr(now, "mmddyy")], "_");
+trial_file_name = "data\wind tunnel data\" + trial_name + ".csv";
+writematrix(wind_tunnel_data, trial_file_name);
+
 i = i + 1;
 end
 

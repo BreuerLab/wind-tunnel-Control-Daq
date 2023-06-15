@@ -25,7 +25,7 @@ function [distance, session_duration, trigger_pos] = estimate_duration...
     if (vel == 0)
         num_revs = 0;
         distance = 0;
-        session_duration = 30; % for stationary test
+        session_duration = 10; % for stationary test
     else
         num_revs = measure_revs + 2*(trigger_pos/rev_ticks);
         distance = round(num_revs*rev_ticks);
