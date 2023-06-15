@@ -103,12 +103,6 @@ function cal_mat = obtain_cal(calibration_filepath)
 
 end
 
-% Builds DAQ object, adds channels, and sets appropriate channel
-% voltages
-% Inputs: obj - An instance of the force transducer class
-%         voltage - Voltage rating for all channels
-%         rate - Data sampling rate for DAQ
-% Returns: this_DAQ - A fully constructed DAQ object
 function this_DAQ = setup_DAQ(obj, voltage, rate)
     % Create DAq session and set its aquisition rate (Hz).
     this_DAQ = daq("ni");
@@ -144,27 +138,6 @@ function this_DAQ = setup_DAQ(obj, voltage, rate)
         ch7.Range = [-voltage, voltage];
     end
     
-end
-
-% Used after data collection to check if the trigger was activated
-% Inputs: trigger_data - time series data from trigger channel on DAQ
-% Returns: trigger_detected - true or false
-function trigger_detected = trigger_check(trigger_data)
-    trigger_detected = true;
-
-    try
-        low_trigs_indices = find(trigger_data < 2);
-        trigger_start_frame = low_trigs_indices(1);
-        trigger_end_frame = low_trigs_indices(end);
-        trimmed_results = results(trigger_start_frame:trigger_end_frame, :);
-        % disp(trigger_end_frame - trigger_start_frame);
-    catch
-        trigger_detected = false;
-    end
-
-    if (low_trigs_indices(1) == 1 || low_trigs_indices(end) == length(trigger_data))
-        trigger_detected = false;
-    end
 end
 
 end
@@ -300,6 +273,24 @@ function [results] = measure_force(obj, case_name, session_duration, offsets)
     flush(obj.daq);
 end
 
+function trigger_detected = trigger_check(trigger_data)
+    trigger_detected = true;
+
+    try
+        low_trigs_indices = find(trigger_data < 2);
+        trigger_start_frame = low_trigs_indices(1);
+        trigger_end_frame = low_trigs_indices(end);
+        trimmed_results = results(trigger_start_frame:trigger_end_frame, :);
+        % disp(trigger_end_frame - trigger_start_frame);
+    catch
+        trigger_detected = false;
+    end
+
+    if (low_trigs_indices(1) == 1 || low_trigs_indices(end) == length(trigger_data))
+        trigger_detected = false;
+    end
+end
+
 % **************************************************************** %
 % **********************Plotting Measurements********************* %
 % **************************************************************** %
@@ -313,12 +304,37 @@ function plot_results(obj, results, case_name, drift)
         case_name = strrep(case_name,'-','neg');
     end
 
-    % Check if triggers were activated
+    A_trigger_detected = true;
+    B_trigger_detected = true;
+
+    try
     if (obj.num_triggers >= 1)
-        A_trigger_detected = ForceTransducer.trigger_check(results(:, 8));
+        A_trigs = results(:, 8);
+        low_A_trigs_indices = find(A_trigs < 2);
+        A_trigger_start_frame = low_A_trigs_indices(1);
+        A_trigger_end_frame = low_A_trigs_indices(end);
+        A_trimmed_results = results(A_trigger_start_frame:A_trigger_end_frame, :);
+        % disp(A_trigger_end_frame - A_trigger_start_frame);
     end
+    catch
+        A_trigger_detected = false;
+    end
+
+    if (low_A_trigs_indices(1) == 1 || low_A_trigs_indices(end) == length(A_trigs))
+        A_trigger_detected = false;
+    end
+
+    try
     if (obj.num_triggers == 2)
-        B_trigger_detected = ForceTransducer.trigger_check(results(:, 9));
+        B_trigs = results(:, 9);
+        low_B_trigs_indices = find(B_trigs < 2);
+        B_trigger_start_frame = low_B_trigs_indices(1);
+        B_trigger_end_frame = low_B_trigs_indices(end);
+        B_trimmed_results = results(B_trigger_start_frame:B_trigger_end_frame, :);
+        % disp(B_trigger_end_frame - B_trigger_start_frame);
+    end
+    catch
+        B_trigger_detected = false;
     end
 
     %% Figure with raw data and trimmed data overlaid

@@ -24,7 +24,7 @@ vel = 0*rev_ticks; % ticks / sec -> calculated each trial
 acc = 3*rev_ticks; % ticks / sec^2
 measure_revs = 20; % we want 180 wingbeats of data
 padding_revs = 1; % dropped from front and back during data processing
-wait_time = 4000; % 4 seconds (data collected before and after flapping)
+wait_time = 3000; % 3 seconds (data collected before and after flapping)
 distance = -1; % ticks to travel this trial -> calculated each trial
 
 % Force Transducer Parameters
