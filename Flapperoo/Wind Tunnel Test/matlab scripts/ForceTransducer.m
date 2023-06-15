@@ -103,7 +103,7 @@ function cal_mat = obtain_cal(calibration_filepath)
 
 end
 
-function this_DAQ = setup_DAQ(voltage, rate)
+function this_DAQ = setup_DAQ(obj, voltage, rate)
     % Create DAq session and set its aquisition rate (Hz).
     this_DAQ = daq("ni");
     this_DAQ.Rate = rate;
@@ -157,7 +157,7 @@ function obj = ForceTransducer(rate, voltage, calibration_filepath, num_triggers
 
     obj.num_triggers = num_triggers;
 
-    obj.daq = ForceTransducer.setup_DAQ(voltage, rate);
+    obj.daq = ForceTransducer.setup_DAQ(obj, voltage, rate);
 end
 
 % Destructor for Force Transducer Class
@@ -470,8 +470,8 @@ function plot_results(obj, results, case_name, drift)
     saveas(f,'data\plots\' + case_name + "_A_trimmed.jpg")
 
     disp("Standard deviations from this trimmed trial for each axis:")
-    disp(std(abs(trimmed_results(:,2:4))));
-    disp(std(abs(trimmed_results(:,5:7))));
+    disp(std(abs(A_trimmed_results(:,2:4))));
+    disp(std(abs(A_trimmed_results(:,5:7))));
     end
 
     show_plot = false;

@@ -22,7 +22,7 @@ steps_per_rev = 200; % fixed parameter of motor
 rev_ticks = microsteps*steps_per_rev; % ticks per rev
 vel = 0*rev_ticks; % ticks / sec -> calculated each trial
 acc = 3*rev_ticks; % ticks / sec^2
-measure_revs = 1; % we want 180 wingbeats of data
+measure_revs = 20; % we want 180 wingbeats of data
 padding_revs = 1; % dropped from front and back during data processing
 wait_time = 4000; % 4 seconds (data collected before and after flapping)
 distance = -1; % ticks to travel this trial -> calculated each trial
@@ -60,9 +60,10 @@ wind_on_off_UI("off");
 % Make force transducer object
 FT_obj = ForceTransducer(rate, voltage, calibration_filepath, 1);
 % Get offset data before flapping at this angle with no wind
-offsets = FT_obj.get_force_offsets(case_name, offset_duration);
+offset_name = wing_type + "_" + speed + "m.s_" + AoA(j) + "deg";
+offsets = FT_obj.get_force_offsets(offset_name, offset_duration);
 offsets = offsets(1,:); % just taking means, no SDs
-disp("Initial offset data has been gathered");
+disp("Offset data at this AoA has been gathered");
 beep2;
 
 % Confirm user has resumed wind before recording data
@@ -97,7 +98,7 @@ dmc = string(dmc);
 dmc = strrep(dmc, "accel_placeholder", num2str(acc));
 dmc = strrep(dmc, "speed_placeholder", num2str(vel));
 dmc = strrep(dmc, "distance_placeholder", num2str(distance));
-dmc = strrep(dmc, "wait_time_placeholder", num2str(wait_time + 3000));
+dmc = strrep(dmc, "wait_time_placeholder", num2str(wait_time));
 dmc = strrep(dmc, "wait_ticks_placeholder", num2str(trigger_pos));
 % added extra 3 seconds in galil waiting time as seen above to account
 % for extra time spent executing operations
@@ -125,10 +126,6 @@ offsets_after = offsets_after(1,:); % just taking means, no SDs
 disp("Final offset data has been gathered");
 beep2;
 
-% Clean up
-delete(cleanup);
-delete(galil);
-
 % Display preliminary data
 drift = offsets_after - offsets_before;
 FT_obj.plot_results(results, case_name, drift);
@@ -149,6 +146,12 @@ if (i < length(freq) && ~automatic)
 end
 
 i = i + 1;
+end
+
+if (~debug)
+    % Clean up
+    delete(cleanup);
+    delete(galil);
 end
 
 if (j < length(AoA) && ~automatic)
