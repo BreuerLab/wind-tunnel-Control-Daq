@@ -111,24 +111,20 @@ function cal_mat = obtain_cal(calibration_filepath)
 
 end
 
-% Used after data collection to check if the trigger was activated
+% Used after data collection to trim the data based on the trigger
+% data
 % Inputs: trigger_data - time series data from trigger channel on DAQ
-% Returns: trigger_detected - true or false
-function trigger_detected = trigger_check(trigger_data)
-    trigger_detected = true;
-
-    try
-        low_trigs_indices = find(trigger_data < 2);
+% Returns: trimmed_results - results for all values w
+function trimmed_results = trim_data(results, trigger_data)
+    trimmed_results = zeros(size(results));
+    low_trigs_indices = find(trigger_data < 2); % <2 Volts = Digital Low
+    
+    if ~(isempty(low_trigs_indices) || low_trigs_indices(1) == 1 ...
+            || low_trigs_indices(end) == length(trigger_data))
         trigger_start_frame = low_trigs_indices(1);
         trigger_end_frame = low_trigs_indices(end);
         trimmed_results = results(trigger_start_frame:trigger_end_frame, :);
         % disp(trigger_end_frame - trigger_start_frame);
-    catch
-        trigger_detected = false;
-    end
-
-    if (low_trigs_indices(1) == 1 || low_trigs_indices(end) == length(trigger_data))
-        trigger_detected = false;
     end
 end
 

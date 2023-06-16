@@ -4,8 +4,7 @@
 
 % It includes the following methods:
 % - obtain_cal (used to produce a matrix from an ATI .cal file)
-% - trigger_check (to check if a trigger has been detected on one of
-%                  the non-force-transducer channels)
+% - trim_data (to trim the data based on another trigger)
 % - Constructor (to make force transducer object)
 % - Destructor (to delete force transducer object and associated daq
 %               object)
@@ -43,6 +42,12 @@
 % AI7 - A digital output to mark recording period ("trigger")
 % AI6 and AI7 do not need to be wired up, the trigger is an optional
 % feature
+
+% The "trigger" is just any digital signal sent to one of the analog
+% input pins on the DAQ. It could be coming from a Galil (so that we
+% know later during data processing when the beginning of a wingbeat
+% cycle occurred or when the robot had finished accelerating). It
+% could also be coming from a camera when it starts recording.
 
 % Author: Ronan Gissler
 % Breuer Lab 2023
@@ -111,24 +116,21 @@ function cal_mat = obtain_cal(calibration_filepath)
 
 end
 
-% Used after data collection to check if the trigger was activated
-% Inputs: trigger_data - time series data from trigger channel on DAQ
-% Returns: trigger_detected - true or false
-function trigger_detected = trigger_check(trigger_data)
-    trigger_detected = true;
-
-    try
-        low_trigs_indices = find(trigger_data < 2);
+% Used after data collection to trim the data based on the trigger data
+% Inputs: results - (n x 7) force transducer data in time
+%         trigger_data - time series data from trigger channel on DAQ
+% Returns: trimmed_results - results for all values where the trigger
+%          voltage was low
+function trimmed_results = trim_data(results, trigger_data)
+    trimmed_results = zeros(size(results));
+    low_trigs_indices = find(trigger_data < 2); % <2 Volts = Digital Low
+    
+    if ~(isempty(low_trigs_indices) || low_trigs_indices(1) == 1 ...
+            || low_trigs_indices(end) == length(trigger_data))
         trigger_start_frame = low_trigs_indices(1);
         trigger_end_frame = low_trigs_indices(end);
         trimmed_results = results(trigger_start_frame:trigger_end_frame, :);
         % disp(trigger_end_frame - trigger_start_frame);
-    catch
-        trigger_detected = false;
-    end
-
-    if (low_trigs_indices(1) == 1 || low_trigs_indices(end) == length(trigger_data))
-        trigger_detected = false;
     end
 end
 
@@ -321,12 +323,20 @@ function plot_results(obj, results, case_name, drift)
         case_name = strrep(case_name,'-','neg');
     end
 
-    % Check if triggers were activated
+    % Check if triggers were activated and if so trim data
+    A_trigger_detected = false;
+    B_trigger_detected = false;
     if (obj.num_triggers >= 1)
-        A_trigger_detected = ForceTransducer.trigger_check(results(:, 8));
+        A_trimmed_results = ForceTransducer.trim_data(results(:,1:7), results(:, 8));
+        if (size(A_trimmed_results) ~= size(results(:,1:7)))
+            A_trigger_detected = true;
+        end
     end
     if (obj.num_triggers == 2)
-        B_trigger_detected = ForceTransducer.trigger_check(results(:, 9));
+        B_trimmed_results = ForceTransducer.trim_data(results(:,1:7), results(:, 9));
+        if (size(B_trimmed_results) ~= size(results(:,1:7)))
+            B_trigger_detected = true;
+        end
     end
 
     %% Figure with raw data and trimmed data overlaid
