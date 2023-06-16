@@ -3,8 +3,13 @@
 % controlled by a PC running Matlab. 
 
 % It includes the following methods:
-% - Constructor (to make force transducer object)
 % - obtain_cal (used to produce a matrix from an ATI .cal file)
+% - trigger_check (to check if a trigger has been detected on one of
+%                  the non-force-transducer channels)
+% - Constructor (to make force transducer object)
+% - Destructor (to delete force transducer object and associated daq
+%               object)
+% - setup_DAQ (to initialize the DAQ for the force transducer)
 % - get_force_offsets (to record initial offset so that data can be
 %                      tared later)
 % - measure_force (to record force data and tare it)
@@ -35,6 +40,9 @@
 % AI4 - My
 % AI5 - Mz
 % AI6 - A digital output to mark recording period ("trigger")
+% AI7 - A digital output to mark recording period ("trigger")
+% AI6 and AI7 do not need to be wired up, the trigger is an optional
+% feature
 
 % Author: Ronan Gissler
 % Breuer Lab 2023
@@ -103,49 +111,6 @@ function cal_mat = obtain_cal(calibration_filepath)
 
 end
 
-% Builds DAQ object, adds channels, and sets appropriate channel
-% voltages
-% Inputs: obj - An instance of the force transducer class
-%         voltage - Voltage rating for all channels
-%         rate - Data sampling rate for DAQ
-% Returns: this_DAQ - A fully constructed DAQ object
-function this_DAQ = setup_DAQ(obj, voltage, rate)
-    % Create DAq session and set its aquisition rate (Hz).
-    this_DAQ = daq("ni");
-    this_DAQ.Rate = rate;
-    daq_ID = "Dev1";
-    % Don't know your DAQ ID, type "daq.getDevices().ID" into the
-    % command window to see what devices are currently connected to
-    % your computer
-
-    % Add the input channels.
-    ch0 = this_DAQ.addinput(daq_ID, 0, "Voltage");
-    ch1 = this_DAQ.addinput(daq_ID, 1, "Voltage");
-    ch2 = this_DAQ.addinput(daq_ID, 2, "Voltage");
-    ch3 = this_DAQ.addinput(daq_ID, 3, "Voltage");
-    ch4 = this_DAQ.addinput(daq_ID, 4, "Voltage");
-    ch5 = this_DAQ.addinput(daq_ID, 5, "Voltage");
-    
-    % Set the voltage range of the channels
-    ch0.Range = [-voltage, voltage];
-    ch1.Range = [-voltage, voltage];
-    ch2.Range = [-voltage, voltage];
-    ch3.Range = [-voltage, voltage];
-    ch4.Range = [-voltage, voltage];
-    ch5.Range = [-voltage, voltage];
-
-    if (obj.num_triggers >= 1)
-        ch6 = this_DAQ.addinput(daq_ID, 6, "Voltage");
-        ch6.Range = [-voltage, voltage];
-    end
-    
-    if (obj.num_triggers == 2)
-        ch7 = this_DAQ.addinput(daq_ID, 7, "Voltage");
-        ch7.Range = [-voltage, voltage];
-    end
-    
-end
-
 % Used after data collection to check if the trigger was activated
 % Inputs: trigger_data - time series data from trigger channel on DAQ
 % Returns: trigger_detected - true or false
@@ -191,6 +156,49 @@ end
 function delete(obj)
     delete(obj.daq);
     clear obj.daq;
+end
+
+% Builds DAQ object, adds channels, and sets appropriate channel
+% voltages
+% Inputs: obj - An instance of the force transducer class
+%         voltage - Voltage rating for all channels
+%         rate - Data sampling rate for DAQ
+% Returns: this_DAQ - A fully constructed DAQ object
+function this_DAQ = setup_DAQ(obj, voltage, rate)
+    % Create DAq session and set its aquisition rate (Hz).
+    this_DAQ = daq("ni");
+    this_DAQ.Rate = rate;
+    daq_ID = "Dev1";
+    % Don't know your DAQ ID, type "daq.getDevices().ID" into the
+    % command window to see what devices are currently connected to
+    % your computer
+
+    % Add the input channels.
+    ch0 = this_DAQ.addinput(daq_ID, 0, "Voltage");
+    ch1 = this_DAQ.addinput(daq_ID, 1, "Voltage");
+    ch2 = this_DAQ.addinput(daq_ID, 2, "Voltage");
+    ch3 = this_DAQ.addinput(daq_ID, 3, "Voltage");
+    ch4 = this_DAQ.addinput(daq_ID, 4, "Voltage");
+    ch5 = this_DAQ.addinput(daq_ID, 5, "Voltage");
+    
+    % Set the voltage range of the channels
+    ch0.Range = [-voltage, voltage];
+    ch1.Range = [-voltage, voltage];
+    ch2.Range = [-voltage, voltage];
+    ch3.Range = [-voltage, voltage];
+    ch4.Range = [-voltage, voltage];
+    ch5.Range = [-voltage, voltage];
+
+    if (obj.num_triggers >= 1)
+        ch6 = this_DAQ.addinput(daq_ID, 6, "Voltage");
+        ch6.Range = [-voltage, voltage];
+    end
+    
+    if (obj.num_triggers == 2)
+        ch7 = this_DAQ.addinput(daq_ID, 7, "Voltage");
+        ch7.Range = [-voltage, voltage];
+    end
+    
 end
 
 % **************************************************************** %

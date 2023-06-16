@@ -157,6 +157,7 @@ if (~debug)
     % Clean up
     delete(cleanup);
     delete(galil);
+    delete(FT_obj);
 end
 
 if (j < length(AoA) && ~automatic)
