@@ -22,9 +22,9 @@ steps_per_rev = 200; % fixed parameter of motor
 rev_ticks = microsteps*steps_per_rev; % ticks per rev
 vel = 0*rev_ticks; % ticks / sec -> calculated each trial
 acc = 3*rev_ticks; % ticks / sec^2
-measure_revs = 20; % we want 180 wingbeats of data
+measure_revs = 180; % we want 180 wingbeats of data
 padding_revs = 1; % dropped from front and back during data processing
-wait_time = 3000; % 3 seconds (data collected before and after flapping)
+wait_time = 4000; % 3 seconds (data collected before and after flapping)
 distance = -1; % ticks to travel this trial -> calculated each trial
 
 % Force Transducer Parameters
@@ -39,6 +39,18 @@ torque_limit = 79; % Newton*meters
 % Reminder user of setup procedure
 procedure_UI();
 
+if (~debug)
+% Connect to the Galil device.
+galil = actxserver("galil");
+% Set the Galil's address.
+galil.address = galil_address;
+% Ensure Galil stops motor when the run_trial function completes
+cleanup = onCleanup(@()myCleanupFun(galil));
+
+% Make force transducer object
+FT_obj = ForceTransducer(rate, voltage, calibration_filepath, 1);
+end
+
 j = 1;
 while (j <= length(AoA))
 
@@ -47,18 +59,9 @@ if (~debug)
 Pitch_To(AoA(j));
 disp("Pitching to AoA: " + AoA(j))
 
-% Connect to the Galil device.
-galil = actxserver("galil");
-% Set the Galil's address.
-galil.address = galil_address;
-% Ensure Galil stops motor when the run_trial function completes
-cleanup = onCleanup(@()myCleanupFun(galil));
-
 % Confirm user has stopped wind before recording offset for this AoA
 wind_on_off_UI("off");
 
-% Make force transducer object
-FT_obj = ForceTransducer(rate, voltage, calibration_filepath, 1);
 % Get offset data before flapping at this angle with no wind
 offset_name = wing_type + "_" + speed + "m.s_" + AoA(j) + "deg";
 offsets = FT_obj.get_force_offsets(offset_name, offset_duration);
@@ -98,7 +101,7 @@ dmc = string(dmc);
 dmc = strrep(dmc, "accel_placeholder", num2str(acc));
 dmc = strrep(dmc, "speed_placeholder", num2str(vel));
 dmc = strrep(dmc, "distance_placeholder", num2str(distance));
-dmc = strrep(dmc, "wait_time_placeholder", num2str(wait_time));
+dmc = strrep(dmc, "wait_time_placeholder", num2str(wait_time - 2000));
 dmc = strrep(dmc, "wait_ticks_placeholder", num2str(trigger_pos));
 % added extra 3 seconds in galil waiting time as seen above to account
 % for extra time spent executing operations
@@ -147,17 +150,14 @@ end
 
 % Save wind tunnel dialog
 trial_name = strjoin([case_name, "wind_tunnel", datestr(now, "mmddyy")], "_");
-trial_file_name = "data\wind tunnel data\" + trial_name + ".csv";
-writematrix(wind_tunnel_data, trial_file_name);
+trial_file_name = "data\wind tunnel data\" + trial_name;
+struct_file_name = trial_file_name + ".mat";
+struct_file_name = "'" + struct_file_name + "'";
+evalin('base',"save(" + struct_file_name + ", 'AFAM_Tunnel');");
+
+screenshot(trial_file_name + ".jpg")
 
 i = i + 1;
-end
-
-if (~debug)
-    % Clean up
-    delete(cleanup);
-    delete(galil);
-    delete(FT_obj);
 end
 
 if (j < length(AoA) && ~automatic)
@@ -165,6 +165,13 @@ if (j < length(AoA) && ~automatic)
 end
 
 j = j + 1;
+end
+
+if (~debug)
+    % Clean up
+    delete(cleanup);
+    delete(galil);
+    delete(FT_obj);
 end
 
 end
