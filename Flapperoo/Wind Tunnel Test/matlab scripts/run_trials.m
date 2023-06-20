@@ -10,9 +10,9 @@
 % Motor: Nanotec SCB5618M4204-B Stepper Motor
 % Flapperoo: 1 DOF
 
-% Ronan Gissler November 2023
+% Ronan Gissler June 2023
 
-function run_trial(AoA, freq, speed, wing_type, automatic, debug)
+function run_trials(AoA, freq, speed, wing_type, automatic, debug)
 
 % Stepper Motor Parameters
 galil_address = "192.168.1.20";
@@ -24,7 +24,7 @@ vel = 0*rev_ticks; % ticks / sec -> calculated each trial
 acc = 3*rev_ticks; % ticks / sec^2
 measure_revs = 180; % we want 180 wingbeats of data
 padding_revs = 1; % dropped from front and back during data processing
-wait_time = 4000; % 3 seconds (data collected before and after flapping)
+wait_time = 3000; % 3 seconds (data collected before and after flapping)
 distance = -1; % ticks to travel this trial -> calculated each trial
 
 % Force Transducer Parameters
@@ -36,7 +36,7 @@ session_duration = -1; % Measurement Time -> calculated each trial
 force_limit = 1200; % Newton
 torque_limit = 79; % Newton*meters
 
-% Reminder user of setup procedure
+% Remind user of setup procedure
 procedure_UI();
 
 if (~debug)
@@ -45,6 +45,7 @@ galil = actxserver("galil");
 % Set the Galil's address.
 galil.address = galil_address;
 % Ensure Galil stops motor when the run_trial function completes
+% (either on its own or termination by user)
 cleanup = onCleanup(@()myCleanupFun(galil));
 
 % Make force transducer object
@@ -148,13 +149,17 @@ if (i < length(freq) && ~automatic)
     i = handle_next_trial(i, length(freq));
 end
 
-% Save wind tunnel dialog
+% Save wind tunnel struct variable so that we know the air properties
+% for this trial
 trial_name = strjoin([case_name, "wind_tunnel", datestr(now, "mmddyy")], "_");
 trial_file_name = "data\wind tunnel data\" + trial_name;
 struct_file_name = trial_file_name + ".mat";
 struct_file_name = "'" + struct_file_name + "'";
 evalin('base',"save(" + struct_file_name + ", 'AFAM_Tunnel');");
 
+% Take a screenshot of the wind tunnel GUI so that we can also see the
+% history of the temperature and speed. This takes a screenshot of the
+% top right corner of the horizontal wind tunnel monitor.
 screenshot(trial_file_name + ".jpg")
 
 i = i + 1;

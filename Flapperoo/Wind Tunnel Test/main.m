@@ -1,6 +1,13 @@
-% Ronan Gissler November 2023
+% Select your parameters below and then run this file to begin the
+% experiment.
+%
+% Note: The wind tunnel control GUI should be open and active.
+% Additionally you should place it in the top right corner of the
+% screen as that is the portion of the screen the code will screenshot
+% at the end of each trial.
+% 
+% Ronan Gissler June 2023
 
-%% Initalize the experiment
 clc;
 clear;
 close all;
@@ -12,13 +19,11 @@ addpath 'galil scripts'
 % -----------------------------------------------------------------------
 % ----------Parameters to Adjust for Your Specific Experiment------------
 % -----------------------------------------------------------------------
-% Parameter Space - What variable ranges are you testing?
-AoA = -14:2:14;
-freq = [0, 2, 3, 3.5, 4, 4.5, 5];
-speed = 0; % 0, 2, 4
-wing_type = "inertialElastosil";
-automatic = true;
+AoA = -14:2:14; % angle of attack, set by MPS system
+freq = [0, 2, 3, 3.5, 4, 4.5, 5]; % wingbeat frequency, set by motor RPM
+speed = 0; % wind tunnel air speed
+wing_type = "inertialElastosil"; % whatever name you'd like to use
+automatic = true; % wind tunnel air speed adjusted manually
 debug = false;
 
-
-run_trial(AoA, freq, speed, wing_type, automatic, debug);
+run_trials(AoA, freq, speed, wing_type, automatic, debug);
