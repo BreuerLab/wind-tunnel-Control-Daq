@@ -1,7 +1,7 @@
 % Inputs: results - (n x 7) force transducer data in time
 % Returns: norm_data - (n x 7) same data but
 %                                non-dimensionalized
-function norm_data = non_dimensionalize_data(results)
+function norm_data = non_dimensionalize_data(results, speed)
     rho = 1.204; % kg/m^3 at 20 C 1 atm
     wing_span = 0.266; % m
     wing_chord = 0.088; % m
