@@ -1,4 +1,4 @@
-function plot_forces(time_data, results, case_name, subtitle, axes_labels)
+function plot_forces(time_data, results, case_name, subtitle, axes_labels, num_cases)
     if (length(results(1,:)) == 6)
         force_means = round(mean(results), 3);
         force_SDs = round(std(results), 3);
@@ -13,7 +13,7 @@ function plot_forces(time_data, results, case_name, subtitle, axes_labels)
         % Create three subplots to show the force time histories. 
         nexttile(tcl)
         hold on
-        plot(time_data, results(:, 1), 'DisplayName', 'raw');
+        plot(time_data, results(:, 1));
         title(["F_x (streamwise)", "avg: " + force_means(1) + "    SD: " + force_SDs(1), "max: " + force_maxs(1) + "    min: " + force_mins(1)]);
         xlabel(axes_labels(1));
         ylabel(axes_labels(2));

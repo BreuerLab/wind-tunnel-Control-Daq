@@ -1,39 +1,9 @@
-clear
-close all
-
-% Ronan Gissler June 2023
-
-% This file is used to plot the raw force transducer data from a
-% single trial, giving a quick view of what that trial looked like.
-
-[file,path] = uigetfile('C:\Users\rgissler\Desktop\Ronan Lab Documents\Stability Test Data\06_17_23\experiment data\*.csv');
-if isequal(file,0)
-   disp('User selected Cancel');
-else
-   disp(['User selected ', fullfile(path,file)]);
-end
-
-file = convertCharsToStrings(file);
+function process_trial(file,path)
 
 frame_rate = 9000; % Hz
 num_wingbeats = 180;
 
-% Get case name from file name
-case_name = erase(file, ["_experiment_061723.csv", "_experiment_061823.csv"]);
-case_name = strrep(case_name,'_',' ');
-
-case_parts = strtrim(split(case_name));
-wing_freq = -1;
-AoA = -1;
-for j=1:length(case_parts)
-    if (contains(case_parts(j), "Hz"))
-        wing_freq = str2double(erase(case_parts(j), "Hz"));
-    elseif (contains(case_parts(j), "deg"))
-        AoA = str2double(erase(case_parts(j), "deg"));
-    elseif (contains(case_parts(j), "m.s"))
-        wind_speed = str2double(erase(case_parts(j), "m.s"));
-    end
-end
+[case_name, wing_freq, AoA, wind_speed] = parse_filename(file);
 
 % Get data from file
 data = readmatrix(path + file);
@@ -92,3 +62,6 @@ y_label_M = "RMS";
 axes_labels = [x_label, y_label_F, y_label_M];
 subtitle = "Trimmed, Rotated, Non-dimensionalized, Filtered, Wingbeat RMS'd";
 plot_forces(frames, wingbeat_rmse_forces, case_name, subtitle, axes_labels);
+
+save(path + '..\processed data\' + case_name + '.mat', 'time_data', 'filtered_data', 'wingbeats', 'wingbeat_forces', 'frames', 'wingbeat_avg_forces')
+end
