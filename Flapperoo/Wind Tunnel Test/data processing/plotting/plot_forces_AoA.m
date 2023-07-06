@@ -1,4 +1,4 @@
-function plot_forces_mult(path, cases, main_title, sub_title)
+function plot_forces_AoA(path, cases, AoA, main_title, sub_title)
     % Open a new figure.
     fig = figure;
     fig.Position = [200 50 900 560];
@@ -15,7 +15,7 @@ function plot_forces_mult(path, cases, main_title, sub_title)
     % y_label_F = "Force Coefficient";
     % y_label_M = "Moment Coefficient";
     y_label_F = "Force (N)";
-    y_label_M = "Moment (N*m)";
+    y_label_M = "Moment Coefficient";
     axes_labels = [x_label, y_label_F, y_label_M];
 
     for i = 1:length(cases)
@@ -23,11 +23,6 @@ function plot_forces_mult(path, cases, main_title, sub_title)
         
         % Create three subplots to show the force time histories. 
         axes(a)
-        hold on
-        xconf = [frames; frames(end:-1:1)];         
-        yconf = [wingbeat_avg_forces(:, 1) + wingbeat_std_forces(:, 1); wingbeat_avg_forces(end:-1:1, 1) - wingbeat_std_forces(end:-1:1, 1)];
-        p = fill(xconf, yconf, colors(i,:), 'FaceAlpha',alpha,'HandleVisibility','off');  
-        p.EdgeColor = 'none';
         plot(frames, wingbeat_avg_forces(:, 1), DisplayName=cases(i), Color=colors(i,:));
         hold off
         title(["F_x (streamwise)"]);

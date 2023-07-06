@@ -1,6 +1,6 @@
 function [case_name, type, wing_freq, AoA, wind_speed] = parse_filename(filename)
     % Get case name from file name
-    case_name = erase(filename, ["_experiment_061723.csv", "_experiment_061823.csv"]);
+    case_name = erase(filename, ["_experiment_061723.csv", "_experiment_061823.csv", '.mat']);
     case_name = strrep(case_name,'_',' ');
     
     case_parts = strtrim(split(case_name));
