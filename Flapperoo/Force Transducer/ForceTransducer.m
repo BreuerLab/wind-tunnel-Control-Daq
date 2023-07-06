@@ -180,6 +180,7 @@ function this_DAQ = setup_DAQ(obj, voltage, rate)
     ch3 = this_DAQ.addinput(daq_ID, 3, "Voltage");
     ch4 = this_DAQ.addinput(daq_ID, 4, "Voltage");
     ch5 = this_DAQ.addinput(daq_ID, 5, "Voltage");
+    % this_DAQ.addAnalogInputChannel(daq_ID, 
     
     % Set the voltage range of the channels
     ch0.Range = [-voltage, voltage];

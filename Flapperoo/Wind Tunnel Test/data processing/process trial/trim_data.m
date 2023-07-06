@@ -12,6 +12,8 @@ function trimmed_results = trim_data(results, trigger_data)
         trigger_start_frame = low_trigs_indices(1);
         trigger_end_frame = low_trigs_indices(end);
         trimmed_results = results(trigger_start_frame:trigger_end_frame, :);
+        % make time start at t = 0
+        trimmed_results(:,1) = trimmed_results(:,1) - trimmed_results(1,1);
         % disp(trigger_end_frame - trigger_start_frame);
     end
 end

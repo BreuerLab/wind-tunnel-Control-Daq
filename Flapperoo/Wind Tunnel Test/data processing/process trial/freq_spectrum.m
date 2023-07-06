@@ -1,9 +1,9 @@
-function freq_spectrum(results, frame_rate, case_name)
+function dominant_freq = freq_spectrum(results, frame_rate, case_name, plots_bool)
     [pxx, f] = pwelch(results, frame_rate*2, 50, frame_rate*2, frame_rate);
     power = 10*log10(pxx);
     x_label = "Frequency (Hz)";
     y_label = "PSD (dB/Hz)";
-    subtitle = "Trimmed, Rotated, Non-dimensionalized, Filtered, Power Spectrum";
+    subtitle = "Trimmed, Rotated, Non-dimensionalized, Power Spectrum";
 
     % drop higher frequency data where not much is going on anyways
     f = f(1:500);
@@ -11,6 +11,8 @@ function freq_spectrum(results, frame_rate, case_name)
 
     [M,I] = max(power);
     dominant_freq = f(I);
+
+    if (plots_bool)
 
     % Open a new figure.
     fig = figure;
@@ -63,4 +65,5 @@ function freq_spectrum(results, frame_rate, case_name)
     
     % Label the whole figure.
     sgtitle(["Force Transducer Measurement for " + case_name subtitle]);
+    end
 end
