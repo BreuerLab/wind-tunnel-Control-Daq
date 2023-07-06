@@ -1,4 +1,4 @@
-function plot_forces_AoA(path, cases, AoA, names)
+function plot_forces_AoA(path, cases, AoA, case_names)
     colors = [[0, 0.4470, 0.7410]; [0.8500, 0.3250, 0.0980]; ...
             [0.9290, 0.6940, 0.1250]; [0.4940, 0.1840, 0.5560]; ...
             [0.4660, 0.6740, 0.1880]; [0.3010, 0.7450, 0.9330]; ...
@@ -8,13 +8,11 @@ function plot_forces_AoA(path, cases, AoA, names)
     std_forces = zeros(length(AoA), 6);
     
     for i = 1:length(AoA)
-        for j = 1:length(names)
-            load(path + cases(i*j) + '.mat');
-            for k = 1:6
-                avg_forces(j,i,k) = mean(filtered_data(:, k));
-                std_forces(j,i,k) = std(filtered_data(:, k));
+            load(path + cases(i) + '.mat');
+            for j = 1:6
+                avg_forces(i,j) = mean(filtered_data(:, j));
+                std_forces(i,j) = std(filtered_data(:, j));
             end
-        end
     end
     
     x_label = "Angle of Attack (deg)";
@@ -29,9 +27,7 @@ function plot_forces_AoA(path, cases, AoA, names)
     
     % Create three subplots to show the force time histories. 
     nexttile(tcl)
-    for i = 1:length(names)
-        scatter(AoA, avg_forces(i, :, 1), DisplayName=names(i), Color=colors(i,:));
-    end
+    scatter(AoA, avg_forces(:, 1));
     title(["F_x (streamwise)"]);
     xlabel(axes_labels(1));
     ylabel(axes_labels(2));
@@ -67,14 +63,11 @@ function plot_forces_AoA(path, cases, AoA, names)
     xlabel(axes_labels(1));
     ylabel(axes_labels(3));
     
-    hL = legend();
-    hL.Layout.Tile = 'East';
-
     % Label the whole figure.
     sgtitle(["Force and Moment Means vs. Angle of Attack"]);
 
     %%
-    clearvars -except AoA std_forces names axes_labels colors
+    clearvars -except AoA std_forces axes_labels
 
     x_label = "Angle of Attack (deg)";
     y_label_F = "Trial Standard Deviation Force (N)";
@@ -88,8 +81,8 @@ function plot_forces_AoA(path, cases, AoA, names)
     
     % Create three subplots to show the force time histories. 
     nexttile(tcl)
-    for i = 1:length(names)
-        scatter(AoA, std_forces(i, :, 1), DisplayName=names(i), Color=colors(i,:));
+    for i = 1:length(AoA(:,1))
+        scatter(AoA, std_forces(:, 1), DisplayName=case_names(i), Color=colors(i,:));
     end
     title(["F_x (streamwise)"]);
     xlabel(axes_labels(1));

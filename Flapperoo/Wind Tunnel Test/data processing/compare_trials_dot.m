@@ -11,8 +11,9 @@ addpath 'plotting'
 % -----------------------------------------------------------------
 wing_freq_sel = [2];
 AoA_sel = -14:2:14;
-wind_speed_sel = [4];
+wind_speed_sel = [2, 4];
 type_sel = "mylar";
+names = ["2", "4"];
 
 % path to folder where all processed data (.mat files) are stored
 processed_data_path = "C:\Users\rgissler\Desktop\Ronan Lab Documents\Stability Test Data\06_17_23\processed data\";
@@ -38,65 +39,7 @@ for k = 1 : length(theFiles)
     end
 end
 
-clearvars -except processed_data_path cases ...
+clearvars -except processed_data_path cases names ...
     wing_freq_sel AoA_sel wind_speed_sel type_sel
 
-avg_forces = zeros(length(AoA_sel), 6);
-
-for i = 1:length(cases)
-        load(path + cases(i) + '.mat');
-        for j = 1:6
-            avg_forces(i,j) = mean(wingbeat_avg_forces(:, j));
-        end
-end
-
-x_label = "Angle of Attack (deg)";
-y_label_F = "Force (N)";
-y_label_M = "Moment (N*m)";
-axes_labels = [x_label, y_label_F, y_label_M];
-
-% Open a new figure.
-f = figure;
-f.Position = [200 50 900 560];
-tcl = tiledlayout(2,3);
-
-% Create three subplots to show the force time histories. 
-nexttile(tcl)
-plot(AoA_sel, avg_forces(:, 1));
-title(["F_x (streamwise)"]);
-xlabel(axes_labels(1));
-ylabel(axes_labels(2));
-
-nexttile(tcl)
-plot(AoA_sel, avg_forces(:, 2));
-title(["F_y (transverse)"]);
-xlabel(axes_labels(1));
-ylabel(axes_labels(2));
-
-nexttile(tcl)
-plot(AoA_sel, avg_forces(:, 3));
-title(["F_z (vertical)"]);
-xlabel(axes_labels(1));
-ylabel(axes_labels(2));
-
-% Create three subplots to show the moment time histories.
-nexttile(tcl)
-plot(AoA_sel, avg_forces(:, 4));
-title(["M_x (roll)"]);
-xlabel(axes_labels(1));
-ylabel(axes_labels(3));
-
-nexttile(tcl)
-plot(AoA_sel, avg_forces(:, 5));
-title(["M_y (pitch)"]);
-xlabel(axes_labels(1));
-ylabel(axes_labels(3));
-
-nexttile(tcl)
-plot(AoA_sel, avg_forces(:, 6));
-title(["M_z (yaw)"]);
-xlabel(axes_labels(1));
-ylabel(axes_labels(3));
-
-% Label the whole figure.
-sgtitle(["Force Transducer Measurement for " + case_name subtitle]);
+plot_forces_AoA(processed_data_path, cases, AoA_sel, names);
