@@ -34,7 +34,7 @@ wingbeats = linspace(0, num_wingbeats, length(trimmed_results));
 
 [freq, freq_power, dominant_freq] = freq_spectrum(norm_data, frame_rate);
 
-filename = case_name + '.mat';
+filename = case_name + ".mat";
 
 save(path + '..\processed data\' + filename, 'time_data', 'results_lab', ...
     'norm_data', 'filtered_data', 'wingbeats', 'wingbeat_forces', ...

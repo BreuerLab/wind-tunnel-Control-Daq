@@ -16,7 +16,7 @@ cases = "";
 for k = 1 : length(theFiles)
     baseFileName = theFiles(k).name;
 
-    process_trial(baseFileName, path, false);
+    process_trial(baseFileName, path);
 
     percent_complete = round((k / length(theFiles)) * 100, 2);
     disp(percent_complete + "% complete")
