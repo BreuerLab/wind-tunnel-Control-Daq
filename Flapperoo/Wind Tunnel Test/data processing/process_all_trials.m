@@ -1,6 +1,9 @@
 clear
 close all
 
+addpath 'process trial'
+addpath 'plotting'
+
 % Ronan Gissler June 2023
 path = "C:\Users\rgissler\Desktop\Ronan Lab Documents\Stability Test Data\06_17_23\experiment data\";
 

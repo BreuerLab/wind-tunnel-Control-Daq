@@ -9,11 +9,12 @@ addpath 'plotting'
 % -----------------------------------------------------------------
 % The parameter combinations for which you'd like to see the data
 % -----------------------------------------------------------------
-wing_freq_sel = [2];
+wing_freq_sel = [2, 3, 4, 4.5, 5];
 AoA_sel = -14:2:14;
-wind_speed_sel = [2, 4];
+wind_speed_sel = [4];
 type_sel = "mylar";
-names = ["2", "4"];
+names = ["2 Hz", "3 Hz", "4 Hz", "4.5 Hz", "5 Hz"];
+sub_title = "At Wind Speed of 4 m/s";
 
 % path to folder where all processed data (.mat files) are stored
 processed_data_path = "C:\Users\rgissler\Desktop\Ronan Lab Documents\Stability Test Data\06_17_23\processed data\";
@@ -39,7 +40,7 @@ for k = 1 : length(theFiles)
     end
 end
 
-clearvars -except processed_data_path cases names ...
+clearvars -except processed_data_path cases names sub_title ...
     wing_freq_sel AoA_sel wind_speed_sel type_sel
 
-plot_forces_AoA(processed_data_path, cases, AoA_sel, names);
+plot_forces_AoA(processed_data_path, cases, AoA_sel, names, sub_title);
