@@ -1,13 +1,15 @@
+% Ronan Gissler June 2023
 clear
 close all
 
-% Ronan Gissler June 2023
-data_path = "C:\Users\rgissler\Desktop\Ronan Lab Documents\Stability Test Data\06_17_23\processed data\";
+data_path = "../processed data/";
 
 % Get a list of all files in the folder with the desired file name pattern.
 filePattern = fullfile(data_path, '*.mat'); % Change to whatever pattern you need.
 theFiles = dir(filePattern);
 theFiles(contains({theFiles(:).name}, '0Hz')) = [];
+
+% uncomment these lines to look at just the inertial trials
 % theFiles(contains({theFiles(:).name}, 'body')) = [];
 % theFiles(contains({theFiles(:).name}, 'mylar')) = [];
 
@@ -24,16 +26,11 @@ for i = 1:length(theFiles)
         end
     end
 
-%     type = case_parts(1);
-%     if (type == "inertialMylar")
-%         load(data_path + baseFileName);
-%         dominant_freq_mult(i,:) = dominant_freq / wing_freq;
-%     end
-
     load(data_path + baseFileName);
     dominant_freq_mult(i,:) = dominant_freq / wing_freq;
 
-    disp(i)
+    percent_complete = round((i / length(theFiles)) * 100, 2);
+    disp(percent_complete + "% complete")
 end
 
 % Open a new figure.

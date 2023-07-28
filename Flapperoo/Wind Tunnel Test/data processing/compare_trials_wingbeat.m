@@ -1,9 +1,8 @@
+% Ronan Gissler June 2023
 clear
 close all
-
-% Ronan Gissler June 2023
-
 addpath 'process trial'
+addpath 'process trial/functions'
 addpath 'plotting'
 
 % -----------------------------------------------------------------
@@ -15,7 +14,7 @@ wind_speed_sel = [4];
 type_sel = "mylar";
 
 % path to folder where all processed data (.mat files) are stored
-processed_data_path = "C:\Users\rgissler\Desktop\Ronan Lab Documents\Stability Test Data\06_17_23\processed data\";
+processed_data_path = "../processed data/";
 
 % -----------------------------------------------------------------
 

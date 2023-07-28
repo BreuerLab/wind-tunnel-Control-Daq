@@ -1,25 +1,24 @@
+% Ronan Gissler June 2023
 clear
 close all
-
-% Ronan Gissler June 2023
-
 addpath 'process trial'
+addpath 'process trial/functions'
 addpath 'plotting'
 
 % -----------------------------------------------------------------
 % The parameter combinations for which you'd like to see the data
 % -----------------------------------------------------------------
 wing_freq_sel = [2, 3, 4, 4.5, 5];
-AoA_sel = -14:2:14;
 wind_speed_sel = [4];
 type_sel = "mylar";
 names = ["2 Hz", "3 Hz", "4 Hz", "4.5 Hz", "5 Hz"];
 sub_title = "At Wind Speed of 4 m/s";
 
 % path to folder where all processed data (.mat files) are stored
-processed_data_path = "C:\Users\rgissler\Desktop\Ronan Lab Documents\Stability Test Data\06_17_23\processed data\";
+processed_data_path = "../processed data/";
 
 % -----------------------------------------------------------------
+AoA_sel = -14:2:14; % you can narrow this range if you like
 
 % Get a list of all files in the folder with the desired file name pattern.
 filePattern = fullfile(processed_data_path, '*.mat'); % Change to whatever pattern you need.

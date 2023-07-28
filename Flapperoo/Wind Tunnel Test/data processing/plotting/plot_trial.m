@@ -27,14 +27,14 @@ x_label = "Wingbeat Period (t/T)";
 y_label_F = "Force Coefficient";
 y_label_M = "Moment Coefficient";
 axes_labels = [x_label, y_label_F, y_label_M];
-subtitle = "Trimmed, Rotated, Non-dimensionalized, Filtered, Wingbeat Averaged";
+subtitle = "Trimmed, Rotated, Non-dimensionalized, Filtered, Wingbeat Averaged, Shaded -> +/- 1 SD";
 plot_forces_mean(frames, wingbeat_avg_forces, wingbeat_std_forces, case_name, subtitle, axes_labels);
 
 x_label = "Wingbeat Period (t/T)";
 y_label_F = "Force Coefficient";
 y_label_M = "Moment Coefficient";
 axes_labels = [x_label, y_label_F, y_label_M];
-subtitle = "Trimmed, Rotated, Non-dimensionalized, Filtered, Wingbeat Averaged";
+subtitle = "Trimmed, Rotated, Non-dimensionalized, Filtered, Wingbeat Averaged, Shaded -> Range";
 plot_forces_mean_range(frames, wingbeat_avg_forces, wingbeat_max_forces, wingbeat_min_forces, case_name, subtitle, axes_labels);
 
 x_label = "Wingbeat Period (t/T)";

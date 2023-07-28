@@ -11,9 +11,17 @@ function trimmed_results = trim_data(results, trigger_data)
             || low_trigs_indices(end) == length(trigger_data))
         trigger_start_frame = low_trigs_indices(1);
         trigger_end_frame = low_trigs_indices(end);
-        trimmed_results = results(trigger_start_frame:trigger_end_frame, :);
-        % make time start at t = 0
-        trimmed_results(:,1) = trimmed_results(:,1) - trimmed_results(1,1);
         % disp(trigger_end_frame - trigger_start_frame);
+    else
+        trigger_start_frame = round(length(results)*(1/4));
+        trigger_end_frame = round(length(results)*(3/4));
+    end
+
+    trimmed_results = results(trigger_start_frame:trigger_end_frame, :);
+    % make time start at t = 0
+    trimmed_results(:,1) = trimmed_results(:,1) - trimmed_results(1,1);
+
+    if (length(results) == length(trimmed_results))
+        disp("Data was not trimmed.")
     end
 end
