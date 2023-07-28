@@ -12,7 +12,8 @@ clc;
 clear;
 close all;
 
-addpath ..\MPS\
+addpath ..\MPS\ % controls model positioning arms
+addpath ..\VFD\ % controls wind tunnel motor
 addpath 'matlab scripts'
 addpath 'galil scripts'
 
@@ -23,7 +24,7 @@ AoA = -14:2:14; % angle of attack, set by MPS system
 freq = [0, 2, 3, 3.5, 4, 4.5, 5]; % wingbeat frequency, set by motor RPM
 speed = 0; % wind tunnel air speed
 wing_type = "inertialElastosil"; % whatever name you'd like to use
-automatic = true; % wind tunnel air speed adjusted manually
-debug = false;
+automatic = false; % wind tunnel air speed adjusted manually
+debug = true;
 
 run_trials(AoA, freq, speed, wing_type, automatic, debug);
