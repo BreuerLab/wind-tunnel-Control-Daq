@@ -1,5 +1,6 @@
 function plot_trial(file,path, movie_bool)
-case_name = erase(file, ".mat");
+
+[case_name, type, wing_freq, AoA, wind_speed] = parse_filename(file);
 load(path + file);
 
 x_label = "Time (s)";
@@ -23,6 +24,7 @@ subtitle = "Trimmed, Rotated, Non-dimensionalized, Filtered";
 axes_labels = [x_label, y_label_F, y_label_M];
 plot_forces(time_data, filtered_data, case_name, subtitle, axes_labels);
 
+if (wing_freq > 0)
 x_label = "Wingbeat Period (t/T)";
 y_label_F = "Force Coefficient";
 y_label_M = "Moment Coefficient";
@@ -43,6 +45,7 @@ y_label_M = "RMSE";
 axes_labels = [x_label, y_label_F, y_label_M];
 subtitle = "Trimmed, Rotated, Non-dimensionalized, Filtered, Wingbeat RMS'd";
 plot_forces(frames, wingbeat_rmse_forces, case_name, subtitle, axes_labels);
+end
 
 if (movie_bool)
     y_label_F = "Force Coefficient";
