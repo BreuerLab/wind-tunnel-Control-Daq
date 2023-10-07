@@ -4,8 +4,7 @@
 
 % It includes the following methods:
 % - obtain_cal (used to produce a matrix from an ATI .cal file)
-% - trigger_check (to check if a trigger has been detected on one of
-%                  the non-force-transducer channels)
+% - trim_data (to trim the data based on another trigger)
 % - Constructor (to make force transducer object)
 % - Destructor (to delete force transducer object and associated daq
 %               object)
@@ -43,6 +42,12 @@
 % AI7 - A digital output to mark recording period ("trigger")
 % AI6 and AI7 do not need to be wired up, the trigger is an optional
 % feature
+
+% The "trigger" is just any digital signal sent to one of the analog
+% input pins on the DAQ. It could be coming from a Galil (so that we
+% know later during data processing when the beginning of a wingbeat
+% cycle occurred or when the robot had finished accelerating). It
+% could also be coming from a camera when it starts recording.
 
 % Author: Ronan Gissler
 % Breuer Lab 2023
@@ -111,24 +116,64 @@ function cal_mat = obtain_cal(calibration_filepath)
 
 end
 
-% Used after data collection to check if the trigger was activated
-% Inputs: trigger_data - time series data from trigger channel on DAQ
-% Returns: trigger_detected - true or false
-function trigger_detected = trigger_check(trigger_data)
-    trigger_detected = true;
+% Builds DAQ object, adds channels, and sets appropriate channel
+% voltages
+% Inputs: obj - An instance of the force transducer class
+%         voltage - Voltage rating for all channels
+%         rate - Data sampling rate for DAQ
+% Returns: this_DAQ - A fully constructed DAQ object
+function this_DAQ = setup_DAQ(num_triggers, voltage, rate)
+    % Create DAq session and set its aquisition rate (Hz).
+    this_DAQ = daq("ni");
+    this_DAQ.Rate = rate;
+    daq_ID = "Dev2";
+    % Don't know your DAQ ID, type "daq.getDevices().ID" into the
+    % command window to see what devices are currently connected to
+    % your computer
 
-    try
-        low_trigs_indices = find(trigger_data < 2);
+    % Add the input channels.
+    ch0 = this_DAQ.addinput(daq_ID, 0, "Voltage");
+    ch1 = this_DAQ.addinput(daq_ID, 1, "Voltage");
+    ch2 = this_DAQ.addinput(daq_ID, 2, "Voltage");
+    ch3 = this_DAQ.addinput(daq_ID, 3, "Voltage");
+    ch4 = this_DAQ.addinput(daq_ID, 4, "Voltage");
+    ch5 = this_DAQ.addinput(daq_ID, 5, "Voltage");
+    
+    % Set the voltage range of the channels
+    ch0.Range = [-voltage, voltage];
+    ch1.Range = [-voltage, voltage];
+    ch2.Range = [-voltage, voltage];
+    ch3.Range = [-voltage, voltage];
+    ch4.Range = [-voltage, voltage];
+    ch5.Range = [-voltage, voltage];
+
+    if (num_triggers >= 1)
+        ch6 = this_DAQ.addinput(daq_ID, 6, "Voltage");
+        ch6.Range = [-voltage, voltage];
+    end
+    
+    if (num_triggers == 2)
+        ch7 = this_DAQ.addinput(daq_ID, 7, "Voltage");
+        ch7.Range = [-voltage, voltage];
+    end
+    
+end
+
+% Used after data collection to trim the data based on the trigger data
+% Inputs: results - (n x 7) force transducer data in time
+%         trigger_data - time series data from trigger channel on DAQ
+% Returns: trimmed_results - results for all values where the trigger
+%          voltage was low
+function trimmed_results = trim_data(results, trigger_data)
+    trimmed_results = zeros(size(results));
+    low_trigs_indices = find(trigger_data < 2); % <2 Volts = Digital Low
+    
+    if ~(isempty(low_trigs_indices) || low_trigs_indices(1) == 1 ...
+            || low_trigs_indices(end) == length(trigger_data))
         trigger_start_frame = low_trigs_indices(1);
         trigger_end_frame = low_trigs_indices(end);
         trimmed_results = results(trigger_start_frame:trigger_end_frame, :);
         % disp(trigger_end_frame - trigger_start_frame);
-    catch
-        trigger_detected = false;
-    end
-
-    if (low_trigs_indices(1) == 1 || low_trigs_indices(end) == length(trigger_data))
-        trigger_detected = false;
     end
 end
 
@@ -149,57 +194,13 @@ function obj = ForceTransducer(rate, voltage, calibration_filepath, num_triggers
 
     obj.num_triggers = num_triggers;
 
-    obj.daq = ForceTransducer.setup_DAQ(obj, voltage, rate);
+    obj.daq = ForceTransducer.setup_DAQ(num_triggers, voltage, rate);
 end
 
 % Destructor for Force Transducer Class
 function delete(obj)
     delete(obj.daq);
     clear obj.daq;
-end
-
-% Builds DAQ object, adds channels, and sets appropriate channel
-% voltages
-% Inputs: obj - An instance of the force transducer class
-%         voltage - Voltage rating for all channels
-%         rate - Data sampling rate for DAQ
-% Returns: this_DAQ - A fully constructed DAQ object
-function this_DAQ = setup_DAQ(obj, voltage, rate)
-    % Create DAq session and set its aquisition rate (Hz).
-    this_DAQ = daq("ni");
-    this_DAQ.Rate = rate;
-    daq_ID = "Dev1";
-    % Don't know your DAQ ID, type "daq.getDevices().ID" into the
-    % command window to see what devices are currently connected to
-    % your computer
-
-    % Add the input channels.
-    ch0 = this_DAQ.addinput(daq_ID, 0, "Voltage");
-    ch1 = this_DAQ.addinput(daq_ID, 1, "Voltage");
-    ch2 = this_DAQ.addinput(daq_ID, 2, "Voltage");
-    ch3 = this_DAQ.addinput(daq_ID, 3, "Voltage");
-    ch4 = this_DAQ.addinput(daq_ID, 4, "Voltage");
-    ch5 = this_DAQ.addinput(daq_ID, 5, "Voltage");
-    % this_DAQ.addAnalogInputChannel(daq_ID, 
-    
-    % Set the voltage range of the channels
-    ch0.Range = [-voltage, voltage];
-    ch1.Range = [-voltage, voltage];
-    ch2.Range = [-voltage, voltage];
-    ch3.Range = [-voltage, voltage];
-    ch4.Range = [-voltage, voltage];
-    ch5.Range = [-voltage, voltage];
-
-    if (obj.num_triggers >= 1)
-        ch6 = this_DAQ.addinput(daq_ID, 6, "Voltage");
-        ch6.Range = [-voltage, voltage];
-    end
-    
-    if (obj.num_triggers == 2)
-        ch7 = this_DAQ.addinput(daq_ID, 7, "Voltage");
-        ch7.Range = [-voltage, voltage];
-    end
-    
 end
 
 % **************************************************************** %
@@ -239,7 +240,10 @@ function [offsets] = get_force_offsets(obj, case_name, tare_duration)
     trial_file_name = "data\offsets data\" + trial_name + ".csv";
     writematrix(offsets, trial_file_name);
 
-    % Flush data from DAQ buffer
+    pause(1);
+
+    % Flush data from DAQ buffer and stops background operations
+    stop(obj.daq);
     flush(obj.daq);
 end
 
@@ -305,7 +309,8 @@ function [results] = measure_force(obj, case_name, session_duration, offsets)
     trial_file_name = "data\experiment data\" + trial_name + ".csv";
     writematrix(results, trial_file_name);
 
-    % Flush data from DAQ buffer
+    % Flush data from DAQ buffer and stops background operations
+    stop(obj.daq);
     flush(obj.daq);
 end
 
@@ -322,12 +327,20 @@ function plot_results(obj, results, case_name, drift)
         case_name = strrep(case_name,'-','neg');
     end
 
-    % Check if triggers were activated
+    % Check if triggers were activated and if so trim data
+    A_trigger_detected = false;
+    B_trigger_detected = false;
     if (obj.num_triggers >= 1)
-        A_trigger_detected = ForceTransducer.trigger_check(results(:, 8));
+        A_trimmed_results = ForceTransducer.trim_data(results(:,1:7), results(:, 8));
+        if (length(A_trimmed_results) ~= length(results(:,1:7)))
+            A_trigger_detected = true;
+        end
     end
     if (obj.num_triggers == 2)
-        B_trigger_detected = ForceTransducer.trigger_check(results(:, 9));
+        B_trimmed_results = ForceTransducer.trim_data(results(:,1:7), results(:, 9));
+        if (length(B_trimmed_results) ~= length(results(:,1:7)))
+            B_trigger_detected = true;
+        end
     end
 
     %% Figure with raw data and trimmed data overlaid

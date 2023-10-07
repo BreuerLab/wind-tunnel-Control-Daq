@@ -27,14 +27,22 @@ torque_limit = 79; % Newton*meters
 FT_obj = ForceTransducer(rate, voltage, calibration_filepath, 0);
 
 % Get the offsets before experiment
-offsets_before = FT_obj.get_force_offsets(case_name + "_before", rate, offset_duration);
+offsets_before = FT_obj.get_force_offsets(case_name + "_before", offset_duration);
 offsets_before = offsets_before(1,:); % just taking means, no SDs
 
+fig = uifigure;
+fig.Position = [600 500 430 160];
+movegui(fig,'center')
+message = ["Offsets collected! Ready for experiment"];
+title = "Experiment Setup Reminder";
+uiconfirm(fig,message,title,'CloseFcn',@(h,e) close(fig));
+uiwait(fig);
+
 % Measure data during experiment
-results = FT_obj.measure_force(case_name, rate, session_duration, offsets_before);
+results = FT_obj.measure_force(case_name, session_duration, offsets_before);
 
 % Get the offset after experiment
-offsets_after = FT_obj.get_force_offsets(case_name + "_after", rate, offset_duration);
+offsets_after = FT_obj.get_force_offsets(case_name + "_after", offset_duration);
 offsets_after = offsets_after(1,:); % just taking means, no SDs
 
 % Display preliminary data
