@@ -57,9 +57,9 @@ plot(frames, COP)
 % plot(frames, filtered_COP)
 % plot(frames, wingbeat_COP)
 ylim([-1, 1])
-title("Movement of Center of Pressure for " + case_name)
+title("Movement of Center of Pressure")
 xlabel("Wingbeat Period (t/T)");
-ylabel("COP Location (m)");
+ylabel("COP Location");
 end
 
 if (movie_bool)
@@ -73,7 +73,7 @@ end
 subtitle = "Trimmed, Rotated, Non-dimensionalized, Power Spectrum";
 plot_spectrum(freq, freq_power, dominant_freq, case_name, subtitle)
 
-% wind_speed = 100;
+% doesn't work for flapping at 0 AoA and 0 windspeed
 [time, lin_vel] = get_kinematics(true);
 time = time / wing_freq;
 eff_AoA = zeros(size(lin_vel));
@@ -85,10 +85,16 @@ for i = 1:length(time)
     vec_mag = ((v_x(i,:) + wind_speed).^2 + v_y(i,:).^2).^(1/2);
     u_rel(i,:) = vec_mag;
 
-    cross_prod = -((v_x(i,:) + wind_speed)*(-sind(AoA)) - v_y(i,:)*(cosd(AoA)));
-    eff_AoA(i,:) = asind(cross_prod ./ vec_mag);
-%     dot_prod = (v_x(i,:) + wind_speed)*(cosd(AoA)) + v_y(i,:)*(-sind(AoA));
-%     eff_AoA(i,:) = acosd(dot_prod ./ vec_mag);
+    dot_prod = (v_x(i,:) + wind_speed)*(cosd(AoA)) + v_y(i,:)*(-sind(AoA));
+    if (dot_prod < )
+        disp(dot_prod)
+    end
+
+    eff_AoA(i,:) = acosd(dot_prod ./ vec_mag);
+%     if (lin_vel(i,5) > 0)
+%         u_rel(i,:) = -u_rel(i,:);
+%         eff_AoA(i,:) = -eff_AoA(i,:);
+%     end
 end
 % Relative AoA
 
@@ -113,8 +119,6 @@ end
 % %         eff_AoA(i,:) = -eff_AoA(i,:);
 % %     end
 % end
-
-% case_name = "100m.s 14deg 5Hz";
 
 fig = figure;
 fig.Position = [200 50 900 560];

@@ -1,4 +1,4 @@
-function plot_forces_mean_range(frames, mean_results, max_results, min_results, case_name, subtitle, axes_labels, num_cases)
+function plot_forces_mean(frames, mean_results, std_results, case_name, subtitle, axes_labels, num_cases)
     if (length(mean_results(1,:)) == 6)
         force_means = round(mean(mean_results), 3);
         force_SDs = round(std(mean_results), 3);
@@ -14,7 +14,7 @@ function plot_forces_mean_range(frames, mean_results, max_results, min_results, 
         nexttile(tcl)
         hold on
         xconf = [frames; frames(end:-1:1)];         
-        yconf = [max_results(:, 1); min_results(end:-1:1, 1)];
+        yconf = [mean_results(:, 1) + std_results(:, 1); mean_results(end:-1:1, 1) - std_results(end:-1:1, 1)];
         p = fill(xconf, yconf, 'blue');
         p.FaceColor = [0.8 0.8 1];      
         p.EdgeColor = 'none';
@@ -27,7 +27,7 @@ function plot_forces_mean_range(frames, mean_results, max_results, min_results, 
         nexttile(tcl)
         hold on
         xconf = [frames; frames(end:-1:1)];         
-        yconf = [max_results(:, 2); min_results(end:-1:1, 2)];
+        yconf = [mean_results(:, 2) + std_results(:, 2); mean_results(end:-1:1, 2) - std_results(end:-1:1, 2)];
         p = fill(xconf, yconf, 'blue');
         p.FaceColor = [0.8 0.8 1];      
         p.EdgeColor = 'none';
@@ -40,7 +40,7 @@ function plot_forces_mean_range(frames, mean_results, max_results, min_results, 
         nexttile(tcl)
         hold on
         xconf = [frames; frames(end:-1:1)];         
-        yconf = [max_results(:, 3); min_results(end:-1:1, 3)];
+        yconf = [mean_results(:, 3) + std_results(:, 3); mean_results(end:-1:1, 3) - std_results(end:-1:1, 3)];
         p = fill(xconf, yconf, 'blue');
         p.FaceColor = [0.8 0.8 1];      
         p.EdgeColor = 'none';
@@ -54,7 +54,7 @@ function plot_forces_mean_range(frames, mean_results, max_results, min_results, 
         nexttile(tcl)
         hold on
         xconf = [frames; frames(end:-1:1)];         
-        yconf = [max_results(:, 4); min_results(end:-1:1, 4)];
+        yconf = [mean_results(:, 4) + std_results(:, 4); mean_results(end:-1:1, 4) - std_results(end:-1:1, 4)];
         p = fill(xconf, yconf, 'blue');
         p.FaceColor = [0.8 0.8 1];      
         p.EdgeColor = 'none';
@@ -67,7 +67,7 @@ function plot_forces_mean_range(frames, mean_results, max_results, min_results, 
         nexttile(tcl)
         hold on
         xconf = [frames; frames(end:-1:1)];         
-        yconf = [max_results(:, 5); min_results(end:-1:1, 5)];
+        yconf = [mean_results(:, 5) + std_results(:, 5); mean_results(end:-1:1, 5) - std_results(end:-1:1, 5)];
         p = fill(xconf, yconf, 'blue');
         p.FaceColor = [0.8 0.8 1];      
         p.EdgeColor = 'none';
@@ -80,7 +80,7 @@ function plot_forces_mean_range(frames, mean_results, max_results, min_results, 
         nexttile(tcl)
         hold on
         xconf = [frames; frames(end:-1:1)];         
-        yconf = [max_results(:, 6); min_results(end:-1:1, 6)];
+        yconf = [mean_results(:, 6) + std_results(:, 6); mean_results(end:-1:1, 6) - std_results(end:-1:1, 6)];
         p = fill(xconf, yconf, 'blue');
         p.FaceColor = [0.8 0.8 1];      
         p.EdgeColor = 'none';

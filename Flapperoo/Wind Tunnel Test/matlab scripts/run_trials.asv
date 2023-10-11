@@ -26,7 +26,7 @@ acc = 3*rev_ticks; % ticks / sec^2
 measure_revs = 180; % we want 180 wingbeats of data
 padding_revs = 1; % dropped from front and back during data processing
 wait_time = 3000; % 3 seconds (data collected before and after flapping)
-hold_time = 10000; % 10 second trial when not flapping (i.e. 0 Hz)
+stationary_time = 10000; % 10 second trial no flapping 
 distance = -1; % ticks to travel this trial -> calculated each trial
 
 % Force Transducer Parameters
@@ -114,7 +114,7 @@ case_name = wing_type + "_" + speed + "m.s_" + AoA(j) + "deg_" + freq(i) + "Hz";
 vel = freq(i)*rev_ticks; % ticks / sec
 
 % estimate recording length based on parameters
-estimate_params = {rev_ticks acc vel measure_revs padding_revs wait_time hold_time};
+estimate_params = {rev_ticks acc vel measure_revs padding_revs wait_time stationary_time};
 [distance, session_duration, trigger_pos] = estimate_duration(estimate_params{:});
 
 if (~debug)
@@ -129,7 +129,6 @@ if (~debug)
         % here. Other parameters can be changed directly in .dmc file.
         dmc = strrep(dmc, "accel_placeholder", num2str(acc));
         dmc = strrep(dmc, "speed_placeholder", num2str(vel));
-        dmc = strrep(dmc, "hold_time_placeholder", num2str(hold_time));
     else
         dmc = fileread(dmc_motion_filename);
         dmc = string(dmc);

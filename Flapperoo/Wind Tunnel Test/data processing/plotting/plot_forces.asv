@@ -13,31 +13,29 @@ function plot_forces(time_data, results, case_name, subtitle, axes_labels, num_c
         % Create three subplots to show the force time histories. 
         nexttile(tcl)
         hold on
-        plot(time_data, results(:, 1));
-        if (axes_labels(1) == "Wingbeat Period (t/T)")
-            plot_wingbeat_patch();
-        end
+        h = plot(time_data, results(:, 1));
+
+        xl = xlim;
+        yl = ylim;
+        qx = [xl(1) xl(2)/2 xl(2)/2 xl(1)];
+        qy = [yl(1) yl(1) yl(2) yl(2)];
+        xlim(xl);
+        ylim(yl);
+        patch(qx, qy, [0.8, 0.8, 0.8],'LineStyle','none');
+        uistack(h,'top')
         title(["F_x (streamwise)", "avg: " + force_means(1) + "    SD: " + force_SDs(1), "max: " + force_maxs(1) + "    min: " + force_mins(1)]);
         xlabel(axes_labels(1));
         ylabel(axes_labels(2));
         hold off
         
         nexttile(tcl)
-        hold on
         plot(time_data, results(:, 2));
-        if (axes_labels(1) == "Wingbeat Period (t/T)")
-            plot_wingbeat_patch();
-        end
         title(["F_y (transverse)", "avg: " + force_means(2) + " SD: " + force_SDs(2), "max: " + force_maxs(2) + "    min: " + force_mins(2)]);
         xlabel(axes_labels(1));
         ylabel(axes_labels(2));
-        hold off
         
         nexttile(tcl)
         plot(time_data, results(:, 3));
-        if (axes_labels(1) == "Wingbeat Period (t/T)")
-            plot_wingbeat_patch();
-        end
         title(["F_z (vertical)", "avg: " + force_means(3) + " SD: " + force_SDs(3), "max: " + force_maxs(3) + "    min: " + force_mins(3)]);
         xlabel(axes_labels(1));
         ylabel(axes_labels(2));
@@ -45,27 +43,18 @@ function plot_forces(time_data, results, case_name, subtitle, axes_labels, num_c
         % Create three subplots to show the moment time histories.
         nexttile(tcl)
         plot(time_data, results(:, 4));
-        if (axes_labels(1) == "Wingbeat Period (t/T)")
-            plot_wingbeat_patch();
-        end
         title(["M_x (roll)", "avg: " + force_means(4) + " SD: " + force_SDs(4), "max: " + force_maxs(4) + "    min: " + force_mins(4)]);
         xlabel(axes_labels(1));
         ylabel(axes_labels(3));
         
         nexttile(tcl)
         plot(time_data, results(:, 5));
-        if (axes_labels(1) == "Wingbeat Period (t/T)")
-            plot_wingbeat_patch();
-        end
         title(["M_y (pitch)", "avg: " + force_means(5) + " SD: " + force_SDs(5), "max: " + force_maxs(5) + "    min: " + force_mins(5)]);
         xlabel(axes_labels(1));
         ylabel(axes_labels(3));
         
         nexttile(tcl)
         plot(time_data, results(:, 6));
-        if (axes_labels(1) == "Wingbeat Period (t/T)")
-            plot_wingbeat_patch();
-        end
         title(["M_z (yaw)", "avg: " + force_means(6) + " SD: " + force_SDs(6), "max: " + force_maxs(6) + "    min: " + force_mins(6)]);
         xlabel(axes_labels(1));
         ylabel(axes_labels(3));

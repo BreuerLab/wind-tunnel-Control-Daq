@@ -1,7 +1,7 @@
 % To verify this function is transforming the data as expected check
 % that as the AoA increases only the Z and Y force axes are affected.
 function results_lab = coordinate_transformation(results, pitch)
-    yaw = 20;
+    yaw = 205; % x- rotated 25 degrees from downstream
     roll = 0;
     
     Eulerangle_deg = [yaw, pitch, roll];

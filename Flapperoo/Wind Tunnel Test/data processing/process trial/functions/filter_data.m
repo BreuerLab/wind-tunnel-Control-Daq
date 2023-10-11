@@ -1,5 +1,5 @@
 function filtered_results = filter_data(results, frame_rate)
-    fc = 100; % cutoff frequency
+    fc = 50; % cutoff frequency
     fs = frame_rate;
     [b,a] = butter(6,fc/(fs/2));
     filtered_results = zeros(size(results));

@@ -5,7 +5,7 @@
 % Ronan Gissler January 2022
 
 function [distance, session_duration, trigger_pos] = estimate_duration...
-         (rev_ticks, acc, vel, measure_revs, padding_revs, wait_time)
+         (rev_ticks, acc, vel, measure_revs, padding_revs, wait_time, hold_time)
     
     time_to_speed = vel / acc;
     disp("It will take " + time_to_speed + ...
@@ -25,7 +25,7 @@ function [distance, session_duration, trigger_pos] = estimate_duration...
     if (vel == 0)
         num_revs = 0;
         distance = 0;
-        session_duration = 10; % for stationary test
+        session_duration = hold_time; % for stationary test
     else
         num_revs = measure_revs + 2*(trigger_pos/rev_ticks);
         distance = round(num_revs*rev_ticks);

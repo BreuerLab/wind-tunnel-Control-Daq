@@ -8,8 +8,8 @@ addpath 'plotting'
 % -----------------------------------------------------------------
 % The parameter combinations for which you'd like to see the data
 % -----------------------------------------------------------------
-wing_freq_sel = [2, 3, 4, 5];
-AoA_sel = [4];
+wing_freq_sel = [4, 4.5, 5];
+AoA_sel = [0];
 wind_speed_sel = [4];
 type_sel = "mylar";
 
