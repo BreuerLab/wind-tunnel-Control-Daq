@@ -73,32 +73,38 @@ j = 1;
 while (j <= length(AoA))
 
 if (~debug)
-% Adjust anlge of attack via MPS
-Pitch_To(AoA(j));
-disp("Pitching to AoA: " + AoA(j))
+    % Confirm user has enabled MPS before attempting to change AoA
+    MPS_on_off_UI("on");
+    
+    % Adjust angle of attack via MPS
+    Pitch_To(AoA(j));
+    disp("Pitching to AoA: " + AoA(j))
 
-if (automatic)
-    VFD_stop; % stop wind tunnel motor
-    pause(10) % wait for speed to reach zero
-else
-    % Confirm user has stopped wind before recording offset for this AoA
-    wind_on_off_UI("off");
-end
+    % Confirm user has disabled MPS before attempting to record data
+    MPS_on_off_UI("off");
+    
+    if (automatic)
+        VFD_stop; % stop wind tunnel motor
+        pause(10) % wait for speed to reach zero
+    else
+        % Confirm user has stopped wind before recording offset for this AoA
+        wind_on_off_UI("off");
+    end
 
-% Get offset data before flapping at this angle with no wind
-offset_name = wing_type + "_" + speed + "m.s_" + AoA(j) + "deg";
-offsets = FT_obj.get_force_offsets(offset_name, offset_duration);
-offsets = offsets(1,:); % just taking means, no SDs
-disp("Offset data at this AoA has been gathered");
-beep2;
+    % Get offset data before flapping at this angle with no wind
+    offset_name = wing_type + "_" + speed + "m.s_" + AoA(j) + "deg";
+    offsets = FT_obj.get_force_offsets(offset_name, offset_duration);
+    offsets = offsets(1,:); % just taking means, no SDs
+    disp("Offset data at this AoA has been gathered");
+    beep2;
 
-if (automatic)
-    VFD_start; % start wind tunnel motor
-    pause(10) % wait for speed to return
-else
-    % Confirm user has resumed wind before recording data
-    wind_on_off_UI("on");
-end
+    if (automatic)
+        VFD_start; % start wind tunnel motor
+        pause(10) % wait for speed to return
+    else
+        % Confirm user has resumed wind before recording data
+        wind_on_off_UI("on");
+    end
 
 else
     disp("Running code to be done at beginning of each new AoA.")
