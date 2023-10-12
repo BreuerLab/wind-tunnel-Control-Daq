@@ -26,6 +26,7 @@ acc = 3*rev_ticks; % ticks / sec^2
 measure_revs = 180; % we want 180 wingbeats of data
 padding_revs = 1; % dropped from front and back during data processing
 wait_time = 3000; % 3 seconds (data collected before and after flapping)
+stationary_speed = rev_ticks; % Hz
 hold_time = 10000; % 10 second trial when not flapping (i.e. 0 Hz)
 distance = -1; % ticks to travel this trial -> calculated each trial
 
@@ -85,7 +86,7 @@ if (~debug)
     
     if (automatic)
         VFD_stop; % stop wind tunnel motor
-        pause(10) % wait for speed to reach zero
+        pause(15) % wait for speed to reach zero
     else
         % Confirm user has stopped wind before recording offset for this AoA
         wind_on_off_UI("off");
@@ -134,7 +135,7 @@ if (~debug)
         % Replace the place holders in the .dmc file with the values specified
         % here. Other parameters can be changed directly in .dmc file.
         dmc = strrep(dmc, "accel_placeholder", num2str(acc));
-        dmc = strrep(dmc, "speed_placeholder", num2str(vel));
+        dmc = strrep(dmc, "speed_placeholder", num2str(stationary_speed));
         dmc = strrep(dmc, "hold_time_placeholder", num2str(hold_time));
     else
         dmc = fileread(dmc_motion_filename);
@@ -232,7 +233,6 @@ end
 if (~debug)
     % Clean up
     delete(cleanup);
-    Quit(galil)
     delete(galil);
     delete(FT_obj);
 end

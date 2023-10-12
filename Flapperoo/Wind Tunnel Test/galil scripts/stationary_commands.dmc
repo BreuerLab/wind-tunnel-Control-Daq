@@ -38,6 +38,9 @@ DCB=accel_placeholder; 'Set deceleration of motor (counts/second^2)
 SPB=speed_placeholder; 'Set speed of motor (counts/second)
 PRB=-12800; 'Set distance and direction of next move (counts)
 
+BG B; 'Begin motion using preset value
+MC B; 'Wait until motion is complete before moving on (MC better than AM)
+
 ST B; 'Stop motor
 MO B; 'Turn off power to motor
 

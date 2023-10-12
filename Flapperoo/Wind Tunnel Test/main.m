@@ -20,11 +20,11 @@ addpath 'galil scripts'
 % -----------------------------------------------------------------------
 % ----------Parameters to Adjust for Your Specific Experiment------------
 % -----------------------------------------------------------------------
-AoA = [-10,-4,0,4,14]; % angle of attack, set by MPS system
-freq = [0, 3, 5]; % wingbeat frequency, set by motor RPM
-speed = 0; % wind tunnel air speed
-wing_type = "inertialElastosil"; % whatever name you'd like to use
-automatic = false; % run through trials automatically?
-debug = true; % testing on personal computer?
+AoA = [0]; % angle of attack, set by MPS system
+freq = [5]; % wingbeat frequency, set by motor RPM
+speed = 4; % wind tunnel air speed
+wing_type = "big_blue_me_inside"; % whatever name you'd like to use
+automatic = true; % run through trials automatically?
+debug = false; % testing on personal computer?
 
 run_trials(AoA, freq, speed, wing_type, automatic, debug);
