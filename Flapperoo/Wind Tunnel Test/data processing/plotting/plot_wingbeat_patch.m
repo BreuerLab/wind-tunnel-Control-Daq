@@ -10,6 +10,6 @@ function plot_wingbeat_patch()
     set(gca, 'Layer', 'top')
     xdist = xl(2) - xl(1);
     ydist = yl(2) - yl(1);
-    text(xl(1) + xdist*(1/4), yl(1) + ydist*(1/10), "Upstroke",'HorizontalAlignment','center','FontSize',8)
-    text(xl(2) - xdist*(1/4), yl(1) + ydist*(1/10), "Downstroke",'HorizontalAlignment','center','FontSize',8)
+    text(xl(1) + xdist*(1/4), yl(1) + ydist*(1/10), "Downstroke",'HorizontalAlignment','center','FontSize',8)
+    text(xl(2) - xdist*(1/4), yl(1) + ydist*(1/10), "Upstroke",'HorizontalAlignment','center','FontSize',8)
 end

@@ -5,7 +5,7 @@ addpath 'process trial'
 addpath 'process trial/functions'
 addpath 'plotting'
 
-path = "C:\Users\rgissler\Desktop\Ronan Lab Documents\Stability Test Data\06_17_23\experiment data\";
+path = "C:\Users\rgissler\Desktop\Ronan Lab Documents\Stability Test Data\10_12_2023 New Wings New Body\experiment data\";
 
 file = convertCharsToStrings(uigetfile(path + "*.csv"));
 if isequal(file,0)

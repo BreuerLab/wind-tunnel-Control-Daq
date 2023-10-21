@@ -5,7 +5,7 @@ addpath 'process trial'
 addpath 'process trial/functions'
 addpath 'plotting'
 
-path = "C:\Users\rgissler\Desktop\Ronan Lab Documents\Stability Test Data\06_17_23\experiment data\";
+path = "C:\Users\rgissler\Desktop\Ronan Lab Documents\Stability Test Data\10_12_2023 New Wings New Body\experiment data\";
 
 % Get a list of all files in the folder with the desired file name pattern.
 filePattern = fullfile(path, '*.csv'); % Change to whatever pattern you need.
