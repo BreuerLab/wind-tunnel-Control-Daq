@@ -92,14 +92,15 @@ function results_lab = coordinate_transformation(results, pitch_d)
     roll = deg2rad(roll_d);
     yaw = deg2rad(yaw_d);
     
-%     dcm_F = angle2dcm(roll, pitch, yaw, 'XYZ');
-    dcm_F = angle2dcm(yaw, pitch, roll,'ZYX');
-%     dcm_M = angle2dcm(roll, pitch, yaw, 'XYZ');
-    dcm_M = angle2dcm( roll, 0, yaw, 'XYZ');
+    dcm_F = angle2dcm(roll, pitch, yaw, 'XYZ');
+%     dcm_F = angle2dcm(yaw, pitch, roll,'ZYX');
+    dcm_M = angle2dcm(roll, pitch, yaw, 'XYZ');
+%     dcm_M = angle2dcm( roll, 0, yaw, 'XYZ');
     
-    F_lab = (dcm_F * results(:, 1:3)')';
-%     T_lab = (roty(-pitch) * dcm_M' * results(:, 4:6)')';
-    T_lab = (dcm_M * results(:, 4:6)')';
+%     F_lab = (dcm_F * results(:, 1:3)')';
+    F_lab = (dcm_F' * results(:, 1:3)')';
+%     T_lab = (dcm_M * results(:, 4:6)')';
+    T_lab = (roty(-pitch) * dcm_M' * results(:, 4:6)')';
     results_lab = [F_lab, T_lab];
 end
 

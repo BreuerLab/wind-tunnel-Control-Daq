@@ -25,7 +25,7 @@ raw_data = data(:,1:7);
 raw_trigger = data(:,8);
 
 % Trim off portion of data where wings are motionless or accelerating
-trimmed_results = trim_data(raw_data, raw_trigger);
+trimmed_results = trim_data(raw_data, raw_trigger, wing_freq);
 time_data = trimmed_results(:,1);
 force_data = trimmed_results(:,2:7);
 
