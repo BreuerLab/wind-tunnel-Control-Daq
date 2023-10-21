@@ -9,8 +9,7 @@
 %             particular configuration
 % type - name of the wing type used, ex: "mylar"
 % wing_freq - wingbeat frequency, ex: 3
-% AoA - angle of attack, ex: 10
-% wind_speed - wind tunnel speed, ex: 4
+
 function [case_name, type, wing_freq, AoA, wind_speed] = parse_filename(filename)
     % Get case name from file name
     if (contains(filename,"_experiment"))
