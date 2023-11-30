@@ -1,64 +1,38 @@
 function wingbeat_movie(frames, wingbeat_forces, case_name, subtitle, axes_labels)
-    num_wingbeats = length(wingbeat_forces(:,1,1));
+    num_wingbeats = length(wingbeat_forces(1,:,1));
     wingbeats_animation = struct('cdata', cell(1,num_wingbeats), 'colormap', cell(1,num_wingbeats));
 
     for n = 1:num_wingbeats
         % Open a new figure.
         fig = figure;
         fig.Visible = "off";
-        fig.Position = [200 50 900 560];
-        tcl = tiledlayout(2,3);
+        fig.Position = [200 50 1400 500];
+        tcl = tiledlayout(1,3);
         sgtitle(["Force Transducer Measurement for " + case_name subtitle "wingbeat number: " + n]);
-
-        % Create three subplots to show the force time histories. 
+        
         nexttile(tcl)
-        plot(frames, wingbeat_forces(n, :, 1));
+        plot(frames, squeeze(wingbeat_forces(1, n, :)));
         grid
-        title(["F_x (streamwise)"]);
+        title(["Drag"]);
         xlabel(axes_labels(1));
         ylabel(axes_labels(2));
         ylim([-3 3])
         
         nexttile(tcl)
-        plot(frames, wingbeat_forces(n, :, 2));
+        plot(frames, squeeze(wingbeat_forces(3, n, :)));
         grid
-        title(["F_y (transverse)"]);
+        title(["Lift"]);
         xlabel(axes_labels(1));
         ylabel(axes_labels(2));
-        ylim([-3 3])
+        ylim([-6 12])
         
         nexttile(tcl)
-        plot(frames, wingbeat_forces(n, :, 3));
+        plot(frames, squeeze(wingbeat_forces(5, n, :)));
         grid
-        title(["F_z (vertical)"]);
-        xlabel(axes_labels(1));
-        ylabel(axes_labels(2));
-        ylim([-3 3])
-        
-        % Create three subplots to show the moment time histories.
-        nexttile(tcl)
-        plot(frames, wingbeat_forces(n, :, 4));
-        grid
-        title(["M_x (roll)"]);
+        title(["Pitch Moment"]);
         xlabel(axes_labels(1));
         ylabel(axes_labels(3));
-        ylim([-2 2])
-        
-        nexttile(tcl)
-        plot(frames, wingbeat_forces(n, :, 5));
-        grid
-        title(["M_y (pitch)"]);
-        xlabel(axes_labels(1));
-        ylabel(axes_labels(3));
-        ylim([-2 2])
-        
-        nexttile(tcl)
-        plot(frames, wingbeat_forces(n, :, 6));
-        grid
-        title(["M_z (yaw)"]);
-        xlabel(axes_labels(1));
-        ylabel(axes_labels(3));
-        ylim([-2 2])
+        ylim([-5 4])
         
         % Save plot along with axes labels and titles
 %         ax = gca;

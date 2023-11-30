@@ -13,6 +13,7 @@ clear;
 close all;
 
 addpath ..\MPS\ % controls model positioning arms
+addpath ..\MPS\Enable_Disable\ % controls model positioning arms
 addpath ..\VFD\ % controls wind tunnel motor
 addpath 'matlab scripts'
 addpath 'galil scripts'
@@ -20,11 +21,14 @@ addpath 'galil scripts'
 % -----------------------------------------------------------------------
 % ----------Parameters to Adjust for Your Specific Experiment------------
 % -----------------------------------------------------------------------
-AoA = [0]; % angle of attack, set by MPS system
-freq = [5]; % wingbeat frequency, set by motor RPM
-speed = 4; % wind tunnel air speed
-wing_type = "big_blue_me_inside"; % whatever name you'd like to use
-automatic = true; % run through trials automatically?
+AoA = -14:2:14; % angle of attack, set by MPS system
+freq = [0]; % wingbeat frequency, set by motor RPM
+measure_revs = 180; % number of wingbeats
+speed = 6; % wind tunnel air speed
+wing_type = "mechanism_pause_25"; % whatever name you'd like to use
+automatic = false; % run through trials automatically?
 debug = false; % testing on personal computer?
 
-run_trials(AoA, freq, speed, wing_type, automatic, debug);
+% run_trials(AoA, freq, speed, wing_type, measure_revs, automatic, debug);
+
+run_trials_gravity(AoA, wing_type, automatic, debug)

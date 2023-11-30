@@ -12,7 +12,7 @@
 
 % Ronan Gissler June 2023
 
-function run_trials(AoA, freq, speed, wing_type, automatic, debug)
+function run_trials(AoA, freq, speed, wing_type, measure_revs, automatic, debug)
 
 % Stepper Motor Parameters
 galil_address = "192.168.1.20";
@@ -23,10 +23,9 @@ steps_per_rev = 200; % fixed parameter of motor
 rev_ticks = microsteps*steps_per_rev; % ticks per rev
 vel = 0*rev_ticks; % ticks / sec -> calculated each trial
 acc = 3*rev_ticks; % ticks / sec^2
-measure_revs = 180; % we want 180 wingbeats of data
 padding_revs = 1; % dropped from front and back during data processing
 wait_time = 3000; % 3 seconds (data collected before and after flapping)
-stationary_speed = rev_ticks; % Hz
+stationary_vel = rev_ticks; % Hz
 hold_time = 10000; % 10 second trial when not flapping (i.e. 0 Hz)
 distance = -1; % ticks to travel this trial -> calculated each trial
 
@@ -74,22 +73,42 @@ j = 1;
 while (j <= length(AoA))
 
 if (~debug)
-    % Confirm user has enabled MPS before attempting to change AoA
-    MPS_on_off_UI("on");
-    
+    Pitch = Pitch_initialize;
+
+    if (automatic)
+        Pitch_enable(Pitch);
+        disp("MPS Pitch Enabled")
+        pause(2)
+    else
+        % Confirm user has enabled MPS before attempting to change AoA
+        MPS_on_off_UI("on");
+    end
+
     % Adjust angle of attack via MPS
     Pitch_To(AoA(j));
     disp("Pitching to AoA: " + AoA(j))
 
-    % Confirm user has disabled MPS before attempting to record data
-    MPS_on_off_UI("off");
-    
     if (automatic)
-        VFD_stop; % stop wind tunnel motor
-        pause(15) % wait for speed to reach zero
+        pause(4)
+        Pitch_disable(Pitch);
+        disp("MPS Pitch Disabled")
     else
-        % Confirm user has stopped wind before recording offset for this AoA
-        wind_on_off_UI("off");
+        % Confirm user has disabled MPS before attempting to record data
+        MPS_on_off_UI("off");
+    end
+
+    clear Pitch;
+
+    if (speed ~= 0)
+        if (automatic)
+            stop_time = 10 + 3*speed;
+            VFD_stop; % stop wind tunnel motor
+            pause(stop_time) % wait for speed to reach zero
+            disp("Waiting for speed to reach zero")
+        else
+            % Confirm user has stopped wind before recording offset for this AoA
+            wind_on_off_UI("off");
+        end
     end
 
     % Get offset data before flapping at this angle with no wind
@@ -99,12 +118,16 @@ if (~debug)
     disp("Offset data at this AoA has been gathered");
     beep2;
 
-    if (automatic)
-        VFD_start; % start wind tunnel motor
-        pause(10) % wait for speed to return
-    else
-        % Confirm user has resumed wind before recording data
-        wind_on_off_UI("on");
+    if (speed ~= 0)
+        if (automatic)
+            start_time = 10 + 3*speed;
+            VFD_start; % start wind tunnel motor
+            pause(start_time) % wait for speed to return
+            disp("Waiting for speed to reach setting")
+        else
+            % Confirm user has resumed wind before recording data
+            wind_on_off_UI("on");
+        end
     end
 
 else
@@ -135,7 +158,7 @@ if (~debug)
         % Replace the place holders in the .dmc file with the values specified
         % here. Other parameters can be changed directly in .dmc file.
         dmc = strrep(dmc, "accel_placeholder", num2str(acc));
-        dmc = strrep(dmc, "speed_placeholder", num2str(stationary_speed));
+        dmc = strrep(dmc, "speed_placeholder", num2str(stationary_vel));
         dmc = strrep(dmc, "hold_time_placeholder", num2str(hold_time));
     else
         dmc = fileread(dmc_motion_filename);

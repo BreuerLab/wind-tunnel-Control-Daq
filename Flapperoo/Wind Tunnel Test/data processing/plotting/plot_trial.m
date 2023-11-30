@@ -3,78 +3,7 @@ function plot_trial(file,path, movie_bool)
 [case_name, type, wing_freq, AoA, wind_speed] = parse_filename(file);
 load(path + file);
 
-x_label = "Time (s)";
-y_label_F = "Force (N)";
-y_label_M = "Moment (N*m)";
-subtitle = "Trimmed, Rotated";
-axes_labels = [x_label, y_label_F, y_label_M];
-plot_forces(time_data, results_lab, case_name, subtitle, axes_labels);
-
-x_label = "Time (s)";
-y_label_F = "Force Coefficient";
-y_label_M = "Moment Coefficient";
-subtitle = "Trimmed, Rotated, Non-dimensionalized, Filtered";
-axes_labels = [x_label, y_label_F, y_label_M];
-plot_forces(time_data, filtered_data, case_name, subtitle, axes_labels);
-
-if (wing_freq > 0)
-x_label = "Wingbeat Period (t/T)";
-y_label_F = "Force Coefficient";
-y_label_M = "Moment Coefficient";
-axes_labels = [x_label, y_label_F, y_label_M];
-subtitle = "Trimmed, Rotated, Non-dimensionalized, Filtered, Wingbeat Averaged, Shaded -> +/- 1 SD";
-plot_forces_mean(frames, wingbeat_avg_forces, wingbeat_avg_forces + wingbeat_std_forces, wingbeat_avg_forces - wingbeat_std_forces, case_name, subtitle, axes_labels);
-
-x_label = "Wingbeat Period (t/T)";
-y_label_F = "Force (N)";
-y_label_M = "Moment (N*m)";
-axes_labels = [x_label, y_label_F, y_label_M];
-subtitle = "Trimmed, Rotated, Non-dimensionalized, Filtered, Wingbeat Averaged, Shaded -> +/- 1 SD";
-plot_forces_mean_subset(frames, wingbeat_avg_forces, wingbeat_avg_forces + wingbeat_std_forces, wingbeat_avg_forces - wingbeat_std_forces, case_name, subtitle, axes_labels);
-
-x_label = "Wingbeat Period (t/T)";
-y_label_F = "Force Coefficient";
-y_label_M = "Moment Coefficient";
-axes_labels = [x_label, y_label_F, y_label_M];
-subtitle = "Trimmed, Rotated, Non-dimensionalized, Filtered, Wingbeat Averaged, Shaded -> Range";
-plot_forces_mean(frames, wingbeat_avg_forces, wingbeat_max_forces, wingbeat_min_forces, case_name, subtitle, axes_labels);
-
-x_label = "Wingbeat Period (t/T)";
-y_label_F = "RMSE";
-y_label_M = "RMSE";
-axes_labels = [x_label, y_label_F, y_label_M];
-subtitle = "Trimmed, Rotated, Non-dimensionalized, Filtered, Wingbeat RMS'd";
-plot_forces(frames, wingbeat_rmse_forces, case_name, subtitle, axes_labels);
-
-COP = wingbeat_avg_forces(:,5) ./ wingbeat_avg_forces(:,3); % M_y / F_z
-% fc = 20; % cutoff frequency
-% fs = 9000;
-% [b,a] = butter(6,fc/(fs/2));
-% filtered_COP = filtfilt(b,a,COP);
-f = figure;
-f.Position = [200 50 900 560];
-plot(frames, COP)
-% plot(frames, filtered_COP)
-% plot(frames, wingbeat_COP)
-ylim([-1, 1])
-title("Movement of Center of Pressure for " + case_name)
-xlabel("Wingbeat Period (t/T)");
-ylabel("COP Location (m)");
-end
-
-if (movie_bool)
-    y_label_F = "Force Coefficient";
-    y_label_M = "Moment Coefficient";
-    axes_labels = [x_label, y_label_F, y_label_M];
-    subtitle = "Trimmed, Rotated, Non-dimensionalized, Filtered, Wingbeat Averaged";
-    wingbeat_movie(frames, wingbeat_forces, case_name, subtitle, axes_labels);
-end
-
-subtitle = "Trimmed, Rotated, Non-dimensionalized, Power Spectrum";
-plot_spectrum(freq, freq_power, dominant_freq, case_name, subtitle)
-
 kinematics_bool = true;
-
 if (kinematics_bool)
 
     % wind_speed = 100;
@@ -144,4 +73,75 @@ if (kinematics_bool)
     title("Effective Angle of Attack during Flapping for " + case_name)
     legend(Location="northeast")
 end
+
+% x_label = "Time (s)";
+% y_label_F = "Force (N)";
+% y_label_M = "Moment (N*m)";
+% subtitle = "Trimmed, Rotated";
+% axes_labels = [x_label, y_label_F, y_label_M];
+% plot_forces(time_data, results_lab, case_name, subtitle, axes_labels);
+
+x_label = "Time (s)";
+y_label_F = "Force Coefficient";
+y_label_M = "Moment Coefficient";
+subtitle = "Trimmed, Rotated, Non-dimensionalized, Filtered";
+axes_labels = [x_label, y_label_F, y_label_M];
+plot_forces(time_data, filtered_data, case_name, subtitle, axes_labels);
+
+if (wing_freq > 0)
+x_label = "Wingbeat Period (t/T)";
+y_label_F = "Force Coefficient";
+y_label_M = "Moment Coefficient";
+axes_labels = [x_label, y_label_F, y_label_M];
+subtitle = "Trimmed, Rotated, Non-dimensionalized, Filtered, Wingbeat Averaged, Shaded -> +/- 1 SD";
+plot_forces_mean(frames, wingbeat_avg_forces, wingbeat_avg_forces + wingbeat_std_forces, wingbeat_avg_forces - wingbeat_std_forces, case_name, subtitle, axes_labels);
+
+x_label = "Wingbeat Period (t/T)";
+y_label_F = "Force Coefficient";
+y_label_M = "Moment Coefficient";
+axes_labels = [x_label, y_label_F, y_label_M];
+subtitle = "Trimmed, Rotated, Non-dimensionalized, Filtered, Wingbeat Averaged, Shaded -> +/- 1 SD";
+plot_forces_mean_subset(frames, dimensionless(wingbeat_avg_forces,norm_factors), dimensionless(wingbeat_avg_forces + wingbeat_std_forces,norm_factors), dimensionless(wingbeat_avg_forces - wingbeat_std_forces, norm_factors), case_name, subtitle, axes_labels);
+
+x_label = "Wingbeat Period (t/T)";
+y_label_F = "Force Coefficient";
+y_label_M = "Moment Coefficient";
+axes_labels = [x_label, y_label_F, y_label_M];
+subtitle = "Trimmed, Rotated, Non-dimensionalized, Filtered, Wingbeat Averaged, Shaded -> Range";
+plot_forces_mean(frames, wingbeat_avg_forces, wingbeat_max_forces, wingbeat_min_forces, case_name, subtitle, axes_labels);
+
+x_label = "Wingbeat Period (t/T)";
+y_label_F = "RMSE";
+y_label_M = "RMSE";
+axes_labels = [x_label, y_label_F, y_label_M];
+subtitle = "Trimmed, Rotated, Non-dimensionalized, Filtered, Wingbeat RMS'd";
+plot_forces(frames, wingbeat_rmse_forces, case_name, subtitle, axes_labels);
+
+COP = wingbeat_avg_forces(5,:) ./ wingbeat_avg_forces(3,:); % M_y / F_z
+% fc = 20; % cutoff frequency
+% fs = 9000;
+% [b,a] = butter(6,fc/(fs/2));
+% filtered_COP = filtfilt(b,a,COP);
+f = figure;
+f.Position = [200 50 900 560];
+plot(frames, COP)
+% plot(frames, filtered_COP)
+% plot(frames, wingbeat_COP)
+ylim([-1, 1])
+title("Movement of Center of Pressure for " + case_name)
+xlabel("Wingbeat Period (t/T)");
+ylabel("COP Location (m)");
+end
+
+if (movie_bool)
+    y_label_F = "Force Coefficient";
+    y_label_M = "Moment Coefficient";
+    axes_labels = [x_label, y_label_F, y_label_M];
+    subtitle = "Trimmed, Rotated, Non-dimensionalized, Filtered, Wingbeat Averaged";
+    wingbeat_movie(frames, dimensionless(wingbeat_forces, norm_factors), case_name, subtitle, axes_labels);
+end
+
+subtitle = "Trimmed, Rotated, Non-dimensionalized, Power Spectrum";
+plot_spectrum(freq, freq_power, dominant_freq, case_name, subtitle)
+
 end

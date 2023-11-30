@@ -1,9 +1,9 @@
 function plot_forces(time_data, results, case_name, subtitle, axes_labels, num_cases)
-    if (length(results(1,:)) == 6)
-        force_means = round(mean(results), 3);
-        force_SDs = round(std(results), 3);
-        force_maxs = round(max(results), 3);
-        force_mins = round(min(results), 3);
+    if (length(results(:,1)) == 6)
+        force_means = round(mean(results'), 3);
+        force_SDs = round(std(results'), 3);
+        force_maxs = round(max(results'), 3);
+        force_mins = round(min(results'), 3);
 
         % Open a new figure.
         f = figure;
@@ -13,7 +13,7 @@ function plot_forces(time_data, results, case_name, subtitle, axes_labels, num_c
         % Create three subplots to show the force time histories. 
         nexttile(tcl)
         hold on
-        plot(time_data, results(:, 1));
+        plot(time_data, results(1, :));
         if (axes_labels(1) == "Wingbeat Period (t/T)")
             plot_wingbeat_patch();
         end
@@ -24,7 +24,7 @@ function plot_forces(time_data, results, case_name, subtitle, axes_labels, num_c
         
         nexttile(tcl)
         hold on
-        plot(time_data, results(:, 2));
+        plot(time_data, results(2, :));
         if (axes_labels(1) == "Wingbeat Period (t/T)")
             plot_wingbeat_patch();
         end
@@ -34,7 +34,7 @@ function plot_forces(time_data, results, case_name, subtitle, axes_labels, num_c
         hold off
         
         nexttile(tcl)
-        plot(time_data, results(:, 3));
+        plot(time_data, results(3, :));
         if (axes_labels(1) == "Wingbeat Period (t/T)")
             plot_wingbeat_patch();
         end
@@ -44,7 +44,7 @@ function plot_forces(time_data, results, case_name, subtitle, axes_labels, num_c
         
         % Create three subplots to show the moment time histories.
         nexttile(tcl)
-        plot(time_data, results(:, 4));
+        plot(time_data, results(4, :));
         if (axes_labels(1) == "Wingbeat Period (t/T)")
             plot_wingbeat_patch();
         end
@@ -53,7 +53,7 @@ function plot_forces(time_data, results, case_name, subtitle, axes_labels, num_c
         ylabel(axes_labels(3));
         
         nexttile(tcl)
-        plot(time_data, results(:, 5));
+        plot(time_data, results(5, :));
         if (axes_labels(1) == "Wingbeat Period (t/T)")
             plot_wingbeat_patch();
         end
@@ -62,7 +62,7 @@ function plot_forces(time_data, results, case_name, subtitle, axes_labels, num_c
         ylabel(axes_labels(3));
         
         nexttile(tcl)
-        plot(time_data, results(:, 6));
+        plot(time_data, results(6, :));
         if (axes_labels(1) == "Wingbeat Period (t/T)")
             plot_wingbeat_patch();
         end

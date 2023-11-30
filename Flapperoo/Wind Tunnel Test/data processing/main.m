@@ -18,4 +18,4 @@ else
 end
 file = convertCharsToStrings(file);
 
-plot_trial(file, data_path, false)
+plot_trial(file, path, false)

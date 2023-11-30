@@ -26,8 +26,8 @@ raw_trigger = data(:,8);
 
 % Trim off portion of data where wings are motionless or accelerating
 trimmed_results = trim_data(raw_data, raw_trigger, wing_freq);
-time_data = trimmed_results(:,1);
-force_data = trimmed_results(:,2:7);
+time_data = trimmed_results(:,1)';
+force_data = trimmed_results(:,2:7)';
 
 % Rotate the data from the force transducer reference frame to the wind
 % tunnel reference frame (body frame to global frame)
@@ -35,7 +35,7 @@ results_lab = coordinate_transformation(force_data, AoA);
 
 % Non-dimensionalize the data. Newtons to Force Coefficients and
 % Newton*meters to Moment Coefficients
-[norm_data, St, Re] = non_dimensionalize_data(results_lab, file);
+[norm_data, norm_factors, St, Re] = non_dimensionalize_data(results_lab, file);
 
 % Smooth the data with a butterworth filter
 filtered_data = filter_data(results_lab, frame_rate);
@@ -61,10 +61,10 @@ save(processed_data_path + filename, 'wingbeat_forces',...
     'frames', 'wingbeat_avg_forces', 'wingbeat_std_forces',...
     'wingbeat_rmse_forces', 'wingbeat_max_forces', 'wingbeat_min_forces',...
     'wingbeat_COP', 'time_data', 'results_lab', 'filtered_data', ...
-    'filtered_norm_data', 'St', 'Re', 'freq', 'freq_power', 'dominant_freq')
+    'filtered_norm_data', 'norm_factors', 'St', 'Re', 'freq', 'freq_power', 'dominant_freq')
 else
     save(processed_data_path + filename, 'time_data', 'results_lab', ...
-    'filtered_data', 'filtered_norm_data', 'St', 'Re', 'freq',...
+    'filtered_data', 'filtered_norm_data', 'norm_factors', 'St', 'Re', 'freq', ...
     'freq_power', 'dominant_freq')
 end
 end

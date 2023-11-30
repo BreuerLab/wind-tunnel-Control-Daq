@@ -8,7 +8,7 @@ close all
 addpath 'functions'
 addpath '../plotting'
 
-raw_data_path = "../../experiment data/";
+raw_data_path = "../../raw data/experiment data/";
 processed_data_path = "../../processed data/";
 
 % Ask the user to select a file to process the data from
