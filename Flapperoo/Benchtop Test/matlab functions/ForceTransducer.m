@@ -166,7 +166,7 @@ end
 %          voltage was low
 function trimmed_results = trim_data(results, trigger_data)
     trimmed_results = zeros(size(results));
-    low_trigs_indices = find(trigger_data < 2); % <2 Volts = Digital Low
+    low_trigs_indices = find(trigger_data < 1); % <2 Volts = Digital Low
     
     if ~(isempty(low_trigs_indices) || low_trigs_indices(1) == 1 ...
             || low_trigs_indices(end) == length(trigger_data))

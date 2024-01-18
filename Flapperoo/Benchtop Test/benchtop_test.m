@@ -1,6 +1,6 @@
 % This program runs the motor and collects data from the force transducer
 % for a single benchtop test.
-
+ 
 % Load Cell: ATI Gamma IP65
 % DAQ: NI USB-6341
 % DMC: Galil DMC-4143
@@ -13,19 +13,22 @@
 clc;
 clear;
 close all;
+addpath 'matlab functions'
+addpath 'galil scripts'
 
 % -----------------------------------------------------------------------
 % ----------Parameters to Adjust for Your Specific Experiment------------
 % -----------------------------------------------------------------------
-wing_type = "inertial_damper";
-freq = 1;
+wing_type = "normal_wings";
+freq = 5;
 
 % -----------------------------------------------------------------------
 % ---------------------------System Parameters---------------------------
 % -----------------------------------------------------------------------
 % Stepper Motor Parameters
 galil_address = "192.168.1.20";
-dmc_file_name = "benchtop_test_commented.dmc";
+dmc_motion_filename = "flapping_commands.dmc";
+dmc_stationary_filename = "stationary_commands.dmc";
 microsteps = 256; % fixed parameter of AMP-43547
 steps_per_rev = 200; % fixed parameter of PH266-E1.2
 rev_ticks = microsteps*steps_per_rev; % ticks per rev
@@ -33,8 +36,10 @@ acc = 3*rev_ticks; % ticks / sec^2
 vel = freq*rev_ticks; % ticks / sec
 measure_revs = 60; % we want 240 wingbeats of data
 padding_revs = 1; % dropped from front and back during data processing
-wait_time = 4000; % 8 seconds (data collected before and after flapping)
+wait_time = 4000; % 4 seconds (data collected before and after flapping)
+hold_time = 5000; % 5 seconds collected when wings stationary
 distance = -1; % ticks to travel this trial
+stationary_speed = rev_ticks; % Hz
 
 % Force Transducer Parameters
 voltage = 5;
@@ -44,22 +49,33 @@ offset_duration = 2; % Taring/Offset/Zeroing Time
 session_duration = -1; % Measurement Time
 case_name = wing_type + "_" + freq + "Hz";
 
-estimate_params = {rev_ticks acc vel measure_revs padding_revs wait_time};
+estimate_params = {rev_ticks acc vel measure_revs padding_revs wait_time hold_time};
 [distance, session_duration, trigger_pos] = estimate_duration(estimate_params{:});
 
 %% Setup the Galil DMC
 
-% Create the carraige return and linefeed variable from the .dmc file.
-dmc = fileread(dmc_file_name);
-dmc = string(dmc);
+if (vel == 0)
+    % Create the carraige return and linefeed variable from the .dmc file.
+    dmc = fileread(dmc_stationary_filename);
+    dmc = string(dmc);
 
-% Replace the place holders in the .dmc file with the values specified
-% here. Other parameters can be changed directly in .dmc file.
-dmc = strrep(dmc, "accel_placeholder", num2str(acc));
-dmc = strrep(dmc, "speed_placeholder", num2str(vel));
-dmc = strrep(dmc, "distance_placeholder", num2str(distance));
-dmc = strrep(dmc, "wait_time_placeholder", num2str(wait_time - 2000));
-dmc = strrep(dmc, "wait_ticks_placeholder", num2str(trigger_pos));
+    % Replace the place holders in the .dmc file with the values specified
+    % here. Other parameters can be changed directly in .dmc file.
+    dmc = strrep(dmc, "accel_placeholder", num2str(acc));
+    dmc = strrep(dmc, "speed_placeholder", num2str(stationary_speed));
+    dmc = strrep(dmc, "hold_time_placeholder", num2str(hold_time));
+else
+    dmc = fileread(dmc_motion_filename);
+    dmc = string(dmc);
+
+    % Replace the place holders in the .dmc file with the values specified
+    % here. Other parameters can be changed directly in .dmc file.
+    dmc = strrep(dmc, "accel_placeholder", num2str(acc));
+    dmc = strrep(dmc, "speed_placeholder", num2str(vel));
+    dmc = strrep(dmc, "distance_placeholder", num2str(distance));
+    dmc = strrep(dmc, "wait_time_placeholder", num2str(wait_time - 2000));
+    dmc = strrep(dmc, "wait_ticks_placeholder", num2str(trigger_pos));
+end
 
 % Connect to the Galil device.
 galil = actxserver("galil");
