@@ -30,9 +30,14 @@ hold_time = 10000; % 10 second trial when not flapping (i.e. 0 Hz)
 distance = -1; % ticks to travel this trial -> calculated each trial
 
 % Force Transducer Parameters
+aliasing = true;
 voltage = 5;
-calibration_filepath = "../Force Transducer/Calibration Files/FT43243.cal"; 
-rate = 9000; % DAQ recording frequency (Hz)
+calibration_filepath = "../Force Transducer/Calibration Files/FT43243.cal";
+if aliasing
+    rate = 80000;
+else
+    rate = 9000; % DAQ recording frequency (Hz)
+end
 offset_duration = 2; % Taring/Offset/Zeroing Time
 session_duration = -1; % Measurement Time -> calculated each trial
 force_limit = 1200; % Newton
@@ -198,7 +203,7 @@ beep2;
 
 % Display preliminary data
 drift = offsets_after - offsets_before;
-FT_obj.plot_results(results, case_name, drift);
+FT_obj.plot_results(results, case_name, drift, aliasing);
 
 % Reaching torque or force limits?
 if (max(abs(results(:,2:4))) > 0.7*force_limit)

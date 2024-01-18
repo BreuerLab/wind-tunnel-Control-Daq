@@ -320,9 +320,23 @@ end
 % This function provides preliminary force data in the form of a 2 x 3
 % grid plot. The data has not been filtered, but if triggers are being
 % used the data will also be plotted as trimmed by the trigger signal.
-function plot_results(obj, results, case_name, drift)
+function plot_results(obj, results, case_name, drift, aliasing)
     close all
 
+    if aliasing
+        % Filter out noise above 10 kHz
+        fc = 10000; % cutoff frequency
+        fs = obj.daq.Rate;
+        [b,a] = butter(6,fc/(fs/2));
+        filtered_results = zeros(size(results));
+        for i = 1:length(results(1,:))
+            filtered_results(:, i) = filtfilt(b,a,results(:, i));
+        end
+        
+        % Downsample from 80 kHz to 10 kHz
+        results = downsample(filtered_results, 8);
+    end
+    
     if (contains(case_name, '-'))
         case_name = strrep(case_name,'-','neg');
     end
