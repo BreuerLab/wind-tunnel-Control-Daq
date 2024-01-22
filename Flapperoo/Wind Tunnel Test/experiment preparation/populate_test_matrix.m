@@ -4,9 +4,9 @@ close all
 % Ronan Gissler March 2023
 
 % --------------  Variable Ranges  -------------
-AoA = -16:2:16;
+AoA = -16:1:16;
 freq = [0,2,3,4,5];
-speed = [0,2,4,6,8];
+speed = [0,2,4,6];
 wing_length = 0.257; % meters
 amp = wing_length*(sind(30) + sind(30)); % amplitude, meters
 num_wingbeats = 180;
@@ -45,7 +45,7 @@ for k = 1:length(speed)
                 
             if (speed(k) > 0)
                 strouhal = (freq(i) * amp) / speed(k);
-                if (strouhal > 0.1 && strouhal < 0.5)
+                if ((strouhal > 0.1 && strouhal < 0.5) && (speed(k) < 6 || freq(i) < 5))
                     strouhal_vals(curIndex) = strouhal;
                     AoA_vals(curIndex) = AoA(j);
                     freq_vals(curIndex) = freq(i);
