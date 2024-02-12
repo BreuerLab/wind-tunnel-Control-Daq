@@ -1,4 +1,4 @@
-% For ATI-F/T Gamma IP65 in AFAM wind tunnel 
+% For ATI-F/T Nano 17 in AFAM wind tunnel 
 % Output the six axials force(torque)/ raw voltage measurements 
 % into csv file
 
@@ -10,7 +10,7 @@
 clear all;
 %********************initialize ************************
 CaseName = input('name this case \n','s');
-angle = [45;0;0]; % identify the yaw pitch roll angle from the mps system, in deg
+angle = [0;0;0]; % identify the yaw pitch roll angle from the mps system, in deg
  trial = strcat(CaseName);
 % load offset data 
 offsetjudge = input('Do we have a taring for this case?[Y/N] \n','s');
@@ -22,7 +22,9 @@ else
     if offsetjudge == 'N'
 % case 2: start a new offset
 disp('generating offset file, this will take 1 min...')
-[offSetData] = offset(CaseName);
+%[offSetData] = offset(CaseName);
+[offSetData] = get_offsets( 5000, 20);
+
     end
 end
 offSets = offSetData(1,:);
@@ -38,10 +40,10 @@ addAnalogInputChannel(s,'Dev1',5,'Voltage');
 % addAnalogInputChannel(s,'Dev1',6,'Voltage');
 % addTriggerConnection(s,'Dev1/PFI0','startTrigger');
 
-load Gromit_Cal; % load calibration martix
-matrixVals = Gromit_Cal;
-timeLength = 5; % each session duration in seconds
-s.Rate = 1000; % sample rate
+load FT09042_cal.mat; % load calibration martix
+% matrixVals = Gromit_Cal;
+timeLength = 10; % each session duration in seconds
+s.Rate = 5000; % sample rate
 s.DurationInSeconds = timeLength; 
 %%%
 %Get file info so it doesnt mess up
@@ -61,18 +63,19 @@ end_pos = input('input end position');
 step = input('input steps in deg');
 SessionNumber = abs(end_pos-start_pos)/step+1;
 step_counts =step* Deg2Con; % deg convert to counts
-P1 = Pitch_Read;
+P1 = pitch_read;
 P.P = start_pos* Deg2Con-(P1.POS+52238083)/16; % go to start pos from any initial pos
 disp('move to start position, wait');
-Pitch_Move(P);
+pitch_move(P);
 pause(30);
+forceVals_cell=cell(1,SessionNumber);
 %% Acquire Force data
 t0=clock;
 while  i <=SessionNumber %start scan for a period in seconds, approximately 
    
 %     gogo = input('ready to collect? ','s'); 
 %         disp('Read Commands')
-        P1 = Pitch_Read;
+        P1 = pitch_read;
         AOA = P1.POS;
               
 disp('acquiring data...')
@@ -81,7 +84,7 @@ disp('acquiring data...')
 %**************************************************************************
         P.P = step_counts;     
         disp('Load Move Commands')
-        Pitch_Move(P);
+        pitch_move(P);
         pause(10); % wait for servo
 %   dlmwrite(trial,voltVals,'-append'); %directly write raw voltage data into file
 
@@ -96,11 +99,12 @@ disp('acquiring data...')
     forceVals = matrixVals*voltVals';
     forceVals = forceVals';  
     %Writingfiles
-    dlmwrite(trial,forceVals,'-append');
+    %dlmwrite(trial,forceVals,'-append');
+    forceVals_cell{1,i} =forceVals;
     %dlmwrite(trial,logdata,'-append');
 % Plot: get one force data point averaged from each session
-    avgVoltVals = mean(voltVals);
-    avgForceVals = matrixVals*avgVoltVals';
+   % avgVoltVals = mean(voltVals);
+    avgForceVals = mean(forceVals);
     hold on;
      % transfer from loadcell CS to body CS
     theta =angle;
@@ -119,4 +123,4 @@ disp('acquiring data...')
 end
 info = [num2str(i),' sessions are collected with the sample rate of ', num2str(s.Rate), 'Hz'];
 disp(info);
-save(trial,'Save_avg');
+save(trial);
