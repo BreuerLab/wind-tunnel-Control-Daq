@@ -54,7 +54,8 @@ for i = 1 : length(theFiles)
         load(processed_data_path + baseFileName);
         for k = 1:6
             if (nondimensional)
-                avg_forces(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = mean(filtered_norm_data(k, :));
+                % avg_forces(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = mean(filtered_norm_data(k, :));
+                avg_forces(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = mean(dimensionless(filtered_data(k, :),norm_factors));
 %                 avg_forces_temp(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = mean(filtered_norm_data(:, k));
             else
                 avg_forces(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = mean(filtered_data(k, :));
@@ -62,7 +63,8 @@ for i = 1 : length(theFiles)
             end
             if (wing_freq == 0)
                 if (nondimensional)
-                    err_forces(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = std(filtered_norm_data(k, :));
+                    % err_forces(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = std(filtered_norm_data(k, :));
+                    err_forces(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = std(dimensionless(filtered_data(k, :),norm_factors));
                 else
                     err_forces(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = std(filtered_data(k, :));
                 end
@@ -89,15 +91,15 @@ for i = 1 : length(theFiles)
         elseif (length(wing_freq_sel) == 1 && length(wind_speed_sel) == 1)
             names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = type2name(type);
             sub_title =  " Re: " + num2str(round(Re,2,"significant")) + " St: " + num2str(round(St,2,"significant"));
-        elseif (length(wing_freq_sel) == 1 && length(type_sel) == 1)
-            names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) =  " Re: " + num2str(round(Re,2,"significant"));
-            sub_title = type2name(type) + " St: " + num2str(round(St,2,"significant"));
+        % elseif (length(wing_freq_sel) == 1 && length(type_sel) == 1)
+        %     names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) =  " Re: " + num2str(round(Re,2,"significant"));
+        %     sub_title = type2name(type) + " St: " + num2str(round(St,2,"significant"));
         elseif (length(wind_speed_sel) == 1 && length(type_sel) == 1)
             names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) =  " St: " + num2str(round(St,2,"significant"));
             sub_title = type2name(type) +  " Re: " + num2str(round(Re,2,"significant"));
-        elseif (length(wing_freq_sel) == 1)
-            names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = type2name(type) +  " Re: " + num2str(round(Re,2,"significant"));
-            sub_title = " St: " + num2str(round(St,2,"significant"));
+        % elseif (length(wing_freq_sel) == 1)
+        %     names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = type2name(type) +  " Re: " + num2str(round(Re,2,"significant"));
+        %     sub_title = " St: " + num2str(round(St,2,"significant"));
         elseif (length(wind_speed_sel) == 1)
             names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = type2name(type) + " St: " + num2str(round(St,2,"significant"));
             sub_title =  " Re: " + num2str(round(Re,2,"significant"));
@@ -159,10 +161,10 @@ end
 
 function name = type2name(type)
     name = type;
-    if (type == "tubespars v2")
-        name = "Rigid Wings";
-    elseif (type == "dragon")
-        name = "Compliant Wings";
+    if (type == "blue wings")
+        name = "Wings";
+    elseif (type == "no wings")
+        name = "No Wings";
     elseif (type == "iinertial")
         name = "Skeleton Wings";
     end

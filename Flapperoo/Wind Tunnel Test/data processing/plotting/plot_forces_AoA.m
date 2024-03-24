@@ -4,8 +4,8 @@ function plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title
     wind_speed_sel = selected_vars.wind;
     type_sel = selected_vars.type;
 
-    regression = false;
-    error = true;
+    regression = true;
+    error = false;
     
     if (forceIndex == 0)
     
@@ -243,44 +243,48 @@ function plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title
         end
         y_labels = [y_label_F, y_label_F, y_label_F, y_label_M, y_label_M, y_label_M];
         titles = ["Drag", "Transverse Lift", "Lift", "Roll Moment", "Pitch Moment", "Yaw Moment"];
-        colors = [[0, 0.4470, 0.7410]; [0.8500, 0.3250, 0.0980]; ...
-                [0.9290, 0.6940, 0.1250]; [0.4940, 0.1840, 0.5560]; ...
-                [0.4660, 0.6740, 0.1880]; [0.3010, 0.7450, 0.9330]; ...
-                [0.6350, 0.0780, 0.1840]; [0.25, 0.25, 0.25]];
-
+        colors(:,:,1) = [[189, 201, 225]; [116, 169, 207]; [5, 112, 176]];
+        colors(:,:,2) = [[253,204,138]; [252,141,89]; [215,48,31]];
+        colors = colors / 255;
         % Open a new figure.
-%         f = figure;
-%         f.Position = [200 50 900 560];
+        % f = figure;
+        % f.Position = [200 50 900 560];
         
         hold on
+        for n = 1:length(type_sel)
         for j = 1:length(wing_freq_sel)
         for m = 1:length(wind_speed_sel)
-        for n = 1:length(type_sel)
 
         if (error)
         markers = ["o", "pentagram"];
         e = errorbar(AoA_sel, avg_forces(forceIndex, :, j, m, n), err_forces(forceIndex, :, j, m, n),'.');
 %         e.Color = colors(n + (m-1)*length(type_sel) + (j-1)*length(wind_speed_sel)*length(type_sel),:);
 %         e.MarkerSize = 20;
-        e.Color = colors(3 + n + (m-1)*length(type_sel) + (j-1)*length(wind_speed_sel)*length(type_sel),:);
-        e.MarkerFaceColor = colors(3 + n + (m-1)*length(type_sel) + (j-1)*length(wind_speed_sel)*length(type_sel),:);
-        e.MarkerSize = 8;
-        e.Marker = markers(n);
+
+%         e.Color = colors(3 + n + (m-1)*length(type_sel) + (j-1)*length(wind_speed_sel)*length(type_sel),:);
+%         e.MarkerFaceColor = colors(3 + n + (m-1)*length(type_sel) + (j-1)*length(wind_speed_sel)*length(type_sel),:);
+%         e.MarkerSize = 8;
+%         e.Marker = markers(n);
+        e.Color = colors(j,:,n);
+        e.MarkerFaceColor = colors(j,:,n);
+        e.MarkerSize = 10;
+        e.Marker = markers(m);
+        e.DisplayName = names(j,m,n);
         elseif (regression)
         s = scatter(AoA_sel, avg_forces(forceIndex, :, j, m, n), 25, HandleVisibility="off");
-        s.MarkerEdgeColor = colors(j,:);
-        s.MarkerFaceColor = colors(j,:);
+        s.MarkerEdgeColor = colors(j,:,n);
+        s.MarkerFaceColor = colors(j,:,n);
         x = [ones(size(AoA_sel')), AoA_sel'];
-        y = avg_forces(forceIndex, :, j)';
+        y = avg_forces(forceIndex, :, j, m, n)';
         b = x\y;
         model = x*b;
         Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
-        label = "y = " + b(2) + "x + " + b(1) + "   R^2 = " + Rsq;
-        plot(AoA_sel, model, DisplayName=label, Color=colors(j,:))
+        label = names(j,m,n) + ", y = " + b(2) + "x + " + b(1) + "   R^2 = " + Rsq;
+        plot(AoA_sel, model, DisplayName=label, Color=colors(j,:,n))
         else
         s = scatter(AoA_sel, avg_forces(forceIndex, :, j, m, n), 100, 'filled');
-        s.MarkerEdgeColor = colors(j,:);
-        s.MarkerFaceColor = colors(j,:);
+        s.MarkerEdgeColor = colors(j,:,n);
+        s.MarkerFaceColor = colors(j,:,n);
         end
 
         end
@@ -290,7 +294,6 @@ function plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title
         title([titles(forceIndex) sub_title], FontSize=18);
         xlabel(x_label, FontSize=14);
         ylabel(y_labels(forceIndex), FontSize=14);
-        legend(names, Location="northeast");
-        legend(Location="northeast");
+        legend(Location="best", FontSize=18);
     end
 end

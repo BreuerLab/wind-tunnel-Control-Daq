@@ -19,7 +19,7 @@ function plot_forces_mean_subset(frames, mean_results, upper_results, lower_resu
         p = fill(xconf, yconf, 'blue');
         p.FaceColor = [0.8 0.8 1];      
         p.EdgeColor = 'none';
-        plot(frames, mean_results(1, :));
+        plot(frames, mean_results(1, :),color=[0, 0.4470, 0.7410]);
         plot_wingbeat_patch();
         title(["Drag", "avg: " + force_means(1) + "    SD: " + force_SDs(1), "max: " + force_maxs(1) + "    min: " + force_mins(1)]);
         xlabel(axes_labels(1));
@@ -34,7 +34,7 @@ function plot_forces_mean_subset(frames, mean_results, upper_results, lower_resu
         p = fill(xconf, yconf, 'blue');
         p.FaceColor = [0.8 0.8 1];      
         p.EdgeColor = 'none';
-        plot(frames, mean_results(3, :));
+        plot(frames, mean_results(3, :),color=[0, 0.4470, 0.7410]);
         plot_wingbeat_patch();
         title(["Lift", "avg: " + force_means(3) + " SD: " + force_SDs(3), "max: " + force_maxs(3) + "    min: " + force_mins(3)]);
         xlabel(axes_labels(1));
@@ -49,7 +49,7 @@ function plot_forces_mean_subset(frames, mean_results, upper_results, lower_resu
         p = fill(xconf, yconf, 'blue');
         p.FaceColor = [0.8 0.8 1];      
         p.EdgeColor = 'none';
-        plot(frames, mean_results(5, :));
+        plot(frames, mean_results(5, :),color=[0, 0.4470, 0.7410]);
         plot_wingbeat_patch();
         title(["Pitch Moment", "avg: " + force_means(5) + " SD: " + force_SDs(5), "max: " + force_maxs(5) + "    min: " + force_mins(5)]);
         xlabel(axes_labels(1));

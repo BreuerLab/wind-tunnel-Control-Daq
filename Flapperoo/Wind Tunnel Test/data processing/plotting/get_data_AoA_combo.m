@@ -72,6 +72,7 @@ for i = 1 : length(theFiles)
                 end
             else
                 if (nondimensional)
+                    wingbeat_rmse_forces_norm = dimensionless(wingbeat_rmse_forces, norm_factors);
                     err_forces(k, AoA_sel == AoA, ind, type_sel == type) = mean(wingbeat_rmse_forces_norm(k, :));
                 else
                     err_forces(k, AoA_sel == AoA, ind, type_sel == type) = mean(wingbeat_rmse_forces(k, :));

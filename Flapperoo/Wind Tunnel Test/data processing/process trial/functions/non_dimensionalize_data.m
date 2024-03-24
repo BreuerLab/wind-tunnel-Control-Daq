@@ -28,22 +28,8 @@ function [norm_data, norm_factors, St, Re] = non_dimensionalize_data(results, fi
     path = "../../raw data/wind tunnel data/";
     file_name = strrep(file_name,"experiment","wind_tunnel");
     file_name = strrep(file_name,"csv","mat");
-    load(path + file_name); % loads AFAM_Tunnel struct into workspace
-    
-    wind_speed = AFAM_Tunnel.Speed;
-    density = AFAM_Tunnel.Density;
-    Re = AFAM_Tunnel.Reynolds * wing_chord;
-    
-    % If wind tunnel GUI glitched out when data was recorded, use
-    % standard air properties
-    if (isnan(wind_speed) || isnan(density) || isnan(Re))
-        disp("Using standard values for air speed, density, and viscosity for case:")
-        disp(case_name)
-        density = 1.204; % kg/m^3 at 20 C 1 atm
-        kin_vis = 1.6 * 10^(-5); % m^2/s
-        wind_speed = U;
-        Re = (wind_speed * wing_chord) / kin_vis;
-    end
+        
+    [wind_speed, density, Re] = get_tunnel_file_contents(path, file_name, wing_chord);
     
     St = (wing_freq * amplitude) / wind_speed;
     

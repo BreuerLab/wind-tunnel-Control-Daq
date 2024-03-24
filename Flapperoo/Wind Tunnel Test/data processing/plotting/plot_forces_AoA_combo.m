@@ -246,10 +246,11 @@ function plot_forces_AoA_combo(freq_speed_combos, selected_vars, avg_forces, err
         markers = ["pentagram", "o"];
         e = errorbar(AoA_sel, avg_forces(forceIndex, :, j, n), err_forces(forceIndex, :, j, n),'.');
 %         e.Color = colors(j,:);
-        e.Color = colors(j,:);
-        e.MarkerFaceColor = colors(j,:);
+        e.Color = colors(mod(j,2) + 1,:);
+        e.MarkerFaceColor = colors(mod(j,2) + 1,:);
         e.MarkerSize = 10;
-        e.Marker = markers(n);
+        e.Marker = markers(round(j/2));
+        e.DisplayName = names(j,n);
         elseif (regression)
         s = scatter(AoA_sel, avg_forces(forceIndex, :, j, n), 25, HandleVisibility="off");
         s.Color = colors(n + (j-1)*length(type_sel),:);
@@ -272,6 +273,6 @@ function plot_forces_AoA_combo(freq_speed_combos, selected_vars, avg_forces, err
         xlabel(x_label, FontSize=14);
         ylabel(y_labels(forceIndex), FontSize=14);
         format short
-        legend(names,Location="northwest");
+        legend(Location="northwest");
     end
 end
