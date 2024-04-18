@@ -1,7 +1,11 @@
-function [avg_forces, err_forces, names, sub_title] = get_data_AoA(selected_vars, processed_data_path, bool)
+function [avg_forces, err_forces, names, sub_title, norm_factors_arr] = ...
+    get_data_AoA(selected_vars, processed_data_path, nondimensional, subtraction_string)
 
-nondimensional = bool.norm;
-body_subtraction = bool.body_sub;
+if (subtraction_string == "none")
+    body_subtraction = false;
+else
+    body_subtraction = true;
+end
 
 AoA_sel = selected_vars.AoA;
 wing_freq_sel = selected_vars.freq;
@@ -10,12 +14,14 @@ type_sel = selected_vars.type;
 
 % Initialize variables
 avg_forces = zeros(6, length(AoA_sel), length(wing_freq_sel), length(wind_speed_sel), length(type_sel));
-avg_forces_temp = zeros(6, length(AoA_sel), length(wing_freq_sel), length(wind_speed_sel), length(type_sel));
 avg_forces_body = zeros(6, length(AoA_sel), length(wing_freq_sel), length(wind_speed_sel));
-avg_forces_body_temp = zeros(6, length(AoA_sel), length(wing_freq_sel), length(wind_speed_sel));
 err_forces = zeros(6, length(AoA_sel), length(wing_freq_sel), length(wind_speed_sel), length(type_sel));
 cases_final = strings(length(AoA_sel), length(wing_freq_sel), length(wind_speed_sel), length(type_sel));
 names = strings(length(wing_freq_sel), length(wind_speed_sel), length(type_sel));
+norm_factors_arr = zeros(2, length(AoA_sel), length(wing_freq_sel), length(wind_speed_sel));
+% really only the windspeed matters here but let's include all
+% the variables include the normalization routine changes in the
+% future
 
 % Get a list of all files in the folder with the desired file name pattern.
 filePattern = fullfile(processed_data_path, '*.mat'); % Change to whatever pattern you need.
@@ -33,50 +39,65 @@ for i = 1 : length(theFiles)
 %     dcm_F = angle2dcm(yaw, pitch, 0,'ZYX');
 %     dcm_M = angle2dcm(yaw, 0, 0, 'ZYX');
     
-    if (body_subtraction && type == "no wings" && ismember(wing_freq, wing_freq_sel) && ismember(AoA, AoA_sel) && ismember(wind_speed, wind_speed_sel))
+    if (ismember(wing_freq, wing_freq_sel) ...
+    && ismember(AoA, AoA_sel) ...
+    && ismember(wind_speed, wind_speed_sel) ...
+    && ismember(type, type_sel))
+
+        disp("   Obtaining data for " + type + " " + wing_freq + " Hz " + wind_speed + " m/s "  + AoA + " deg trial")
+
         load(processed_data_path + baseFileName);
-        for k = 1:6
-            if (nondimensional)
-                avg_forces_body(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed) = mean(filtered_norm_data(k, :));
-%                 avg_forces_body_temp(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed) = mean(filtered_norm_data(:, k));
-            else
-                avg_forces_body(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed) = mean(filtered_data(k, :));
-%                 avg_forces_body_temp(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed) = mean(filtered_data(:, k));
-            end
+        norm_filtered_data = dimensionless(filtered_data,norm_factors);
+        
+        norm_factors_arr(:, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed) = norm_factors;
+
+        if (body_subtraction)
+            [forces_body] = getBody(wing_freq, AoA, wind_speed, nondimensional, theFiles, processed_data_path, subtraction_string);
         end
-%         avg_forces_body(1:3, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed) ...
-%                     = (dcm_F * avg_forces_body_temp(1:3, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed));
-%         avg_forces_body(4:6, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed) ...
-%                     = (1 * dcm_M * avg_forces_body_temp(4:6, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed));
-    end
-    
-    if (ismember(wing_freq, wing_freq_sel) && ismember(AoA, AoA_sel) && ismember(wind_speed, wind_speed_sel) && ismember(type, type_sel))        
-        load(processed_data_path + baseFileName);
+
         for k = 1:6
             if (nondimensional)
-                % avg_forces(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = mean(filtered_norm_data(k, :));
-                avg_forces(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = mean(dimensionless(filtered_data(k, :),norm_factors));
-%                 avg_forces_temp(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = mean(filtered_norm_data(:, k));
+                forces = norm_filtered_data;
             else
-                avg_forces(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = mean(filtered_data(k, :));
-%                 avg_forces_temp(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = mean(filtered_data(:, k));
+                forces = filtered_data;
             end
+            
+            if (body_subtraction)
+                % if (length(forces_body) > length(forces))
+                %     wing_forces = forces - forces_body(:,1:length(forces));
+                % else
+                %     wing_forces = forces(:,1:length(forces_body)) - forces_body;
+                % end
+                % avg_forces(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type)...
+                %         = mean(wing_forces);
+
+                avg_forces(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type)...
+                        = mean(forces(k,:)) - mean(forces_body(k,:));
+            else
+                avg_forces(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type)...
+                    = mean(forces(k,:));
+            end
+
             if (wing_freq == 0)
                 if (nondimensional)
-                    % err_forces(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = std(filtered_norm_data(k, :));
-                    err_forces(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = std(dimensionless(filtered_data(k, :),norm_factors));
+                    err_forces(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type)...
+                        = std(norm_filtered_data(k,:));
                 else
-                    err_forces(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = std(filtered_data(k, :));
+                    err_forces(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type)...
+                        = std(filtered_data(k, :));
                 end
             else
                 if (nondimensional)
-                    wingbeat_rmse_forces_norm = dimensionless(wingbeat_rmse_forces, norm_factors);
-                    err_forces(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = mean(wingbeat_rmse_forces_norm(k, :));
+                    wingbeat_std_forces_norm = dimensionless(wingbeat_std_forces, norm_factors);
+                    err_forces(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type)...
+                        = mean(wingbeat_std_forces_norm(k, :));
                 else
-                    err_forces(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = mean(wingbeat_rmse_forces(k, :));
+                    err_forces(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type)...
+                        = mean(wingbeat_std_forces(k, :));
                 end
             end
         end
+
 %         avg_forces(1:3, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) ...
 %                     = (dcm_F * avg_forces_temp(1:3, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type));
 %         avg_forces(4:6, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) ...
@@ -140,22 +161,7 @@ for i = 1 : length(theFiles)
         end
         end
     end
-end
-
-if (body_subtraction)
-    for i = 1:length(AoA_sel)
-    for j = 1:length(wing_freq_sel)
-    for k = 1:length(wind_speed_sel)
-    for m = 1:length(type_sel)
-    for n = 1:6
-        avg_forces(n, i, j, k, m) = avg_forces(n, i, j, k, m) - avg_forces_body(n, i, j, k);
-    end
-    end
-    end
-    end
-    end
-end
-    
+end   
 
 end
 
@@ -163,9 +169,59 @@ function name = type2name(type)
     name = type;
     if (type == "blue wings")
         name = "Wings";
+    elseif (type == "blue wings with tail")
+        name = "Wings with Tail";
     elseif (type == "no wings")
         name = "No Wings";
-    elseif (type == "iinertial")
+    elseif (type == "inertial")
         name = "Skeleton Wings";
     end
+end
+
+function [forces_body] = getBody(wing_freq_sel, AoA_sel, wind_speed_sel, nondimensional, theFiles, processed_data_path, subtraction_string)
+    % Parse relevant information from subtraction string
+    case_parts = strtrim(split(subtraction_string));
+    sub_type = "";
+    sub_wing_freq = wing_freq_sel;
+    sub_wind_speed = wind_speed_sel;
+    index = length(case_parts) + 1;
+    for j=1:length(case_parts)
+        if (contains(case_parts(j), "Hz"))
+            sub_wing_freq = str2double(erase(case_parts(j), "Hz"));
+            if index ~= -1
+                index = j;
+            end
+        elseif (contains(case_parts(j), "m.s"))
+            sub_wind_speed = str2double(erase(case_parts(j), "m.s"));
+            if index ~= -1
+                index = j;
+            end
+        end
+    end
+    sub_type = strjoin(case_parts(1:index-1)); % speed is first thing after type
+
+    disp("Subtracting data from " + sub_type + " " + sub_wing_freq + " Hz " + sub_wind_speed + " m/s "  + AoA_sel + " deg trial")
+
+    for i = 1 : length(theFiles)
+        baseFileName = theFiles(i).name;
+        [case_name, type, wing_freq, AoA, wind_speed] = parse_filename(baseFileName);
+        type = convertCharsToStrings(type);
+
+        if (type == sub_type ...
+        && wing_freq == sub_wing_freq ...
+        && AoA == AoA_sel ...
+        && wind_speed == sub_wind_speed)
+
+        load(processed_data_path + baseFileName);
+        norm_filtered_data = dimensionless(filtered_data, norm_factors);
+
+        if (nondimensional)
+            forces_body = norm_filtered_data;
+        else
+            forces_body = filtered_data;
+        end
+
+        end
+    end
+
 end

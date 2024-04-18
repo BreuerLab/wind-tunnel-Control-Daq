@@ -4,8 +4,8 @@ function plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title
     wind_speed_sel = selected_vars.wind;
     type_sel = selected_vars.type;
 
-    regression = true;
-    error = false;
+    regression = false;
+    error = true;
     
     if (forceIndex == 0)
     
@@ -243,12 +243,12 @@ function plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title
         end
         y_labels = [y_label_F, y_label_F, y_label_F, y_label_M, y_label_M, y_label_M];
         titles = ["Drag", "Transverse Lift", "Lift", "Roll Moment", "Pitch Moment", "Yaw Moment"];
-        colors(:,:,1) = [[189, 201, 225]; [116, 169, 207]; [5, 112, 176]];
-        colors(:,:,2) = [[253,204,138]; [252,141,89]; [215,48,31]];
-        colors = colors / 255;
+        colors(:,:,1) = ["#ccebc5"; "#a8ddb5"; "#7bccc4"; "#43a2ca"; "#0868ac"];
+        colors(:,:,2) = ["#fdd49e"; "#fdbb84"; "#fc8d59"; "#e34a33"; "#b30000"];
+
         % Open a new figure.
-        % f = figure;
-        % f.Position = [200 50 900 560];
+        f = figure;
+        f.Position = [200 50 900 560];
         
         hold on
         for n = 1:length(type_sel)

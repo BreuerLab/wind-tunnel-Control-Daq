@@ -1,78 +1,52 @@
-function [low_pos, high_pos] = findCOMrange(mean_results, AoA_sel)
-    center_to_LE = 0.06335; % in meters, distance from center of force transducer to leading edge of wing
-    chord = 0.10; % in meters
+function [distance_vals_chord, slopes] = findCOMrange(mean_results, AoA_sel, plot_bool)
+    [center_to_LE, chord] = getWingMeasurements();
     
-    pitchMoment = mean_results(5,:,:,:,:);
+    % increment to shift position where moments are considered
+    diff_shift = 0.0001;
+
+    pitch_moment = mean_results(5,:,:,:,:);
 
     x = [ones(size(AoA_sel')), AoA_sel'];
-    y = pitchMoment';
+    y = pitch_moment';
     b = x\y;
     model = x*b;
-    Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
-    base_slope = b(2);
+    og_Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
+    og_slope = b(2);
 
-    % need code to first find shift distance where slope becomes
-    % negative
+    NP_pos = findNP(mean_results, AoA_sel, false);
 
-    slope = base_slope;
-    shift_distance = 0;
+    shift_distance = NP_pos;
+    [center_to_LE, chord] = getWingMeasurements();
+    max_shift_distance = center_to_LE;
+
     slopes = zeros(1,10000);
+
     iter = 0;
-    while(slope < 0 && shift_distance > -1)
+    while(shift_distance > -max_shift_distance)
         shifted_results = shiftPitchMom(mean_results, AoA_sel, shift_distance);
-        pitchMoment = shifted_results(5,:,:,:,:);
+        shifted_pitch_moment = shifted_results(5,:,:,:,:);
     
         x = [ones(size(AoA_sel')), AoA_sel'];
-        y = pitchMoment';
+        y = shifted_pitch_moment';
         b = x\y;
         model = x*b;
         Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
         slope = b(2);
 
-        shift_distance = shift_distance - 0.001;
+        shift_distance = shift_distance - diff_shift;
         iter = iter + 1;
         slopes(iter) = slope;
     end
-    low_pos = shift_distance;
-    avg_slope = sum(slopes) / iter;
 
-    figure
-    hold on
-    scatter(AoA_sel, pitchMoment, 25, HandleVisibility="off");
-    plot(AoA_sel, model)
+    slopes = slopes(slopes ~= 0);
 
-    cur_slope = base_slope;
-    shift_distance = 0;
-    while(cur_slope < 0 && shift_distance < 1)
-        prev_slope = cur_slope;
-        shift_distance = shift_distance + 0.001;
-
-        shifted_results = shiftPitchMom(mean_results, AoA_sel, shift_distance);
-        pitchMoment = shifted_results(5,:,:,:,:);
-    
-        x = [ones(size(AoA_sel')), AoA_sel'];
-        y = pitchMoment';
-        b = x\y;
-        model = x*b;
-        Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
-        cur_slope = b(2);
-
-        if (cur_slope < prev_slope)
-            shift_distance = 1;
-        end
-    end
-    high_pos = shift_distance;
-
-    scatter(AoA_sel, pitchMoment, 25, HandleVisibility="off");
-    plot(AoA_sel, model)
-    hold off
-
-    low_pos_LE = low_pos - center_to_LE;
-    percent_chord = -(low_pos_LE / chord) * 100;
-    if (round(high_pos,4) == 1)
-        disp("Stable COM positions include [" + low_pos + ", inf]")
-        disp("[" + percent_chord + " %, inf]")
-        disp("Average slope of " + avg_slope)
+    distance_vals = linspace(NP_pos, shift_distance, iter);
+    [distance_vals_LE, distance_vals_chord] = posToChord(distance_vals);
+    if plot_bool
+        figure
+        plot(distance_vals_chord, slopes)
+        xlabel("Shift Distance (% Chord)")
+        ylabel("dM/d\alpha Slope")
     end
 
 end

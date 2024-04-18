@@ -1,17 +1,17 @@
 % Ronan Gissler June 2023
 clear
 close all
-addpath 'process trial'
-addpath 'process trial/functions'
+addpath 'process_trial'
+addpath 'process_trial/functions'
 addpath 'plotting'
 
 % -----------------------------------------------------------------
 % The parameter combinations for which you'd like to see the data
 % -----------------------------------------------------------------
 wing_freq_sel = [2,3,4,5];
-AoA_sel = [0];
+AoA_sel = [8];
 wind_speed_sel = [4];
-type_sel = "blue wings";
+type_sel = "blue wings with tail";
 
 % path to folder where all processed data (.mat files) are stored
 processed_data_path = "../processed data/";
@@ -39,6 +39,10 @@ end
 
 clearvars -except processed_data_path cases ...
     wing_freq_sel AoA_sel wind_speed_sel type_sel
+
+subtraction_string = "no wings with tail";
+
+norm_bool = true;
 
 % Produce overlay plots comparing the different cases
 % main_title = "Force Transducer Measurement for " + wind_speed_sel + " m/s " + AoA_sel + " deg " + wing_freq_sel + " Hz ";

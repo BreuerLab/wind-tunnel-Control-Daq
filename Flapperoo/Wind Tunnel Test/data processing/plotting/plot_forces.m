@@ -1,5 +1,8 @@
-function plot_forces(time_data, results, case_name, subtitle, axes_labels, num_cases)
-    if (length(results(:,1)) == 6)
+function plot_forces(time_data, results, case_name, subtitle, axes_labels, index)
+    titles = ["Drag (F_x)","Transverse (F_y)","Lift (F_z)","Roll Moment (M_x)","Pitch Moment (M_y)","Yaw Moment (M_z)"];
+    yLabs = ["Force (N)","Force (N)","Force (N)","Moment (N m)","Moment (N m)","Moment (N m)"];
+
+    if (index == 0)
         force_means = round(mean(results'), 3);
         force_SDs = round(std(results'), 3);
         force_maxs = round(max(results'), 3);
@@ -73,6 +76,13 @@ function plot_forces(time_data, results, case_name, subtitle, axes_labels, num_c
         % Label the whole figure.
         sgtitle(["Force Transducer Measurement for " + case_name subtitle]);
     else
+    
+        figure;
+        hold on
+        plot(time_data, results(index, :),Color=[0.8500, 0.3250, 0.0980]);
+        title(titles(index));
+        xlabel("Time (s)");
+        ylabel(yLabs(index));
 
     end
 end
