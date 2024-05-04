@@ -339,7 +339,7 @@ for i = 1:length(SUBDIR_LIST)
         ax = gca;
         shading(ax, 'interp');
         set(h, 'EdgeColor', 'none');
-        clim([min(v_mag_avg,[],'all') max(v_mag_avg,[],'all')]);
+        clim([1 1.5]);
         colormap(ax, jet);
         colorbar;
         title('Velocity Magnitude')
@@ -356,9 +356,10 @@ for i = 1:length(SUBDIR_LIST)
         ax = gca;
         shading(ax, 'interp');
         set(h, 'EdgeColor', 'none');
-        min_vort = min(vort_avg,[],'all');
-        max_vort = max(vort_avg,[],'all');
-        vort_thresh = max([-min_vort max_vort]);
+        % min_vort = min(vort_avg,[],'all');
+        % max_vort = max(vort_avg,[],'all');
+        % vort_thresh = max([-min_vort max_vort]);
+        vort_thresh = 0.02;
         colorbarpzn(-vort_thresh, vort_thresh, 'level', 21);
         title('Vorticity')
         vorticity_frames(j) = getframe;
