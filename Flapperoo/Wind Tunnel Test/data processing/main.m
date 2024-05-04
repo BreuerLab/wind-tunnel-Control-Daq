@@ -10,15 +10,19 @@ addpath 'modeling'
 raw_data_path = "../raw data/experiment data/";
 processed_data_path = "../processed data/";
 
+% If set to true, user is allowed to select their own file
 userSelect = false;
 
-% Make a struct of plotting booleans
-bools.raw = false;
-bools.kinematics = false;
-bools.eff_wind = false;
-bools.inertial = false;
-bools.spectrum = false;
-bools.movie =false;
+% Decide which plots to show using this struct of booleans
+bools.raw = false; % Plot the raw data readings?
+bools.kinematics = false; % Plot the wingbeat kinematics?
+bools.eff_wind = true; % Plot the effective wind and AoA?
+bools.inertial = true; % Plot the inertial force based on kinematics?
+bools.COP = false; % Plot the movement of the Center-of-Pressure?
+bools.movie = false; % Make a movie using all wingbeats?
+bools.spectrum = false; % Plot a frequency spectrum?
+
+subtraction_string = "no wings with tail";
 
 if userSelect
     % Ask the user to select a file to examine the data from
@@ -30,11 +34,11 @@ if userSelect
     end
     file = convertCharsToStrings(file);
 else
-    type = "blue wings";
+    type = "blue wings with tail";
     wind_speed = 4;
-    wing_freq = 4;
+    wing_freq = 2;
     AoA = 0;
     file = type + " " + wind_speed + "m.s " + AoA + "deg " + wing_freq + "Hz";
 end
 
-plot_trial(file, raw_data_path, processed_data_path, bools)
+plot_trial(file, raw_data_path, processed_data_path, bools, subtraction_string)

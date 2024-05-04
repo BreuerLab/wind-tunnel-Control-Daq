@@ -2,8 +2,8 @@
 % Last updated: October 2023
 clear
 close all
-addpath 'process trial'
-addpath 'process trial/functions'
+addpath 'process_trial'
+addpath 'process_trial/functions'
 addpath 'plotting'
 
 % -----------------------------------------------------------------

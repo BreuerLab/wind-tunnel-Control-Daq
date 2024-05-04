@@ -1,11 +1,11 @@
 % Author: Ronan Gissler
 % Last updated: October 2023
 
-addpath 'process trial'
-addpath 'process trial/functions'
+addpath 'process_trial'
+addpath 'process_trial/functions'
 addpath 'plotting'
 
-clear
+% clear
 % close all
 % posF = figure;
 % hold on
@@ -15,8 +15,8 @@ clear
 % -----------------------------------------------------------------
 % ----The parameter combinations you want to see the data for------
 % -----------------------------------------------------------------
-wing_freq_sel = [0,2,3,4,5];
-wind_speed_sel = [4];
+wing_freq_sel = [0,3,4];
+wind_speed_sel = [6];
 type_sel = ["blue wings with tail"];
 AoA_sel = -10:1:10;
 % AoA_sel = -2:2:2;
@@ -30,8 +30,8 @@ processed_data_path = "../processed data/";
 
 subtraction_string = "no wings with tail";
 % subtraction_string = "no wings with tail 0m.s. 0Hz";
-slopes_plot = true;
-NP_plot = false;
+slopes_plot = false;
+NP_plot = true;
 COP_plot = false;
 
 % Put all our selected variables into a struct called selected_vars
@@ -127,7 +127,8 @@ if (NP_plot)
     colors = colors / 255;
 
     set(0,'CurrentFigure',posF)  
-    s = scatter(St_vals, NP_pos_vals, 100, 'filled');
+    s = scatter(wing_freq_sel, NP_pos_vals, 100, 'filled');
+    % s = scatter(St_vals, NP_pos_vals, 100, 'filled');
     s.MarkerFaceColor = colors(wind_speeds == wind_speed_sel,:);
     s.MarkerEdgeColor = colors(wind_speeds == wind_speed_sel,:);
     s.DisplayName = int2str(wind_speed_sel) + " m/s";
@@ -136,7 +137,8 @@ if (NP_plot)
     legend()
 
     set(0,'CurrentFigure',momF)
-    s = scatter(St_vals, NP_mom_vals, 100, 'filled');
+    s = scatter(wing_freq_sel, NP_mom_vals, 100, 'filled');
+    % s = scatter(St_vals, NP_mom_vals, 100, 'filled');
     s.MarkerFaceColor = colors(wind_speeds == wind_speed_sel,:);
     s.MarkerEdgeColor = colors(wind_speeds == wind_speed_sel,:);
     s.DisplayName = int2str(wind_speed_sel) + " m/s";

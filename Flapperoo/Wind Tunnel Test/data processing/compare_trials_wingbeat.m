@@ -9,9 +9,9 @@ addpath 'plotting'
 % The parameter combinations for which you'd like to see the data
 % -----------------------------------------------------------------
 wing_freq_sel = [2,3,4,5];
-AoA_sel = [8];
+AoA_sel = [0];
 wind_speed_sel = [4];
-type_sel = "blue wings with tail";
+type_sel = "blue wings";
 
 % path to folder where all processed data (.mat files) are stored
 processed_data_path = "../processed data/";
@@ -40,7 +40,8 @@ end
 clearvars -except processed_data_path cases ...
     wing_freq_sel AoA_sel wind_speed_sel type_sel
 
-subtraction_string = "no wings with tail";
+% subtraction_string = "blue wings with tail 0deg";
+subtraction_string = "no wings";
 
 norm_bool = true;
 
@@ -49,4 +50,4 @@ norm_bool = true;
 main_title = "Force Transducer Measurement for " + type_sel;
 sub_title = "Trimmed, Rotated, Non-dimensionalized, Filtered, Wingbeat Averaged";
 % plot_forces_mult(processed_data_path, cases, main_title, sub_title);
-plot_forces_mult_subset(processed_data_path, cases, main_title, sub_title);
+plot_forces_mult_subset(processed_data_path, cases, main_title, sub_title, subtraction_string);

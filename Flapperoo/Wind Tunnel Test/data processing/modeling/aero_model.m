@@ -3,8 +3,9 @@ close all
 
 addpath plotting\
 addpath process_trial\functions\
+addpath robot_parameters\
 
-wing_freq_sel = [0];
+wing_freq_sel = [4];
 wind_speed_sel = [4];
 type_sel = ["blue wings with tail"];
 % type_sel = ["no wings with tail"];
@@ -16,7 +17,7 @@ subtraction_string = "no wings with tail";
 % path to folder where all processed data (.mat files) are stored
 processed_data_path = "../processed data/";
 
-norm_bool = true;
+norm_bool = false;
 
 % Put all our selected variables into a struct called selected_vars
 selected_vars.AoA = AoA_sel;
@@ -84,6 +85,16 @@ xlabel("Angle of Attack \alpha")
 ylabel("Pitch Moment Coefficient")
 title(["Pitch Moment" "Wind Speed: " + wind_speed_sel + " m/s"])
 
+figure
+hold on
+plot(AoA_sel, abs(y - model), Color=[0 0.4470 0.7410])
+s = scatter(AoA_sel, abs(y - model), 25);
+s.MarkerEdgeColor = [0 0.4470 0.7410];
+s.MarkerFaceColor = [0 0.4470 0.7410];
+xlabel("Angle of Attack \alpha")
+ylabel("Residual")
+title(["Pitch Moment Residual from Linear Fit" "Wind Speed: " + wind_speed_sel + " m/s"])
+
 % figure
 % hold on
 % s = scatter(AoA_sel, avg_forces(5, :), 25, HandleVisibility="off");
@@ -122,7 +133,7 @@ title(["Pitch Moment" "Wind Speed: " + wind_speed_sel + " m/s"])
 % SineParams = sineFit(AoA_sel, avg_forces(5, :),true);
 % [offs, amp, freq, phi, MSE]
 
-wing_freq_vals = 1:1:13;
+wing_freq_vals = 1:1:4;
 
 C_L_vals = zeros(length(wing_freq_vals),length(AoA_sel));
 C_D_vals = zeros(length(wing_freq_vals),length(AoA_sel));
@@ -139,87 +150,23 @@ AoA = AoA_sel(k);
 case_name = wind_speed_sel + "m/s " + wing_freq + "Hz " + AoA + "deg";
 
 % wind_speed = 100;
-[time, lin_vel, lin_acc] = get_kinematics(false, wing_freq);
-% time = time / wing_freq;
-eff_AoA = zeros(size(lin_vel));
-u_rel = zeros(size(lin_vel)); % u_rel is opposite lin_vel
-
-% moving from wing to cartesian coordinates
-v_x = lin_vel * sind(AoA);
-v_y = lin_vel * cosd(AoA);
-for i = 1:length(time)
-    vec_mag = ((v_x(i,:) - wind_speed_sel).^2 + v_y(i,:).^2).^(1/2);
-    u_rel(i,:) = vec_mag;
-
-    cross_prod = -cosd(AoA)*v_y(i,:) - (v_x(i,:) - wind_speed_sel)*sind(AoA);
-    eff_AoA(i,:) = asind(cross_prod ./ vec_mag);
-
-    % eff_AoA(i,:) = AoA + atand(v_y(i,:) ./ (v_x(i,:) - wind_speed_sel));
-    % this arctan method seems to work fine too
-
-%     dot_prod = (v_x(i,:) + wind_speed)*(cosd(AoA)) + v_y(i,:)*(-sind(AoA));
-%     eff_AoA(i,:) = acosd(dot_prod ./ vec_mag);
-end
+[time, ang_disp, ang_vel, ang_acc] = get_kinematics(wing_freq, true);
 
 wing_length = 0.25; % meters
 arm_length = 0.016;
 full_length = wing_length + arm_length;
 r = arm_length:0.001:full_length;
+lin_vel = deg2rad(ang_vel) * r;
+
+[eff_AoA, u_rel] = get_eff_wind(time, lin_vel, AoA, wind_speed_sel);
 
 thinAirfoil = true;
-if (thinAirfoil)
-single_AR = 2.5;
-AR = 2*single_AR;
-lift_slope = ((2*pi) / (1 + 2/AR));
-alpha_zero = 0;
-C_L_r = lift_slope*deg2rad(eff_AoA - alpha_zero) .* (u_rel / wind_speed_sel).^2;
-C_D_r = C_L_r.^2 / (pi*AR);
-C_N_r = C_L_r .* cosd(eff_AoA) + C_D_r .* sind(eff_AoA);
-C_M_r = -C_L_r / 4;
-else
-C_L_r = (lift_slope*eff_AoA + lift_intercept) .* (u_rel / wind_speed_sel).^2;
-C_D_r = (B*cosd(w*eff_AoA) + C) .* (u_rel / wind_speed_sel).^2;
-C_N_r = C_L_r .* cosd(eff_AoA) + C_D_r .* sind(eff_AoA);
-C_M_r = (pitch_slope*eff_AoA + pitch_intercept) .* (u_rel / wind_speed_sel).^2;
-% C_M_r = (B_pitch*sind(w_pitch*eff_AoA + off_pitch) + C_pitch) .* (u_rel / wind_speed_sel).^2;
-end
-
-% Integrating across wing
-C_L = (sum(C_L_r,2)*0.001)/wing_length;
-C_D = (sum(C_D_r,2)*0.001)/wing_length;
-C_N = (sum(C_N_r,2)*0.001)/wing_length;
-C_M = (sum(C_M_r,2)*0.001)/wing_length;
+[C_L, C_D, C_N, C_M] = get_aero(eff_AoA, u_rel, wind_speed_sel, wing_length, thinAirfoil);
 
 C_L_vals(m,k) = mean(C_L);
 C_D_vals(m,k) = mean(C_D);
 C_N_vals(m,k) = mean(C_N);
 C_M_vals(m,k) = mean(C_M);
-
-% Relative AoA
-
-% for i = 1:length(time)
-%     if (lin_vel(i,5) < 0) % downstroke
-%         mid_angle = 90 + AoA; % angle between freestream and wing vel
-%     else % downstroke 
-%         mid_angle = 90 - AoA; % angle between freestream and wing vel
-%     end
-% 
-% %     if (wind_speed == 0)
-% %         u_rel(i,:) = -lin_vel(i,:);
-% %     else
-%         u_rel(i,:) = (wind_speed^2 + lin_vel(i,:).^2 - 2*wind_speed*abs(lin_vel(i,:))*cosd(mid_angle)).^(1/2); % Law of Cosines
-%     end
-% %     if (lin_vel(i,5) > 0)
-% %         u_rel(i,:) = -u_rel(i,:);
-% %     end
-% %     U_angle = asind(lin_vel(i,:) .* (sind(mid_angle) ./ u_rel(i,:))); % Law of Sines
-% %     eff_AoA(i,:) = AoA - U_angle;
-% %     if (lin_vel(i,5) < 0) % downstroke 
-% %         eff_AoA(i,:) = -eff_AoA(i,:);
-% %     end
-% end
-
-% case_name = "100m.s 14deg 5Hz";
 
 plots_bool = false;
 if (plots_bool)

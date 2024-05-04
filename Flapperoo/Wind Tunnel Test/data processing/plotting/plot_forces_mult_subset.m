@@ -1,6 +1,5 @@
-function plot_forces_mult_subset(path, cases, main_title, sub_title)
+function plot_forces_mult_subset(path, cases, main_title, sub_title, subtraction_string)
     single = false;
-    subtraction_string = "blue wings with tail 0deg";
     nondimensional = true;
 
     if (subtraction_string == "none")

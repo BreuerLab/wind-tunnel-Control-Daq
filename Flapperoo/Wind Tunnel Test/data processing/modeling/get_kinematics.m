@@ -4,13 +4,8 @@
 % Solidworks. Therefore this kinematic information should be viewed
 % with a grain of salt as it may not exactly describe the true
 % kinematics.
-function [time_cycle, lin_vel_cycle, lin_acc_cycle] = get_kinematics(freq)
-
-wing_length = 0.25; % meters
-arm_length = 0.016;
-full_length = wing_length + arm_length;
-r = arm_length:0.001:full_length;
-
+function [time_cycle, ang_disp_cycle, ang_vel_cycle, ang_acc_cycle] = get_kinematics(freq, CAD_bool)
+if (CAD_bool)
 if (freq == 0)
 time_cycle = zeros(2,1);
 lin_vel_cycle = zeros(2,length(r));
@@ -63,10 +58,18 @@ ang_acc_cycle = acc(1:j);
 %     ang_vel_cycle(m) = - ang_vel_cycle(m);
 % end
 
+end
+else
+    time_cycle = 0:0.01:1;
+    time_cycle = time_cycle' / freq;
+    A = pi/6;%rad
 
-% get linear velocity for a single wingbeat cycle
-lin_vel_cycle = deg2rad(ang_vel_cycle) * r;
-lin_acc_cycle = deg2rad(ang_acc_cycle) * r;
+    ang_disp_cycle = A.*cos(2*pi*freq.*time_cycle);
+    ang_vel_cycle = -2*pi*freq*A.*sin(2*pi*freq.*time_cycle);
+    ang_acc_cycle = -4* pi^2 * freq^2 * A .* cos(2*pi*freq.*time_cycle);
 
+    ang_disp_cycle = rad2deg(ang_disp_cycle);
+    ang_vel_cycle = rad2deg(ang_vel_cycle);
+    ang_acc_cycle = rad2deg(ang_acc_cycle);
 end
 end
