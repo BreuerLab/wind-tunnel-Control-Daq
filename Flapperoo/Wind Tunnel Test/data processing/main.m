@@ -15,14 +15,16 @@ userSelect = false;
 
 % Decide which plots to show using this struct of booleans
 bools.raw = false; % Plot the raw data readings?
+bools.time_data = false; % Plot the data in time
 bools.kinematics = false; % Plot the wingbeat kinematics?
-bools.eff_wind = true; % Plot the effective wind and AoA?
-bools.inertial = true; % Plot the inertial force based on kinematics?
+bools.eff_wind = false; % Plot the effective wind and AoA?
+bools.model = true; % Plot the modeled forces?
 bools.COP = false; % Plot the movement of the Center-of-Pressure?
 bools.movie = false; % Make a movie using all wingbeats?
 bools.spectrum = false; % Plot a frequency spectrum?
 
 subtraction_string = "no wings with tail";
+nondimensional = false;
 
 if userSelect
     % Ask the user to select a file to examine the data from
@@ -37,8 +39,8 @@ else
     type = "blue wings with tail";
     wind_speed = 4;
     wing_freq = 2;
-    AoA = 0;
+    AoA = 4;
     file = type + " " + wind_speed + "m.s " + AoA + "deg " + wing_freq + "Hz";
 end
 
-plot_trial(file, raw_data_path, processed_data_path, bools, subtraction_string)
+plot_trial(file, raw_data_path, processed_data_path, bools, subtraction_string, nondimensional)

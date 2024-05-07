@@ -1,6 +1,6 @@
 function [f, power, num_windows, f_min] = freq_spectrum(results, frame_rate)
     f_min = 0.5;
-    window = sample_freq / f_min;
+    window = frame_rate / f_min;
     num_windows = round(length(results) / window);
     noverlap = window/2;
 

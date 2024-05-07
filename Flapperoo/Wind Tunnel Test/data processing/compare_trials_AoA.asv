@@ -59,23 +59,19 @@ forceIndex = 5;
 [avg_forces, err_forces, names, sub_title, norm_factors] = ...
     get_data_AoA(selected_vars, processed_data_path, norm_bool, subtraction_string);
 
-pitch_moment_LE = zeros(size(squeeze(avg_forces(1,:,:))));
-for i = 1:length(AoA_sel)
-    drag_force = squeeze(avg_forces(1,i,:));
-    lift_force = squeeze(avg_forces(3,i,:));
-    pitch_moment = squeeze(avg_forces(5,i,:));
+for i = AoA_sel
+    drag_force = avg_forces(1,i,:);
+    lift_force = avg_forces(3,i,:);
+    pitch_moment = avg_forces(5,i,:);
     
-    normal_force = lift_force*cosd(AoA_sel(i)) + drag_force*sind(AoA_sel(i));
+    normal_force = lift_force*cosd(i) + drag_force*sind(AoA);
     
     [center_to_LE, chord] = getWingMeasurements();
     shift_distance = -center_to_LE;
     
     % Shift pitch moment
-    pitch_moment_LE(i,:) = pitch_moment + normal_force * shift_distance;
+    pitch_moment_LE = pitch_moment + normal_force * shift_distance;
 end
-
-shifted_avg_forces = avg_forces;
-shifted_avg_forces(5,:,:) = pitch_moment_LE;
 
 % figure
 % hold on
