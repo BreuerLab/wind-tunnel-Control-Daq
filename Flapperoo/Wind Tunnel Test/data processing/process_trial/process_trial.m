@@ -14,8 +14,7 @@
 % the experiment in more ways than simply the raw data does.
 function process_trial(file, raw_data_path, processed_data_path)
 
-frame_rate = 9000; % DAQ data sampling rate (Hz)
-num_wingbeats = 180; % Number of wingbeats recorded for each trial
+[frame_rate, num_wingbeats] = get_sampling_info();
 
 [case_name, type, wing_freq, AoA, wind_speed] = parse_filename(file);
 
@@ -45,9 +44,6 @@ filtered_norm_data = filter_data(norm_data, frame_rate);
 % may add step to shift pitching moment
 % filtered_data(:,5) = move_pitch(filtered_data(:,5));
 
-% Analyze data in frequency space, identify frequencies that dominate
-[freq, freq_power, num_windows, f_min] = freq_spectrum(norm_data, frame_rate);
-
 filename = case_name + ".mat"; % file name for processed data
 
 % If this is a flapping trial, analyze data over each wingbeat rather than
@@ -62,10 +58,9 @@ save(processed_data_path + filename, 'wingbeat_forces',...
     'frames', 'wingbeat_avg_forces', 'wingbeat_std_forces',...
     'wingbeat_rmse_forces', 'wingbeat_max_forces', 'wingbeat_min_forces',...
     'wingbeat_COP', 'time_data', 'results_lab', 'filtered_data', ...
-    'filtered_norm_data', 'norm_factors', 'St', 'Re', 'freq', 'freq_power','num_windows','f_min')
+    'filtered_norm_data', 'norm_factors', 'St', 'Re')
 else
     save(processed_data_path + filename, 'time_data', 'results_lab', ...
-    'filtered_data', 'filtered_norm_data', 'norm_factors', 'St', 'Re', 'freq', ...
-    'freq_power','num_windows','f_min')
+    'filtered_data', 'filtered_norm_data', 'norm_factors', 'St', 'Re')
 end
 end

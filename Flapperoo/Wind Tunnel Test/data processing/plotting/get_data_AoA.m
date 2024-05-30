@@ -108,10 +108,10 @@ for i = 1 : length(theFiles)
         if (nondimensional)
         if (length(wing_freq_sel) == 1 && length(wind_speed_sel) == 1 && length(type_sel) == 1)
             names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = "";
-            sub_title = type2name(type) +  " Re: " + num2str(round(Re,2,"significant")) + " St: " + num2str(round(St,2,"significant"));
+            sub_title = type2name(type) +  ", Re: " + num2str(round(Re,2,"significant")) + ", St: " + num2str(round(St,2,"significant"));
         elseif (length(wing_freq_sel) == 1 && length(wind_speed_sel) == 1)
             names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = type2name(type);
-            sub_title =  " Re: " + num2str(round(Re,2,"significant")) + " St: " + num2str(round(St,2,"significant"));
+            sub_title =  " Re: " + num2str(round(Re,2,"significant")) + ", St: " + num2str(round(St,2,"significant"));
         % elseif (length(wing_freq_sel) == 1 && length(type_sel) == 1)
         %     names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) =  " Re: " + num2str(round(Re,2,"significant"));
         %     sub_title = type2name(type) + " St: " + num2str(round(St,2,"significant"));
@@ -122,13 +122,13 @@ for i = 1 : length(theFiles)
         %     names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = type2name(type) +  " Re: " + num2str(round(Re,2,"significant"));
         %     sub_title = " St: " + num2str(round(St,2,"significant"));
         elseif (length(wind_speed_sel) == 1)
-            names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = type2name(type) + " St: " + num2str(round(St,2,"significant"));
+            names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = type2name(type) + ", St: " + num2str(round(St,2,"significant"));
             sub_title =  " Re: " + num2str(round(Re,2,"significant"));
         elseif (length(type_sel) == 1)
-            names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) =  " Re: " + num2str(round(Re,2,"significant")) + " St: " + num2str(round(St,2,"significant"));
+            names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) =  " Re: " + num2str(round(Re,2,"significant")) + ", St: " + num2str(round(St,2,"significant"));
             sub_title = type2name(type);
         else
-            names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = type2name(type) +  " Re: " + num2str(round(Re,2,"significant")) + " St: " + num2str(round(St,2,"significant"));
+            names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = type2name(type) +  ", Re: " + num2str(round(Re,2,"significant")) + ", St: " + num2str(round(St,2,"significant"));
             sub_title = "";
         end
         
@@ -171,6 +171,8 @@ function name = type2name(type)
         name = "Wings";
     elseif (type == "blue wings with tail")
         name = "Wings with Tail";
+    elseif (type == "no wings with tail")
+        name = "No Wings with Tail";
     elseif (type == "no wings")
         name = "No Wings";
     elseif (type == "inertial")

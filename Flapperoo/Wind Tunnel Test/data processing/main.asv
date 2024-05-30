@@ -26,7 +26,7 @@ bools.COP = false; % Plot the movement of the Center-of-Pressure?
 bools.movie = false; % Make a movie using all wingbeats?
 bools.spectrum = false; % Plot a frequency spectrum?
 
-subtraction_string = "no wings with tail";
+subtraction_string = "blue wings with tail 4m.s 2deg";
 nondimensional = false;
 
 if userSelect
@@ -41,8 +41,8 @@ if userSelect
 else
     type = "blue wings with tail";
     wind_speed = 4;
-    wing_freq = 5;
-    AoA = 8;
+    wing_freq = 2;
+    AoA = 2;
     file = type + " " + wind_speed + "m.s " + AoA + "deg " + wing_freq + "Hz";
 end
 

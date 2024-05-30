@@ -19,13 +19,14 @@ freq_speed_combos = [2, 4; 3, 6; 0, 4; 0, 6];
 
 % 0,2,3,4,5  4; 0,3,4  6;
 
-wing_freq_sel = [0,2,3,4,5];
+wing_freq_sel = [2,3,4];
 wind_speed_sel = [4];
 type_sel = ["blue wings with tail"];
 % type_sel = ["no wings with tail"];
-AoA_sel = -10:1:10;
-% AoA_sel = -8:1:8;
-subtraction_string = "no wings with tail";
+% AoA_sel = -10:1:10;
+AoA_sel = -16:1:16;
+% AoA_sel = [-8, -7, -6, -5, -4, -3, -2, 0, 1, 2, 3, 4, 5, 6, 7, 8];
+subtraction_string = "none";
 
 % With the experiments that were run on 10_12_2023 these are the options:
 % wing_freq_sel - 0, 3, 5, 6
@@ -47,6 +48,7 @@ processed_data_path = "../processed data/";
 % select_type_UI(processed_data_path)
 
 norm_bool = true;
+regress_bool = false;
 
 % Put all our selected variables into a struct called selected_vars
 selected_vars.AoA = AoA_sel;
@@ -99,9 +101,9 @@ shifted_avg_forces(5,:,:) = pitch_moment_LE;
 
 % [distance_vals_chord, slopes] = findCOMrange(avg_forces, AoA_sel, true);
 
-plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title, norm_bool, 1);
-plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title, norm_bool, 3);
-plot_forces_AoA(selected_vars, shifted_avg_forces, err_forces, names, sub_title, norm_bool, 5);
+plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title, norm_bool, 1, regress_bool);
+plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title, norm_bool, 3, regress_bool);
+plot_forces_AoA(selected_vars, shifted_avg_forces, err_forces, names, sub_title, norm_bool, 5, regress_bool);
 
 % plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title, norm_bool, 2);
 % plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title, norm_bool, 4);
