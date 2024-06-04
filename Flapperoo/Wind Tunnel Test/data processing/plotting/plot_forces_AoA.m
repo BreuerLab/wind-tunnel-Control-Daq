@@ -223,15 +223,21 @@ function plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title
         y_labels = [y_label_F, y_label_F, y_label_F, y_label_M, y_label_M, y_label_M];
         titles = ["Drag", "Transverse Lift", "Lift", "Roll Moment", "Pitch Moment", "Yaw Moment"];
         
-        if (length(wing_freq_sel) == 3)
-            colors(:,:,1) = ["#bae4bc"; "#7bccc4"; "#2b8cbe"];
-            colors(:,:,2) = ["#fdcc8a"; "#fc8d59"; "#d7301f"];
-        elseif (length(wing_freq_sel) == 4)
-            colors(:,:,1) = ["#bae4bc"; "#7bccc4"; "#43a2ca"; "#0868ac"];
-            colors(:,:,2) = ["#fdcc8a"; "#fc8d59"; "#e34a33"; "#b30000"];
-        elseif (length(wind_freq_sel) == 5)
+        if (length(wing_freq_sel) == 5 || length(wind_speed_sel) == 5)
             colors(:,:,1) = ["#ccebc5"; "#a8ddb5"; "#7bccc4"; "#43a2ca"; "#0868ac"];
             colors(:,:,2) = ["#fdd49e"; "#fdbb84"; "#fc8d59"; "#e34a33"; "#b30000"];
+        elseif (length(wing_freq_sel) == 4 || length(wind_speed_sel) == 4)
+            colors(:,:,1) = ["#bae4bc"; "#7bccc4"; "#43a2ca"; "#0868ac"];
+            colors(:,:,2) = ["#fdcc8a"; "#fc8d59"; "#e34a33"; "#b30000"];
+        elseif (length(wing_freq_sel) == 3 || length(wind_speed_sel) == 3)
+            colors(:,:,1) = ["#bae4bc"; "#7bccc4"; "#2b8cbe"];
+            colors(:,:,2) = ["#fdcc8a"; "#fc8d59"; "#d7301f"];
+        elseif (length(wing_freq_sel) == 2 || length(wind_speed_sel) == 2)
+            colors(:,:,1) = ["#a8ddb5"; "#43a2ca"];
+            colors(:,:,2) = ["#fdbb84"; "#e34a33"];
+        elseif (length(wing_freq_sel) == 1 || length(wind_speed_sel) == 1)
+            colors(:,:,1) = ["#43a2ca"];
+            colors(:,:,2) = ["#e34a33"];
         end
         markers = ["o", "pentagram", "x"];
 
@@ -247,9 +253,15 @@ function plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title
         if (regression)
             s = scatter(AoA_sel, avg_forces(forceIndex, :, j, m, n), 25);
             s.HandleVisibility = "off";
-            s.MarkerEdgeColor = colors(j,:,n);
-            s.MarkerFaceColor = colors(j,:,n);
-            s.Marker = markers(m);
+            if (length(wing_freq_sel) > length(wind_speed_sel))
+                s.MarkerEdgeColor = colors(j,:,n);
+                s.MarkerFaceColor = colors(j,:,n);
+                s.Marker = markers(m);
+            else
+                s.MarkerEdgeColor = colors(m,:,n);
+                s.MarkerFaceColor = colors(m,:,n);
+                s.Marker = markers(j);
+            end
     
             reg_AoA_sel = -8:1:8;
             x = [ones(size(reg_AoA_sel')), reg_AoA_sel'];
@@ -261,14 +273,24 @@ function plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title
             label = names(j,m,n) + ", $$\frac{\partial{M}}{\partial\alpha}$$ = " + round(b(2),3);
             p = plot(reg_AoA_sel, model);
             p.DisplayName = label;
-            p.Color = colors(j,:,n);
+            if (length(wing_freq_sel) > length(wind_speed_sel))
+                p.Color = colors(j,:,n);
+            else
+                p.Color = colors(m,:,n);
+            end
             p.LineWidth = 2;
         else
             e = errorbar(AoA_sel, avg_forces(forceIndex, :, j, m, n), err_forces(forceIndex, :, j, m, n),'.');
-            e.Color = colors(j,:,n);
-            e.MarkerFaceColor = colors(j,:,n);
             e.MarkerSize = 10;
-            e.Marker = markers(m);
+            if (length(wing_freq_sel) > length(wind_speed_sel))
+                e.Color = colors(j,:,n);
+                e.MarkerFaceColor = colors(j,:,n);
+                e.Marker = markers(m);
+            else
+                e.Color = colors(m,:,n);
+                e.MarkerFaceColor = colors(m,:,n);
+                e.Marker = markers(j);
+            end
             e.DisplayName = names(j,m,n);
         end
 
@@ -276,7 +298,9 @@ function plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title
         end
         end
         hold off
-        title(["\textbf{" + titles(forceIndex) + "}" "\textbf{" + sub_title + "}"], FontSize=20,Interpreter='latex');
+        % colors can't be changed in latex interpreter
+        % title(["\bf{" + titles(forceIndex) + "}" "\bf{" + sub_title + "}"], FontSize=20,Interpreter='latex');
+        title(["\bf{" + titles(forceIndex) + "}" "\bf{" + sub_title + "}"], FontSize=20,FontName='Times New Roman');
         xlabel(x_label, FontSize=18,Interpreter='latex');
         ylabel(y_labels(forceIndex), FontSize=18,Interpreter='latex');
         [~,hobj] = legend(Location="best", FontSize=18, Interpreter='latex');

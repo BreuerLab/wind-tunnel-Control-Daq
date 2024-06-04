@@ -26,7 +26,7 @@ bools.COP = false; % Plot the movement of the Center-of-Pressure?
 bools.movie = false; % Make a movie using all wingbeats?
 bools.spectrum = false; % Plot a frequency spectrum?
 
-subtraction_string = "no wings with tail";
+subtraction_string = [""];
 nondimensional = false;
 
 if userSelect

@@ -19,14 +19,14 @@ freq_speed_combos = [2, 4; 3, 6; 0, 4; 0, 6];
 
 % 0,2,3,4,5  4; 0,3,4  6;
 
-wing_freq_sel = [2,3,4];
+wing_freq_sel = [0,2,3,4,5];
 wind_speed_sel = [4];
 type_sel = ["blue wings with tail"];
 % type_sel = ["no wings with tail"];
 % AoA_sel = -10:1:10;
 AoA_sel = -16:1:16;
 % AoA_sel = [-8, -7, -6, -5, -4, -3, -2, 0, 1, 2, 3, 4, 5, 6, 7, 8];
-subtraction_string = "none";
+sub_strings = ["no wings with tail"];
 
 % With the experiments that were run on 10_12_2023 these are the options:
 % wing_freq_sel - 0, 3, 5, 6
@@ -48,7 +48,7 @@ processed_data_path = "../processed data/";
 % select_type_UI(processed_data_path)
 
 norm_bool = true;
-regress_bool = false;
+regress_bool = true;
 
 % Put all our selected variables into a struct called selected_vars
 selected_vars.AoA = AoA_sel;
@@ -59,7 +59,7 @@ selected_vars.type = type_sel;
 forceIndex = 5;
 
 [avg_forces, err_forces, names, sub_title, norm_factors] = ...
-    get_data_AoA(selected_vars, processed_data_path, norm_bool, subtraction_string);
+    get_data_AoA(selected_vars, processed_data_path, norm_bool, sub_strings);
 
 pitch_moment_LE = zeros(size(squeeze(avg_forces(1,:,:))));
 for i = 1:length(AoA_sel)

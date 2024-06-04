@@ -11,9 +11,9 @@ time_cycle = zeros(2,1);
 lin_vel_cycle = zeros(2,length(r));
 lin_acc_cycle = zeros(2,length(r));
 else
-disp_data = readtable("../kinematics/ang_disp_flapperoo.xlsx","NumHeaderLines",2);
-vel_data = readtable("../kinematics/ang_vel_flapperoo.xlsx","NumHeaderLines",2);
-acc_data = readtable("../kinematics/ang_acc_flapperoo.xlsx","NumHeaderLines",2);
+disp_data = readtable("../../kinematics/ang_disp_flapperoo.xlsx","NumHeaderLines",2);
+vel_data = readtable("../../kinematics/ang_vel_flapperoo.xlsx","NumHeaderLines",2);
+acc_data = readtable("../../kinematics/ang_acc_flapperoo.xlsx","NumHeaderLines",2);
 
 time_disp = disp_data.Time / freq;
 displacement = disp_data.Displacement;

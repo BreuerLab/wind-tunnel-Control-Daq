@@ -3,7 +3,7 @@
 
 function [NP_pos, NP_mom] = findNP(mean_results, AoA_sel, plot_bool, sub_title)
     % increment to shift position where moments are considered
-    diff_shift = 0.0001;
+    diff_shift = 0.00001;
     % cutoff threshold for what's considered zero slope
     slope_margin = 0.000001;
 
@@ -36,9 +36,13 @@ function [NP_pos, NP_mom] = findNP(mean_results, AoA_sel, plot_bool, sub_title)
     % slope is decreasing and max number of iterations is not
     % exceeded and the residual error of the linear fit is below
     % a threshold
+    shifted_pitch_moment = mean_results(5,:,:,:,:);
+    model = og_model;
+    b = og_b;
+    sign = 1;
     while(abs(cur_slope) > slope_margin && abs(cur_slope) < abs(prev_slope) && iter < max_iter)
         prev_slope = cur_slope;
-        shift_distance = shift_distance + diff_shift;
+        shift_distance = shift_distance + sign * diff_shift;
     
         shifted_results = shiftPitchMom(mean_results, AoA_sel, shift_distance);
         shifted_pitch_moment = shifted_results(5,:,:,:,:);
@@ -50,10 +54,17 @@ function [NP_pos, NP_mom] = findNP(mean_results, AoA_sel, plot_bool, sub_title)
         Rsq = 1 - sum((y - model).^2) / sum((y - mean(y)).^2);
         res = sum((y - model).^2);
         cur_slope = b(2);
-    
-        iter = iter + 1;
-        Rsq_vals(iter) = Rsq;
-        res_vals(iter) = res;
+
+        if (abs(cur_slope) > abs(prev_slope) && iter == 0)
+            sign = -sign;
+            cur_slope = prev_slope;
+            prev_slope = cur_slope*2;
+            shift_distance = shift_distance + sign * diff_shift;
+        else
+            iter = iter + 1;
+            Rsq_vals(iter) = Rsq;
+            res_vals(iter) = res;
+        end
     end
 
     NP_mom = mean(shifted_pitch_moment);

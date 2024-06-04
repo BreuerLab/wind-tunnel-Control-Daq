@@ -6,16 +6,15 @@ function model_plot(wind_speed, wing_freq, AoA, ...
     CAD_bool = true;
     [time, ang_disp, ang_vel, ang_acc] = get_kinematics(wing_freq, CAD_bool);
     
-    wing_length = 0.25; % meters
-    arm_length = 0.016;
+    [center_to_LE, chord, COM_span, ...
+        wing_length, arm_length] = getWingMeasurements();
+
     full_length = wing_length + arm_length;
     r = arm_length:0.001:full_length;
     lin_vel = deg2rad(ang_vel) * r;
     lin_acc = deg2rad(ang_acc) * r;
     
     [eff_AoA, u_rel] = get_eff_wind(time, lin_vel, AoA, wind_speed);
-
-    [center_to_LE, chord, COM_span] = getWingMeasurements();
 
     [inertial_force] = get_inertial(ang_disp, ang_acc, r, COM_span, AoA);
     

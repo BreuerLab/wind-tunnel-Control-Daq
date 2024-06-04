@@ -1,6 +1,6 @@
-function plot_trial(file, raw_data_path, processed_data_path, bools, subtraction_string, nondimensional)
+function plot_trial(file, raw_data_path, processed_data_path, bools, sub_strings, nondimensional)
 
-if (subtraction_string == "none")
+if (sub_strings(1) == "")
     body_subtraction = false;
 else
     body_subtraction = true;

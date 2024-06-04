@@ -91,7 +91,7 @@ avg_drag(k, j, m, n) = avg_forces(1, k, j, m, n);
 avg_lift(k, j, m, n) = avg_forces(3, k, j, m, n);
 avg_pitch_moment = avg_forces(5, k, j, m, n);
 
-normal_force = avg_lift(k, j, m, n)*cosd(AoA) + avg_drag(k, j, m, n)*sind(AoA);
+normal_force = avg_lift*cosd(AoA) + avg_drag*sind(AoA);
 
 shift_distance = -center_to_LE;
 
@@ -102,7 +102,7 @@ if (nondimensional)
     avg_drag(k, j, m, n) = avg_drag(k, j, m, n) / norm_factors(1, k, j, m);
     avg_lift(k, j, m, n) = avg_lift(k, j, m, n) / norm_factors(1, k, j, m);
     pitch_moment_LE(k, j, m, n) = pitch_moment_LE(k, j, m, n) / norm_factors(2, k, j, m);
-    normal_force = normal_force / norm_factors(1, k, j, m);
+    normal_force = normal_force / norm_factors(1, k, j, m, n);
 end
 
 COP = pitch_moment_LE(k, j, m, n) / normal_force;
@@ -175,46 +175,50 @@ hold on
 for j = 1:length(wing_freq_sel)
 for m = 1:length(wind_speed_sel)
 for n = 1:length(type_sel)
+    avg_drag = avg_forces(1, :, j, m, n);
+
     model = plot(AoA_sel, C_D_vals(:, j, m, n));
     model.DisplayName = "Model: " + wing_freq_sel(j) + "Hz";
     model.Color = colors(j,:);
     model.LineStyle = "--";
     model.LineWidth = 2;
 
-    s = scatter(AoA_sel, avg_drag(:, j, m, n), 50, 'filled');
+    s = scatter(AoA_sel, avg_drag, 40, 'filled');
     s.DisplayName = "Experiment: " + wing_freq_sel(j) + "Hz";
     s.MarkerFaceColor = colors(j,:);
     s.MarkerEdgeColor = colors(j,:);
 end
 end
 end
-legend(Location='best', FontSize=18, Interpreter='latex')
-xlabel("Angle of Attack", FontSize=18, Interpreter='latex')
-ylabel("Drag Coefficient", FontSize=18, Interpreter='latex')
-title(["\textbf{Drag}" "\textbf{Wind Speed: " + wind_speed_sel + " m/s}"], FontSize=20, Interpreter='latex')
+legend()
+xlabel("Angle of Attack")
+ylabel("Drag Coefficient")
+title(["Drag" "Wind Speed: " + wind_speed_sel + " m/s"])
 
 figure
 hold on
 for j = 1:length(wing_freq_sel)
 for m = 1:length(wind_speed_sel)
 for n = 1:length(type_sel)
+    avg_lift = avg_forces(3, :, j, m, n);
+
     model = plot(AoA_sel, C_L_vals(:, j, m, n));
     model.DisplayName = "Model: " + wing_freq_sel(j) + "Hz";
     model.Color = colors(j,:);
     model.LineStyle = "--";
     model.LineWidth = 2;
 
-    s = scatter(AoA_sel, avg_lift(:, j, m, n), 50, 'filled');
+    s = scatter(AoA_sel, avg_lift, 40, 'filled');
     s.DisplayName = "Experiment: " + wing_freq_sel(j) + "Hz";
     s.MarkerFaceColor = colors(j,:);
     s.MarkerEdgeColor = colors(j,:);
 end
 end
 end
-legend(Location='best', FontSize=18, Interpreter='latex')
-xlabel("Angle of Attack", FontSize=18, Interpreter='latex')
-ylabel("Lift Coefficient", FontSize=18, Interpreter='latex')
-title(["\textbf{Lift}" "\textbf{Wind Speed: " + wind_speed_sel + " m/s}"], FontSize=20, Interpreter='latex')
+legend()
+xlabel("Angle of Attack")
+ylabel("Lift Coefficient")
+title(["Lift" "Wind Speed: " + wind_speed_sel + " m/s"])
 
 figure
 hold on
@@ -227,17 +231,17 @@ for n = 1:length(type_sel)
     model.LineStyle = "--";
     model.LineWidth = 2;
 
-    s = scatter(AoA_sel, pitch_moment_LE(:, j, m, n) , 50, 'filled');
+    s = scatter(AoA_sel, pitch_moment_LE(:, j, m, n) , 40, 'filled');
     s.DisplayName = "Experiment: " + wing_freq_sel(j) + "Hz";
     s.MarkerFaceColor = colors(j,:);
     s.MarkerEdgeColor = colors(j,:);
 end
 end
 end
-legend(Location='best', FontSize=18, Interpreter='latex')
-xlabel("Angle of Attack", FontSize=18, Interpreter='latex')
-ylabel("Pitching Moment Coefficient", FontSize=18, Interpreter='latex')
-title(["\textbf{Pitch Moment}" "\textbf{Wind Speed: " + wind_speed_sel + " m/s}"], FontSize=20, Interpreter='latex')
+legend()
+xlabel("Angle of Attack")
+ylabel("Pitching Moment Coefficient")
+title(["Pitch Moment" "Wind Speed: " + wind_speed_sel + " m/s"])
 
 if (pitch_slopes_plot_bool)
     pitch_slopes_plot(wing_freq_sel, AoA_sel, wind_speed_sel, C_M_vals);
@@ -256,13 +260,13 @@ for n = 1:length(type_sel)
         [COP_model_LE, COP_model_chord] = posToChord(COP_model);
     end
     
-    model = scatter(AoA_sel, COP_model_chord, 50, 'filled');
+    model = scatter(AoA_sel, COP_model_chord, 40, 'filled');
     model.DisplayName = "Model: " + wing_freq_sel(j) + "Hz";
     model.MarkerFaceColor = colors(j,:);
     model.MarkerEdgeColor = colors(j,:);
     model.Marker = markers(1);
 
-    s = scatter(AoA_sel, COP_chord(:, j, m, n), 50, 'filled');
+    s = scatter(AoA_sel, COP_chord(:, j, m, n), 40, 'filled');
     s.DisplayName = "Experiment: " + wing_freq_sel(j) + "Hz";
     s.MarkerFaceColor = colors(j,:);
     s.MarkerEdgeColor = colors(j,:);
@@ -270,6 +274,6 @@ for n = 1:length(type_sel)
 end
 end
 end
-xlabel("Angle of Attack", FontSize=18, Interpreter='latex')
-ylabel("Chordwise Location (\% chord)", FontSize=18, Interpreter='latex')
-title(["\textbf{Center of Pressure}" "\textbf{Wind Speed: " + wind_speed_sel + " m/s}"], FontSize=20, Interpreter='latex')
+xlabel("Angle of Attack")
+ylabel("Chordwise Location (% chord)")
+title(["Center of Pressure" "Wind Speed: " + wind_speed_sel + " m/s"])
