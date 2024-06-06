@@ -1,4 +1,4 @@
-function plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title, nondimensional, forceIndex, regression)
+function plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title, nondimensional, forceIndex, regression, shift_bool)
     AoA_sel = selected_vars.AoA;
     wing_freq_sel = selected_vars.freq;
     wind_speed_sel = selected_vars.wind;
@@ -221,7 +221,12 @@ function plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title
             y_label_M = "Cycle Average Moment (N*m)";
         end
         y_labels = [y_label_F, y_label_F, y_label_F, y_label_M, y_label_M, y_label_M];
+
+        if (shift_bool)
+        titles = ["Drag", "Transverse Lift", "Lift", "Roll Moment", "Pitch Moment about LE", "Yaw Moment"];
+        else
         titles = ["Drag", "Transverse Lift", "Lift", "Roll Moment", "Pitch Moment", "Yaw Moment"];
+        end
         
         if (length(wing_freq_sel) == 5 || length(wind_speed_sel) == 5)
             colors(:,:,1) = ["#ccebc5"; "#a8ddb5"; "#7bccc4"; "#43a2ca"; "#0868ac"];

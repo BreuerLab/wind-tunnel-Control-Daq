@@ -29,6 +29,6 @@ wing_type = "mechanism_pause_25"; % whatever name you'd like to use
 automatic = false; % run through trials automatically?
 debug = false; % testing on personal computer?
 
-% run_trials(AoA, freq, speed, wing_type, measure_revs, automatic, debug);
+run_trials(AoA, freq, speed, wing_type, measure_revs, automatic, debug);
 
-run_trials_gravity(AoA, wing_type, automatic, debug)
+% run_trials_gravity(AoA, wing_type, automatic, debug)

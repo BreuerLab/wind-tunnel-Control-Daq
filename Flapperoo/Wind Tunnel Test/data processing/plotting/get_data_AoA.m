@@ -1,5 +1,5 @@
 function [avg_forces, err_forces, names, sub_title, norm_factors_arr] = ...
-    get_data_AoA(selected_vars, processed_data_path, nondimensional, sub_strings)
+    get_data_AoA(selected_vars, processed_data_path, nondimensional, sub_strings, shift_bool)
 
 if (sub_strings(1) == "")
     body_subtraction = false;
@@ -47,6 +47,12 @@ for i = 1 : length(theFiles)
         disp("   Obtaining data for " + type + " " + wing_freq + " Hz " + wind_speed + " m/s "  + AoA + " deg trial")
 
         load(processed_data_path + baseFileName);
+
+        if (shift_bool)
+        [mod_filtered_data] = shiftPitchMoment(filtered_data, AoA);
+        filtered_data = mod_filtered_data;
+        end
+
         norm_filtered_data = dimensionless(filtered_data,norm_factors);
         
         norm_factors_arr(:, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed) = norm_factors;
@@ -62,7 +68,8 @@ for i = 1 : length(theFiles)
                     sub_bools(j) = false;
                     sub_string = strjoin(case_parts(2:end));
                 end
-                forces_body = getBody(wing_freq, AoA, wind_speed, nondimensional, theFiles, processed_data_path, sub_string, sub_bools(j));
+                forces_body = getBody(wing_freq, AoA, wind_speed, nondimensional, ...
+                    theFiles, processed_data_path, sub_string, sub_bools(j), shift_bool);
                 forces_body_list(j,:) = mean(forces_body,2);
                 
                 if (sub_bools(j) == true)
@@ -73,13 +80,13 @@ for i = 1 : length(theFiles)
             end
         end
 
+        if (nondimensional)
+            forces = norm_filtered_data;
+        else
+            forces = filtered_data;
+        end
+
         for k = 1:6
-            if (nondimensional)
-                forces = norm_filtered_data;
-            else
-                forces = filtered_data;
-            end
-            
             if (body_subtraction)
                 % if (length(forces_body) > length(forces))
                 %     wing_forces = forces - forces_body(:,1:length(forces));
@@ -255,7 +262,7 @@ function name = type2name(type)
 end
 
 function [forces_body] = getBody(wing_freq_sel, AoA_sel, wind_speed_sel, ...
-    nondimensional, theFiles, processed_data_path, sub_string, sub_bool)
+    nondimensional, theFiles, processed_data_path, sub_string, sub_bool, shift_bool)
 
     % Parse relevant information from subtraction string
     case_parts = strtrim(split(sub_string));
@@ -297,6 +304,12 @@ function [forces_body] = getBody(wing_freq_sel, AoA_sel, wind_speed_sel, ...
         && wind_speed == sub_wind_speed)
 
         load(processed_data_path + baseFileName);
+
+        if (shift_bool)
+        [mod_filtered_data] = shiftPitchMoment(filtered_data, AoA);
+        filtered_data = mod_filtered_data;
+        end
+
         norm_filtered_data = dimensionless(filtered_data, norm_factors);
 
         if (nondimensional)

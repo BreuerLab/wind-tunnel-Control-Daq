@@ -2,6 +2,7 @@
 % Last updated: October 2023
 clear
 close all
+addpath 'general'
 addpath 'process_trial'
 addpath 'process_trial/functions'
 addpath robot_parameters\
@@ -19,8 +20,8 @@ freq_speed_combos = [2, 4; 3, 6; 0, 4; 0, 6];
 
 % 0,2,3,4,5  4; 0,3,4  6;
 
-wing_freq_sel = [0,2,3,4,5];
-wind_speed_sel = [4];
+wing_freq_sel = [0];
+wind_speed_sel = [2,4,6];
 type_sel = ["blue wings with tail"];
 % type_sel = ["no wings with tail"];
 % AoA_sel = -10:1:10;
@@ -48,6 +49,7 @@ processed_data_path = "../processed data/";
 % select_type_UI(processed_data_path)
 
 norm_bool = true;
+shift_bool = true;
 regress_bool = true;
 
 % Put all our selected variables into a struct called selected_vars
@@ -56,28 +58,28 @@ selected_vars.freq = wing_freq_sel;
 selected_vars.wind = wind_speed_sel;
 selected_vars.type = type_sel;
 
-forceIndex = 5;
+% forceIndex = 5;
 
 [avg_forces, err_forces, names, sub_title, norm_factors] = ...
-    get_data_AoA(selected_vars, processed_data_path, norm_bool, sub_strings);
+    get_data_AoA(selected_vars, processed_data_path, norm_bool, sub_strings, shift_bool);
 
-pitch_moment_LE = zeros(size(squeeze(avg_forces(1,:,:))));
-for i = 1:length(AoA_sel)
-    drag_force = squeeze(avg_forces(1,i,:));
-    lift_force = squeeze(avg_forces(3,i,:));
-    pitch_moment = squeeze(avg_forces(5,i,:));
-    
-    normal_force = lift_force*cosd(AoA_sel(i)) + drag_force*sind(AoA_sel(i));
-    
-    [center_to_LE, chord] = getWingMeasurements();
-    shift_distance = -center_to_LE;
-    
-    % Shift pitch moment
-    pitch_moment_LE(i,:) = pitch_moment + normal_force * shift_distance;
-end
-
-shifted_avg_forces = avg_forces;
-shifted_avg_forces(5,:,:) = pitch_moment_LE;
+% pitch_moment_LE = zeros(size(squeeze(avg_forces(1,:,:,:,:))));
+% for i = 1:length(AoA_sel)
+%     drag_force = squeeze(avg_forces(1,i,:,:,:));
+%     lift_force = squeeze(avg_forces(3,i,:,:,:));
+%     pitch_moment = squeeze(avg_forces(5,i,:,:,:));
+% 
+%     normal_force = lift_force*cosd(AoA_sel(i)) + drag_force*sind(AoA_sel(i));
+% 
+%     [center_to_LE, chord] = getWingMeasurements();
+%     shift_distance = -center_to_LE;
+% 
+%     % Shift pitch moment
+%     pitch_moment_LE(i,:,:,:) = pitch_moment + normal_force * shift_distance;
+% end
+% 
+% shifted_avg_forces = avg_forces;
+% shifted_avg_forces(5,:,:) = pitch_moment_LE;
 
 % figure
 % hold on
@@ -101,9 +103,9 @@ shifted_avg_forces(5,:,:) = pitch_moment_LE;
 
 % [distance_vals_chord, slopes] = findCOMrange(avg_forces, AoA_sel, true);
 
-plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title, norm_bool, 1, regress_bool);
-plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title, norm_bool, 3, regress_bool);
-plot_forces_AoA(selected_vars, shifted_avg_forces, err_forces, names, sub_title, norm_bool, 5, regress_bool);
+plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title, norm_bool, 1, regress_bool, shift_bool);
+plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title, norm_bool, 3, regress_bool, shift_bool);
+plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title, norm_bool, 5, regress_bool, shift_bool);
 
 % plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title, norm_bool, 2);
 % plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title, norm_bool, 4);
