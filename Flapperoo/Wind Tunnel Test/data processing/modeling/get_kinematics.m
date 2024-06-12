@@ -7,13 +7,14 @@
 function [time_cycle, ang_disp_cycle, ang_vel_cycle, ang_acc_cycle] = get_kinematics(freq, CAD_bool)
 if (CAD_bool)
 if (freq == 0)
-time_cycle = zeros(2,1);
-lin_vel_cycle = zeros(2,length(r));
-lin_acc_cycle = zeros(2,length(r));
+time_cycle = 0;
+ang_disp_cycle = 0;
+ang_vel_cycle = 0;
+ang_acc_cycle = 0;
 else
-disp_data = readtable("../../kinematics/ang_disp_flapperoo.xlsx","NumHeaderLines",2);
-vel_data = readtable("../../kinematics/ang_vel_flapperoo.xlsx","NumHeaderLines",2);
-acc_data = readtable("../../kinematics/ang_acc_flapperoo.xlsx","NumHeaderLines",2);
+disp_data = readtable("../kinematics/ang_disp_flapperoo.xlsx","NumHeaderLines",2);
+vel_data = readtable("../kinematics/ang_vel_flapperoo.xlsx","NumHeaderLines",2);
+acc_data = readtable("../kinematics/ang_acc_flapperoo.xlsx","NumHeaderLines",2);
 
 time_disp = disp_data.Time / freq;
 displacement = disp_data.Displacement;

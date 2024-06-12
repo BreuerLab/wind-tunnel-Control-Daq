@@ -50,7 +50,16 @@ disp("Loading data from " + case_name + " trial")
 if (bools.time_data)
 
 if (nondimensional)
-
+    x_label = "Time (s)";
+    y_label_F = "Force Coefficient";
+    y_label_M = "Moment Coefficient";
+    subtitle = "Trimmed, Rotated";
+    axes_labels = [x_label, y_label_F, y_label_M];
+    plot_forces(time_data, dimensionless(results_lab, norm_factors), case_name, subtitle, axes_labels, 0);
+    
+    subtitle = "Trimmed, Rotated, Filtered";
+    axes_labels = [x_label, y_label_F, y_label_M];
+    plot_forces(time_data, dimensionless(filtered_data, norm_factors), case_name, subtitle, axes_labels, 0);
 else
     x_label = "Time (s)";
     y_label_F = "Force (N)";
@@ -59,9 +68,6 @@ else
     axes_labels = [x_label, y_label_F, y_label_M];
     plot_forces(time_data, results_lab, case_name, subtitle, axes_labels, 0);
     
-    x_label = "Time (s)";
-    y_label_F = "Force Coefficient";
-    y_label_M = "Moment Coefficient";
     subtitle = "Trimmed, Rotated, Filtered";
     axes_labels = [x_label, y_label_F, y_label_M];
     plot_forces(time_data, filtered_data, case_name, subtitle, axes_labels, 0);
@@ -84,7 +90,7 @@ lin_acc = deg2rad(ang_acc) * r;
 if (body_subtraction)
     disp("Subtraction only occurs for wingbeat_avg_forces and model")
     % Parse relevant information from subtraction string
-    case_parts = strtrim(split(subtraction_string));
+    case_parts = strtrim(split(sub_strings));
     sub_type = "";
     sub_wing_freq = wing_freq;
     sub_wind_speed = wind_speed;

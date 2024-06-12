@@ -1,6 +1,5 @@
 function plot_forces(time_data, results, case_name, subtitle, axes_labels, index)
     titles = ["Drag (F_x)","Transverse (F_y)","Lift (F_z)","Roll Moment (M_x)","Pitch Moment (M_y)","Yaw Moment (M_z)"];
-    yLabs = ["Force (N)","Force (N)","Force (N)","Moment (N m)","Moment (N m)","Moment (N m)"];
 
     if (index == 0)
         force_means = round(mean(results'), 3);
@@ -13,76 +12,28 @@ function plot_forces(time_data, results, case_name, subtitle, axes_labels, index
         f.Position = [200 50 900 560];
         tcl = tiledlayout(2,3);
         
+        for k = 1:6
         % Create three subplots to show the force time histories. 
         nexttile(tcl)
         hold on
-        plot(time_data, results(1, :));
+        plot(time_data, results(k, :));
         if (axes_labels(1) == "Wingbeat Period (t/T)")
             plot_wingbeat_patch();
         end
-        title(["F_x (streamwise)", "avg: " + force_means(1) + "    SD: " + force_SDs(1), "max: " + force_maxs(1) + "    min: " + force_mins(1)]);
+        title([titles(k), "avg: " + force_means(k) + "    SD: " + force_SDs(k), "max: " + force_maxs(k) + "    min: " + force_mins(k)]);
         xlabel(axes_labels(1));
-        ylabel(axes_labels(2));
+        ylabel(axes_labels(1 + ceil(k/3)));
         hold off
-        
-        nexttile(tcl)
-        hold on
-        plot(time_data, results(2, :));
-        if (axes_labels(1) == "Wingbeat Period (t/T)")
-            plot_wingbeat_patch();
         end
-        title(["F_y (transverse)", "avg: " + force_means(2) + " SD: " + force_SDs(2), "max: " + force_maxs(2) + "    min: " + force_mins(2)]);
-        xlabel(axes_labels(1));
-        ylabel(axes_labels(2));
-        hold off
-        
-        nexttile(tcl)
-        plot(time_data, results(3, :));
-        if (axes_labels(1) == "Wingbeat Period (t/T)")
-            plot_wingbeat_patch();
-        end
-        title(["F_z (vertical)", "avg: " + force_means(3) + " SD: " + force_SDs(3), "max: " + force_maxs(3) + "    min: " + force_mins(3)]);
-        xlabel(axes_labels(1));
-        ylabel(axes_labels(2));
-        
-        % Create three subplots to show the moment time histories.
-        nexttile(tcl)
-        plot(time_data, results(4, :));
-        if (axes_labels(1) == "Wingbeat Period (t/T)")
-            plot_wingbeat_patch();
-        end
-        title(["M_x (roll)", "avg: " + force_means(4) + " SD: " + force_SDs(4), "max: " + force_maxs(4) + "    min: " + force_mins(4)]);
-        xlabel(axes_labels(1));
-        ylabel(axes_labels(3));
-        
-        nexttile(tcl)
-        plot(time_data, results(5, :));
-        if (axes_labels(1) == "Wingbeat Period (t/T)")
-            plot_wingbeat_patch();
-        end
-        title(["M_y (pitch)", "avg: " + force_means(5) + " SD: " + force_SDs(5), "max: " + force_maxs(5) + "    min: " + force_mins(5)]);
-        xlabel(axes_labels(1));
-        ylabel(axes_labels(3));
-        
-        nexttile(tcl)
-        plot(time_data, results(6, :));
-        if (axes_labels(1) == "Wingbeat Period (t/T)")
-            plot_wingbeat_patch();
-        end
-        title(["M_z (yaw)", "avg: " + force_means(6) + " SD: " + force_SDs(6), "max: " + force_maxs(6) + "    min: " + force_mins(6)]);
-        xlabel(axes_labels(1));
-        ylabel(axes_labels(3));
         
         % Label the whole figure.
         sgtitle(["Force Transducer Measurement for " + case_name subtitle]);
     else
-    
         figure;
         hold on
         plot(time_data, results(index, :),Color=[0.8500, 0.3250, 0.0980]);
         title(titles(index));
-        xlabel("Time (s)");
-        ylabel(yLabs(index));
-
+        xlabel(axes_labels(1));
+        ylabel(axes_labels(1 + ceil(index/3)));
     end
 end

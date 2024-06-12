@@ -123,12 +123,13 @@ function model_plot(wind_speed, wing_freq, AoA, ...
         total_moment = C_M + inertial_force(:,3) + added_mass_force(:,3);
     end
 
-    % ----------------------------------------------------------
+    %----------------------------------------------------------%
     % Construct a figure
+    %----------------------------------------------------------%
 
     fig = figure;
     fig.Position = [200 50 1400 500];
-    tcl = tiledlayout(1,3);
+    tcl = tiledlayout(1,2);
     if (sub_bool)
         sgtitle([case_title "{\color{red}{SUBTRACTION}}: " + sub_case_title]);
     else
@@ -149,25 +150,27 @@ function model_plot(wind_speed, wing_freq, AoA, ...
         y_label_M = "Moment (N*m)";
     end
 
-    nexttile
-    hold on
-    line(xlim, [0,0], 'Color', 'k','HandleVisibility','off'); % Draw line for X axis.
-    xconf = [frames, frames(end:-1:1)];         
-    yconf = [drag_force_up, drag_force_low(end:-1:1)];
-    p = fill(xconf, yconf, 'blue');
-    p.FaceColor = [0.8 0.8 1];      
-    p.EdgeColor = 'none';
-    p.HandleVisibility = 'off';
-    plot(frames, avg_drag_force, "DisplayName", "Experiment", LineWidth=2, Color=colors(1,:));
-    plot(time / max(time), inertial_force(:,1), DisplayName="Wing Inertia", LineStyle="--", LineWidth=2,Color=colors(2,:));
-    plot(time / max(time), added_mass_force(:,1), DisplayName="Added Mass", LineStyle="--", LineWidth=2,Color=colors(3,:));
-    plot(time / max(time), C_D, DisplayName="Quasi-Steady", LineStyle="--", LineWidth=2,Color=colors(4,:));
-    plot(time / max(time), total_drag, DisplayName="Model", LineWidth=2,Color=colors(5,:))
-    plot_wingbeat_patch();
-    legend(Location="best");
-    xlabel(x_label)
-    ylabel(y_label_F)
-    title("Drag force")  
+    names = ["Experiment", "Wing Inertia", "Added Mass", "Thin Airfoil", "Total"];
+
+    % nexttile
+    % hold on
+    % line(xlim, [0,0], 'Color', 'k','HandleVisibility','off'); % Draw line for X axis.
+    % xconf = [frames, frames(end:-1:1)];         
+    % yconf = [drag_force_up, drag_force_low(end:-1:1)];
+    % p = fill(xconf, yconf, 'blue');
+    % p.FaceColor = [0.8 0.8 1];      
+    % p.EdgeColor = 'none';
+    % p.HandleVisibility = 'off';
+    % plot(frames, avg_drag_force, "DisplayName", "Experiment", LineWidth=2, Color=colors(1,:));
+    % plot(time / max(time), inertial_force(:,1), DisplayName="Wing Inertia", LineStyle="--", LineWidth=2,Color=colors(2,:));
+    % plot(time / max(time), added_mass_force(:,1), DisplayName="Added Mass", LineStyle="--", LineWidth=2,Color=colors(3,:));
+    % plot(time / max(time), C_D, DisplayName="Quasi-Steady", LineStyle="--", LineWidth=2,Color=colors(4,:));
+    % plot(time / max(time), total_drag, DisplayName="Model", LineWidth=2,Color=colors(5,:))
+    % plot_wingbeat_patch();
+    % legend(Location="best");
+    % xlabel(x_label)
+    % ylabel(y_label_F)
+    % title("Drag force")  
 
     nexttile
     hold on
@@ -178,13 +181,12 @@ function model_plot(wind_speed, wing_freq, AoA, ...
     p.FaceColor = [0.8 0.8 1];      
     p.EdgeColor = 'none';
     p.HandleVisibility = 'off';
-    plot(frames, avg_lift_force, DisplayName="Experiment", LineWidth=2, Color=colors(1,:));
-    plot(time / max(time), inertial_force(:,2), DisplayName="Wing Inertia", LineStyle="--", LineWidth=2, Color=colors(2,:));
-    plot(time / max(time), added_mass_force(:,2), DisplayName="Added Mass", LineStyle="--", LineWidth=2, Color=colors(3,:));
-    plot(time / max(time), C_L, DisplayName="Quasi-Steady", LineStyle="--", LineWidth=2, Color=colors(4,:));
-    plot(time / max(time), total_lift, DisplayName="Model", LineWidth=2, Color=colors(5,:))
+    plot(frames, avg_lift_force, LineWidth=2, Color=colors(1,:));
+    plot(time / max(time), inertial_force(:,2), LineStyle="--", LineWidth=2, Color=colors(2,:));
+    plot(time / max(time), added_mass_force(:,2), LineStyle="--", LineWidth=2, Color=colors(3,:));
+    plot(time / max(time), C_L, LineStyle="--", LineWidth=2, Color=colors(4,:));
+    plot(time / max(time), total_lift, LineWidth=2, Color=colors(5,:))
     plot_wingbeat_patch();
-    legend(Location="best");
     xlabel(x_label)
     ylabel(y_label_F)
     title("Lift force")
@@ -198,15 +200,17 @@ function model_plot(wind_speed, wing_freq, AoA, ...
     p.FaceColor = [0.8 0.8 1];      
     p.EdgeColor = 'none';
     p.HandleVisibility = 'off';
-    plot(frames, pitch_moment_LE, DisplayName="Experiment", LineWidth=2, Color=colors(1,:));
-    plot(time / max(time), inertial_force(:,3), DisplayName="Wing Inertia", LineStyle="--", LineWidth=2, Color=colors(2,:));
-    plot(time / max(time), added_mass_force(:,3), DisplayName="Added Mass", LineStyle="--", LineWidth=2, Color=colors(3,:));
+    plot(frames, pitch_moment_LE, LineWidth=2, Color=colors(1,:));
+    plot(time / max(time), inertial_force(:,3), LineStyle="--", LineWidth=2, Color=colors(2,:));
+    plot(time / max(time), added_mass_force(:,3), LineStyle="--", LineWidth=2, Color=colors(3,:));
     % plot(time / max(time), lin_disp_COM, "DisplayName","Static", "LineStyle","--", "LineWidth",2);
-    plot(time / max(time), C_M, DisplayName="Quasi-Steady", LineStyle="--", LineWidth=2, Color=colors(4,:));
-    plot(time / max(time), total_moment, DisplayName="Model", LineWidth=2, Color=colors(5,:))
+    plot(time / max(time), C_M, LineStyle="--", LineWidth=2, Color=colors(4,:));
+    plot(time / max(time), total_moment, LineWidth=2, Color=colors(5,:))
     plot_wingbeat_patch();
-    legend(Location="best");
     xlabel(x_label)
     ylabel(y_label_M)
     title("Pitch Moment LE")
+
+    hL = legend(names);
+    hL.Layout.Tile = 'East';
 end

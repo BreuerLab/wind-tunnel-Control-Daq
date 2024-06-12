@@ -14,9 +14,7 @@ function pitch_slopes_plot(wing_freq_sel, AoA_sel, wind_speed_sel, type_sel, C_M
 
     x = [ones(size(wing_freq_sel))', log(wing_freq_sel)'];
     % y = log(pitch_slopes / pitch_slopes(1))';
-    % norm_pitch_slopes = abs(pitch_slopes - pitch_slopes(1));
-    norm_pitch_slopes = (pitch_slopes / pitch_slopes(1)) - 1;
-    y = log(norm_pitch_slopes)';
+    y = log(abs(pitch_slopes - pitch_slopes(1)))';
     x = x(2:end,:);
     y = y(2:end);
     b_pitch_log = x\y;
@@ -28,8 +26,8 @@ function pitch_slopes_plot(wing_freq_sel, AoA_sel, wind_speed_sel, type_sel, C_M
     
     wing_freq_fine = min(wing_freq_sel):0.1:max(wing_freq_sel);
     model_power = exp(pitch_intercept_log)*wing_freq_fine.^pitch_slope_log;
-    Rsq_power = 1 - sum((norm_pitch_slopes - model_power(ismember(wing_freq_fine,wing_freq_sel))).^2)...
-        /sum((norm_pitch_slopes - mean(norm_pitch_slopes)).^2);
+    y_power = abs(pitch_slopes - pitch_slopes(1));
+    Rsq_power = 1 - sum((y_power - model_power(ismember(wing_freq_fine,wing_freq_sel))).^2)/sum((y_power - mean(y_power)).^2);
     
     if data_bool
         pitch_slopes_data = zeros(1,length(wing_freq_sel));
@@ -46,9 +44,7 @@ function pitch_slopes_plot(wing_freq_sel, AoA_sel, wind_speed_sel, type_sel, C_M
     
         x = [ones(size(wing_freq_sel))', log(wing_freq_sel)'];
         % y = log(pitch_slopes / pitch_slopes(1))';
-        % norm_pitch_slopes_data = abs(pitch_slopes_data - pitch_slopes_data(1));
-        norm_pitch_slopes_data = (pitch_slopes_data / pitch_slopes_data(1)) - 1;
-        y = log(norm_pitch_slopes_data)';
+        y = log(abs(pitch_slopes_data - pitch_slopes_data(1)))';
         x = x(2:end,:);
         y = y(2:end);
         b_pitch_log_data = x\y;
@@ -60,8 +56,8 @@ function pitch_slopes_plot(wing_freq_sel, AoA_sel, wind_speed_sel, type_sel, C_M
         
         wing_freq_fine = min(wing_freq_sel):0.1:max(wing_freq_sel);
         model_power_data = exp(pitch_intercept_log_data)*wing_freq_fine.^pitch_slope_log_data;
-        Rsq_power_data = 1 - sum((norm_pitch_slopes_data - model_power_data(ismember(wing_freq_fine,wing_freq_sel))).^2)...
-            /sum((norm_pitch_slopes_data - mean(norm_pitch_slopes_data)).^2);
+        y_power_data = abs(pitch_slopes_data - pitch_slopes_data(1));
+        Rsq_power_data = 1 - sum((y_power_data - model_power_data(ismember(wing_freq_fine,wing_freq_sel))).^2)/sum((y_power_data - mean(y_power_data)).^2);
     end
 
     figure
@@ -100,31 +96,33 @@ function pitch_slopes_plot(wing_freq_sel, AoA_sel, wind_speed_sel, type_sel, C_M
     figure
     hold on
     % plot(wing_freq_vals, pitch_slopes, Color=colors(1,:))
-    p = plot(wing_freq_fine, model_power);
-    p.DisplayName = "\textbf{Model}: $y = " + round(pitch_constant,3,'significant') + "*x^{" +...
-        round(pitch_power,3,'significant') + "}$, $R^2 = " + Rsq_power + "$";
-    p.Color = colors(1,:);
+    plot(wing_freq_fine, model_power,"DisplayName","$y = " +...
+        round(pitch_constant,3,'significant') + "*x^{" +...
+        round(pitch_power,3,'significant') + "}$, $R^2 = " + Rsq_power + "$")
     % plot(wing_freq_sel, model_power,"DisplayName","y = " + exp(pitch_intercept_log) + "*x^{" + pitch_slope_log + "}, R^2 = " + Rsq_power)
-    s = scatter(wing_freq_sel, norm_pitch_slopes, 40, 'filled');
+    s = scatter(wing_freq_sel, y_power, 40, 'filled');
     s.HandleVisibility = "off";
     s.MarkerFaceColor = colors(1,:);
     s.MarkerEdgeColor = colors(1,:);
     xlabel("Flapping Frequency (Hz)",FontSize=18,Interpreter='latex')
-    ylabel("$$\left(\frac{\partial{M}}{\partial\alpha}\right)^*$$",FontSize=18,Rotation=0,Interpreter='latex')
+    ylabel("$$\frac{\partial{M}}{\partial\alpha}$$",FontSize=18,Rotation=0,Interpreter='latex')
     title(["\textbf{Pitch Slope Scaling with Flapping Frequency}" "\textbf{Wind Speed: " + wind_speed_sel + " m/s}"], FontSize=20, Interpreter='latex')
     legend(Location='best', FontSize=16, Interpreter='latex');
 
     if data_bool
     % plot(wing_freq_vals, pitch_slopes, Color=colors(1,:))
-    p = plot(wing_freq_fine, model_power_data);
-    p.DisplayName = "\textbf{Data}: $y = " + round(pitch_constant_data,3,'significant') + "*x^{" +...
-        round(pitch_power_data,3,'significant') + "}$, $R^2 = " + Rsq_power_data + "$";
-    p.Color = colors(2,:);
+    plot(wing_freq_fine, model_power_data,"DisplayName","$y = " +...
+        round(pitch_constant_data,3,'significant') + "*x^{" +...
+        round(pitch_power_data,3,'significant') + "}$, $R^2 = " + Rsq_power_data + "$")
     % plot(wing_freq_sel, model_power,"DisplayName","y = " + exp(pitch_intercept_log) + "*x^{" + pitch_slope_log + "}, R^2 = " + Rsq_power)
-    s = scatter(wing_freq_sel, norm_pitch_slopes_data, 40, 'filled');
+    s = scatter(wing_freq_sel, y_power_data, 40, 'filled');
     s.HandleVisibility = "off";
-    s.MarkerFaceColor = colors(2,:);
-    s.MarkerEdgeColor = colors(2,:);
+    s.MarkerFaceColor = colors(1,:);
+    s.MarkerEdgeColor = colors(1,:);
+    xlabel("Flapping Frequency (Hz)",FontSize=18,Interpreter='latex')
+    ylabel("$$\frac{\partial{M}}{\partial\alpha}$$",FontSize=18,Rotation=0,Interpreter='latex')
+    title(["\textbf{Pitch Slope Scaling with Flapping Frequency}" "\textbf{Wind Speed: " + wind_speed_sel + " m/s}"], FontSize=20, Interpreter='latex')
+    legend(Location='best', FontSize=16, Interpreter='latex');
     end
     
     % figure

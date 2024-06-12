@@ -9,7 +9,7 @@ addpath 'robot_parameters'
 
 % Run this code when making NP_plot for the first time
 clear
-close all
+% close all
 % posF = figure;
 % hold on
 % momF = figure;
@@ -20,7 +20,7 @@ close all
 % -----------------------------------------------------------------
 % wing_freq_sel = [0,2,3];
 % wind_speed_sel = [2];
-wing_freq_sel = [0,2,3,4,5];
+wing_freq_sel = [2,3,4,5];
 wind_speed_sel = [4];
 % wing_freq_sel = [0,3,4];
 % wind_speed_sel = [6];
@@ -38,7 +38,7 @@ processed_data_path = "../processed data/";
 sub_strings = ["no wings with tail"];
 % sub_strings = ["no wings with tail", "- no wings with tail 0Hz", "blue wings with tail 0Hz"];
 slopes_plot = true;
-static_margin_bool = true; % only matters if slopes_plot = true
+static_margin_bool = false; % only matters if slopes_plot = true
 NP_plot = false;
 COP_plot = false;
 
@@ -62,6 +62,7 @@ if (slopes_plot || COP_plot)
     f.Position = [562 329 800 500];
     cmap = colormap(map);
     zmap = linspace(0.15, 0.5, length(cmap));
+    min_slope = 0;
     hold on
 end
 
@@ -75,8 +76,9 @@ for m = 1:length(wind_speed_sel)
     St_vals(wing_freq_sel == selected_vars.freq, wind_speed_sel == selected_vars.wind)...
         = St;
 
+    shift_bool = false; % get pitch moment data shifted
     [avg_forces, err_forces, names, sub_title, norm_factors] = ...
-        get_data_AoA(selected_vars, processed_data_path, false, sub_strings);
+        get_data_AoA(selected_vars, processed_data_path, false, sub_strings, shift_bool);
 
     % For NP_plot
     [NP_pos, NP_mom] = findNP(avg_forces, AoA_sel, false, sub_title);
@@ -92,6 +94,9 @@ for m = 1:length(wind_speed_sel)
         static_margin = NP_pos_chord - distance_vals_chord;
         % norm_M_factor = mean(norm_factors(2,:,1,1));
         slopes = slopes / norm_M_factor;
+        if (min(slopes) < min_slope)
+            min_slope = min(slopes);
+        end
         if (static_margin_bool)
             line = plot(static_margin, slopes);
         else
@@ -126,6 +131,7 @@ end
 if (slopes_plot)
     caxis([0.15, 0.5])
     xlim([0 100])
+    % ylim([min_slope 0])
     cb = colorbar();
     ylabel(cb,'Strouhal Number','FontSize',16,'Rotation',270)
     if (static_margin_bool)
@@ -135,7 +141,9 @@ if (slopes_plot)
     end
     ylabel("$$\frac{\partial{M}}{\partial\alpha}$$",FontSize=16,Rotation=0,Interpreter='latex')
     % title("Designing a Stable Flier",FontSize=18,Interpreter='latex')
-    legend(Location="best",FontSize=16);
+    if (ismember(0,wing_freq_sel))
+        legend(Location="best",FontSize=16);
+    end
 elseif (COP_plot)
     caxis([0, 0.5])
     cb = colorbar();

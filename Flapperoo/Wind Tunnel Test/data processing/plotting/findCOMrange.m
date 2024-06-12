@@ -1,11 +1,12 @@
 function [distance_vals_chord, slopes] = findCOMrange(mean_results, AoA_sel, plot_bool)
-    [center_to_LE, chord] = getWingMeasurements();
+    [center_to_LE, chord, COM_span, wing_length, arm_length] = getWingMeasurements();
     
     % increment to shift position where moments are considered
     diff_shift = 0.0001;
 
     pitch_moment = mean_results(5,:,:,:,:);
 
+    % get current slope of line based on regression
     x = [ones(size(AoA_sel')), AoA_sel'];
     y = pitch_moment';
     b = x\y;
@@ -16,8 +17,9 @@ function [distance_vals_chord, slopes] = findCOMrange(mean_results, AoA_sel, plo
     NP_pos = findNP(mean_results, AoA_sel, false);
 
     shift_distance = NP_pos;
-    [center_to_LE, chord] = getWingMeasurements();
-    max_shift_distance = center_to_LE;
+    max_shift_distance = 2*center_to_LE;
+    % this used to just be center_to_LE which would go all the
+    % way from the NP to the LE (0% chord)
 
     slopes = zeros(1,10000);
 

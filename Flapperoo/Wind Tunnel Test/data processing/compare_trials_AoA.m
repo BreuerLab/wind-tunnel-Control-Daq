@@ -5,7 +5,7 @@ close all
 addpath 'general'
 addpath 'process_trial'
 addpath 'process_trial/functions'
-addpath robot_parameters\
+addpath 'robot_parameters'
 addpath 'plotting'
 
 % -----------------------------------------------------------------
@@ -19,9 +19,10 @@ addpath 'plotting'
 freq_speed_combos = [2, 4; 3, 6; 0, 4; 0, 6];
 
 % 0,2,3,4,5  4; 0,3,4  6;
-
 wing_freq_sel = [0];
 wind_speed_sel = [2,4,6];
+% wing_freq_sel = [0,2,3,4,5];
+% wind_speed_sel = [4];
 type_sel = ["blue wings with tail"];
 % type_sel = ["no wings with tail"];
 % AoA_sel = -10:1:10;
@@ -103,6 +104,7 @@ selected_vars.type = type_sel;
 
 % [distance_vals_chord, slopes] = findCOMrange(avg_forces, AoA_sel, true);
 
+plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title, norm_bool, 0, regress_bool, shift_bool);
 plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title, norm_bool, 1, regress_bool, shift_bool);
 plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title, norm_bool, 3, regress_bool, shift_bool);
 plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title, norm_bool, 5, regress_bool, shift_bool);
