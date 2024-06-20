@@ -26,7 +26,7 @@ acc = 3*rev_ticks; % ticks / sec^2
 padding_revs = 1; % dropped from front and back during data processing
 wait_time = 3000; % 3 seconds (data collected before and after flapping)
 stationary_vel = rev_ticks; % Hz
-hold_time = 10000; % 10 second trial when not flapping (i.e. 0 Hz)
+hold_time = 12000; % 12 second trial when not flapping (i.e. 0 Hz)
 distance = -1; % ticks to travel this trial -> calculated each trial
 
 % Force Transducer Parameters
@@ -104,23 +104,19 @@ if (~debug)
         MPS_on_off_UI("on");
     end
 
+    % Check current angle
+    cur_ang = Pitch_Angle();
+
     % Adjust angle of attack via MPS
     Pitch_To(AoA(j));
     disp("Pitching to AoA: " + AoA(j))
-
-    %
-    %
-    Deg2Con = 29850.74;
-    P1 = Pitch_Read(print_bool);
-    cur_ang = - (P1.POS+52238083) / (16 * Deg2Con);
-    %
-    %
 
     %----------------------------
     % Disable MPS pitch motor
     %----------------------------
     if (automatic)
-        pause(4)
+        stop_time = abs(AoA(j) - cur_ang)/8;
+        pause(stop_time)
         Pitch_disable(Pitch);
         disp("MPS Pitch Disabled")
     else

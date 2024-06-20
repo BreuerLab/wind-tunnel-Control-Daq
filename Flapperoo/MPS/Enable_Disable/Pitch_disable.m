@@ -24,5 +24,5 @@ write(m,'holdingregs', 236+Pitch.IOFF, 1, 'int32'); % DRV.DIS
 clear m
 clear serverId
 
-status = 0
+status = 0;
 return

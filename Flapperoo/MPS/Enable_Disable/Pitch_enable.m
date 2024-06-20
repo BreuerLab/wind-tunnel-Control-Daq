@@ -35,5 +35,5 @@ pause(2)  % Wait two seconds  (arbitrary)
 clear m
 clear serverId
 
-status = 0
+status = 0;
 return
