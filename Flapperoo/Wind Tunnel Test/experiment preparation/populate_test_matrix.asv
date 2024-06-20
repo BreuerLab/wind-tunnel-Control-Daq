@@ -10,7 +10,7 @@ speed = [0,3,4,5,6];
 wing_length = 0.257; % meters
 amp = wing_length*(sind(30) + sind(30)); % amplitude, meters
 num_wingbeats = 180;
-num_wingbeats_slow = 12;
+num_wingbeats_slow = 18;
 
 % -------- Find all combinations of these variable ranges -------
 num_combinations = length(speed) * length(AoA) * length(freq);
