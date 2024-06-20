@@ -299,6 +299,12 @@ if (j < length(AoA) && ~automatic)
     j = handle_next_AoA(j, length(AoA));
 end
 
+% Get final offset data
+offset_name = wing_type + "_" + speed + "m.s_" + AoA(j) + "deg_final";
+offsets_final = FT_obj.get_force_offsets(offset_name, offset_duration);
+disp("Final offset data at this AoA has been gathered");
+beep2;
+
 j = j + 1;
 end
 

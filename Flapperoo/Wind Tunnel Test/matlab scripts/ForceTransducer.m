@@ -358,93 +358,48 @@ function plot_results(obj, results, case_name, drift, aliasing)
     end
 
     %% Figure with raw data and trimmed data overlaid
+    titles = ["F_x","F_y","F_z","M_x","M_y","M_z"];
+    x_label = "Time (s)";
+    y_label_F = "Force (N)";
+    y_label_M = "Moment (N*m)";
+    axes_labels = [x_label, y_label_F, y_label_M];
+
+    time = results(:,1);
+    forces = results(:,2:7);
+
+    force_means = round(mean(forces), 3);
+    force_SDs = round(std(forces), 3);
+    force_maxs = round(max(forces), 3);
+    force_mins = round(min(forces), 3);
 
     % Open a new figure.
     f = figure;
     f.Position = [1940 600 1150 750];
     tcl = tiledlayout(2,3);
     
-    % Create three subplots to show the force time histories. 
-    nexttile(tcl)
-    hold on
-    raw_line = plot(results(:, 1), results(:, 2), 'DisplayName', 'raw');
-    if (obj.num_triggers > 0 && A_trigger_detected)
-    first_trigger_line = plot(A_trimmed_results(:, 1), A_trimmed_results(:, 2), ...
-        'DisplayName', 'first trigger');
-    end
-    if (obj.num_triggers == 2 && B_trigger_detected)
-        second_trigger_line = plot(B_trimmed_results(:, 1), B_trimmed_results(:, 2), ...
-        'DisplayName', 'second trigger');
-    end
-    title("F_x");
-    xlabel("Time (s)");
-    ylabel("Force (N)");
-    
-    nexttile(tcl)
-    hold on
-    plot(results(:, 1), results(:, 3));
-    if (obj.num_triggers > 0 && A_trigger_detected)
-    plot(A_trimmed_results(:, 1), A_trimmed_results(:, 3));
-    end
-    if (obj.num_triggers == 2 && B_trigger_detected)
-        plot(B_trimmed_results(:, 1), B_trimmed_results(:, 3));
-    end
-    title("F_y");
-    xlabel("Time (s)");
-    ylabel("Force (N)");
-    
-    nexttile(tcl)
-    hold on
-    plot(results(:, 1), results(:, 4));
-    if (obj.num_triggers > 0 && A_trigger_detected)
-    plot(A_trimmed_results(:, 1), A_trimmed_results(:, 4));
-    end
-    if (obj.num_triggers == 2 && B_trigger_detected)
-        plot(B_trimmed_results(:, 1), B_trimmed_results(:, 4));
-    end
-    title("F_z");
-    xlabel("Time (s)");
-    ylabel("Force (N)");
+    % Create subplots to show the force and moment time histories
+    for k = 1:6
+        nexttile(tcl)
+        hold on
+        raw_line = plot(time, forces(:, k));
+        if (obj.num_triggers > 0 && A_trigger_detected)
+            first_trigger_line = plot(A_trimmed_results(:, 1), A_trimmed_results(:, k+1));
+        end
+        if (obj.num_triggers == 2 && B_trigger_detected)
+            second_trigger_line = plot(B_trimmed_results(:, 1), B_trimmed_results(:, k+1));
+        end
 
-    % Create three subplots to show the moment time histories.
-    nexttile(tcl)
-    hold on
-    plot(results(:, 1), results(:, 5));
-    if (obj.num_triggers > 0 && A_trigger_detected)
-    plot(A_trimmed_results(:, 1), A_trimmed_results(:, 5));
+        if (k == 1)
+            raw_line.DisplayName = 'raw';
+            first_trigger_line.DisplayName = 'first trigger';
+            second_trigger_line.DisplayName = 'second trigger';
+        end
+
+        title([titles(k), "avg: " + force_means(k) + "    SD: " + force_SDs(k), "max: " + force_maxs(k) + "    min: " + force_mins(k)]);
+        xlabel(axes_labels(1));
+        ylabel(axes_labels(1 + ceil(k/3)));
+        hold off
     end
-    if (obj.num_triggers == 2 && B_trigger_detected)
-        plot(B_trimmed_results(:, 1), B_trimmed_results(:, 5));
-    end
-    title("M_x");
-    xlabel("Time (s)");
-    ylabel("Torque (N m)");
-    
-    nexttile(tcl)
-    hold on
-    plot(results(:, 1), results(:, 6));
-    if (obj.num_triggers > 0 && A_trigger_detected)
-    plot(A_trimmed_results(:, 1), A_trimmed_results(:, 6));
-    end
-    if (obj.num_triggers == 2 && B_trigger_detected)
-        plot(B_trimmed_results(:, 1), B_trimmed_results(:, 6));
-    end
-    title("M_y");
-    xlabel("Time (s)");
-    ylabel("Torque (N m)");
-    
-    nexttile(tcl)
-    hold on
-    plot(results(:, 1), results(:, 7));
-    if (obj.num_triggers > 0 && A_trigger_detected)
-    plot(A_trimmed_results(:, 1), A_trimmed_results(:, 7));
-    end
-    if (obj.num_triggers == 2 && B_trigger_detected)
-        plot(B_trimmed_results(:, 1), B_trimmed_results(:, 7));
-    end
-    title("M_z");
-    xlabel("Time (s)");
-    ylabel("Torque (N m)");
 
     if (obj.num_triggers == 1 && A_trigger_detected)
         hL = legend([raw_line, first_trigger_line]);
@@ -468,118 +423,149 @@ function plot_results(obj, results, case_name, drift, aliasing)
 
     %% Figure with trimmed data only (using first trigger)
     if (obj.num_triggers == 1 && A_trigger_detected)
+    titles = ["F_x","F_y","F_z","M_x","M_y","M_z"];
+    x_label = "Time (s)";
+    y_label_F = "Force (N)";
+    y_label_M = "Moment (N*m)";
+    axes_labels = [x_label, y_label_F, y_label_M];
+
+    time = A_trimmed_results(:,1);
+    forces = A_trimmed_results(:,2:7);
+
+    force_means = round(mean(forces), 3);
+    force_SDs = round(std(forces), 3);
+    force_maxs = round(max(forces), 3);
+    force_mins = round(min(forces), 3);
+    
     % Open a new figure.
     f = figure;
     f.Position = [1940 -260 1150 750];
     tcl = tiledlayout(2,3);
     
-    % Create three subplots to show the force time histories. 
-    nexttile(tcl)
-    hold on
-    plot(A_trimmed_results(:, 1), A_trimmed_results(:, 2), ...
-        'DisplayName', 'galil trigger');
-    title("F_x");
-    xlabel("Time (s)");
-    ylabel("Force (N)");
-    
-    nexttile(tcl)
-    plot(A_trimmed_results(:, 1), A_trimmed_results(:, 3));
-    title("F_y");
-    xlabel("Time (s)");
-    ylabel("Force (N)");
-    
-    nexttile(tcl)
-    plot(A_trimmed_results(:, 1), A_trimmed_results(:, 4));
-    title("F_z");
-    xlabel("Time (s)");
-    ylabel("Force (N)");
-
-    % Create three subplots to show the moment time histories.
-    nexttile(tcl)
-    plot(A_trimmed_results(:, 1), A_trimmed_results(:, 5));
-    title("M_x");
-    xlabel("Time (s)");
-    ylabel("Torque (N m)");
-    
-    nexttile(tcl)
-    plot(A_trimmed_results(:, 1), A_trimmed_results(:, 6));
-    title("M_y");
-    xlabel("Time (s)");
-    ylabel("Torque (N m)");
-    
-    nexttile(tcl)
-    plot(A_trimmed_results(:, 1), A_trimmed_results(:, 7));
-    title("M_z");
-    xlabel("Time (s)");
-    ylabel("Torque (N m)");
+    % Create subplots to show the force and moment time histories
+    for k = 1:6
+        nexttile(tcl)
+        hold on
+        plot(time, forces(:, k));
+        title([titles(k), "avg: " + force_means(k) + "    SD: " + force_SDs(k), "max: " + force_maxs(k) + "    min: " + force_mins(k)]);
+        xlabel(axes_labels(1));
+        ylabel(axes_labels(1 + ceil(k/3)));
+        hold off
+    end
 
     % Label the whole figure.
     sgtitle({"Trimmed Force Transducer Data" strrep(case_name,'_','  ')});
 
     saveas(f,'data\plots\' + case_name + "_A_trimmed.jpg")
 
-    disp("Standard deviations from this trimmed trial for each axis:")
-    disp(std(abs(A_trimmed_results(:,2:4))));
-    disp(std(abs(A_trimmed_results(:,5:7))));
+    %% histogram plot for trimmed data (first trigger)
+    % Open a new figure.
+    f = figure;
+    f.Position = [1940 -260 1150 750];
+    tcl = tiledlayout(2,3);
+
+    for k = 1:6
+        % Create three subplots to show the force time histories. 
+        nexttile(tcl)
+        hold on
+        h = histogram(forces(k, :));
+        h.Normalization = 'probability';
+        h.EdgeColor = 'none';
+
+        probability = h.Values;
+        [M,I] = min(abs(h.BinEdges - force_means(k)));
+        prob_at_mean = probability(I);
+        ascending_arr = 0:0.5:1;
+        l = plot(force_means(k)*ones(1,3), prob_at_mean*ascending_arr);
+        l.LineWidth = 2;
+        l.Color = 'black';
+
+        title([titles(k), "avg: " + force_means(k) + "    SD: " ...
+            + force_SDs(k), "max: " + force_maxs(k) + "    min: " + force_mins(k)]);
+        xlabel(axes_labels(1 + ceil(k/3)));
+        ylabel(axes_labels(1));
+        hold off
+    end
+
+    % Label the whole figure.
+    sgtitle({"Histogram of Force Transducer Data" strrep(case_name,'_','  ')});
+
+    saveas(f,'data\plots\' + case_name + "_A_trimmed_hist.jpg")
+
     end
 
     show_plot = false;
     %% Figure with trimmed data only (using second trigger)
     if (show_plot && obj.num_triggers == 2 && B_trigger_detected)
+    titles = ["F_x","F_y","F_z","M_x","M_y","M_z"];
+    x_label = "Time (s)";
+    y_label_F = "Force (N)";
+    y_label_M = "Moment (N*m)";
+    axes_labels = [x_label, y_label_F, y_label_M];
+
+    time = B_trimmed_results(:,1);
+    forces = B_trimmed_results(:,2:7);
+
+    force_means = round(mean(forces), 3);
+    force_SDs = round(std(forces), 3);
+    force_maxs = round(max(forces), 3);
+    force_mins = round(min(forces), 3);
+
     % Open a new figure.
     f = figure;
     f.Position = [1940 -260 1150 750];
     tcl = tiledlayout(2,3);
     
-    % Create three subplots to show the force time histories. 
-    nexttile(tcl)
-    hold on
-    plot(B_trimmed_results(:, 1), B_trimmed_results(:, 2), ...
-        'DisplayName', 'galil trigger');
-    title("F_x");
-    xlabel("Time (s)");
-    ylabel("Force (N)");
-    
-    nexttile(tcl)
-    plot(B_trimmed_results(:, 1), B_trimmed_results(:, 3));
-    title("F_y");
-    xlabel("Time (s)");
-    ylabel("Force (N)");
-    
-    nexttile(tcl)
-    plot(B_trimmed_results(:, 1), B_trimmed_results(:, 4));
-    title("F_z");
-    xlabel("Time (s)");
-    ylabel("Force (N)");
-
-    % Create three subplots to show the moment time histories.
-    nexttile(tcl)
-    plot(B_trimmed_results(:, 1), B_trimmed_results(:, 5));
-    title("M_x");
-    xlabel("Time (s)");
-    ylabel("Torque (N m)");
-    
-    nexttile(tcl)
-    plot(B_trimmed_results(:, 1), B_trimmed_results(:, 6));
-    title("M_y");
-    xlabel("Time (s)");
-    ylabel("Torque (N m)");
-    
-    nexttile(tcl)
-    plot(B_trimmed_results(:, 1), B_trimmed_results(:, 7));
-    title("M_z");
-    xlabel("Time (s)");
-    ylabel("Torque (N m)");
+    % Create subplots to show the force and moment time histories
+    for k = 1:6
+        nexttile(tcl)
+        hold on
+        plot(time, forces(:, k));
+        title([titles(k), "avg: " + force_means(k) + "    SD: " + force_SDs(k), "max: " + force_maxs(k) + "    min: " + force_mins(k)]);
+        xlabel(axes_labels(1));
+        ylabel(axes_labels(1 + ceil(k/3)));
+        hold off
+    end
 
     % Label the whole figure.
     sgtitle({"Trimmed Force Transducer Data" strrep(case_name,'_','  ')});
 
     saveas(f,'data\plots\' + case_name + "_B_trimmed.jpg")
-
-    disp("Standard deviations from this trimmed trial for each axis:")
-    disp(std(abs(trimmed_results(:,2:4))));
-    disp(std(abs(trimmed_results(:,5:7))));
     end
+
+    %% histogram plot for trimmed data (second trigger)
+    % Open a new figure.
+    f = figure;
+    f.Position = [1940 -260 1150 750];
+    tcl = tiledlayout(2,3);
+
+    for k = 1:6
+        % Create three subplots to show the force time histories. 
+        nexttile(tcl)
+        hold on
+        h = histogram(forces(k, :));
+        h.Normalization = 'probability';
+        h.EdgeColor = 'none';
+
+        probability = h.Values;
+        [M,I] = min(abs(h.BinEdges - force_means(k)));
+        prob_at_mean = probability(I);
+        ascending_arr = 0:0.5:1;
+        l = plot(force_means(k)*ones(1,3), prob_at_mean*ascending_arr);
+        l.LineWidth = 2;
+        l.Color = 'black';
+
+        title([titles(k), "avg: " + force_means(k) + "    SD: " ...
+            + force_SDs(k), "max: " + force_maxs(k) + "    min: " + force_mins(k)]);
+        xlabel(axes_labels(1 + ceil(k/3)));
+        ylabel(axes_labels(1));
+        hold off
+    end
+
+    % Label the whole figure.
+    sgtitle({"Histogram of Force Transducer Data" strrep(case_name,'_','  ')});
+
+    saveas(f,'data\plots\' + case_name + "_B_trimmed_hist.jpg")
 end
 
 end

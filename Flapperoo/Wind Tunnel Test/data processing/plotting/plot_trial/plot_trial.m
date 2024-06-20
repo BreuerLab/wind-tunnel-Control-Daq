@@ -60,6 +60,13 @@ if (nondimensional)
     subtitle = "Trimmed, Rotated, Filtered";
     axes_labels = [x_label, y_label_F, y_label_M];
     plot_forces(time_data, dimensionless(filtered_data, norm_factors), case_name, subtitle, axes_labels, 0);
+
+    y_label = "Probability";
+    x_label_F = "Force Coefficient";
+    x_label_M = "Moment Coefficient";
+    subtitle = "Trimmed, Rotated, Filtered";
+    axes_labels = [y_label, x_label_F, x_label_M];
+    plot_force_histogram(time_data, dimensionless(filtered_data, norm_factors), case_name, subtitle, axes_labels, 0);
 else
     x_label = "Time (s)";
     y_label_F = "Force (N)";
@@ -71,6 +78,13 @@ else
     subtitle = "Trimmed, Rotated, Filtered";
     axes_labels = [x_label, y_label_F, y_label_M];
     plot_forces(time_data, filtered_data, case_name, subtitle, axes_labels, 0);
+
+    y_label = "Probability";
+    x_label_F = "Force (N)";
+    x_label_M = "Moment (N*m)";
+    subtitle = "Trimmed, Rotated, Filtered";
+    axes_labels = [y_label, x_label_F, x_label_M];
+    plot_force_histogram(time_data, filtered_data, case_name, subtitle, axes_labels, 0);
 end
 
 end
