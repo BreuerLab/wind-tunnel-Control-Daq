@@ -1,4 +1,4 @@
-function Pitch = Pitch_Read
+function Pitch = Pitch_Read(print_bool)
 
 % Conversion factors:
 ACC_Conversion = 17476.3; % to RPM/sec
@@ -42,6 +42,7 @@ Pitch.OFF = mData.OFF;
 Pitch.PLS = mData.PLS;  % Limit switch status
 Pitch.PLM = mData.PLM;  % Limit switch mode
 
+if (print_bool)
 fprintf('ACC: %16.16X; [%10.3f RPM/s]\n', mData.ACC, bitand(mData.ACC , 0xFFFFFFFF)/ACC_Conversion);
 fprintf('DEC: %16.16X; [%10.3f RPM/s]\n', mData.DEC, bitand(mData.DEC , 0xFFFFFFFF)/DEC_Conversion);
 fprintf('  V: %16.16X; [%10.3f RPM]\n',   mData.V, bitshift(mData.V, -32)/  V_Conversion);
@@ -50,6 +51,7 @@ fprintf('POSITION:  %ld \n', mData.POS);
 fprintf('OFFSET:    %ld \n', mData.OFF);
 fprintf('PL Status: %d \n', mData.PLS);
 fprintf('PL Mode:   %d \n', mData.PLM);
+end
 
 % Now Write to the offset register to zero out the reading.
 % write(m,'holdingregs', 290+IOFF, 54484850, 'int64');

@@ -108,14 +108,6 @@ if (~debug)
     Pitch_To(AoA(j));
     disp("Pitching to AoA: " + AoA(j))
 
-    %
-    %
-    Deg2Con = 29850.74;
-    P1 = Pitch_Read(print_bool);
-    cur_ang = - (P1.POS+52238083) / (16 * Deg2Con);
-    %
-    %
-
     %----------------------------
     % Disable MPS pitch motor
     %----------------------------
@@ -155,15 +147,9 @@ if (~debug)
     if (speed ~= 0)
         if (automatic)
             VFD_start; % start wind tunnel motor
+            start_time = 10 + 3*speed;
             disp("Waiting for speed to reach setting")
-            lastSpeed = -1;
-            curSpeed = AFAM_Tunnel.Speed;
-            while (abs(lastSpeed - curSpeed) > 0.05)
-                pause(2)
-                lastSpeed = curSpeed;
-                curSpeed = AFAM_Tunnel.Speed;
-            end
-            pause(2)
+            pause(start_time) % wait for speed to return
         else
             % Confirm user has resumed wind before recording data
             wind_on_off_UI("on");
