@@ -27,7 +27,7 @@ bools.movie = false; % Make a movie using all wingbeats?
 bools.spectrum = false; % Plot a frequency spectrum?
 
 sub_strings = ["no wings with tail"];
-nondimensional = false;
+nondimensional = true;
 
 if userSelect
     % Ask the user to select a file to examine the data from
@@ -41,7 +41,7 @@ if userSelect
 else
     type = "blue wings with tail";
     wind_speed = 4;
-    wing_freq = 5;
+    wing_freq = 2;
     AoA = 6;
     file = type + " " + wind_speed + "m.s " + AoA + "deg " + wing_freq + "Hz";
 end

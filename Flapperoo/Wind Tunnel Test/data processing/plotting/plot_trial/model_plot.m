@@ -47,14 +47,6 @@ function model_plot(wind_speed, wing_freq, AoA, ...
     % Shift pitch moment
     pitch_moment_LE = avg_pitch_moment + normal_force * shift_distance;
 
-    drag_force_up = avg_drag_force + std_drag_force;
-    drag_force_low = avg_drag_force - std_drag_force;
-    lift_force_up = avg_lift_force + std_lift_force;
-    lift_force_low = avg_lift_force - std_lift_force;
-
-    pitch_moment_LE_up = pitch_moment_LE + std_pitch_moment;
-    pitch_moment_LE_low = pitch_moment_LE - std_pitch_moment;
-
     if (nondimensional)
         avg_drag_force = wingbeat_avg_forces(1,:) / norm_factors(1);
         avg_lift_force = wingbeat_avg_forces(3,:) / norm_factors(1);
@@ -67,11 +59,24 @@ function model_plot(wind_speed, wing_freq, AoA, ...
         added_mass_force = [added_mass_force(:,1) / norm_factors(1),...
                         added_mass_force(:,2) / norm_factors(1),...
                         added_mass_force(:,3) / norm_factors(2)];
+
+        std_drag_force = std_drag_force / norm_factors(1);
+        std_lift_force = std_lift_force / norm_factors(1);
+    
+        std_pitch_moment = std_pitch_moment / norm_factors(2);
     else
         C_D = C_D * norm_factors(1);
         C_L = C_L * norm_factors(1);
         C_M = C_M * norm_factors(2);
     end
+
+    drag_force_up = avg_drag_force + std_drag_force;
+    drag_force_low = avg_drag_force - std_drag_force;
+    lift_force_up = avg_lift_force + std_lift_force;
+    lift_force_low = avg_lift_force - std_lift_force;
+
+    pitch_moment_LE_up = pitch_moment_LE + std_pitch_moment;
+    pitch_moment_LE_low = pitch_moment_LE - std_pitch_moment;
 
     total_drag = C_D + inertial_force(:,1) + added_mass_force(:,1);
     total_lift = C_L + inertial_force(:,2) + added_mass_force(:,2);
