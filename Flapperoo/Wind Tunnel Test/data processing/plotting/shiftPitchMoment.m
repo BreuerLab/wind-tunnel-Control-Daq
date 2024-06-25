@@ -1,5 +1,4 @@
 function [mod_filtered_data] = shiftPitchMoment(filtered_data, AoA)
-
     mod_filtered_data = filtered_data;
 
     % Shift pitch moment to LE

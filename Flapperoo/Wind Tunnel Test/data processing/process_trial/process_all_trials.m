@@ -5,8 +5,10 @@
 % (i.e. you must be in the process trial folder)
 clear
 close all
-addpath 'functions'
-addpath '../plotting'
+addpath functions
+addpath ../robot_parameters/
+addpath ../plotting
+addpath ../general
 
 raw_data_path = "../../raw data/experiment data/";
 processed_data_path = "../../processed data/";

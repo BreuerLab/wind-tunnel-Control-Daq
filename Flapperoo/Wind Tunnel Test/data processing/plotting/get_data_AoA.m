@@ -145,9 +145,13 @@ for i = 1 : length(theFiles)
             else
                 sub_title = " Re: " + num2str(round(Re,2,"significant")) + ", St: " + num2str(round(St,2,"significant"));
             end
-        % elseif (length(wing_freq_sel) == 1 && length(type_sel) == 1)
-        %     names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) =  " Re: " + num2str(round(Re,2,"significant"));
-        %     sub_title = type2name(type) + " St: " + num2str(round(St,2,"significant"));
+        elseif (length(wing_freq_sel) == 1 && length(type_sel) == 1)
+            names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) =  " Re: " + num2str(round(Re,2,"significant"));
+            if (body_subtraction)
+                sub_title = [type2name(type) + " St: " + num2str(round(St,2,"significant")) "{\color{red}{SUBTRACTION}}: " + sub_string];
+            else
+                sub_title = type2name(type) + " St: " + num2str(round(St,2,"significant"));
+            end
         elseif (length(wind_speed_sel) == 1 && length(type_sel) == 1)
             names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) =  " St: " + num2str(round(St,2,"significant"));
             if (body_subtraction)

@@ -38,8 +38,15 @@ results_lab = coordinate_transformation(force_data, AoA);
 [norm_data, norm_factors, St, Re] = non_dimensionalize_data(results_lab, file);
 
 % Smooth the data with a butterworth filter
-filtered_data = filter_data(results_lab, frame_rate);
-filtered_norm_data = filter_data(norm_data, frame_rate);
+fc = 50; % cutoff frequency
+filtered_data = filter_data(results_lab, frame_rate, fc);
+filtered_norm_data = filter_data(norm_data, frame_rate, fc);
+if (wing_freq > 0)
+    fc = 10*wing_freq; % cutoff frequency
+else
+    fc = 10;
+end
+filtered_data_smooth = filter_data(results_lab, frame_rate, fc);
 
 % may add step to shift pitching moment
 % filtered_data(:,5) = move_pitch(filtered_data(:,5));
@@ -54,13 +61,20 @@ if (wing_freq > 0)
     wingbeat_rmse_forces, wingbeat_max_forces, wingbeat_min_forces, wingbeat_COP]...
     = wingbeat_transformation(num_wingbeats, filtered_data);
 
+[wingbeat_forces_smooth, frames_smooth, wingbeat_avg_forces_smooth, wingbeat_std_forces_smooth, ...
+    wingbeat_rmse_forces_smooth, wingbeat_max_forces_smooth, wingbeat_min_forces_smooth, wingbeat_COP_smooth]...
+    = wingbeat_transformation(num_wingbeats, filtered_data_smooth);
+
 save(processed_data_path + filename, 'wingbeat_forces',...
     'frames', 'wingbeat_avg_forces', 'wingbeat_std_forces',...
     'wingbeat_rmse_forces', 'wingbeat_max_forces', 'wingbeat_min_forces',...
-    'wingbeat_COP', 'time_data', 'results_lab', 'filtered_data', ...
+    'wingbeat_COP', 'wingbeat_forces_smooth',...
+    'frames_smooth', 'wingbeat_avg_forces_smooth', 'wingbeat_std_forces_smooth',...
+    'wingbeat_rmse_forces_smooth', 'wingbeat_max_forces_smooth', 'wingbeat_min_forces_smooth',...
+    'wingbeat_COP_smooth', 'time_data', 'results_lab', 'filtered_data', 'filtered_data_smooth',...
     'filtered_norm_data', 'norm_factors', 'St', 'Re')
 else
     save(processed_data_path + filename, 'time_data', 'results_lab', ...
-    'filtered_data', 'filtered_norm_data', 'norm_factors', 'St', 'Re')
+    'filtered_data', 'filtered_data_smooth', 'filtered_norm_data', 'norm_factors', 'St', 'Re')
 end
 end

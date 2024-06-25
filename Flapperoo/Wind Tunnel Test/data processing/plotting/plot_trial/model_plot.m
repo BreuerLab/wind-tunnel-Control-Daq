@@ -48,8 +48,8 @@ function model_plot(wind_speed, wing_freq, AoA, ...
     pitch_moment_LE = avg_pitch_moment + normal_force * shift_distance;
 
     if (nondimensional)
-        avg_drag_force = wingbeat_avg_forces(1,:) / norm_factors(1);
-        avg_lift_force = wingbeat_avg_forces(3,:) / norm_factors(1);
+        avg_drag_force = avg_drag_force / norm_factors(1);
+        avg_lift_force = avg_lift_force / norm_factors(1);
         pitch_moment_LE = pitch_moment_LE / norm_factors(2);
 
         inertial_force = [inertial_force(:,1) / norm_factors(1),...

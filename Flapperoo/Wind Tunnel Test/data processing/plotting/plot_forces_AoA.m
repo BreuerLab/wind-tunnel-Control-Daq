@@ -21,21 +21,47 @@ function plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title
     end
     
     if (length(wing_freq_sel) == 5 || length(wind_speed_sel) == 5)
-        colors(:,:,1) = ["#ccebc5"; "#a8ddb5"; "#7bccc4"; "#43a2ca"; "#0868ac"];
-        colors(:,:,2) = ["#fdd49e"; "#fdbb84"; "#fc8d59"; "#e34a33"; "#b30000"];
+        if (length(wing_freq_sel) > length(wind_speed_sel))
+            colors(:,:,1) = ["#ccebc5"; "#a8ddb5"; "#7bccc4"; "#43a2ca"; "#0868ac"];
+            colors(:,:,2) = ["#fdd49e"; "#fdbb84"; "#fc8d59"; "#e34a33"; "#b30000"];
+        else
+            colors(:,:,2) = ["#ccebc5"; "#a8ddb5"; "#7bccc4"; "#43a2ca"; "#0868ac"];
+            colors(:,:,1) = ["#fdd49e"; "#fdbb84"; "#fc8d59"; "#e34a33"; "#b30000"];
+        end
     elseif (length(wing_freq_sel) == 4 || length(wind_speed_sel) == 4)
-        colors(:,:,1) = ["#bae4bc"; "#7bccc4"; "#43a2ca"; "#0868ac"];
-        colors(:,:,2) = ["#fdcc8a"; "#fc8d59"; "#e34a33"; "#b30000"];
+        if (length(wing_freq_sel) > length(wind_speed_sel))
+            colors(:,:,1) = ["#bae4bc"; "#7bccc4"; "#43a2ca"; "#0868ac"];
+            colors(:,:,2) = ["#fdcc8a"; "#fc8d59"; "#e34a33"; "#b30000"];
+        else
+            colors(:,:,2) = ["#bae4bc"; "#7bccc4"; "#43a2ca"; "#0868ac"];
+            colors(:,:,1) = ["#fdcc8a"; "#fc8d59"; "#e34a33"; "#b30000"];
+        end
     elseif (length(wing_freq_sel) == 3 || length(wind_speed_sel) == 3)
-        colors(:,:,1) = ["#bae4bc"; "#7bccc4"; "#2b8cbe"];
-        colors(:,:,2) = ["#fdcc8a"; "#fc8d59"; "#d7301f"];
+        if (length(wing_freq_sel) > length(wind_speed_sel))
+            colors(:,:,1) = ["#bae4bc"; "#7bccc4"; "#2b8cbe"];
+            colors(:,:,2) = ["#fdcc8a"; "#fc8d59"; "#d7301f"];
+        else
+            colors(:,:,2) = ["#bae4bc"; "#7bccc4"; "#2b8cbe"];
+            colors(:,:,1) = ["#fdcc8a"; "#fc8d59"; "#d7301f"];
+        end
     elseif (length(wing_freq_sel) == 2 || length(wind_speed_sel) == 2)
-        colors(:,:,1) = ["#a8ddb5"; "#43a2ca"];
-        colors(:,:,2) = ["#fdbb84"; "#e34a33"];
+        if (length(wing_freq_sel) > length(wind_speed_sel))
+            colors(:,:,1) = ["#a8ddb5"; "#43a2ca"];
+            colors(:,:,2) = ["#fdbb84"; "#e34a33"];
+        else
+            colors(:,:,2) = ["#a8ddb5"; "#43a2ca"];
+            colors(:,:,1) = ["#fdbb84"; "#e34a33"];
+        end
     elseif (length(wing_freq_sel) == 1 || length(wind_speed_sel) == 1)
-        colors(:,:,1) = ["#43a2ca"];
-        colors(:,:,2) = ["#e34a33"];
+        if (length(wing_freq_sel) > length(wind_speed_sel))
+            colors(:,:,1) = ["#43a2ca"];
+            colors(:,:,2) = ["#e34a33"];
+        else
+            colors(:,:,2) = ["#43a2ca"];
+            colors(:,:,1) = ["#e34a33"];
+        end
     end
+
     markers = ["o", "pentagram", "x"];
 
     if (forceIndex == 0)    
@@ -53,7 +79,7 @@ function plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title
         for n = 1:length(type_sel)
             
         if (regression)
-            s = scatter(AoA_sel, avg_forces(k, :, j, m, n), 20);
+            s = scatter(AoA_sel, avg_forces(k, :, j, m, n), 50);
             s.HandleVisibility = "off";
             if (length(wing_freq_sel) > length(wind_speed_sel))
                 s.MarkerEdgeColor = colors(j,:,n);
@@ -121,7 +147,7 @@ function plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title
         for m = 1:length(wind_speed_sel)
 
         if (regression)
-            s = scatter(AoA_sel, avg_forces(forceIndex, :, j, m, n), 25);
+            s = scatter(AoA_sel, avg_forces(forceIndex, :, j, m, n), 50);
             s.HandleVisibility = "off";
             if (length(wing_freq_sel) > length(wind_speed_sel))
                 s.MarkerEdgeColor = colors(j,:,n);

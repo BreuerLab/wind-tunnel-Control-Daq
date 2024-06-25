@@ -7,28 +7,46 @@ addpath 'process_trial/functions'
 addpath 'plotting'
 addpath 'robot_parameters'
 
-% Run this code when making NP_plot for the first time
 clear
-% close all
-% posF = figure;
-% hold on
-% momF = figure;
-% hold on
+slopes_plot = true;
+static_margin_bool = true; % only matters if slopes_plot = true
+NP_plot = false;
+COP_plot = false;
+
+% comment out for slopes plot
+% for index = 1:3
+%     if index == 1
+%         if (NP_plot)
+%             close all
+%             posF = figure;
+%             hold on
+%             momF = figure;
+%             hold on
+%         end
+%         wing_freq_sel = [0,2,3];
+%         wind_speed_sel = [2];
+%     elseif index == 2
+%         wing_freq_sel = [2,3,4,5];
+%         wind_speed_sel = [4];
+%     elseif index == 3
+%         wing_freq_sel = [0,3,4];
+%         wind_speed_sel = [6];
+%     end
+
+wing_freq_sel = [2,3,4,5];
+wind_speed_sel = [4];
 
 % -----------------------------------------------------------------
 % ----The parameter combinations you want to see the data for------
 % -----------------------------------------------------------------
-% wing_freq_sel = [0,2,3];
-% wind_speed_sel = [2];
-wing_freq_sel = [2,3,4,5];
-wind_speed_sel = [4];
-% wing_freq_sel = [0,3,4];
-% wind_speed_sel = [6];
+% wing_freq_sel = [2,3,4,5];
+% wind_speed_sel = [4];
 type_sel = ["blue wings with tail"];
 AoA_sel = -10:1:10;
 % AoA_sel = -2:2:2;
 
-wind_speeds = [0,2,4,6];
+wind_speeds = [2,4,6];
+% wind_speeds = [0,2,4,6];
 
 % path to folder where all processed data (.mat files) are stored
 processed_data_path = "../processed data/";
@@ -37,10 +55,6 @@ processed_data_path = "../processed data/";
 
 sub_strings = ["no wings with tail"];
 % sub_strings = ["no wings with tail", "- no wings with tail 0Hz", "blue wings with tail 0Hz"];
-slopes_plot = true;
-static_margin_bool = false; % only matters if slopes_plot = true
-NP_plot = false;
-COP_plot = false;
 
 % Put all our selected variables into a struct called selected_vars
 selected_vars.AoA = AoA_sel;
@@ -49,8 +63,11 @@ NP_pos_vals = zeros(length(wing_freq_sel),length(wind_speed_sel));
 NP_mom_vals = zeros(length(wing_freq_sel),length(wind_speed_sel));
 St_vals = zeros(length(wing_freq_sel),length(wind_speed_sel));
 
-map = [[189, 215, 231]; [107, 174, 214]; [49, 130, 189]; [8, 81, 156]];
-map = map / 255;
+% map = [[189, 215, 231]; [107, 174, 214]; [49, 130, 189]; [8, 81, 156]];
+% map = map / 255;
+map = ["#ccebc5"; "#a8ddb5"; "#7bccc4"; "#43a2ca"; "#0868ac"];
+% map = ["#bae4bc"; "#7bccc4"; "#2b8cbe"];
+map = hex2rgb(map);
 xquery = linspace(0,1,128);
 numColors = size(map);
 numColors = numColors(1);
@@ -77,8 +94,9 @@ for m = 1:length(wind_speed_sel)
         = St;
 
     shift_bool = false; % get pitch moment data shifted
+    norm_bool = false;
     [avg_forces, err_forces, names, sub_title, norm_factors] = ...
-        get_data_AoA(selected_vars, processed_data_path, false, sub_strings, shift_bool);
+        get_data_AoA(selected_vars, processed_data_path, norm_bool, sub_strings, shift_bool);
 
     % For NP_plot
     [NP_pos, NP_mom] = findNP(avg_forces, AoA_sel, false, sub_title);
@@ -154,8 +172,22 @@ elseif (COP_plot)
 end
 
 if (NP_plot)
-    colors = [[189,215,231]; [107,174,214]; [49,130,189]; [8,81,156]];
-    colors = colors / 255;
+    if (length(wind_speeds) == 5)
+        % colors(:,:,1) = ["#ccebc5"; "#a8ddb5"; "#7bccc4"; "#43a2ca"; "#0868ac"];
+        colors = ["#fdd49e"; "#fdbb84"; "#fc8d59"; "#e34a33"; "#b30000"];
+    elseif (length(wind_speeds) == 4)
+        % colors(:,:,1) = ["#bae4bc"; "#7bccc4"; "#43a2ca"; "#0868ac"];
+        colors = ["#fdcc8a"; "#fc8d59"; "#e34a33"; "#b30000"];
+    elseif (length(wind_speeds) == 3)
+        % colors(:,:,1) = ["#bae4bc"; "#7bccc4"; "#2b8cbe"];
+        colors = ["#fdcc8a"; "#fc8d59"; "#d7301f"];
+    elseif (length(wind_speeds) == 2)
+        % colors(:,:,1) = ["#a8ddb5"; "#43a2ca"];
+        colors = ["#fdbb84"; "#e34a33"];
+    elseif (length(wind_speeds) == 1)
+        % colors(:,:,1) = ["#43a2ca"];
+        colors = ["#e34a33"];
+    end
 
     for j = 1:length(sub_strings)
         sub_string = sub_strings(j);
@@ -185,13 +217,13 @@ if (NP_plot)
     else
         s = scatter(wing_freq_sel, NP_pos_vals, 100, 'filled');
     end
-    s.MarkerFaceColor = colors(wind_speeds == wind_speed_sel,:);
-    s.MarkerEdgeColor = colors(wind_speeds == wind_speed_sel,:);
+    s.MarkerFaceColor = colors(wind_speeds == wind_speed_sel);
+    s.MarkerEdgeColor = colors(wind_speeds == wind_speed_sel);
     s.DisplayName = int2str(wind_speed_sel) + " m/s";
-    xlabel("Strouhal Number")
-    ylabel("Neutral Position (% Chord)")
+    xlabel("Strouhal Number", FontSize=18, Interpreter='latex')
+    ylabel("Neutral Position (\% Chord)", FontSize=18, Interpreter='latex')
     legend()
-    title(["Neutral Position" sub_strings]);
+    title(["Neutral Position" sub_strings], FontSize=20, FontName='Times New Roman');
 
     set(0,'CurrentFigure',momF)
     if (St_bool)
@@ -199,16 +231,18 @@ if (NP_plot)
     else
         s = scatter(wing_freq_sel, NP_mom_vals, 100, 'filled');
     end
-    s.MarkerFaceColor = colors(wind_speeds == wind_speed_sel,:);
-    s.MarkerEdgeColor = colors(wind_speeds == wind_speed_sel,:);
+    s.MarkerFaceColor = colors(wind_speeds == wind_speed_sel);
+    s.MarkerEdgeColor = colors(wind_speeds == wind_speed_sel);
     s.DisplayName = int2str(wind_speed_sel) + " m/s";
 
     if (St_bool)
-        xlabel("Strouhal Number",Interpreter='latex')
+        xlabel("Strouhal Number", FontSize=18, Interpreter='latex')
     else
-        xlabel("Wingbeat Frequency",Interpreter='latex')
+        xlabel("Wingbeat Frequency", FontSize=18, Interpreter='latex')
     end
-    ylabel("Moment Coefficient",Interpreter='latex')
+    ylabel("Moment Coefficient", FontSize=18, Interpreter='latex')
     legend()
-    title(["Pitch Moment at Neutral Position" sub_strings],Interpreter='latex');
+    title(["Pitch Moment at Neutral Position" sub_strings], FontSize=20, FontName='Times New Roman');
 end
+
+% end

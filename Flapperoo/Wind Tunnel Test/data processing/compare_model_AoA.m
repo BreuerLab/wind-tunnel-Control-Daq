@@ -19,7 +19,7 @@ wind_speed_sel = [4];
 % AoA_sel = -10:1:10;
 AoA_sel = -8:1:8;
 type_sel = -1;
-nondimensional = true;
+norm_bool = true;
 shift_bool = true; % shift pitch moment to LE
 
 if (data_bool)
@@ -38,7 +38,6 @@ if (data_bool)
         selected_vars.wind = wind_speed_sel;
         selected_vars.type = type_sel;
 
-        norm_bool = false;
         [avg_forces, err_forces, names, sub_title, norm_factors] = ...
         get_data_AoA(selected_vars, processed_data_path, norm_bool, sub_strings, shift_bool);
 
@@ -51,7 +50,6 @@ if (data_bool)
     selected_vars.wind = wind_speed_sel;
     selected_vars.type = type_sel;
 
-    norm_bool = false;
     [avg_forces, err_forces, names, sub_title, norm_factors] = ...
     get_data_AoA(selected_vars, processed_data_path, norm_bool, sub_strings, shift_bool);
 end
@@ -110,13 +108,6 @@ avg_lift(k, j, m, n) = avg_forces(3, k, j, m, n);
 avg_pitch_moment(k, j, m, n) = avg_forces(5, k, j, m, n);
 
 normal_force = avg_lift(k, j, m, n)*cosd(AoA) + avg_drag(k, j, m, n)*sind(AoA);
-
-if (nondimensional)
-    avg_drag(k, j, m, n) = avg_drag(k, j, m, n) / norm_factors(1, k, j, m);
-    avg_lift(k, j, m, n) = avg_lift(k, j, m, n) / norm_factors(1, k, j, m);
-    avg_pitch_moment(k, j, m, n) = avg_pitch_moment(k, j, m, n) / norm_factors(2, k, j, m);
-    normal_force = normal_force / norm_factors(1, k, j, m);
-end
 
 if (shift_bool)
     COP = avg_pitch_moment(k, j, m, n) / normal_force;
@@ -184,11 +175,27 @@ if (pitch_slopes_plot_bool)
     pitch_slopes_plot(wing_freq_sel, AoA_sel, wind_speed_sel, type_sel, C_M_vals, data_bool, avg_pitch_moment);
 end
 
-colors = [[0 0.4470 0.7410]; [0.8500 0.3250 0.0980]; [0.9290 0.6940 0.1250];...
-    [0.4940 0.1840 0.5560]; [0.4660 0.6740 0.1880]; [0.3010 0.7450 0.9330];...
-    [1 0 0]; [0 1 0]; [0 0 1];...
-    [0 1 1]; [1 0 1]; [1 1 0];...
-    [0 0 0]; [1 1 1]];
+if (length(wing_freq_sel) == 5 || length(wind_speed_sel) == 5)
+    colors(:,:,1) = ["#ccebc5"; "#a8ddb5"; "#7bccc4"; "#43a2ca"; "#0868ac"];
+    colors(:,:,2) = ["#fdd49e"; "#fdbb84"; "#fc8d59"; "#e34a33"; "#b30000"];
+elseif (length(wing_freq_sel) == 4 || length(wind_speed_sel) == 4)
+    colors(:,:,1) = ["#bae4bc"; "#7bccc4"; "#43a2ca"; "#0868ac"];
+    colors(:,:,2) = ["#fdcc8a"; "#fc8d59"; "#e34a33"; "#b30000"];
+elseif (length(wing_freq_sel) == 3 || length(wind_speed_sel) == 3)
+    colors(:,:,1) = ["#bae4bc"; "#7bccc4"; "#2b8cbe"];
+    colors(:,:,2) = ["#fdcc8a"; "#fc8d59"; "#d7301f"];
+elseif (length(wing_freq_sel) == 2 || length(wind_speed_sel) == 2)
+    colors(:,:,1) = ["#a8ddb5"; "#43a2ca"];
+    colors(:,:,2) = ["#fdbb84"; "#e34a33"];
+elseif (length(wing_freq_sel) == 1 || length(wind_speed_sel) == 1)
+    colors(:,:,1) = ["#43a2ca"];
+    colors(:,:,2) = ["#e34a33"];
+end
+% colors = [[0 0.4470 0.7410]; [0.8500 0.3250 0.0980]; [0.9290 0.6940 0.1250];...
+%     [0.4940 0.1840 0.5560]; [0.4660 0.6740 0.1880]; [0.3010 0.7450 0.9330];...
+%     [1 0 0]; [0 1 0]; [0 0 1];...
+%     [0 1 1]; [1 0 1]; [1 1 0];...
+%     [0 0 0]; [1 1 1]];
 
 markers = ["o", "pentagram", "x"];
 
@@ -199,7 +206,7 @@ for m = 1:length(wind_speed_sel)
     model = plot(AoA_sel, C_D_vals(:, j, m));
     model.HandleVisibility = "off";
     % model.DisplayName = "Model: " + wing_freq_sel(j) + "Hz";
-    model.Color = colors(j,:);
+    model.Color = colors(j,:,n);
     model.LineStyle = "--";
     model.LineWidth = 2;
 end
@@ -210,9 +217,9 @@ for j = 1:length(wing_freq_sel)
 for m = 1:length(wind_speed_sel)
 for n = 1:length(type_sel)
     s = scatter(AoA_sel, avg_drag(:, j, m, n), 50, 'filled');
-    s.DisplayName = wing_freq_sel(j) + "Hz";
-    s.MarkerFaceColor = colors(j,:);
-    s.MarkerEdgeColor = colors(j,:);
+    s.DisplayName = names(j,m,n);
+    s.MarkerFaceColor = colors(j,:,n);
+    s.MarkerEdgeColor = colors(j,:,n);
 end
 end
 end
@@ -233,7 +240,7 @@ for m = 1:length(wind_speed_sel)
     model = plot(AoA_sel, C_L_vals(:, j, m));
     model.HandleVisibility = "off";
     % model.DisplayName = "Model: " + wing_freq_sel(j) + "Hz";
-    model.Color = colors(j,:);
+    model.Color = colors(j,:,n);
     model.LineStyle = "--";
     model.LineWidth = 2;
 end
@@ -244,9 +251,9 @@ for j = 1:length(wing_freq_sel)
 for m = 1:length(wind_speed_sel)
 for n = 1:length(type_sel)
     s = scatter(AoA_sel, avg_lift(:, j, m, n), 50, 'filled');
-    s.DisplayName = wing_freq_sel(j) + "Hz";
-    s.MarkerFaceColor = colors(j,:);
-    s.MarkerEdgeColor = colors(j,:);
+    s.DisplayName = names(j,m,n);
+    s.MarkerFaceColor = colors(j,:,n);
+    s.MarkerEdgeColor = colors(j,:,n);
 end
 end
 end
@@ -267,7 +274,7 @@ for m = 1:length(wind_speed_sel)
     model = plot(AoA_sel, C_M_vals(:, j, m));
     model.HandleVisibility = "off";
     % model.DisplayName = "Model: " + wing_freq_sel(j) + "Hz";
-    model.Color = colors(j,:);
+    model.Color = colors(j,:,n);
     model.LineStyle = "--";
     model.LineWidth = 2;
 end
@@ -278,9 +285,9 @@ for j = 1:length(wing_freq_sel)
 for m = 1:length(wind_speed_sel)
 for n = 1:length(type_sel)
     s = scatter(AoA_sel, avg_pitch_moment(:, j, m, n), 50, 'filled');
-    s.DisplayName = wing_freq_sel(j) + "Hz";
-    s.MarkerFaceColor = colors(j,:);
-    s.MarkerEdgeColor = colors(j,:);
+    s.DisplayName = names(j,m,n);
+    s.MarkerFaceColor = colors(j,:,n);
+    s.MarkerEdgeColor = colors(j,:,n);
 end
 end
 end
@@ -309,8 +316,8 @@ for m = 1:length(wind_speed_sel)
     model = scatter(AoA_sel, COP_model_chord, 50, 'filled');
     model.HandleVisibility = "off";
     % model.DisplayName = "Model: " + wing_freq_sel(j) + "Hz";
-    model.MarkerFaceColor = colors(j,:);
-    model.MarkerEdgeColor = colors(j,:);
+    model.MarkerFaceColor = colors(j,:,n);
+    model.MarkerEdgeColor = colors(j,:,n);
     model.Marker = markers(1);
 end
 end
@@ -320,9 +327,9 @@ for j = 1:length(wing_freq_sel)
 for m = 1:length(wind_speed_sel)
 for n = 1:length(type_sel)
     s = scatter(AoA_sel, COP_chord(:, j, m, n), 50, 'filled');
-    s.DisplayName = wing_freq_sel(j) + "Hz";
-    s.MarkerFaceColor = colors(j,:);
-    s.MarkerEdgeColor = colors(j,:);
+    s.DisplayName = names(j,m,n);
+    s.MarkerFaceColor = colors(j,:,n);
+    s.MarkerEdgeColor = colors(j,:,n);
     s.Marker = markers(2);
 end
 end

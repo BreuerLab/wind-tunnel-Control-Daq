@@ -7,8 +7,7 @@
 
 % Outputs:
 % filtered_results - (n x 6) filtered force transducer data
-function filtered_results = filter_data(results, frame_rate)
-    fc = 50; % cutoff frequency
+function filtered_results = filter_data(results, frame_rate, fc)
     % cutoff should be ten times higher than flapping frequency, don't want
     % to filter the data too much, then we'd have no data
     fs = frame_rate;
