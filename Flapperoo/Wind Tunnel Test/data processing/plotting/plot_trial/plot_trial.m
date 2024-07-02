@@ -45,6 +45,9 @@ end
 
 load(processed_data_path + file);
 
+Re_og = Re;
+St_og = St;
+
 disp("Loading data from " + case_name + " trial")
 
 if (bools.time_data)
@@ -101,7 +104,7 @@ lin_acc = deg2rad(ang_acc) * r;
 
 [eff_AoA, u_rel] = get_eff_wind(time, lin_vel, AoA, wind_speed);
 
-if (body_subtraction)
+if (body_subtraction && wing_freq > 0)
     disp("Subtraction only occurs for wingbeat_avg_forces and model")
     % Parse relevant information from subtraction string
     case_parts = strtrim(split(sub_strings));
@@ -137,9 +140,6 @@ if (body_subtraction)
 
     % cycle_avg_forces_old = wingbeat_avg_forces;
     % cycle_std_forces_old = wingbeat_std_forces;
-
-    Re_og = Re;
-    St_og = St;
 
     vars = {'wingbeat_avg_forces', 'wingbeat_std_forces', ...
         'wingbeat_avg_forces_smooth', 'wingbeat_std_forces_smooth', 'Re', 'St'};

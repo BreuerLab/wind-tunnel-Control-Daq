@@ -12,7 +12,7 @@ fit_data_bool = false; % fit data with curve?
 pitch_slopes_plot_bool = true;
 % wing_freq_sel = [0,2,3];
 % wind_speed_sel = [2];
-wing_freq_sel = [2,3,4];
+wing_freq_sel = [0,2,3,4,5];
 wind_speed_sel = [4];
 % wing_freq_sel = [0,3,4];
 % wind_speed_sel = [6];
@@ -23,10 +23,10 @@ norm_bool = true;
 shift_bool = true; % shift pitch moment to LE
 
 if (data_bool)
-    type_sel = ["blue wings with tail"];
+    type_sel = ["blue wings"];
     % type_sel = ["no wings with tail"];
     % subtraction_string = "none";
-    sub_strings = ["no wings with tail"];
+    sub_strings = ["no wings"];
     
     % path to folder where all processed data (.mat files) are stored
     processed_data_path = "../processed data/";

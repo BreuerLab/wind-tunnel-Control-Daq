@@ -1,8 +1,12 @@
-function plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title, nondimensional, forceIndex, regression, shift_bool)
+function plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title, nondimensional, forceIndex, regression, err_bool, shift_bool)
     AoA_sel = selected_vars.AoA;
     wing_freq_sel = selected_vars.freq;
     wind_speed_sel = selected_vars.wind;
     type_sel = selected_vars.type;
+
+    if (~err_bool)
+        err_forces = zeros(size(err_forces));
+    end
     
     x_label = "Angle of Attack (deg)";
     if (nondimensional)
@@ -79,17 +83,30 @@ function plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title
         for n = 1:length(type_sel)
             
         if (regression)
-            s = scatter(AoA_sel, avg_forces(k, :, j, m, n), 50);
-            s.HandleVisibility = "off";
+            % s = scatter(AoA_sel, avg_forces(k, :, j, m, n), 50);
+            % s.HandleVisibility = "off";
+            % if (length(wing_freq_sel) > length(wind_speed_sel))
+            %     s.MarkerEdgeColor = colors(j,:,n);
+            %     s.MarkerFaceColor = colors(j,:,n);
+            %     s.Marker = markers(m);
+            % else
+            %     s.MarkerEdgeColor = colors(m,:,n);
+            %     s.MarkerFaceColor = colors(m,:,n);
+            %     s.Marker = markers(j);
+            % end
+
+            e = errorbar(AoA_sel, avg_forces(k, :, j, m, n), err_forces(k, :, j, m, n),'.');
+            e.MarkerSize = 10;
             if (length(wing_freq_sel) > length(wind_speed_sel))
-                s.MarkerEdgeColor = colors(j,:,n);
-                s.MarkerFaceColor = colors(j,:,n);
-                s.Marker = markers(m);
+                e.Color = colors(j,:,n);
+                e.MarkerFaceColor = colors(j,:,n);
+                e.Marker = markers(m);
             else
-                s.MarkerEdgeColor = colors(m,:,n);
-                s.MarkerFaceColor = colors(m,:,n);
-                s.Marker = markers(j);
+                e.Color = colors(m,:,n);
+                e.MarkerFaceColor = colors(m,:,n);
+                e.Marker = markers(j);
             end
+            e.HandleVisibility = "off";
     
             x = [ones(size(AoA_sel')), AoA_sel'];
             y = avg_forces(k, :, j, m, n)';
@@ -147,17 +164,30 @@ function plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title
         for m = 1:length(wind_speed_sel)
 
         if (regression)
-            s = scatter(AoA_sel, avg_forces(forceIndex, :, j, m, n), 50);
-            s.HandleVisibility = "off";
+            % s = scatter(AoA_sel, avg_forces(forceIndex, :, j, m, n), 50);
+            % s.HandleVisibility = "off";
+            % if (length(wing_freq_sel) > length(wind_speed_sel))
+            %     s.MarkerEdgeColor = colors(j,:,n);
+            %     s.MarkerFaceColor = colors(j,:,n);
+            %     s.Marker = markers(m);
+            % else
+            %     s.MarkerEdgeColor = colors(m,:,n);
+            %     s.MarkerFaceColor = colors(m,:,n);
+            %     s.Marker = markers(j);
+            % end
+
+            e = errorbar(AoA_sel, avg_forces(forceIndex, :, j, m, n), err_forces(forceIndex, :, j, m, n),'.');
+            e.MarkerSize = 10;
             if (length(wing_freq_sel) > length(wind_speed_sel))
-                s.MarkerEdgeColor = colors(j,:,n);
-                s.MarkerFaceColor = colors(j,:,n);
-                s.Marker = markers(m);
+                e.Color = colors(j,:,n);
+                e.MarkerFaceColor = colors(j,:,n);
+                e.Marker = markers(m);
             else
-                s.MarkerEdgeColor = colors(m,:,n);
-                s.MarkerFaceColor = colors(m,:,n);
-                s.Marker = markers(j);
+                e.Color = colors(m,:,n);
+                e.MarkerFaceColor = colors(m,:,n);
+                e.Marker = markers(j);
             end
+            e.HandleVisibility = "off";
     
             reg_AoA_sel = -8:1:8;
             x = [ones(size(reg_AoA_sel')), reg_AoA_sel'];

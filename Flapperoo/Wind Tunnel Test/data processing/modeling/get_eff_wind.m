@@ -2,8 +2,8 @@ function [eff_AoA, u_rel] = get_eff_wind(time, lin_vel, AoA, wind_speed)
     
     % wind_speed = 100;
     % time = time / wing_freq;
-    eff_AoA = zeros(size(lin_vel));
-    u_rel = zeros(size(lin_vel)); % u_rel is opposite lin_vel
+    eff_AoA = zeros(length(time), length(lin_vel));
+    u_rel = zeros(length(time), length(lin_vel)); % u_rel is opposite lin_vel
 
     v_x = -lin_vel * sind(AoA);
     v_y = -lin_vel * cosd(AoA);

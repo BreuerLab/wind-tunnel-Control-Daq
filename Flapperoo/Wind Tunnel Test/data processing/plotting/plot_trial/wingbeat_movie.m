@@ -60,6 +60,7 @@ function wingbeat_movie(frames, wingbeat_forces, case_name, subtitle, axes_label
     writeVideo(v,wingbeats_animation);
     close(v);
     
+    % When I first wrote this script, this is what I noticed:
     % From beginning to end, it looks like the data for each wingbeat is
     % slowly shifting right. This would indicate that the assumed wingbeat
     % period is a little shorter than the true wingbeat period or we are

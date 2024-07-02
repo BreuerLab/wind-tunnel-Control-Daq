@@ -20,14 +20,16 @@ userSelect = false;
 bools.raw = false; % Plot the raw data readings?
 bools.time_data = true; % Plot the data in time
 bools.kinematics = false; % Plot the wingbeat kinematics?
-bools.eff_wind = false; % Plot the effective wind and AoA?
+bools.eff_wind = true; % Plot the effective wind and AoA?
 bools.model = true; % Plot the modeled forces?
 bools.COP = false; % Plot the movement of the Center-of-Pressure?
 bools.movie = false; % Make a movie using all wingbeats?
 bools.spectrum = false; % Plot a frequency spectrum?
 
+% subtraction only does something for the model data
+% (wingbeat_avg_forces)
 sub_strings = ["no wings with tail"];
-nondimensional = true;
+nondimensional = false;
 
 if userSelect
     % Ask the user to select a file to examine the data from

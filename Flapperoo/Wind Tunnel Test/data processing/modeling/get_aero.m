@@ -9,10 +9,17 @@ function [C_L, C_D, C_N, C_M] = get_aero(eff_AoA, u_rel, wind_speed_sel, wing_le
         C_N_r = C_L_r .* cosd(eff_AoA) + C_D_r .* sind(eff_AoA);
         C_M_r = -C_L_r / 4;
     else
-        C_L_r = (lift_slope*eff_AoA + lift_intercept) .* (u_rel / wind_speed_sel).^2;
-        C_D_r = (B*cosd(w*eff_AoA) + C) .* (u_rel / wind_speed_sel).^2;
+        C_L_r = (-0.44*exp(-0.47*eff_AoA) + 1.19*sind(1.74*eff_AoA + 20)) .* (u_rel / wind_speed_sel).^2;
+        C_D_r = (1.04 + sind(1.72*eff_AoA - 70)) .* (u_rel / wind_speed_sel).^2;
         C_N_r = C_L_r .* cosd(eff_AoA) + C_D_r .* sind(eff_AoA);
-        C_M_r = (pitch_slope*eff_AoA + pitch_intercept) .* (u_rel / wind_speed_sel).^2;
+        x_cp = 0.247 + 0.016*eff_AoA.^0.6 + 0.026*eff_AoA.*exp(-0.11*eff_AoA);
+        C_M_r = -C_N_r .* x_cp;
+        % old formulation using fits from my data
+        % C_L_r = (lift_slope*eff_AoA + lift_intercept) .* (u_rel / wind_speed_sel).^2;
+        % C_D_r = (B*cosd(w*eff_AoA) + C) .* (u_rel / wind_speed_sel).^2;
+        % C_N_r = C_L_r .* cosd(eff_AoA) + C_D_r .* sind(eff_AoA);
+        % C_M_r = (pitch_slope*eff_AoA + pitch_intercept) .* (u_rel / wind_speed_sel).^2;
+
         % C_M_r = (B_pitch*sind(w_pitch*eff_AoA + off_pitch) + C_pitch) .* (u_rel / wind_speed_sel).^2;
     end
     
