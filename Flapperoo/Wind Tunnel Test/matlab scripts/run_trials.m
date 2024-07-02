@@ -28,9 +28,12 @@ wait_time = 3000; % 3 seconds (data collected before and after flapping)
 stationary_vel = rev_ticks; % Hz
 hold_time = 12000; % 12 second trial when not flapping (i.e. 0 Hz)
 distance = -1; % ticks to travel this trial -> calculated each trial
+if freq < 0.5
+    measure_revs = 12;
+end
 
 % Force Transducer Parameters
-aliasing = true;
+aliasing = false;
 voltage = 5;
 calibration_filepath = "../Force Transducer/Calibration Files/FT43243.cal";
 if aliasing

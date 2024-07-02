@@ -21,11 +21,14 @@ addpath 'galil scripts'
 % -----------------------------------------------------------------------
 % ----------Parameters to Adjust for Your Specific Experiment------------
 % -----------------------------------------------------------------------
-AoA = -14:2:14; % angle of attack, set by MPS system
-freq = [0]; % wingbeat frequency, set by motor RPM
+% AoA = [-16:1.5:-12 -12:1:-8 -8:0.5:8 8:1:12 12:1.5:16]; % angle of attack, set by MPS system
+AoA = [-8:0.5:8]; % angle of attack, set by MPS system
+% freq = [0, 0.1, 2, 2.5, 3, 3.5, 3.75, 4, 4.5, 5]; % wingbeat frequency, set by motor RPM
+freq = [3.5, 4, 3.75, 2, 3, 0, 0.1, 2.5, 4.5, 5, 2, 4]; % freq2 = freq(randperm(length(freq)))
 measure_revs = 180; % number of wingbeats
-speed = 6; % wind tunnel air speed
-wing_type = "mechanism_pause_25"; % whatever name you'd like to use
+
+speed = 4; % wind tunnel air speed
+wing_type = "test"; % whatever name you'd like to use
 automatic = false; % run through trials automatically?
 debug = false; % testing on personal computer?
 
