@@ -38,13 +38,11 @@ function [wind_speed, density, Re] = get_tunnel_file_contents(path, file_name, w
         density = AFAM_Tunnel.Density;
         Re = AFAM_Tunnel.Reynolds * wing_chord;
 
-        if (abs(wind_speed - U) > 0.2)
-            error("HIGH ERROR DETECTED IN SPEED READING!")
-        end
+        if (wind_speed)
 
         if(isnan(wind_speed) || isnan(density) || isnan(Re))
             disp("File corrupted. Using nearby values for air speed, density, and viscosity for case:")
-            error(case_name)
+            disp(case_name)
             
             if (cur_ind > 1)
             prev_file_name = strrep(file_name, wing_freq + "Hz", wing_freqs(cur_ind - 1) + "Hz");

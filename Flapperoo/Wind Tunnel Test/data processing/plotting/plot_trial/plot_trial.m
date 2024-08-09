@@ -104,7 +104,17 @@ lin_acc = deg2rad(ang_acc) * r;
 
 [eff_AoA, u_rel] = get_eff_wind(time, lin_vel, AoA, wind_speed);
 
-if (body_subtraction && wing_freq > 0)
+if (wing_freq > 0)
+    [mod_filtered_data] = shiftPitchMoment(wingbeat_avg_forces_smooth, AoA);
+    wingbeat_avg_forces_smooth = mod_filtered_data;
+
+    cycle_avg_forces = wingbeat_avg_forces_smooth;
+    cycle_std_forces = wingbeat_std_forces_smooth;
+    cycle_min_forces = wingbeat_min_forces;
+    cycle_max_forces = wingbeat_max_forces;
+    cycle_rmse_forces = wingbeat_rmse_forces;
+
+    if (body_subtraction)
     disp("Subtraction only occurs for wingbeat_avg_forces and model")
     % Parse relevant information from subtraction string
     case_parts = strtrim(split(sub_strings));
@@ -135,9 +145,6 @@ if (body_subtraction && wing_freq > 0)
     
     sub_case_name = sub_type + " " + sub_wind_speed + "m.s " + sub_AoA + "deg " + sub_wing_freq + "Hz";
 
-    cycle_avg_forces_old = wingbeat_avg_forces_smooth;
-    cycle_std_forces_old = wingbeat_std_forces_smooth;
-
     % cycle_avg_forces_old = wingbeat_avg_forces;
     % cycle_std_forces_old = wingbeat_std_forces;
 
@@ -145,11 +152,11 @@ if (body_subtraction && wing_freq > 0)
         'wingbeat_avg_forces_smooth', 'wingbeat_std_forces_smooth', 'Re', 'St'};
     load(processed_data_path + sub_case_name + '.mat', vars{:});
 
-    cycle_avg_forces = cycle_avg_forces_old - wingbeat_avg_forces_smooth;
-    cycle_std_forces = cycle_std_forces_old + wingbeat_std_forces_smooth;
-    cycle_min_forces = wingbeat_min_forces;
-    cycle_max_forces = wingbeat_max_forces;
-    cycle_rmse_forces = wingbeat_rmse_forces;
+    [mod_filtered_data] = shiftPitchMoment(wingbeat_avg_forces_smooth, sub_AoA);
+    wingbeat_avg_forces_smooth = mod_filtered_data;
+
+    cycle_avg_forces = cycle_avg_forces - wingbeat_avg_forces_smooth;
+    cycle_std_forces = cycle_std_forces + wingbeat_std_forces_smooth;
 
     % cycle_avg_forces = cycle_avg_forces_old - wingbeat_avg_forces;
     % cycle_std_forces = cycle_std_forces_old + wingbeat_std_forces;
@@ -266,6 +273,7 @@ if (wing_freq > 0)
     end
     
     if (bools.COP)
+        disp("COP calc is broken since data is shifted first before")
         COP = cycle_avg_forces(5,:) ./ cycle_avg_forces(3,:); % M_y / F_z
         % fc = 20; % cutoff frequency
         % fs = 9000;

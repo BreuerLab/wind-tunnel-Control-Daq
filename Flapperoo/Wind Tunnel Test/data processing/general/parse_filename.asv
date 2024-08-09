@@ -18,16 +18,16 @@ function [case_name, time_stamp, type, wing_freq, AoA, wind_speed] = parse_filen
         time_stamp = extractBefore(extractAfter(filename,"_experiment_"), ".");
     elseif (contains(filename,"_before_offsets"))
         case_name = extractBefore(filename,"_before_offsets_");
-        time_stamp = extractBefore(extractAfter(filename,"_before_offsets_"),".csv");
+        time_stamp = extractAfter(filename,"_before_offsets_");
     elseif (contains(filename,"_after_offsets"))
         case_name = extractBefore(filename,"_after_offsets_");
-        time_stamp = extractBefore(extractAfter(filename,"_after_offsets_"),".csv");
+        time_stamp = extractAfter(filename,"_after_offsets_");
     elseif (contains(filename,"_wind_tunnel"))
-        case_name = extractAfter(extractBefore(filename,"_wind_tunnel_"),"_");
+        case_name = extractBefore(filename,"_wind_tunnel_");
         time_stamp = extractAfter(filename,"_wind_tunnel_");
     elseif (contains(filename,".mat"))
         case_name = extractBefore(filename,"2024");
-        time_stamp = "2024" + extractBefore(extractAfter(filename,"2024"), ".mat");
+        time_stamp = "";
     else
         case_name = filename;
         time_stamp = "";

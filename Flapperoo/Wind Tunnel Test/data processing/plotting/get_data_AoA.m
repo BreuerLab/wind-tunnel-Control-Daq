@@ -1,5 +1,7 @@
 function [avg_forces, err_forces, names, sub_title, norm_factors_arr] = ...
-    get_data_AoA(selected_vars, processed_data_path, nondimensional, sub_strings, shift_bool)
+    get_data_AoA(selected_vars, processed_data_path, offsets_path, nondimensional, sub_strings, shift_bool)
+
+sub_drift = true;
 
 if (sub_strings(1) == "")
     body_subtraction = false;
@@ -12,9 +14,17 @@ wing_freq_sel = selected_vars.freq;
 wind_speed_sel = selected_vars.wind;
 type_sel = selected_vars.type;
 
+% produces array of same size as wing_freq_sel but with the
+% frequency of each value in its place, ex:
+% [0, 2, 4, 2, 4] -> [1, 2, 2, 2, 2]
+wing_freq_sel_count = wing_freq_sel;
+for i = 1:length(wing_freq_sel)
+    wing_freq_sel_count(i) = sum(wing_freq_sel == wing_freq_sel(i));
+end
+
 % Initialize variables
 avg_forces = zeros(6, length(AoA_sel), length(wing_freq_sel), length(wind_speed_sel), length(type_sel));
-avg_forces_body = zeros(6, length(AoA_sel), length(wing_freq_sel), length(wind_speed_sel));
+% avg_forces_body = zeros(6, length(AoA_sel), length(wing_freq_sel), length(wind_speed_sel));
 err_forces = zeros(6, length(AoA_sel), length(wing_freq_sel), length(wind_speed_sel), length(type_sel));
 cases_final = strings(length(AoA_sel), length(wing_freq_sel), length(wind_speed_sel), length(type_sel));
 names = strings(length(wing_freq_sel), length(wind_speed_sel), length(type_sel));
@@ -22,6 +32,8 @@ norm_factors_arr = zeros(2, length(AoA_sel), length(wing_freq_sel), length(wind_
 % really only the windspeed matters here but let's include all
 % the variables include the normalization routine changes in the
 % future
+
+sub_title = "";
 
 % Get a list of all files in the folder with the desired file name pattern.
 filePattern = fullfile(processed_data_path, '*.mat'); % Change to whatever pattern you need.
@@ -31,7 +43,8 @@ theFiles = dir(filePattern);
 % produce a "dot" (i.e. a single point value) for each force and moment
 for i = 1 : length(theFiles)
     baseFileName = theFiles(i).name;
-    [case_name, type, wing_freq, AoA, wind_speed] = parse_filename(baseFileName);
+    [case_name, time_stamp, type, wing_freq, AoA, wind_speed] = parse_filename(baseFileName);
+    
     type = convertCharsToStrings(type);
     
 %     pitch = deg2rad(-AoA);
@@ -44,18 +57,79 @@ for i = 1 : length(theFiles)
     && ismember(wind_speed, wind_speed_sel) ...
     && ismember(type, type_sel))
 
-        disp("   Obtaining data for " + type + " " + wing_freq + " Hz " + wind_speed + " m/s "  + AoA + " deg trial")
+        wing_freq_ind = wing_freq_sel == wing_freq;
 
-        load(processed_data_path + baseFileName);
+        modFileName = baseFileName;
+
+        % Check if any other files were recorded for the same set
+        % of parameters but at a different time
+        count = 0;
+        timestamps_str = {};
+        timestamps_val = [];
+        for m = 1 : length(theFiles)
+            baseFileName = theFiles(m).name;
+            if (contains(baseFileName, case_name))
+                count = count + 1;
+                time_str = extractBefore(extractAfter(baseFileName, case_name), ".mat");
+                split_time_str = split(time_str);
+                h_m_s = split_time_str(2);
+                split_h_m_s = str2double(split(h_m_s, "-"));
+                if (split_h_m_s(1) < 6)
+                    split_h_m_s(1) = split_h_m_s(1) + 12;
+                end
+                time_val = split_h_m_s(1)*3600 + split_h_m_s(2)*60 + split_h_m_s(3);
+
+                timestamps_str = [timestamps_str; time_str];
+                timestamps_val = [timestamps_val; time_val];
+            end
+        end
+
+        [B,I] = sort(timestamps_val);
+        timestamps_str_sorted = timestamps_str(I);
+        cur_time_index = find(timestamps_str_sorted == time_stamp);
+
+        num_repeat_freqs = wing_freq_sel_count(find(wing_freq_sel == wing_freq, 1, 'first'));
+
+        disp("Obtaining data for " + type + " " + wing_freq + " Hz " + wind_speed + " m/s "  + AoA + " deg trial")
+        if (count > 1) % counted multiple repeats in datastream
+        if (num_repeat_freqs == count)
+            % num_repeat_freqs > 1 && cur_time_index > length(timestamps_str) - num_repeat_freqs
+            wing_freq_ind = find(wing_freq_sel == wing_freq);
+            wing_freq_ind = wing_freq_ind(cur_time_index);
+
+            disp("Found " + count + " files, timestamps: " + timestamps_str)
+            disp("    Using current timestamp: " + time_stamp)
+            disp(" ")
+        else
+            disp("Extra files found and current file too old, moving on...")
+            continue
+            % wing_freq_ind = wing_freq_sel == wing_freq;
+            % 
+            % modFileName = case_name + string(timestamps_str_sorted(end)) + ".mat";
+            % 
+            % disp("Found " + count + " files, timestamps: " + timestamps_str)
+            % disp("    Using last timestamp: " + timestamps_str_sorted(end))
+            % disp(" ")
+        end
+        end
+
+        load(processed_data_path + modFileName);
+
+        if (sub_drift)
+            [drift] = get_drift(modFileName, offsets_path);
+        end
 
         if (shift_bool)
         [mod_filtered_data] = shiftPitchMoment(filtered_data, AoA);
         filtered_data = mod_filtered_data;
         end
 
-        norm_filtered_data = dimensionless(filtered_data,norm_factors);
+        plot_data = filtered_data;
+        norm_plot_data = dimensionless(filtered_data, norm_factors);
+        % plot_data = force_data;
+        % norm_plot_data = dimensionless(force_data, norm_factors);
         
-        norm_factors_arr(:, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed) = norm_factors;
+        norm_factors_arr(:, AoA_sel == AoA, wing_freq_ind, wind_speed_sel == wind_speed) = norm_factors;
 
         sub_term = zeros(1,6);
         if (body_subtraction)
@@ -81,9 +155,9 @@ for i = 1 : length(theFiles)
         end
 
         if (nondimensional)
-            forces = norm_filtered_data;
+            forces = norm_plot_data;
         else
-            forces = filtered_data;
+            forces = plot_data;
         end
 
         for k = 1:6
@@ -93,176 +167,65 @@ for i = 1 : length(theFiles)
                 % else
                 %     wing_forces = forces(:,1:length(forces_body)) - forces_body;
                 % end
-                % avg_forces(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type)...
+                % avg_forces(k, AoA_sel == AoA, wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type)...
                 %         = mean(wing_forces);
 
-                avg_forces(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type)...
+                avg_forces(k, AoA_sel == AoA, wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type)...
                             = mean(forces(k,:)) - sub_term(k);
+            elseif (sub_drift)
+                avg_forces(k, AoA_sel == AoA, wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type)...
+                            = mean(forces(k,:)) - drift(k);
             else
-                avg_forces(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type)...
+                avg_forces(k, AoA_sel == AoA, wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type)...
                     = mean(forces(k,:));
             end
 
             if (wing_freq == 0)
                 if (nondimensional)
-                    err_forces(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type)...
-                        = std(norm_filtered_data(k,:));
+                    % err_forces(k, AoA_sel == AoA, wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type)...
+                    %     = std(norm_plot_data(k,:));
+                    cycle_avg_norm = dimensionless(squeeze(cycle_avg_forces), norm_factors);
+                    err_forces(k, AoA_sel == AoA, wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type)...
+                        = std(cycle_avg_norm(k, :));
                 else
-                    err_forces(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type)...
-                        = std(filtered_data(k, :));
+                    % err_forces(k, AoA_sel == AoA, wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type)...
+                    %     = std(plot_data(k, :));
+                    cycle_avg = squeeze(cycle_avg_forces);
+                    err_forces(k, AoA_sel == AoA, wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type)...
+                        = std(cycle_avg(k, :));
                 end
             else
                 if (nondimensional)
-                    wingbeat_std_forces_norm = dimensionless(wingbeat_std_forces, norm_factors);
-                    err_forces(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type)...
-                        = mean(wingbeat_std_forces_norm(k, :));
+                    % wingbeat_std_forces_norm = dimensionless(wingbeat_std_forces, norm_factors);
+                    % err_forces(k, AoA_sel == AoA, wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type)...
+                    %     = mean(wingbeat_std_forces_norm(k, :));
+                    cycle_avg_forces_norm = dimensionless(cycle_avg_forces, norm_factors);
+                    err_forces(k, AoA_sel == AoA, wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type)...
+                        = std(cycle_avg_forces_norm(k, :));
                 else
-                    err_forces(k, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type)...
-                        = mean(wingbeat_std_forces(k, :));
+                    % err_forces(k, AoA_sel == AoA, wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type)...
+                    %     = mean(wingbeat_std_forces(k, :));
+                    err_forces(k, AoA_sel == AoA, wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type)...
+                        = std(cycle_avg_forces(k, :));
                 end
             end
         end
 
-%         avg_forces(1:3, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) ...
-%                     = (dcm_F * avg_forces_temp(1:3, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type));
-%         avg_forces(4:6, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) ...
-%                     = (1 * dcm_M * avg_forces_temp(4:6, AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type));
+%         avg_forces(1:3, AoA_sel == AoA, wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type) ...
+%                     = (dcm_F * avg_forces_temp(1:3, AoA_sel == AoA, wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type));
+%         avg_forces(4:6, AoA_sel == AoA, wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type) ...
+%                     = (1 * dcm_M * avg_forces_temp(4:6, AoA_sel == AoA, wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type));
         
-        cases_final(AoA_sel == AoA, wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = baseFileName;
+        cases_final(AoA_sel == AoA, wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type) = modFileName;
         
-        if (nondimensional)
-        if (length(wing_freq_sel) == 1 && length(wind_speed_sel) == 1 && length(type_sel) == 1)
-            names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = "";
-            if (body_subtraction)
-                sub_title = [type2name(type) +  ", Re: " + num2str(round(Re,2,"significant")) + ", St: " + num2str(round(St,2,"significant")) "{\color{red}{SUBTRACTION}}: " + sub_string];
-            else
-                sub_title = type2name(type) +  ", Re: " + num2str(round(Re,2,"significant")) + ", St: " + num2str(round(St,2,"significant"));
-            end
-        elseif (length(wing_freq_sel) == 1 && length(wind_speed_sel) == 1)
-            names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = type2name(type);
-            if (body_subtraction)
-                sub_title = [" Re: " + num2str(round(Re,2,"significant")) + ", St: " + num2str(round(St,2,"significant")) "{\color{red}{SUBTRACTION}}: " + sub_string];
-            else
-                sub_title = " Re: " + num2str(round(Re,2,"significant")) + ", St: " + num2str(round(St,2,"significant"));
-            end
-        elseif (length(wing_freq_sel) == 1 && length(type_sel) == 1)
-            names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) =  " Re: " + num2str(round(Re,2,"significant"));
-            if (body_subtraction)
-                sub_title = [type2name(type) + " St: " + num2str(round(St,2,"significant")) "{\color{red}{SUBTRACTION}}: " + sub_string];
-            else
-                sub_title = type2name(type) + " St: " + num2str(round(St,2,"significant"));
-            end
-        elseif (length(wind_speed_sel) == 1 && length(type_sel) == 1)
-            names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) =  " St: " + num2str(round(St,2,"significant"));
-            if (body_subtraction)
-                sub_title = [type2name(type) +  " Re: " + num2str(round(Re,2,"significant")) "{\color{red}{SUBTRACTION}}: " + sub_string];
-            else
-                sub_title = type2name(type) +  " Re: " + num2str(round(Re,2,"significant"));
-            end
-        % elseif (length(wing_freq_sel) == 1)
-        %     names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = type2name(type) +  " Re: " + num2str(round(Re,2,"significant"));
-        %     sub_title = " St: " + num2str(round(St,2,"significant"));
-        elseif (length(wind_speed_sel) == 1)
-            names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = type2name(type) + ", St: " + num2str(round(St,2,"significant"));
-            if (body_subtraction)
-                sub_title = [" Re: " + num2str(round(Re,2,"significant")) "{\color{red}{SUBTRACTION}}: " + sub_string];
-            else
-                sub_title = " Re: " + num2str(round(Re,2,"significant"));
-            end
-        elseif (length(type_sel) == 1)
-            names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) =  " Re: " + num2str(round(Re,2,"significant")) + ", St: " + num2str(round(St,2,"significant"));
-            if (body_subtraction)
-                sub_title = [type2name(type) "{\color{red}{SUBTRACTION}}: " + sub_string];
-            else
-                sub_title = type2name(type);
-            end
-        else
-            names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = type2name(type) +  ", Re: " + num2str(round(Re,2,"significant")) + ", St: " + num2str(round(St,2,"significant"));
-            if (body_subtraction)
-                sub_title = "{\color{red}{SUBTRACTION}}: " + sub_string;
-            else
-                sub_title = "";
-            end
-        end
-        
-        else
-            
-        if (length(wing_freq_sel) == 1 && length(wind_speed_sel) == 1 && length(type_sel) == 1)
-            names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = "";
-            if (body_subtraction)
-                sub_title = [type2name(type) + " " + int2str(wind_speed) + " m/s " + int2str(wing_freq) + " Hz" "{\color{red}{SUBTRACTION}}: " + sub_string];
-            else
-                sub_title = type2name(type) + " " + int2str(wind_speed) + " m/s " + int2str(wing_freq) + " Hz";
-            end
-        elseif (length(wing_freq_sel) == 1 && length(wind_speed_sel) == 1)
-            names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = type2name(type);
-            if (body_subtraction)
-                sub_title = [int2str(wind_speed) + " m/s " + int2str(wing_freq) + " Hz" "{\color{red}{SUBTRACTION}}: " + sub_string];
-            else
-                sub_title = int2str(wind_speed) + " m/s " + int2str(wing_freq) + " Hz";
-            end
-        elseif (length(wing_freq_sel) == 1 && length(type_sel) == 1)
-            names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = int2str(wind_speed) + " m/s";
-            if (body_subtraction)
-                sub_title = [type2name(type) + " " + int2str(wing_freq) + " Hz" "{\color{red}{SUBTRACTION}}: " + sub_string];
-            else
-                sub_title = type2name(type) + " " + int2str(wing_freq) + " Hz";
-            end
-        elseif (length(wind_speed_sel) == 1 && length(type_sel) == 1)
-            names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = int2str(wing_freq) + " Hz";
-            if (body_subtraction)
-                sub_title = [type2name(type) + " " + int2str(wind_speed) + " m/s" "{\color{red}{SUBTRACTION}}: " + sub_string];
-            else
-                sub_title = type2name(type) + " " + int2str(wind_speed) + " m/s";
-            end
-        elseif (length(wing_freq_sel) == 1)
-            names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = type2name(type) + " " + int2str(wind_speed) + " m/s";
-            if (body_subtraction)
-                sub_title = [int2str(wing_freq) + " Hz" "{\color{red}{SUBTRACTION}}: " + sub_string];
-            else
-                sub_title = int2str(wing_freq) + " Hz";
-            end
-        elseif (length(wind_speed_sel) == 1)
-            names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = type2name(type) + " " + int2str(wing_freq) + " Hz";
-            if (body_subtraction)
-                sub_title = [int2str(wind_speed) + " m/s" "{\color{red}{SUBTRACTION}}: " + sub_string];
-            else
-                sub_title = int2str(wind_speed) + " m/s";
-            end
-        elseif (length(type_sel) == 1)
-            names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = int2str(wind_speed) + " m/s " + int2str(wing_freq) + " Hz";
-            if (body_subtraction)
-                sub_title = [type2name(type) "{\color{red}{SUBTRACTION}}: " + sub_string];
-            else
-                sub_title = type2name(type);
-            end
-        else
-            names(wing_freq_sel == wing_freq, wind_speed_sel == wind_speed, type_sel == type) = type2name(type) + " " + int2str(wind_speed) + " m/s " + int2str(wing_freq) + " Hz";
-            if (body_subtraction)
-                sub_title = "{\color{red}{SUBTRACTION}}: " + sub_string;
-            else
-                sub_title = "";
-            end
-        end
-        end
+
+        [names, sub_title] = get_labels(names, selected_vars, wing_freq_ind, wing_freq, wind_speed, type, Re, St, nondimensional, body_subtraction);
+
     end
+    percent_done = round((i / length(theFiles))*100, 2);
+    disp(percent_done + "% Done")
 end   
 
-end
-
-function name = type2name(type)
-    name = type;
-    if (type == "blue wings")
-        name = "Wings";
-    elseif (type == "blue wings with tail")
-        name = "Wings with Tail";
-    elseif (type == "no wings with tail")
-        name = "No Wings with Tail";
-    elseif (type == "no wings")
-        name = "No Wings";
-    elseif (type == "inertial")
-        name = "Skeleton Wings";
-    end
 end
 
 function [forces_body] = getBody(wing_freq_sel, AoA_sel, wind_speed_sel, ...
@@ -299,7 +262,8 @@ function [forces_body] = getBody(wing_freq_sel, AoA_sel, wind_speed_sel, ...
 
     for j = 1 : length(theFiles)
         baseFileName = theFiles(j).name;
-        [case_name, type, wing_freq, AoA, wind_speed] = parse_filename(baseFileName);
+        [case_name, time_stamp, type, wing_freq, AoA, wind_speed] = parse_filename(baseFileName);
+        
         type = convertCharsToStrings(type);
 
         if (type == sub_type ...

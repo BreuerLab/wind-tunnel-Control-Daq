@@ -1,34 +1,4 @@
-function plot_forces_mult_subset(path, cases, main_title, sub_title, subtraction_string)
-    single = false;
-    nondimensional = true;
-
-    if (subtraction_string == "none")
-        body_subtraction = false;
-    else
-        body_subtraction = true;
-    end
-
-    titles = ["Drag", "Transverse", "Lift", "Roll", "Pitch", "Yaw"];
-
-    if ~single
-    % Open a new figure.
-    fig = figure;
-    fig.Position = [200 50 1400 500];
-    tcl = tiledlayout(1,3);
-    
-    colors = [[0, 0.4470, 0.7410]; [0.8500, 0.3250, 0.0980]; ...
-            [0.9290, 0.6940, 0.1250]; [0.4940, 0.1840, 0.5560]; ...
-            [0.4660, 0.6740, 0.1880]; [0.3010, 0.7450, 0.9330]; ...
-            [0.6350, 0.0780, 0.1840]; [0.25, 0.25, 0.25]];
-    alpha = 0.4;
-    a=nexttile;b=nexttile;c=nexttile;
-    
-    x_label = "Wingbeat Period (t/T)";
-    % y_label_F = "Force Coefficient";
-    % y_label_M = "Moment Coefficient";
-    y_label_F = "Force (N)";
-    y_label_M = "Moment (N*m)";
-    axes_labels = [x_label, y_label_F, y_label_M];
+function plot_forces_mult_subset(path, cases, main_title, sub_title, sub_strings, index)
 
     for i = 1:length(cases)
         load(path + cases(i) + '.mat');
@@ -87,87 +57,91 @@ function plot_forces_mult_subset(path, cases, main_title, sub_title, subtraction
 
             disp("Subtracting data from " + sub_case_name + " trial")
         end
-
-        % Create three subplots to show the force time histories. 
-        axes(a)
-        hold on
-        xconf = [frames, frames(end:-1:1)];         
-        yconf = [avg_forces(1, :) + std_forces(1, :), avg_forces(1, end:-1:1) - std_forces(1, end:-1:1)];
-        p = fill(xconf, yconf, colors(i,:), 'FaceAlpha',alpha,'HandleVisibility','off');  
-        p.EdgeColor = 'none';
-        plot(frames, avg_forces(1, :), DisplayName=cases(i), Color=colors(i,:));
-        hold off
-        title(["F_x (streamwise)"]);
-        xlabel(axes_labels(1));
-        ylabel(axes_labels(2));
-        
-        axes(b)
-        hold on
-        xconf = [frames, frames(end:-1:1)];            
-        yconf = [avg_forces(3, :) + std_forces(3, :), avg_forces(3, end:-1:1) - std_forces(3, end:-1:1)];
-        p = fill(xconf, yconf, colors(i,:), 'FaceAlpha',alpha,'HandleVisibility','off');  
-        p.EdgeColor = 'none';
-        plot(frames, avg_forces(3, :), DisplayName=cases(i), Color=colors(i,:));
-        hold off
-        title(["F_z (vertical)"]);
-        xlabel(axes_labels(1));
-        ylabel(axes_labels(2));
-        
-        axes(c)
-        hold on
-        xconf = [frames, frames(end:-1:1)];            
-        yconf = [avg_forces(5, :) + std_forces(5, :), avg_forces(5, end:-1:1) - std_forces(5, end:-1:1)];
-        p = fill(xconf, yconf, colors(i,:), 'FaceAlpha',alpha,'HandleVisibility','off');  
-        p.EdgeColor = 'none';
-        plot(frames, avg_forces(5, :), DisplayName=cases(i), Color=colors(i,:));
-        hold off
-        title(["M_y (pitch)"]);
-        xlabel(axes_labels(1));
-        ylabel(axes_labels(3));
     end
+
+    if index == 0
+        titles = ["Drag (F_x)", "Lift (F_z)", "Pitch (M_y)"];
+        % Open a new figure.
+        fig = figure;
+        fig.Position = [200 50 1400 500];
+        tcl = tiledlayout(1,3);
+        
+        colors = [[0, 0.4470, 0.7410]; [0.8500, 0.3250, 0.0980]; ...
+                [0.9290, 0.6940, 0.1250]; [0.4940, 0.1840, 0.5560]; ...
+                [0.4660, 0.6740, 0.1880]; [0.3010, 0.7450, 0.9330]; ...
+                [0.6350, 0.0780, 0.1840]; [0.25, 0.25, 0.25]];
+        alpha = 0.4;
+        a=nexttile;b=nexttile;c=nexttile;
+        axes_list = [a, b, c];
+        
+        x_label = "Wingbeat Period (t/T)";
+        % y_label_F = "Force Coefficient";
+        % y_label_M = "Moment Coefficient";
+        y_label_F = "Force (N)";
+        y_label_M = "Moment (N*m)";
+        axes_labels = [x_label, y_label_F, y_label_M];
+
+        select_avg_forces = [avg_forces(1, :); avg_forces(3, :); avg_forces(5, :)];
+        select_std_forces = [std_forces(1, :); std_forces(3, :); std_forces(5, :)];
+        for k = 1:3
+            axes(axes_list(k))
+            hold on
+            xconf = [frames, frames(end:-1:1)];         
+            yconf = [select_avg_forces(k, :) + select_std_forces(k, :),...
+                select_avg_forces(k, end:-1:1) - select_std_forces(k, end:-1:1)];
+            p = fill(xconf, yconf, colors(i,:), 'FaceAlpha',alpha,'HandleVisibility','off');  
+            p.EdgeColor = 'none';
+            plot(frames, select_avg_forces(k, :), DisplayName=cases(i), Color=colors(i,:));
+            hold off
+            title(titles(k));
+            xlabel(axes_labels(1));
+            ylabel(axes_labels(2 + floor(k/3)));
+
+        end
         hL = legend();
         hL.Layout.Tile = 'East';
     
         % Label the whole figure.
         sgtitle([main_title sub_title]);
     else
-
-        index = 5;
         % Open a new figure.
-    fig = figure;
-    fig.Position = [200 50 900 560];
-    
-    colors = [[0, 0.4470, 0.7410]; [0.8500, 0.3250, 0.0980]; ...
-            [0.9290, 0.6940, 0.1250]; [0.4940, 0.1840, 0.5560]; ...
-            [0.4660, 0.6740, 0.1880]; [0.3010, 0.7450, 0.9330]; ...
-            [0.6350, 0.0780, 0.1840]; [0.25, 0.25, 0.25]];
-    alpha = 0.4;
-    
-    x_label = "Wingbeat Period (t/T)";
-    % y_label_F = "Force Coefficient";
-    % y_label_M = "Moment Coefficient";
-    y_label_F = "Force (N)";
-    y_label_M = "Moment (N*m)";
-    axes_labels = [x_label, y_label_F, y_label_M];
-
-    for i = 1:length(cases)
-        load(path + cases(i) + '.mat');
+        fig = figure;
+        fig.Position = [200 50 900 560];
         
-        hold on
-        xconf = [frames, frames(end:-1:1)];         
-        yconf = [wingbeat_avg_forces(index, :) + wingbeat_std_forces(index, :), wingbeat_avg_forces(index, end:-1:1) - wingbeat_std_forces(index, end:-1:1)];
-        p = fill(xconf, yconf, colors(i,:), 'FaceAlpha',alpha,'HandleVisibility','off');  
-        p.EdgeColor = 'none';
-        plot(frames, wingbeat_avg_forces(index, :), DisplayName=cases(i), Color=colors(i,:));
-        hold off
-        xlabel(axes_labels(1));
-        ylabel(axes_labels(2));
-    end
-        hL = legend();
+        colors = [[0, 0.4470, 0.7410]; [0.8500, 0.3250, 0.0980]; ...
+                [0.9290, 0.6940, 0.1250]; [0.4940, 0.1840, 0.5560]; ...
+                [0.4660, 0.6740, 0.1880]; [0.3010, 0.7450, 0.9330]; ...
+                [0.6350, 0.0780, 0.1840]; [0.25, 0.25, 0.25]];
+        alpha = 0.4;
     
-        % Label the whole figure.
-        sgtitle(titles(index));
-    end
+        x_label = "Wingbeat Period (t/T)";
+        % y_label_F = "Force Coefficient";
+        % y_label_M = "Moment Coefficient";
+        y_label_F = "Force (N)";
+        y_label_M = "Moment (N*m)";
+        axes_labels = [x_label, y_label_F, y_label_M];
+    
+        titles = ["Drag (F_x)", "Transverse (F_y)", "Lift (F_z)",...
+            "Roll (M_x)", "Pitch (M_y)", "Yaw (M_z)"];
+    
+        for i = 1:length(cases)
+            load(path + cases(i) + '.mat');
+            
+            hold on
+            xconf = [frames, frames(end:-1:1)];         
+            yconf = [avg_forces(index, :) + std_forces(index, :), avg_forces(index, end:-1:1) - std_forces(index, end:-1:1)];
+            p = fill(xconf, yconf, colors(i,:), 'FaceAlpha',alpha,'HandleVisibility','off');  
+            p.EdgeColor = 'none';
+            plot(frames, avg_forces(index, :), DisplayName=cases(i), Color=colors(i,:));
+            hold off
+        end
+            xlabel(axes_labels(1));
+            ylabel(axes_labels(1 + ceil(index/3)));
+            hL = legend();
+        
+            % Label the whole figure.
+            sgtitle(titles(index));
+        end
 
     %% --------------------RMSE plot-------------------
     RMSE_plot = false;
@@ -185,6 +159,7 @@ function plot_forces_mult_subset(path, cases, main_title, sub_title, subtraction
             [0.6350, 0.0780, 0.1840]; [0.25, 0.25, 0.25]];
     alpha = 0.4;
     a=nexttile;b=nexttile;c=nexttile;d=nexttile;e=nexttile;f=nexttile;
+    % axes_list = [a, b, c, d, e, f];
     
     x_label = "Wingbeat Period (t/T)";
     y_label_F = "RMSE";

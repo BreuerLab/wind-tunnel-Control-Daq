@@ -27,18 +27,18 @@
 % cycle_avg_forces - (6 x p) average force produced for each
 %                    wingbeat
 function [wingbeat_forces, frames, wingbeat_avg_forces, wingbeat_SD_forces,...
-    wingbeat_rmse_forces, wingbeat_max_forces, wingbeat_min_forces, wingbeat_COP, cycle_avg_forces]...
+    wingbeat_rmse_forces, wingbeat_max_forces, wingbeat_min_forces, wingbeat_COP]...
     = wingbeat_transformation(num_wingbeats, results)
 
 frames_per_beat = length(results) / num_wingbeats;
 
 wingbeat_forces = zeros(6, num_wingbeats, round(frames_per_beat));
-cycle_avg_forces = zeros(6, num_wingbeats);
+cycle_avg_forces = zeros(6, num)
 for j = 1:num_wingbeats
     for k = 1:round(frames_per_beat - 0.5)
         wingbeat_forces(:,j,k) = results(:, k + round(frames_per_beat*(j-1)));
     end
-    cycle_avg_forces(:,j) = mean(wingbeat_forces(:,j,:), 3);
+    cycle_avg_forces
 end
 
 frames = linspace(0, 1, round(frames_per_beat));

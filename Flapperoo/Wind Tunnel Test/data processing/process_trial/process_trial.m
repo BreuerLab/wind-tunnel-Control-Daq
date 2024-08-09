@@ -12,11 +12,11 @@
 % A .mat file is produced in the directory described by processed_data_path
 % containing a number of variables whose contents describe the results of
 % the experiment in more ways than simply the raw data does.
-function process_trial(file, raw_data_path, processed_data_path)
+function process_trial(file, raw_data_path, processed_data_path, wind_tunnel_path)
 
 [frame_rate, num_wingbeats] = get_sampling_info();
 
-[case_name, type, wing_freq, AoA, wind_speed] = parse_filename(file);
+[case_name, time_stamp, type, wing_freq, AoA, wind_speed] = parse_filename(file);
 
 % Get raw data from file
 data = readmatrix(raw_data_path + file);
@@ -35,13 +35,13 @@ results_lab = coordinate_transformation(force_data, AoA);
 
 % Non-dimensionalize the data. Newtons to Force Coefficients and
 % Newton*meters to Moment Coefficients
-[norm_data, norm_factors, St, Re] = non_dimensionalize_data(results_lab, file);
+[norm_data, norm_factors, St, Re] = non_dimensionalize_data(wind_tunnel_path, results_lab, file);
 
 % Smooth the data with a butterworth filter
 fc = 50; % cutoff frequency
 filtered_data = filter_data(results_lab, frame_rate, fc);
 filtered_norm_data = filter_data(norm_data, frame_rate, fc);
-if (wing_freq > 0)
+if (wing_freq > 1)
     fc = 10*wing_freq; % cutoff frequency
 else
     fc = 10;
@@ -51,30 +51,39 @@ filtered_data_smooth = filter_data(results_lab, frame_rate, fc);
 % may add step to shift pitching moment
 % filtered_data(:,5) = move_pitch(filtered_data(:,5));
 
-filename = case_name + ".mat"; % file name for processed data
+filename = case_name + " " + time_stamp + ".mat"; % file name for processed data
 
 % If this is a flapping trial, analyze data over each wingbeat rather than
 % just in time
 if (wing_freq > 0)
 
+% [wingbeat_forces, frames, wingbeat_avg_forces, wingbeat_std_forces, ...
+%     wingbeat_rmse_forces, wingbeat_max_forces, wingbeat_min_forces, wingbeat_COP, cycle_avg_forces]...
+%     = wingbeat_transformation(num_wingbeats, results_lab);
+
 [wingbeat_forces, frames, wingbeat_avg_forces, wingbeat_std_forces, ...
-    wingbeat_rmse_forces, wingbeat_max_forces, wingbeat_min_forces, wingbeat_COP]...
+    wingbeat_rmse_forces, wingbeat_max_forces, wingbeat_min_forces, wingbeat_COP, cycle_avg_forces]...
     = wingbeat_transformation(num_wingbeats, filtered_data);
 
-[wingbeat_forces_smooth, frames_smooth, wingbeat_avg_forces_smooth, wingbeat_std_forces_smooth, ...
-    wingbeat_rmse_forces_smooth, wingbeat_max_forces_smooth, wingbeat_min_forces_smooth, wingbeat_COP_smooth]...
+[wingbeat_forces_smoothest, frames_smoothest, wingbeat_avg_forces_smoothest, wingbeat_std_forces_smoothest, ...
+    wingbeat_rmse_forces_smoothest, wingbeat_max_forces_smoothest, wingbeat_min_forces_smoothest, ...
+    wingbeat_COP_smoothest, cycle_avg_forces_smoothest]...
     = wingbeat_transformation(num_wingbeats, filtered_data_smooth);
 
 save(processed_data_path + filename, 'wingbeat_forces',...
     'frames', 'wingbeat_avg_forces', 'wingbeat_std_forces',...
     'wingbeat_rmse_forces', 'wingbeat_max_forces', 'wingbeat_min_forces',...
-    'wingbeat_COP', 'wingbeat_forces_smooth',...
-    'frames_smooth', 'wingbeat_avg_forces_smooth', 'wingbeat_std_forces_smooth',...
-    'wingbeat_rmse_forces_smooth', 'wingbeat_max_forces_smooth', 'wingbeat_min_forces_smooth',...
-    'wingbeat_COP_smooth', 'time_data', 'results_lab', 'filtered_data', 'filtered_data_smooth',...
+    'wingbeat_COP', 'cycle_avg_forces', 'wingbeat_forces_smoothest',...
+    'frames_smoothest', 'wingbeat_avg_forces_smoothest', 'wingbeat_std_forces_smoothest',...
+    'wingbeat_rmse_forces_smoothest', 'wingbeat_max_forces_smoothest', 'wingbeat_min_forces_smoothest',...
+    'wingbeat_COP_smoothest', 'cycle_avg_forces_smoothest', 'time_data', 'force_data', 'results_lab', 'filtered_data', 'filtered_data_smooth',...
     'filtered_norm_data', 'norm_factors', 'St', 'Re')
 else
-    save(processed_data_path + filename, 'time_data', 'results_lab', ...
-    'filtered_data', 'filtered_data_smooth', 'filtered_norm_data', 'norm_factors', 'St', 'Re')
+    cycle_forces = reshape(results_lab, 6, length(results_lab)/24, 24);
+    cycle_avg_forces = squeeze(mean(cycle_forces,2));
+
+    save(processed_data_path + filename, 'time_data', 'force_data', 'results_lab', ...
+    'filtered_data', 'filtered_data_smooth', 'filtered_norm_data', ...
+    'cycle_avg_forces', 'norm_factors', 'St', 'Re')
 end
 end

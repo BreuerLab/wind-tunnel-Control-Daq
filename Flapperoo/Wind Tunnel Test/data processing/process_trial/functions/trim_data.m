@@ -29,8 +29,8 @@ function trimmed_results = trim_data(results, trigger_data, wing_freq)
     % if voltage was not pulled low because this is a non-flapping trial,
     % just trim off first quarter and last quarter of trial
     elseif (wing_freq == 0)
-        trigger_start_frame = round(length(results)*(1/4));
-        trigger_end_frame = round(length(results)*(3/4));
+        trigger_start_frame = round(length(results)*(1/4)) + 1;
+        trigger_end_frame = round(length(results)*(3/4)) - 1;
     end
 
     % trim all data

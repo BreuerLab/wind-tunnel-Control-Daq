@@ -21,17 +21,15 @@ freq_speed_combos = [2, 4; 3, 6; 0, 4; 0, 6];
 % 0,2,3,4,5  4; 0,3,4  6;
 % wing_freq_sel = [0];
 % wind_speed_sel = [2,4,6];
-% wing_freq_sel = [0, 2, 4, 2, 4];
-wing_freq_sel = [0, 0.1, 2, 2.5, 3, 3.5, 3.75, 4, 4.5, 5, 2, 4];
-% wing_freq_sel = [0, 2, 2.5, 3, 3.75, 4, 4.5, 5];
+% wing_freqs = [0, 0.1, 2, 2.5, 3, 3.5, 3.75, 4, 4.5, 5, 2, 4];
+wing_freq_sel = [2, 4];
 % wing_freq_sel = [0, 0.1];
 % wing_freq_sel = [0,2,3,4,5];
 wind_speed_sel = [4];
-type_sel = ["blue wings half body"];
+type_sel = ["blue wings"];
 % type_sel = ["no wings with tail"];
 % AoA_sel = -10:1:10;
-AoA_sel = [-16:1.5:-13 -12:1:-9 -8:0.5:8 9:1:12 13:1.5:16];
-% AoA_sel = [1:1:8];
+AoA_sel = [-8:0.5:0 1:1:8];
 % AoA_sel = [-8, -7, -6, -5, -4, -3, -2, 0, 1, 2, 3, 4, 5, 6, 7, 8];
 sub_strings = [""];
 
@@ -50,23 +48,7 @@ sub_strings = [""];
 % AoA_sel = [-14, -10, -6, -2, 0, 2, 6, 10, 14];
 
 % path to folder where all processed data (.mat files) are stored
-date = "07_31_2024";
-processed_data_path = "../" + date + "/processed data/";
-offsets_path = "../" + date + "/raw data/offsets data/";
-
-% 07_27_2024 - blue wings 0 m/s
-% 07_28_2024 - blue wings 3 m/s
-% 07_29_2024 - blue wings 4 m/s
-% 07_30_2024 - blue wings half body 3 m/s
-% 07_31_2024 - blue wings half body 4 m/s
-% 08_01_2024 - blue wings half body 5 m/s
-% 08_02_2024 - blue wings half body 6 m/s
-% 08_03_2024 - blue wings 4 m/s (retightened MPS)
-% 08_04_2024 - blue wings 5 m/s
-% 08_05_2024 - blue wings 6 m/s (lock washers)
-% 08_06_2024 - blue wings 4 m/s
-% 08_07_2024 - inertial wings 0 m/s
-% 08_08_2024 - 
+processed_data_path = "../processed data/";
 
 % select_type_UI(processed_data_path)
 
@@ -84,12 +66,7 @@ selected_vars.type = type_sel;
 % forceIndex = 5;
 
 [avg_forces, err_forces, names, sub_title, norm_factors] = ...
-    get_data_AoA(selected_vars, processed_data_path, offsets_path, norm_bool, sub_strings, shift_bool);
-
-time_now = datetime;
-time_now.Format = 'yyyy_MM_dd HH_mm_ss';
-
-save(date + "_saved_" + string(time_now) + ".mat","avg_forces", "err_forces", "names")
+    get_data_AoA(selected_vars, processed_data_path, norm_bool, sub_strings, shift_bool);
 
 % pitch_moment_LE = zeros(size(squeeze(avg_forces(1,:,:,:,:))));
 % for i = 1:length(AoA_sel)

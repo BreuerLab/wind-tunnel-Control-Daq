@@ -40,12 +40,7 @@ function model_plot(wind_speed, wing_freq, AoA, ...
     std_lift_force = wingbeat_std_forces(3,:);
     std_pitch_moment = wingbeat_std_forces(5,:);
 
-    normal_force = avg_lift_force*cosd(AoA) + avg_drag_force*sind(AoA);
-    
-    shift_distance = -center_to_LE;
-
-    % Shift pitch moment
-    pitch_moment_LE = avg_pitch_moment + normal_force * shift_distance;
+    pitch_moment_LE = avg_pitch_moment;
 
     if (nondimensional)
         avg_drag_force = avg_drag_force / norm_factors(1);
@@ -83,7 +78,7 @@ function model_plot(wind_speed, wing_freq, AoA, ...
     total_moment = C_M + inertial_force(:,3) + added_mass_force(:,3);
 
     if (sub_bool)
-        disp("Subtracting model data")
+        disp("Subtracting model data (not type)")
         [sub_time, sub_ang_disp, sub_ang_vel, sub_ang_acc] = get_kinematics(sub_wing_freq, CAD_bool);
     
         sub_lin_vel = deg2rad(sub_ang_vel) * r;
