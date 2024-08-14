@@ -6,8 +6,15 @@ properties
     range;
     angles;
     norm;
-    dim_list;
+    shift;
+    drift;
+    regress;
+    file_list;
+    uniq_list;
+    uniq_norm_list;
     norm_list;
+    shift_list;
+    drift_list;
 end
 
 methods
@@ -19,16 +26,22 @@ methods
         obj.range = [-16 16];
         obj.angles = [-16:1.5:-13 -12:1:-9 -8:0.5:8 9:1:12 13:1.5:16];
         obj.norm = false;
+        obj.regress = false;
+        obj.shift = false;
+        obj.drift = false;
 
         % wing_freq_sel = [0, 2, 4, 2, 4];
         % wind_speed_sel = [5];
         % type_sel = ["blue wings"];
         % AoA_sel = [-16:1.5:-13 -12:1:-9 -8:0.5:8 9:1:12 13:1.5:16];
 
-        obj.dim_list = [];
+        obj.file_list = [];
+        obj.uniq_list = [];
         obj.norm_list = [];
+        obj.shift_list = [];
+        obj.drift_list = [];
 
-        data_path = "./plot data/";
+        data_path = "../plot data/";
         % Get a list of all files in the folder with the desired file name pattern.
         filePattern = fullfile(data_path, '*.mat');
         theFiles = dir(filePattern);
@@ -37,37 +50,38 @@ methods
         for k = 1 : length(theFiles)
             baseFileName = convertCharsToStrings(theFiles(k).name);
             parsed_name = extractBefore(baseFileName, "_saved");
-            
-            if(contains(parsed_name, "dim"))
-                load("./plot data/" + baseFileName, "names");
-                data_struct.file_name = baseFileName;
-                data_struct.dir_name = extractBefore(parsed_name, "_dim");
 
-                for j = 1:length(names)
-                % distinguish repeat trials with unique name
-                if(sum(names == names(j)) > 1)
-                    ind = find(names == names(j), 1, 'last');
-                    names(ind) = names(ind) + " v2";
-                end
-                end
+            [data_struct] = dataProcessingUI.get_file_structure(baseFileName, parsed_name);
+            obj.file_list = [obj.file_list data_struct];
 
-                data_struct.trial_names = names;
-                obj.dim_list = [obj.dim_list data_struct];
-            elseif (contains(parsed_name, "norm"))
-                load("./plot data/" + baseFileName, "names");
-                data_struct.file_name = baseFileName;
-                data_struct.dir_name = extractBefore(parsed_name, "_norm");
+            case_name = extractBefore(baseFileName, "._");
 
-                for j = 1:length(names)
-                % distinguish repeat trials with unique name
-                if(sum(names == names(j)) > 1)
-                    ind = find(names == names(j), 1, 'last');
-                    names(ind) = names(ind) + " v2";
-                end
-                end
+            % Add to list if not already on list
+            if (isempty(obj.uniq_list) || sum([obj.uniq_list.dir_name] == case_name) == 0)
+                [data_struct] = dataProcessingUI.get_file_structure(baseFileName, case_name);
+                data_struct.file_name = [];
+                obj.uniq_list = [obj.uniq_list data_struct];
+            end
 
-                data_struct.trial_names = names;
+            if (contains(parsed_name, "norm"))
+                data_struct = dataProcessingUI.get_file_structure(baseFileName, parsed_name);
                 obj.norm_list = [obj.norm_list data_struct];
+            end
+            if (contains(parsed_name, "shift"))
+                data_struct = dataProcessingUI.get_file_structure(baseFileName, parsed_name);
+                obj.shift_list = [obj.shift_list data_struct];
+            end
+            if (contains(parsed_name, "drift"))
+                data_struct = dataProcessingUI.get_file_structure(baseFileName, parsed_name);
+                obj.drift_list = [obj.drift_list data_struct];
+            end
+        end
+        uniq_norm_list_str = setdiff(setdiff([obj.norm_list.file_name], [obj.shift_list.file_name]), [obj.drift_list.file_name]);
+        for j = 1:length(obj.file_list)
+            if (sum(uniq_norm_list_str == obj.file_list(j).file_name) > 0)
+                struct_match = obj.file_list(j);
+                struct_match.dir_name = extractBefore(struct_match.dir_name, "_norm");
+                obj.uniq_norm_list = [obj.uniq_norm_list struct_match];
             end
         end
     end
@@ -77,32 +91,53 @@ methods
         % Create a GUI figure with a grid layout
         [option_panel, plot_panel, screen_size] = dataProcessingUI.setup_fig();
        
-        tree_y = screen_size(4) - 400;
+        tree_y = screen_size(4) - 600;
         t = uitree(option_panel,'checkbox');
-        t.Position = [20 tree_y 200 300];
+        t.Position = [20 tree_y 200 500];
         % Assign callback in response to node selection
         t.CheckedNodesChangedFcn = @(src, event) select(src, event, plot_panel);
-        for i = 1:length(obj.dim_list)
-            data_struct = obj.dim_list(i);
+        for i = 1:length(obj.uniq_list)
+            data_struct = obj.uniq_list(i);
             parent = uitreenode(t, 'Text',data_struct.dir_name);
 
             for j = 1:length(data_struct.trial_names)
                 child = uitreenode(parent, 'Text',data_struct.trial_names(j));
             end
         end
-        
+
         drop_y = tree_y - 35;
         d1 = uidropdown(option_panel);
         d1.Position = [20 drop_y 200 30];
         d1.Items = obj.axes_labels;
         d1.ValueChangedFcn = @(src, event) index_change(src, event, plot_panel);
 
-        button_y = drop_y - 35;
-        b = uibutton(option_panel,"state");
-        b.Text = "Normalize?";
-        b.Position = [20 button_y 160 30];
-        b.BackgroundColor = [1 1 1];
-        b.ValueChangedFcn = @(src, event) norm_change(src, event, plot_panel);
+        button1_y = drop_y - 35;
+        b1 = uibutton(option_panel,"state");
+        b1.Text = "Normalize";
+        b1.Position = [20 button1_y 160 30];
+        b1.BackgroundColor = [1 1 1];
+        b1.ValueChangedFcn = @(src, event) norm_change(src, event, plot_panel, t);
+
+        button2_y = button1_y - 35;
+        b2 = uibutton(option_panel,"state");
+        b2.Text = "Regression";
+        b2.Position = [20 button2_y 160 30];
+        b2.BackgroundColor = [1 1 1];
+        b2.ValueChangedFcn = @(src, event) regress_change(src, event, plot_panel);
+
+        button3_y = button2_y - 35;
+        b3 = uibutton(option_panel,"state");
+        b3.Text = "Shift Pitch Moment";
+        b3.Position = [20 button3_y 160 30];
+        b3.BackgroundColor = [1 1 1];
+        b3.ValueChangedFcn = @(src, event) shift_change(src, event, plot_panel);
+
+        button4_y = button3_y - 35;
+        b4 = uibutton(option_panel,"state");
+        b4.Text = "Drift Correction";
+        b4.Position = [20 button4_y 160 30];
+        b4.BackgroundColor = [1 1 1];
+        b4.ValueChangedFcn = @(src, event) drift_change(src, event, plot_panel);
 
         AoA_y = 160;
         s = uislider(option_panel,"range");
@@ -151,15 +186,53 @@ methods
             obj.update_plot(plot_panel);
         end
 
-        function norm_change(src, ~, plot_panel)
+        function norm_change(src, ~, plot_panel, t)
             if (src.Value)
                 obj.norm = true;
                 src.BackgroundColor = [0.3010 0.7450 0.9330];
-                src.Text = "Normalized";
+                dataProcessingUI.update_tree(t, obj.uniq_norm_list);
             else
                 obj.norm = false;
                 src.BackgroundColor = [1 1 1];
-                src.Text = "Normalize?";
+                dataProcessingUI.update_tree(t, obj.uniq_list);
+            end
+
+            obj.update_plot(plot_panel);
+        end
+
+        function regress_change(src, event, plot_panel)
+            if (src.Value)
+                obj.regress = true;
+                src.BackgroundColor = [0.3010 0.7450 0.9330];
+            else
+                obj.regress = false;
+                src.BackgroundColor = [1 1 1];
+            end
+
+            obj.update_plot(plot_panel);
+        end
+
+        function shift_change(src, event, plot_panel)
+            if (src.Value)
+                obj.shift = true;
+                src.BackgroundColor = [0.3010 0.7450 0.9330];
+                obj.axes_labels(6) = "Pitch Moment (LE)";
+            else
+                obj.shift = false;
+                src.BackgroundColor = [1 1 1];
+                obj.axes_labels(6) = "Pitch Moment";
+            end
+
+            obj.update_plot(plot_panel);
+        end
+
+        function drift_change(src, event, plot_panel)
+            if (src.Value)
+                obj.drift = true;
+                src.BackgroundColor = [0.3010 0.7450 0.9330];
+            else
+                obj.drift = false;
+                src.BackgroundColor = [1 1 1];
             end
 
             obj.update_plot(plot_panel);
@@ -196,11 +269,11 @@ methods(Static, Access = private)
             screen_size = monitor_positions(2, :);
         else
             disp('A second monitor is not detected.');
-            screen_size = monitor_positions(2, :);
+            screen_size = monitor_positions(1, :);
         end
         
-        fig = uifigure('Name', 'Dynamic Lift Force Plotting', ...
-            'Position', [screen_size(1) screen_size(2) + 40 screen_size(3) screen_size(4) - 70]);
+        fig = uifigure('Name', 'Dynamic Force Plotting');
+        fig.Position = [screen_size(1) screen_size(2) + 40 screen_size(3) screen_size(4) - 70];
         
         % Create a grid layout
         plot_grid = uigridlayout(fig, [1, 2]);
@@ -216,7 +289,35 @@ methods(Static, Access = private)
         plot_panel = uipanel(plot_grid);
         plot_panel.Layout.Row = 1;
         plot_panel.Layout.Column = 2;
+    end
+
+    function data_struct = get_file_structure(baseFileName, parsed_name)
+        load("../plot data/" + baseFileName, "names");
+        data_struct.file_name = baseFileName;
+        data_struct.dir_name = parsed_name;
+
+        for j = 1:length(names)
+        % distinguish repeat trials with unique name
+        if(sum(names == names(j)) > 1)
+            ind = find(names == names(j), 1, 'last');
+            names(ind) = names(ind) + " v2";
         end
+        end
+
+        data_struct.trial_names = names;
+    end
+
+    function update_tree(t, uniq_list)
+        for i = 1:length(uniq_list)
+            data_struct = uniq_list(i);
+            parent = t.Children(i);
+
+            for j = 1:length(t.Children(i).Children)
+                child = parent.Children(j);
+                child.Text = data_struct.trial_names(j);
+            end
+        end
+    end
 
     function St = freqToSt(wing_freq, wind_speed)
         % Constant values based on geometry of wings and robot design
@@ -234,12 +335,46 @@ methods(Static, Access = private)
         St = round(St,2,"significant");
     end
 
-    function St_str = freqToSt_str(trial_name, dir_name)
+    function [St_str, St_num] = freqToSt_str(trial_name, dir_name)
         wing_freq = str2double(extractBefore(trial_name, " Hz"));
+        % rep_num contains 'v2' for 2 Hz or 4 Hz case
+        rep_num = extractAfter(trial_name, "Hz");
         dir_strings = split(dir_name, "_");
         wind_speed = str2double(extractBefore(dir_strings(end), "m.s"));
-        St = dataProcessingUI.freqToSt(wing_freq, wind_speed);
-        St_str = " St: " + St;
+        St_num = dataProcessingUI.freqToSt(wing_freq, wind_speed);
+        St_str = " St: " + St_num + rep_num;
+    end
+
+    function colors = getColors(num_dir, num_freq)
+        if (num_dir > 2)
+            error("Not enough colors!")
+        end
+
+        if (num_freq == 8)
+            colors(:,:,1) = ["#7f2704"; "#a63603"; "#d94801"; "#f16913"; "#fd8d3c"; "#fdae6b"; "#fdd0a2"; "#fee6ce"];
+            colors(:,:,2) = ["#3f007d"; "#54278f"; "#6a51a3"; "#807dba"; "#9e9ac8"; "#bcbddc"; "#dadaeb"; "#efedf5"];
+        elseif (num_freq == 7)
+            colors(:,:,1) = ["#8c2d04"; "#d94801"; "#f16913"; "#fd8d3c"; "#fdae6b"; "#fdd0a2"; "#fee6ce"];
+            colors(:,:,2) = ["#4a1486"; "#6a51a3"; "#807dba"; "#9e9ac8"; "#bcbddc"; "#dadaeb"; "#efedf5"];
+        elseif (num_freq == 6)
+            colors(:,:,1) = ["#8c2d04"; "#d94801"; "#f16913"; "#fd8d3c"; "#fdae6b"; "#fdd0a2"];
+            colors(:,:,2) = ["#4a1486"; "#6a51a3"; "#807dba"; "#9e9ac8"; "#bcbddc"; "#dadaeb"];
+        elseif (num_freq == 5)
+            colors(:,:,1) = ["#a63603"; "#e6550d"; "#fd8d3c"; "#fdae6b"; "#fdd0a2"];
+            colors(:,:,2) = ["#54278f"; "#756bb1"; "#9e9ac8"; "#bcbddc"; "#dadaeb"];
+        elseif (num_freq == 4)
+            colors(:,:,1) = ["#a63603"; "#e6550d"; "#fd8d3c"; "#fdbe85"];
+            colors(:,:,2) = ["#54278f"; "#756bb1"; "#9e9ac8"; "#cbc9e2"];
+        elseif (num_freq == 3)
+            colors(:,:,1) = ["#d94701"; "#fd8d3c"; "#fdbe85"];
+            colors(:,:,2) = ["#6a51a3"; "#9e9ac8"; "#cbc9e2"];
+        elseif (num_freq == 2)
+            colors(:,:,1) = ["#e6550d"; "#fdae6b"];
+            colors(:,:,2) = ["#756bb1"; "#bcbddc"];
+        elseif (num_freq == 1)
+            colors(:,:,1) = ["#e6550d"];
+            colors(:,:,2) = ["#756bb1"];
+        end
     end
 end
 
@@ -251,10 +386,53 @@ methods (Access = private)
         for i = 1:length(obj.selection)
             dir_name = extractBefore(obj.selection(i), "/");
             if (obj.norm)
-                struct_match = obj.norm_list(contains([obj.norm_list.dir_name], dir_name));
+                if (obj.shift)
+                    if (obj.drift)
+                        shortened_list = intersect(intersect([obj.norm_list.file_name], [obj.shift_list.file_name]), [obj.drift_list.file_name]);
+                        name_match = shortened_list(contains(shortened_list, dir_name));
+                    else
+                        shortened_list = setdiff(intersect([obj.norm_list.file_name], [obj.shift_list.file_name]), [obj.drift_list.file_name]);
+                        name_match = shortened_list(contains(shortened_list, dir_name));
+                    end
+                else
+                    if (obj.drift)
+                        shortened_list = intersect(setdiff([obj.norm_list.file_name], [obj.shift_list.file_name]), [obj.drift_list.file_name]);
+                        name_match = shortened_list(contains(shortened_list, dir_name));
+                    else
+                        shortened_list = setdiff(setdiff([obj.norm_list.file_name], [obj.shift_list.file_name]), [obj.drift_list.file_name]);
+                        name_match = shortened_list(contains(shortened_list, dir_name));
+                    end
+                end
             else
-                struct_match = obj.dim_list(contains([obj.dim_list.dir_name], dir_name));
+                if (obj.shift)
+                    if (obj.drift)
+                        shortened_list = intersect(intersect(setdiff([obj.file_list.file_name], [obj.norm_list.file_name]),...
+                        [obj.shift_list.file_name]), [obj.drift_list.file_name]);
+                        name_match = shortened_list(contains(shortened_list, dir_name));
+                    else
+                        shortened_list = setdiff(intersect(setdiff([obj.file_list.file_name], [obj.norm_list.file_name]),...
+                        [obj.shift_list.file_name]), [obj.drift_list.file_name]);
+                        name_match = shortened_list(contains(shortened_list, dir_name));
+                    end
+                else
+                    if (obj.drift)
+                        shortened_list = intersect(setdiff(setdiff([obj.file_list.file_name], [obj.norm_list.file_name]),...
+                        [obj.shift_list.file_name]), [obj.drift_list.file_name]);
+                        name_match = shortened_list(contains(shortened_list, dir_name));
+                    else
+                        shortened_list = setdiff(setdiff(setdiff([obj.file_list.file_name], [obj.norm_list.file_name]),...
+                        [obj.shift_list.file_name]), [obj.drift_list.file_name]);
+                        name_match = shortened_list(contains(shortened_list, dir_name));
+                    end
+                end
             end
+
+            for j = 1:length(obj.file_list)
+                if (obj.file_list(j).file_name == name_match)
+                    struct_match = obj.file_list(j);
+                end
+            end
+
             % check for repeat files to load
             if (length(struct_matches) == 0 || sum(contains([struct_matches.dir_name], struct_match.dir_name)) == 0)
                 struct_matches = [struct_matches struct_match];
@@ -272,20 +450,37 @@ methods (Access = private)
             y_label_M = "Cycle Average Moment (N*m)";
         end
         y_labels = [y_label_F, y_label_F, y_label_F, y_label_M, y_label_M, y_label_M];
-        titles = ["Drag", "Transverse Lift", "Lift", "Roll Moment", "Pitch Moment (LE)", "Yaw Moment"];
+        titles = obj.axes_labels(2:7);
 
         colors = ["#3BD9A5";"#D9CD3B";"#9E312C";"#333268";...
             "#2C3331";"#4BEA59";"#845A4F";"#84804F";"#673BD9";"#D95A3B";"#645099";"#4F8473"];
-        % colors = ["#7f2704"; "#a63603"; "#d94801"; "#f16913"; "#fd8d3c"; "#fdae6b"; "#fdd0a2"; "#fee6ce"];
-        % colors(:,:,2) = ["#3f007d"; "#54278f"; "#6a51a3"; "#807dba"; "#9e9ac8"; "#bcbddc"; "#dadaeb"; "#efedf5"];
+
+        % unique_dir = strings(0);
+        % unique_freq = strings(0);
+        % for j = 1:length(obj.selection)
+        %     dir_name = extractBefore(obj.selection(j), "/");
+        %     trial_name = extractAfter(obj.selection(j), "/");
+        % 
+        %     if(sum(unique_dir == dir_name) == 0)
+        %         unique_dir = [unique_dir dir_name];
+        %     end
+        %     if(sum(unique_freq == trial_name) == 0)
+        %         unique_freq(unique_dir == dir_name) = [unique_freq(unique_dir == dir_name) trial_name];
+        %     end
+        % end
+        % num_dir = length(unique_dir);
+        % num_freq = length(unique_freq);
+
+        % but what if we have 2 hz and 2 hz v2, I don't them to
+        % have a color range, I'd rather they have unique colors
+        % for each unique dir, there can be a separate list of
+        % unique freqs
 
         lim_AoA_sel = obj.angles(obj.angles >= obj.range(1) & obj.angles <= obj.range(2));
 
         if (obj.index == 0)
             % Initialize tiled layout for plots
             tcl = tiledlayout(plot_panel, 2, 3, 'Padding', 'compact', 'TileSpacing', 'compact');
-            % UPDATE_PLOT  Update the plot based on selected settings
-            % delete(tcl.Children);
 
             tiles = [];
             for idx = 1:6
@@ -298,9 +493,13 @@ methods (Access = private)
                 tiles = [tiles ax];
             end
 
+            if (obj.regress)
+                error("No point doing regression on all axes")
+            end
+
             for i = 1:length(struct_matches)
-                disp("Loading " + "plot data/" + struct_matches(i).file_name)
-                load("plot data/" + struct_matches(i).file_name, "avg_forces", "err_forces")
+                disp("Loading " + "../plot data/" + struct_matches(i).file_name)
+                load("../plot data/" + struct_matches(i).file_name, "avg_forces", "err_forces")
                 lim_avg_forces = avg_forces(:,obj.angles >= obj.range(1) & obj.angles <= obj.range(2),:);
                 lim_err_forces = err_forces(:,obj.angles >= obj.range(1) & obj.angles <= obj.range(2),:);
     
@@ -308,19 +507,32 @@ methods (Access = private)
                     dir_name = extractBefore(obj.selection(j), "/");
                     trial_name = extractAfter(obj.selection(j), "/");
                     if (contains(struct_matches(i).dir_name, dir_name))
-                        if (obj.norm)
-                            St_str = dataProcessingUI.freqToSt_str(trial_name, dir_name);
-                            freq_index = find(struct_matches(i).trial_names == St_str);
-                        else
+                        % if (obj.norm)
+                        %     [St_str, St_num] = dataProcessingUI.freqToSt_str(trial_name, dir_name);
+                        %     freq_index = find(struct_matches(i).trial_names == St_str);
+                        %     if (isempty(freq_index))
+                        %         St_nums = extractAfter(struct_matches(i).trial_names, "St: ");
+                        %         for k = 1:length(St_nums)
+                        %             if (contains(St_nums(k), " v2"))
+                        %                 St_nums(k) = extractBefore(St_nums(k), " v2");
+                        %             end
+                        %         end
+                        %         St_nums = str2double(St_nums);
+                        %         [M, I] = min(abs(St_nums - St_num));
+                        %         freq_index = I;
+                        %         disp("Imperfect St match...")
+                        %         disp("Best match for " + St_str + " was " + struct_matches(i).trial_names(I))
+                        %     end
+                        % else
                             freq_index = find(struct_matches(i).trial_names == trial_name);
-                        end
+                        % end
                         for idx = 1:6
                         hold(tiles(idx), 'on');
                         e = errorbar(tiles(idx), lim_AoA_sel, lim_avg_forces(idx,:,freq_index), lim_err_forces(idx,:,freq_index),'.');
-                        e.MarkerSize = 20;
+                        e.MarkerSize = 25;
                         e.Color = colors(j);
                         e.MarkerFaceColor = colors(j);
-                        e.DisplayName = strrep(obj.selection(j), "_", " ");
+                        e.DisplayName = strrep(strrep(obj.selection(j), "_", " "), "/", " ");
                         % e.Marker = markers(m);
 
                         % s = scatter(tiles(idx), lim_AoA_sel, lim_avg_forces(idx,:,freq_index), 40, "filled");
@@ -336,9 +548,10 @@ methods (Access = private)
             ax = axes(plot_panel);
             idx = obj.index;
             for i = 1:length(struct_matches)
-                disp("Loading " + "plot data/" + struct_matches(i).file_name)
-                load("plot data/" + struct_matches(i).file_name, "avg_forces")
+                disp("Loading " + "../plot data/" + struct_matches(i).file_name)
+                load("../plot data/" + struct_matches(i).file_name, "avg_forces", "err_forces")
                 lim_avg_forces = avg_forces(:,obj.angles >= obj.range(1) & obj.angles <= obj.range(2),:);
+                lim_err_forces = err_forces(:,obj.angles >= obj.range(1) & obj.angles <= obj.range(2),:);
                 for j = 1:length(obj.selection)
                     dir_name = extractBefore(obj.selection(j), "/");
                     trial_name = extractAfter(obj.selection(j), "/");
@@ -350,10 +563,23 @@ methods (Access = private)
                             freq_index = find(struct_matches(i).trial_names == trial_name);
                         end
                         hold(ax, 'on');
-                        s = scatter(ax, lim_AoA_sel, lim_avg_forces(idx,:,freq_index), 40, "filled");
-                        s.DisplayName = strrep(obj.selection(j), "_", " ");
-                        s.MarkerFaceColor = colors(j);
-                        s.MarkerEdgeColor = colors(j);
+                        if (obj.regress)
+                            x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
+                            y = lim_avg_forces(idx,:,freq_index)';
+                            b = x\y;
+                            model = x*b;
+                            Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
+                            label = "y = " + round(b(2),3) + "x + " + round(b(1),3) + ", R^2 = " + round(Rsq,3);
+                            p = plot(ax, lim_AoA_sel, model);
+                            p.DisplayName = label;
+                            p.Color = colors(j);
+                            p.LineWidth = 2;
+                        end
+                        e = errorbar(ax, lim_AoA_sel, lim_avg_forces(idx,:,freq_index), lim_err_forces(idx,:,freq_index),'.');
+                        e.MarkerSize = 25;
+                        e.Color = colors(j);
+                        e.MarkerFaceColor = colors(j);
+                        e.DisplayName = strrep(strrep(obj.selection(j), "_", " "), "/", " ");
                     end
                 end
             end
