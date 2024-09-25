@@ -1,0 +1,429 @@
+% Process all of the PIV data, to get mean fields
+%
+% Original: SHAO 2022
+% Modified by: Ronan Gissler 2024
+% demo of piv summary
+
+clear
+close all
+
+% Xiaowei's colorbar library
+addpath colorbarpzn.m\
+
+% Add the READIMX library, and set the delimiter
+if ismac
+    addpath('./readimx_MAC');
+    DELIM = '/';
+elseif ispc
+    addpath('.\readimx_WIN');
+    DELIM = '\';
+end
+
+movie_bool = false;
+
+% This is the root directory to read the data files
+ROOTDIR = 'R:\ENG_Breuer_Shared\rgissler\PIV\04_02_2024_Turbulence_Grid\Turbulence_Grid_04_02_2024\';
+
+% This is a list of sub-directorys to process
+SUBDIR_LIST = {...
+    'Empty_6m.s\SideBySide_PIV_MPd(4x24x24_75%ov_ImgCorr)_GPU'...
+    'Fractal_Grid_6m.s\SideBySide_PIV_MPd(4x24x24_75%ov_ImgCorr)_GPU'...
+    'Fractal_Grid_Far_6m.s\SideBySide_PIV_MPd(4x24x24_75%ov_ImgCorr)_GPU'...
+    'Rect_Grid_6m.s\SideBySide_PIV_MPd(4x24x24_75%ov_ImgCorr)_GPU'...
+    };
+
+OUTPUT_PATH = [pwd DELIM 'data' DELIM];
+
+% Loop through every subdirectory
+for i = 2:length(SUBDIR_LIST)
+    clc
+    
+    SUBDIR = SUBDIR_LIST{i};  % Get the sub-directory
+    CASE_NAME = extractBefore(SUBDIR,"\");
+    
+    FULLPATH = [ROOTDIR SUBDIR DELIM];  % The full path  of the subdirectory
+    
+    disp(['Starting on Directory ' FULLPATH])
+    
+    filepaths = dir(FULLPATH);  % Get all the files in the subdirectory
+    
+    vc_count = 0;
+
+    profile on
+
+    for j=1:size(filepaths,1)  % look through every file in the subdirectory
+
+        disp(['Checking: ' filepaths(j).name ' ...'] );
+        
+        % Check to see if the file that you have is a
+        % directory, and make sure that the first letter is "B" which
+        % means its a data file
+        if ( ~filepaths(j).isdir  && filepaths(j).name(1) == 'B')
+            vc_count = vc_count + 1;
+        end
+
+    end
+            
+    % Read in the data structure from the IMX file
+    % The data structre has the velocity field,
+    % correlation value, valid flag and x,y
+    % coordionates for the entire PIV field
+    A = readimx([FULLPATH 'B00001.vc7']);
+    
+    % Get
+    D = create2DVec( A.Frames{1} );
+
+    x_size = size(D.U,2);
+    y_size = size(D.U,1);
+
+    u_field_frames = NaN(x_size, y_size, vc_count);
+    v_field_frames = NaN(x_size, y_size, vc_count);
+    vort_field_frames = NaN(x_size, y_size, vc_count);
+    good_field_frames = NaN(x_size, y_size, vc_count);
+    corr_field_frames = NaN(x_size, y_size, vc_count);
+    velocity_frames(vc_count) = struct('cdata',[],'colormap',[]);
+    vorticity_frames(vc_count) = struct('cdata',[],'colormap',[]);
+
+    batchSize = 100;
+    % assuming vc_count divisible by batchSize with no remainder
+    numBatches = vc_count / batchSize;
+
+    u_batch = cell(numBatches,1);
+    v_batch = cell(numBatches,1);
+    vort_batch = cell(numBatches,1);
+    good_batch = cell(numBatches,1);
+    corr_batch = cell(numBatches,1);
+
+    parfor k = 1:numBatches
+        u_field_frames_temp = NaN(x_size, y_size, batchSize);
+        v_field_frames_temp = NaN(x_size, y_size, batchSize);
+        vort_field_frames_temp = NaN(x_size, y_size, batchSize);
+        good_field_frames_temp = NaN(x_size, y_size, batchSize);
+        corr_field_frames_temp = NaN(x_size, y_size, batchSize);
+    for j=1:batchSize  % look through every file in the subdirectory
+
+        % ind = cur_indices(j);
+
+        cur_filepath = "B" + sprintf('%05d', j + (k-1)*batchSize) + ".vc7";
+        cur_filepath = convertStringsToChars(cur_filepath);
+
+        disp(['Processing: ' cur_filepath ' ...'] );
+            
+        % Read in the data structure from the IMX file
+        A = readimx([FULLPATH cur_filepath]);
+        
+        % Get just the relevant data
+        % The data structre has the velocity field,
+        % correlation value, valid flag and x,y
+        % coordionates for the entire PIV field
+        D = create2DVec( A.Frames{1} );
+        
+        % Get rid of bad vectors
+        good = D.isValid;
+        D.U(D.isValid == 0) = NaN;
+        D.V(D.isValid == 0) = NaN;
+        good(D.isValid == 0) = NaN;
+        D.Corr(D.isValid == 0) = NaN;
+
+        % Save values from this frame
+        good_field_frames_temp(:,:,j) = good';
+        corr_field_frames_temp(:,:,j) = D.Corr';
+        u_field_frames_temp(:,:,j) = D.U';
+        v_field_frames_temp(:,:,j) = D.V';
+        vort_field_frames_temp(:,:,j) = curl(D.X',D.Y',D.U',D.V');
+    end
+        % Save values from this batch
+        good_batch{k} = good_field_frames_temp;
+        corr_batch{k} = corr_field_frames_temp;
+        u_batch{k} = u_field_frames_temp;
+        v_batch{k} = v_field_frames_temp;
+        vort_batch{k} = vort_field_frames_temp;
+    end
+
+    indices = 1:1:vc_count;
+    indices = reshape(indices, [numBatches, batchSize]);
+
+    for k = 1:numBatches
+        cur_indices = indices(k,:);
+        good_field_frames(:,:,cur_indices) = good_batch{k};
+        corr_field_frames(:,:,cur_indices) = corr_batch{k};
+        u_field_frames(:,:,cur_indices) = u_batch{k};
+        v_field_frames(:,:,cur_indices) = v_batch{k};
+        vort_field_frames(:,:,cur_indices) = vort_batch{k};
+    end
+
+    %% Adjust axes
+    x = D.X' + 0;
+    y = D.Y' + 0;
+
+    clearvars good_batch corr_batch u_batch v_batch vort_batch ...
+        A D filepaths indices
+    
+    %% Normalize by freestream
+    U0 = 6;
+
+    % Normalize
+    u_field_frames = u_field_frames/U0;
+    v_field_frames = v_field_frames/U0;
+
+    %% Compute summary statistics
+    u_avg =  mean(u_field_frames,3);
+    v_avg =  mean(v_field_frames,3);
+    u_rms = rms(u_field_frames - u_avg,3);
+    v_rms = rms(v_field_frames - v_avg,3);
+    Re_stress = mean((u_field_frames - u_avg).*(v_field_frames - v_avg), 3);
+    vort_avg = mean(vort_field_frames,3);
+    corr_avg = mean(corr_field_frames,3);
+    good_avg = mean(good_field_frames,3);
+    
+    %% Plot
+    figure
+    tiledlayout(4,2)
+    
+    nexttile
+    pcolor(x, y, u_avg);
+    ax = gca;
+    shading(ax, 'interp');
+    clim([min(u_avg,[],'all') max(u_avg,[],'all')]);
+    colormap(ax, jet);
+    cb = colorbar;
+    ylabel(cb,'\boldmath$\frac{\bar{u}}{U_{\infty}}$','Interpreter','Latex','FontSize',16,'Rotation',0)
+    title('Streamwise velocity, <u>')
+    
+    nexttile
+    pcolor(x, y, v_avg);
+    ax = gca;
+    shading(ax, 'interp');
+    clim([min(v_avg,[],'all') max(v_avg,[],'all')]);
+    colormap(ax, jet);
+    cb = colorbar;
+    ylabel(cb,'\boldmath$\frac{\bar{v}}{U_{\infty}}$','Interpreter','Latex','FontSize',16,'Rotation',0)
+    title('Vertical velocity, <v>')
+    
+    nexttile
+    pcolor(x, y, u_rms*100);
+    ax = gca;
+    shading(ax, 'interp');
+    clim([min(u_rms*100,[],'all') max(u_rms*100,[],'all')]);
+    colormap(ax, jet);
+    cb = colorbar;
+    ylabel(cb,'Turbulence Level (%)','FontSize',14,'Rotation',270)
+    title('Streamwise fluctuations, u''')
+    
+    nexttile
+    pcolor(x, y, v_rms*100);
+    ax = gca;
+    shading(ax, 'interp');
+    clim([min(v_rms*100,[],'all') max(v_rms*100,[],'all')]);
+    colormap(ax, jet);
+    cb = colorbar;
+    ylabel(cb,'Turbulence Level (%)','FontSize',14,'Rotation',270)
+    title('Vertical fluctuations, v''')
+    
+    nexttile
+    pcolor(x, y, Re_stress);
+    ax = gca;
+    shading(ax, 'interp');
+    clim([min(Re_stress,[],'all') max(Re_stress,[],'all')]);
+    colormap(ax, jet);
+    colorbar;
+    title('Reynolds stress, <u''v''>')
+
+    nexttile
+    pcolor(x, y, vort_avg);
+    ax = gca;
+    shading(ax, 'interp');
+    min_vort = min(vort_avg,[],'all');
+    max_vort = max(vort_avg,[],'all');
+    colorbarpzn(min_vort, max_vort, 'level', 21);
+    title('Mean Vorticity, \omega')
+    
+    nexttile
+    pcolor(x, y, corr_avg);
+    ax = gca;
+    shading(ax, 'interp');
+    clim([0 1]); colormap(ax,jet);
+    colorbar;
+    title('Average PIV correlation')
+    
+    nexttile
+    pcolor(x, y, good_avg);
+    ax = gca;
+    shading(ax, 'interp');
+    clim([0 1]);
+    colormap(ax, jet);
+    colorbar;
+    title('Fraction of good vectors')
+
+    sgtitle(CASE_NAME, 'Interpreter', 'none');
+    savefig([OUTPUT_PATH CASE_NAME '.fig']);
+
+    %% Plot
+    x_ind_s = 100;
+    x_ind_f = 20;
+    y_ind = 20;
+    x_tr = x(y_ind:end-y_ind, x_ind_s:end-x_ind_f);
+    y_tr = y(y_ind:end-y_ind, x_ind_s:end-x_ind_f);
+    u_field_frames_tr = u_field_frames(y_ind:end-y_ind, x_ind_s:end-x_ind_f,:);
+    v_field_frames_tr = v_field_frames(y_ind:end-y_ind, x_ind_s:end-x_ind_f,:);
+    vort_field_frames_tr = vort_field_frames(y_ind:end-y_ind, x_ind_s:end-x_ind_f,:);
+    u_avg_tr =  u_avg(y_ind:end-y_ind, x_ind_s:end-x_ind_f);
+    v_avg_tr =  v_avg(y_ind:end-y_ind, x_ind_s:end-x_ind_f);
+    u_rms_tr = u_rms(y_ind:end-y_ind, x_ind_s:end-x_ind_f);
+    v_rms_tr = v_rms(y_ind:end-y_ind, x_ind_s:end-x_ind_f);
+    Re_stress_tr = Re_stress(y_ind:end-y_ind, x_ind_s:end-x_ind_f);
+    vort_avg_tr = vort_avg(y_ind:end-y_ind, x_ind_s:end-x_ind_f);
+    corr_avg_tr = corr_avg(y_ind:end-y_ind, x_ind_s:end-x_ind_f);
+    good_avg_tr = good_avg(y_ind:end-y_ind, x_ind_s:end-x_ind_f);
+
+    figure
+    tiledlayout(4,2)
+    
+    nexttile
+    pcolor(x_tr, y_tr, u_avg_tr);
+    ax = gca;
+    shading(ax, 'interp');
+    clim([min(u_avg_tr,[],'all') max(u_avg_tr,[],'all')]);
+    colormap(ax, jet);
+    cb = colorbar;
+    ylabel(cb,'\boldmath$\frac{\bar{u}}{U_{\infty}}$','Interpreter','Latex','FontSize',16,'Rotation',0)
+    title('Streamwise velocity, <u>')
+    
+    nexttile
+    pcolor(x_tr, y_tr, v_avg_tr);
+    ax = gca;
+    shading(ax, 'interp');
+    clim([min(v_avg_tr,[],'all') max(v_avg_tr,[],'all')]);
+    colormap(ax, jet);
+    cb = colorbar;
+    ylabel(cb,'\boldmath$\frac{\bar{v}}{U_{\infty}}$','Interpreter','Latex','FontSize',16,'Rotation',0)
+    title('Vertical velocity, <v>')
+    
+    nexttile
+    pcolor(x_tr, y_tr, u_rms_tr*100);
+    ax = gca;
+    shading(ax, 'interp');
+    clim([min(u_rms_tr*100,[],'all') max(u_rms_tr*100,[],'all')]);
+    colormap(ax, jet);
+    cb = colorbar;
+    ylabel(cb,'Turbulence Level (%)','FontSize',14,'Rotation',270)
+    title('Streamwise fluctuations, u''')
+    
+    nexttile
+    pcolor(x_tr, y_tr, v_rms_tr*100);
+    ax = gca;
+    shading(ax, 'interp');
+    clim([min(v_rms_tr*100,[],'all') max(v_rms_tr*100,[],'all')]);
+    colormap(ax, jet);
+    cb = colorbar;
+    ylabel(cb,'Turbulence Level (%)','FontSize',14,'Rotation',270)
+    title('Vertical fluctuations, v''')
+    
+    nexttile
+    pcolor(x_tr, y_tr, Re_stress_tr);
+    ax = gca;
+    shading(ax, 'interp');
+    clim([min(Re_stress_tr,[],'all') max(Re_stress_tr,[],'all')]);
+    colormap(ax, jet);
+    colorbar;
+    title('Reynolds stress, <u''v''>')
+
+    nexttile
+    pcolor(x_tr, y_tr, vort_avg_tr);
+    ax = gca;
+    shading(ax, 'interp');
+    min_vort = min(vort_avg,[],'all');
+    max_vort = max(vort_avg,[],'all');
+    colorbarpzn(min_vort, max_vort, 'level', 21);
+    title('Mean Vorticity, \omega')
+    
+    nexttile
+    pcolor(x_tr, y_tr, corr_avg_tr);
+    ax = gca;
+    shading(ax, 'interp');
+    clim([0 1]); colormap(ax,jet);
+    colorbar;
+    title('Average PIV correlation')
+    
+    nexttile
+    pcolor(x_tr, y_tr, good_avg_tr);
+    ax = gca;
+    shading(ax, 'interp');
+    clim([0 1]);
+    colormap(ax, jet);
+    colorbar;
+    title('Fraction of good vectors')
+
+    sgtitle(CASE_NAME, 'Interpreter', 'none');
+    savefig([OUTPUT_PATH CASE_NAME '_trimmed.fig']);
+
+    clearvars u_field_frames v_field_frames vort_field_frames good_field_frames corr_field_frames
+
+    p = profile('info');
+    disp(p.FunctionTable(1).TotalTime + " sec elapsed")
+
+    if (movie_bool)
+
+    v_mag_avg = (u_avg_tr.^2 + v_avg_tr.^2).^(1/2);
+
+    for j=1:vc_count
+
+        v_mag = (u_field_frames_tr(:,:,j).^2 + v_field_frames_tr(:,:,j).^2).^(1/2);
+
+        f = figure;
+        f.Position = [0 0 1920 1080];
+        set(f, 'Visible', 'off');
+        % contourf(x, y, v_mag, LineStyle="none");
+        h = pcolor(x_tr, y_tr, v_mag);
+        ax = gca;
+        shading(ax, 'interp');
+        set(h, 'EdgeColor', 'none');
+        clim([min(v_mag_avg,[],'all') max(v_mag_avg,[],'all')]);
+        colormap(ax, jet);
+        colorbar;
+        title('Velocity Magnitude')
+        velocity_frames(j) = getframe;
+        close(f);
+
+        vort = vort_field_frames_tr(:,:,j);
+
+        f = figure;
+        f.Position = [0 0 1920 1080];
+        set(f, 'Visible', 'off');
+        % contourf(x, y, v_mag, LineStyle="none");
+        h = pcolor(x_tr, y_tr, vort);
+        ax = gca;
+        shading(ax, 'interp');
+        set(h, 'EdgeColor', 'none');
+        min_vort = min(vort_avg,[],'all');
+        max_vort = max(vort_avg,[],'all');
+        colorbarpzn(min_vort, max_vort, 'level', 21);
+        title('Vorticity')
+        vorticity_frames(j) = getframe;
+        close(f);
+
+        disp("Frame " + j)
+    end
+
+    % Save movies
+    vel_video_name = [OUTPUT_PATH CASE_NAME '_velocity.mp4'];
+    v = VideoWriter(vel_video_name, 'MPEG-4');
+    v.FrameRate = 30; % fps
+    v.Quality = 100; % [0 - 100]
+
+    open(v);
+    writeVideo(v,velocity_frames);
+    close(v);
+
+    vort_video_name = [OUTPUT_PATH CASE_NAME '_vorticity.mp4'];
+    v = VideoWriter(vort_video_name, 'MPEG-4');
+    v.FrameRate = 30; % fps
+    v.Quality = 100; % [0 - 100]
+
+    open(v);
+    writeVideo(v,vorticity_frames);
+    close(v);
+
+    end
+
+end
