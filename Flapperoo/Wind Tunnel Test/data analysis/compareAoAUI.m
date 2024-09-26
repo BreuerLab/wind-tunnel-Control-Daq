@@ -1,4 +1,4 @@
-classdef dataProcessingUI
+classdef compareAoAUI
 properties
     selection;
     index;
@@ -18,7 +18,7 @@ properties
 end
 
 methods
-    function obj = dataProcessingUI()
+    function obj = compareAoAUI()
         obj.selection = strings(0);
         obj.index = 0;
         obj.axes_labels = ["All", "Drag", "Transverse Lift", "Lift",...
@@ -29,11 +29,6 @@ methods
         obj.regress = false;
         obj.shift = false;
         obj.drift = false;
-
-        % wing_freq_sel = [0, 2, 4, 2, 4];
-        % wind_speed_sel = [5];
-        % type_sel = ["blue wings"];
-        % AoA_sel = [-16:1.5:-13 -12:1:-9 -8:0.5:8 9:1:12 13:1.5:16];
 
         obj.file_list = [];
         obj.uniq_list = [];
@@ -51,28 +46,28 @@ methods
             baseFileName = convertCharsToStrings(theFiles(k).name);
             parsed_name = extractBefore(baseFileName, "_saved");
 
-            [data_struct] = dataProcessingUI.get_file_structure(baseFileName, parsed_name);
+            [data_struct] = compareAoAUI.get_file_structure(baseFileName, parsed_name);
             obj.file_list = [obj.file_list data_struct];
 
             case_name = extractBefore(baseFileName, "._");
 
             % Add to list if not already on list
             if (isempty(obj.uniq_list) || sum([obj.uniq_list.dir_name] == case_name) == 0)
-                [data_struct] = dataProcessingUI.get_file_structure(baseFileName, case_name);
+                [data_struct] = compareAoAUI.get_file_structure(baseFileName, case_name);
                 data_struct.file_name = [];
                 obj.uniq_list = [obj.uniq_list data_struct];
             end
 
             if (contains(parsed_name, "norm"))
-                data_struct = dataProcessingUI.get_file_structure(baseFileName, parsed_name);
+                data_struct = compareAoAUI.get_file_structure(baseFileName, parsed_name);
                 obj.norm_list = [obj.norm_list data_struct];
             end
             if (contains(parsed_name, "shift"))
-                data_struct = dataProcessingUI.get_file_structure(baseFileName, parsed_name);
+                data_struct = compareAoAUI.get_file_structure(baseFileName, parsed_name);
                 obj.shift_list = [obj.shift_list data_struct];
             end
             if (contains(parsed_name, "drift"))
-                data_struct = dataProcessingUI.get_file_structure(baseFileName, parsed_name);
+                data_struct = compareAoAUI.get_file_structure(baseFileName, parsed_name);
                 obj.drift_list = [obj.drift_list data_struct];
             end
         end
@@ -89,7 +84,7 @@ methods
     function dynamic_plotting(obj)
 
         % Create a GUI figure with a grid layout
-        [option_panel, plot_panel, screen_size] = dataProcessingUI.setup_fig();
+        [option_panel, plot_panel, screen_size] = setupFig();
        
         tree_y = screen_size(4) - 600;
         t = uitree(option_panel,'checkbox');
@@ -98,10 +93,10 @@ methods
         t.CheckedNodesChangedFcn = @(src, event) select(src, event, plot_panel);
         for i = 1:length(obj.uniq_list)
             data_struct = obj.uniq_list(i);
-            parent = uitreenode(t, 'Text',data_struct.dir_name);
+            parent = uitreenode(t, 'Text', data_struct.dir_name);
 
             for j = 1:length(data_struct.trial_names)
-                child = uitreenode(parent, 'Text',data_struct.trial_names(j));
+                child = uitreenode(parent, 'Text', data_struct.trial_names(j));
             end
         end
 
@@ -164,7 +159,7 @@ methods
             % event.SelectedNodes.Text
             % event.Source.CheckedNodes
             
-            % Get the selected node
+            % Get the selected nodes
             selectedNodes = event.CheckedNodes;
 
             obj.selection = strings(0);
@@ -190,11 +185,25 @@ methods
             if (src.Value)
                 obj.norm = true;
                 src.BackgroundColor = [0.3010 0.7450 0.9330];
-                dataProcessingUI.update_tree(t, obj.uniq_norm_list);
+                compareAoAUI.update_tree(t, obj.uniq_norm_list);
             else
                 obj.norm = false;
                 src.BackgroundColor = [1 1 1];
-                dataProcessingUI.update_tree(t, obj.uniq_list);
+                compareAoAUI.update_tree(t, obj.uniq_list);
+            end
+
+            % update selected nodes
+            selectedNodes = t.CheckedNodes;
+
+            obj.selection = strings(0);
+                
+            for i = 1:length(selectedNodes)
+                % Get the parent node
+                parentNode = selectedNodes(i).Parent;
+
+                cur_node_str = convertCharsToStrings(selectedNodes(i).Text);
+                full_str = parentNode.Text + "/" + cur_node_str;
+                obj.selection = [obj.selection full_str];
             end
 
             obj.update_plot(plot_panel);
@@ -261,35 +270,6 @@ methods
 end
 
 methods(Static, Access = private)
-    function [option_panel, plot_panel, screen_size] = setup_fig()
-        monitor_positions = get(0, 'MonitorPositions');
-        
-        % Check if a second monitor exists
-        if size(monitor_positions, 1) >= 2
-            screen_size = monitor_positions(2, :);
-        else
-            disp('A second monitor is not detected.');
-            screen_size = monitor_positions(1, :);
-        end
-        
-        fig = uifigure('Name', 'Dynamic Force Plotting');
-        fig.Position = [screen_size(1) screen_size(2) + 40 screen_size(3) screen_size(4) - 70];
-        
-        % Create a grid layout
-        plot_grid = uigridlayout(fig, [1, 2]);
-        plot_grid.RowHeight = {'1x'};
-        plot_grid.ColumnWidth = {200, '1x'};
-        
-        % Panel for dropdowns
-        option_panel = uipanel(plot_grid);
-        option_panel.Layout.Row = 1;
-        option_panel.Layout.Column = 1;
-        
-        % Panel for plots
-        plot_panel = uipanel(plot_grid);
-        plot_panel.Layout.Row = 1;
-        plot_panel.Layout.Column = 2;
-    end
 
     function data_struct = get_file_structure(baseFileName, parsed_name)
         load("../plot data/" + baseFileName, "names");
@@ -319,63 +299,6 @@ methods(Static, Access = private)
         end
     end
 
-    function St = freqToSt(wing_freq, wind_speed)
-        % Constant values based on geometry of wings and robot design
-        wing_span = 0.25; % meters, length of single wing
-        wing_chord = 0.10; % meters
-        wing_length = 0.31; % meters, distance from wingtip to axis of rotation
-        angle_up = 30; % degrees
-        angle_down = 30; % degrees
-        
-        amplitude = wing_length * (sind(angle_up) + sind(angle_down));
-        % m, vertical distance traversed by wings during a full stroke, a
-        % single wingbeat consists of two strokes: upstroke & downstroke
-        
-        St = (wing_freq * amplitude) / wind_speed;
-        St = round(St,2,"significant");
-    end
-
-    function [St_str, St_num] = freqToSt_str(trial_name, dir_name)
-        wing_freq = str2double(extractBefore(trial_name, " Hz"));
-        % rep_num contains 'v2' for 2 Hz or 4 Hz case
-        rep_num = extractAfter(trial_name, "Hz");
-        dir_strings = split(dir_name, "_");
-        wind_speed = str2double(extractBefore(dir_strings(end), "m.s"));
-        St_num = dataProcessingUI.freqToSt(wing_freq, wind_speed);
-        St_str = " St: " + St_num + rep_num;
-    end
-
-    function colors = getColors(num_dir, num_freq)
-        if (num_dir > 2)
-            error("Not enough colors!")
-        end
-
-        if (num_freq == 8)
-            colors(:,:,1) = ["#7f2704"; "#a63603"; "#d94801"; "#f16913"; "#fd8d3c"; "#fdae6b"; "#fdd0a2"; "#fee6ce"];
-            colors(:,:,2) = ["#3f007d"; "#54278f"; "#6a51a3"; "#807dba"; "#9e9ac8"; "#bcbddc"; "#dadaeb"; "#efedf5"];
-        elseif (num_freq == 7)
-            colors(:,:,1) = ["#8c2d04"; "#d94801"; "#f16913"; "#fd8d3c"; "#fdae6b"; "#fdd0a2"; "#fee6ce"];
-            colors(:,:,2) = ["#4a1486"; "#6a51a3"; "#807dba"; "#9e9ac8"; "#bcbddc"; "#dadaeb"; "#efedf5"];
-        elseif (num_freq == 6)
-            colors(:,:,1) = ["#8c2d04"; "#d94801"; "#f16913"; "#fd8d3c"; "#fdae6b"; "#fdd0a2"];
-            colors(:,:,2) = ["#4a1486"; "#6a51a3"; "#807dba"; "#9e9ac8"; "#bcbddc"; "#dadaeb"];
-        elseif (num_freq == 5)
-            colors(:,:,1) = ["#a63603"; "#e6550d"; "#fd8d3c"; "#fdae6b"; "#fdd0a2"];
-            colors(:,:,2) = ["#54278f"; "#756bb1"; "#9e9ac8"; "#bcbddc"; "#dadaeb"];
-        elseif (num_freq == 4)
-            colors(:,:,1) = ["#a63603"; "#e6550d"; "#fd8d3c"; "#fdbe85"];
-            colors(:,:,2) = ["#54278f"; "#756bb1"; "#9e9ac8"; "#cbc9e2"];
-        elseif (num_freq == 3)
-            colors(:,:,1) = ["#d94701"; "#fd8d3c"; "#fdbe85"];
-            colors(:,:,2) = ["#6a51a3"; "#9e9ac8"; "#cbc9e2"];
-        elseif (num_freq == 2)
-            colors(:,:,1) = ["#e6550d"; "#fdae6b"];
-            colors(:,:,2) = ["#756bb1"; "#bcbddc"];
-        elseif (num_freq == 1)
-            colors(:,:,1) = ["#e6550d"];
-            colors(:,:,2) = ["#756bb1"];
-        end
-    end
 end
 
 methods (Access = private)
@@ -452,24 +375,28 @@ methods (Access = private)
         y_labels = [y_label_F, y_label_F, y_label_F, y_label_M, y_label_M, y_label_M];
         titles = obj.axes_labels(2:7);
 
-        colors = ["#3BD9A5";"#D9CD3B";"#9E312C";"#333268";...
-            "#2C3331";"#4BEA59";"#845A4F";"#84804F";"#673BD9";"#D95A3B";"#645099";"#4F8473"];
+        unique_dir = [];
+        count = 0;
+        freq_count_arr = [];
+        for j = 1:length(obj.selection)
+            dir_name = extractBefore(obj.selection(j), "/");
+            trial_name = extractAfter(obj.selection(j), "/");
 
-        % unique_dir = strings(0);
-        % unique_freq = strings(0);
-        % for j = 1:length(obj.selection)
-        %     dir_name = extractBefore(obj.selection(j), "/");
-        %     trial_name = extractAfter(obj.selection(j), "/");
-        % 
-        %     if(sum(unique_dir == dir_name) == 0)
-        %         unique_dir = [unique_dir dir_name];
-        %     end
-        %     if(sum(unique_freq == trial_name) == 0)
-        %         unique_freq(unique_dir == dir_name) = [unique_freq(unique_dir == dir_name) trial_name];
-        %     end
-        % end
-        % num_dir = length(unique_dir);
-        % num_freq = length(unique_freq);
+            if(isempty(unique_dir) || sum([unique_dir.dir_names] == dir_name) == 0)
+                data_struct.dir_names = dir_name;
+                data_struct.trial_names = [];
+                unique_dir = [unique_dir data_struct];
+                count = count + 1;
+                freq_count_arr(count) = 0;
+            end
+            if(isempty(unique_dir(count).trial_names) || sum(unique_dir(count).trial_names == trial_name) == 0)
+                unique_dir(count).trial_names = [unique_dir(count).trial_names trial_name];
+                freq_count_arr(count) = freq_count_arr(count) + 1;
+            end
+        end
+        num_freq = max(freq_count_arr);
+
+        colors = getColors(count, num_freq);
 
         % but what if we have 2 hz and 2 hz v2, I don't them to
         % have a color range, I'd rather they have unique colors
@@ -506,39 +433,20 @@ methods (Access = private)
                 for j = 1:length(obj.selection)
                     dir_name = extractBefore(obj.selection(j), "/");
                     trial_name = extractAfter(obj.selection(j), "/");
+                    % if current trial selection is in file we
+                    % just loaded in
                     if (contains(struct_matches(i).dir_name, dir_name))
-                        % if (obj.norm)
-                        %     [St_str, St_num] = dataProcessingUI.freqToSt_str(trial_name, dir_name);
-                        %     freq_index = find(struct_matches(i).trial_names == St_str);
-                        %     if (isempty(freq_index))
-                        %         St_nums = extractAfter(struct_matches(i).trial_names, "St: ");
-                        %         for k = 1:length(St_nums)
-                        %             if (contains(St_nums(k), " v2"))
-                        %                 St_nums(k) = extractBefore(St_nums(k), " v2");
-                        %             end
-                        %         end
-                        %         St_nums = str2double(St_nums);
-                        %         [M, I] = min(abs(St_nums - St_num));
-                        %         freq_index = I;
-                        %         disp("Imperfect St match...")
-                        %         disp("Best match for " + St_str + " was " + struct_matches(i).trial_names(I))
-                        %     end
-                        % else
-                            freq_index = find(struct_matches(i).trial_names == trial_name);
-                        % end
+                        ind_c_dir = find([unique_dir.dir_names] == dir_name);
+                        ind_c_trial = find(unique_dir(ind_c_dir).trial_names == trial_name);
+                        freq_index = find(struct_matches(i).trial_names == trial_name);
                         for idx = 1:6
                         hold(tiles(idx), 'on');
                         e = errorbar(tiles(idx), lim_AoA_sel, lim_avg_forces(idx,:,freq_index), lim_err_forces(idx,:,freq_index),'.');
                         e.MarkerSize = 25;
-                        e.Color = colors(j);
-                        e.MarkerFaceColor = colors(j);
+                        e.Color = colors(ind_c_trial,ind_c_dir);
+                        e.MarkerFaceColor = colors(ind_c_trial,ind_c_dir);
                         e.DisplayName = strrep(strrep(obj.selection(j), "_", " "), "/", " ");
                         % e.Marker = markers(m);
-
-                        % s = scatter(tiles(idx), lim_AoA_sel, lim_avg_forces(idx,:,freq_index), 40, "filled");
-                        % s.DisplayName = strrep(obj.selection(j), "_", " ");
-                        % s.MarkerFaceColor = colors(j);
-                        % s.MarkerEdgeColor = colors(j);
                         end
                     end
                 end
@@ -556,12 +464,9 @@ methods (Access = private)
                     dir_name = extractBefore(obj.selection(j), "/");
                     trial_name = extractAfter(obj.selection(j), "/");
                     if (contains(struct_matches(i).dir_name, dir_name))
-                        if (obj.norm)
-                            St_str = dataProcessingUI.freqToSt_str(trial_name, dir_name);
-                            freq_index = find(struct_matches(i).trial_names == St_str);
-                        else
-                            freq_index = find(struct_matches(i).trial_names == trial_name);
-                        end
+                        ind_c_dir = find([unique_dir.dir_names] == dir_name);
+                        ind_c_trial = find(unique_dir(ind_c_dir).trial_names == trial_name);
+                        freq_index = find(struct_matches(i).trial_names == trial_name);
                         hold(ax, 'on');
                         if (obj.regress)
                             x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
@@ -572,13 +477,13 @@ methods (Access = private)
                             label = "y = " + round(b(2),3) + "x + " + round(b(1),3) + ", R^2 = " + round(Rsq,3);
                             p = plot(ax, lim_AoA_sel, model);
                             p.DisplayName = label;
-                            p.Color = colors(j);
+                            p.Color = colors(ind_c_trial,ind_c_dir);
                             p.LineWidth = 2;
                         end
                         e = errorbar(ax, lim_AoA_sel, lim_avg_forces(idx,:,freq_index), lim_err_forces(idx,:,freq_index),'.');
                         e.MarkerSize = 25;
-                        e.Color = colors(j);
-                        e.MarkerFaceColor = colors(j);
+                        e.Color = colors(ind_c_trial,ind_c_dir);
+                        e.MarkerFaceColor = colors(ind_c_trial,ind_c_dir);
                         e.DisplayName = strrep(strrep(obj.selection(j), "_", " "), "/", " ");
                     end
                 end
@@ -588,7 +493,8 @@ methods (Access = private)
             xlabel(ax, x_label);
             ylabel(ax, y_labels(idx))
             grid(ax, 'on');
-            legend(ax);
+            legend(ax, Location="best");
+            ax.FontSize = 18;
         end
     end
 end
