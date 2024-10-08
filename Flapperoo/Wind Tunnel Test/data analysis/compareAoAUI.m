@@ -1,7 +1,10 @@
 classdef compareAoAUI
 properties
+    % 1 or 2, monitor to display plot on
+    mon_num;
     selection;
     index;
+    % force and moment axes labels used in dropdown box
     axes_labels;
     range;
     angles;
@@ -18,7 +21,8 @@ properties
 end
 
 methods
-    function obj = compareAoAUI()
+    function obj = compareAoAUI(mon_num)
+        obj.mon_num = mon_num;
         obj.selection = strings(0);
         obj.index = 0;
         obj.axes_labels = ["All", "Drag", "Transverse Lift", "Lift",...
@@ -84,11 +88,11 @@ methods
     function dynamic_plotting(obj)
 
         % Create a GUI figure with a grid layout
-        [option_panel, plot_panel, screen_size] = setupFig();
+        [option_panel, plot_panel, screen_size] = setupFig(obj.mon_num);
        
         tree_y = screen_size(4) - 600;
         t = uitree(option_panel,'checkbox');
-        t.Position = [20 tree_y 200 500];
+        t.Position = [10 tree_y 180 500];
         % Assign callback in response to node selection
         t.CheckedNodesChangedFcn = @(src, event) select(src, event, plot_panel);
         for i = 1:length(obj.uniq_list)
@@ -102,7 +106,7 @@ methods
 
         drop_y = tree_y - 35;
         d1 = uidropdown(option_panel);
-        d1.Position = [20 drop_y 200 30];
+        d1.Position = [10 drop_y 180 30];
         d1.Items = obj.axes_labels;
         d1.ValueChangedFcn = @(src, event) index_change(src, event, plot_panel);
 
@@ -136,7 +140,7 @@ methods
 
         AoA_y = 160;
         s = uislider(option_panel,"range");
-        s.Position = [20 AoA_y - 100 200 3];
+        s.Position = [10 AoA_y - 100 180 3];
         s.Limits = obj.range;
         s.Value = obj.range;
         s.MajorTicks = [-16 -12 -8 -4 0 4 8 12 16];
@@ -375,8 +379,9 @@ methods (Access = private)
         y_labels = [y_label_F, y_label_F, y_label_F, y_label_M, y_label_M, y_label_M];
         titles = obj.axes_labels(2:7);
 
+        if (~isempty(obj.selection))
         unique_dir = [];
-        count = 0;
+        count = 0; % number of unique selected directories
         freq_count_arr = [];
         for j = 1:length(obj.selection)
             dir_name = extractBefore(obj.selection(j), "/");
@@ -394,9 +399,11 @@ methods (Access = private)
                 freq_count_arr(count) = freq_count_arr(count) + 1;
             end
         end
+
         num_freq = max(freq_count_arr);
 
-        colors = getColors(count, num_freq);
+        colors = getColors(1, count, num_freq);
+        end
 
         % but what if we have 2 hz and 2 hz v2, I don't them to
         % have a color range, I'd rather they have unique colors
@@ -405,6 +412,9 @@ methods (Access = private)
 
         lim_AoA_sel = obj.angles(obj.angles >= obj.range(1) & obj.angles <= obj.range(2));
 
+        % -----------------------------------------------------
+        % ---- Plotting all six axes (3 forces, 3 moments) ----
+        % -----------------------------------------------------
         if (obj.index == 0)
             % Initialize tiled layout for plots
             tcl = tiledlayout(plot_panel, 2, 3, 'Padding', 'compact', 'TileSpacing', 'compact');
@@ -452,6 +462,9 @@ methods (Access = private)
                 end
            end
 
+        % -----------------------------------------------------
+        % ---- Plotting a single axes defined by obj.index ----
+        % -----------------------------------------------------
         else
             ax = axes(plot_panel);
             idx = obj.index;
