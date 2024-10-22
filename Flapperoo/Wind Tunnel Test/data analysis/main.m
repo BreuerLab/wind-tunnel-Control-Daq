@@ -1,12 +1,10 @@
 restoredefaultpath
-% For the future, it'd be best to move all the functions I'm
-% using to a separate class where they can be called in such a
-% way that it's clear where the function is originating from
-% rather than this addpath statement which doesn't clarify which
-% functions are local or from these other paths
-addpath ..\'data processing'\general\
-addpath ..\'data processing'\modeling\
-addpath ..\'data processing'\'robot_parameters'
+% There are a lot of functions in the data processing folder,
+% simply right click on the function you want to learn about to
+% be brought to the file where it is defined. Of course this runs
+% the risk of the same function name existing twice (an
+% overloaded function).
+addpath(genpath('../data processing'))
 
 addpath UI_functions\
 
@@ -14,12 +12,12 @@ clear
 close all force
 
 % Sets up UI for comparing data over angles of attack
-% a = compareAoAUI(1);
-% a.dynamic_plotting();
+a = compareAoAUI(2);
+a.dynamic_plotting();
 
 % Sets up UI for comparing data over phase averaged wingbeat
-b = compareWingbeatUI(2);
-b.dynamic_plotting();
+% b = compareWingbeatUI(2);
+% b.dynamic_plotting();
 
 % Set up basic UI as demo for this kind of tool
 % c = basicUI(2);

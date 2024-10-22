@@ -1,4 +1,9 @@
-classdef compareWingbeatUI
+% "< handle" used to pass by reference instead of a copy. I did
+% this on 10/10/24 after having some issue with the file save
+% functionality. The property was update in obj.update_plot but
+% not in the callback function. I guess I always thought it was
+% pass by reference, but default is to pass a copy
+classdef compareWingbeatUI < handle
 properties
     mon_num; % 1 or 2, monitor to display plot on
     % integer, 0-6, defines which force/moment axes to display
@@ -9,6 +14,8 @@ properties
     norm;
     % boolean, normalization for x-axis (divided by period)
     norm_period;
+    % boolean, move pitch moment from center of transducer to LE
+    pitch_shift;
     % boolean, subtraction on or off
     sub;
     % boolean, spectrum plot overrides phase averaged plot
@@ -43,6 +50,9 @@ properties
     sel_freq;
     sel_speed;
     sel_angle;
+
+    % Curves currently displayed on plot
+    plot_curves;
 end
 
 methods
@@ -55,6 +65,7 @@ methods
             "Roll Moment", "Pitch Moment", "Yaw Moment"];
         obj.norm = false;
         obj.norm_period = true;
+        obj.pitch_shift = true;
         obj.sub = false;
         obj.spectrum = false;
         obj.freq_scale = false;
@@ -79,6 +90,8 @@ methods
         obj.sel_freq = obj.freqs(1);
         obj.sel_speed = obj.speeds(1);
         obj.sel_angle = obj.angles(1);
+
+        obj.plot_curves = [];
     end
 
     % Builds figure with all UI elements and defines all callback
@@ -87,39 +100,43 @@ methods
         % Create a GUI figure with a grid layout
         [option_panel, plot_panel, screen_size] = setupFig(obj.mon_num);
 
+        screen_height = screen_size(4);
+        unit_height = round(0.03*screen_height);
+        unit_spacing = round(0.005*screen_height);
+
         % Dropdown box for flapper type selection
-        drop_y1 = screen_size(4) - 130;
+        drop_y1 = screen_height - round(0.06*screen_height);
         d1 = uidropdown(option_panel);
         d1.Position = [10 drop_y1 180 30];
         d1.Items = obj.types;
         d1.ValueChangedFcn = @(src, event) type_change(src, event);
 
         % Dropdown box for wingbeat frequency selection
-        drop_y2 = drop_y1 - 35;
+        drop_y2 = drop_y1 - (unit_height + unit_spacing);
         d2 = uidropdown(option_panel);
-        d2.Position = [10 drop_y2 180 30];
+        d2.Position = [10 drop_y2 180 unit_height];
         d2.Items = obj.freqs;
         d2.ValueChangedFcn = @(src, event) freq_change(src, event);
 
         % Dropdown box for angle of attack selection
-        drop_y3 = drop_y2 - 35;
+        drop_y3 = drop_y2 - (unit_height + unit_spacing);
         d3 = uidropdown(option_panel);
-        d3.Position = [10 drop_y3 180 30];
+        d3.Position = [10 drop_y3 180 unit_height];
         d3.Items = obj.angles + " deg";
         d3.ValueChangedFcn = @(src, event) angle_change(src, event);
 
         % Dropdown box for wind speed selection
-        drop_y4 = drop_y3 - 35;
+        drop_y4 = drop_y3 - (unit_height + unit_spacing);
         d4 = uidropdown(option_panel);
-        d4.Position = [10 drop_y4 180 30];
+        d4.Position = [10 drop_y4 180 unit_height];
         d4.Items = obj.speeds + " m/s";
         d4.ValueChangedFcn = @(src, event) speed_change(src, event, d2);
 
         % Subtraction Case Selection
-        button1_y = drop_y4 - 35;
+        button1_y = drop_y4 - (unit_height + unit_spacing);
         b1 = uibutton(option_panel,"state");
         b1.Text = "Subtraction";
-        b1.Position = [20 button1_y 160 30];
+        b1.Position = [20 button1_y 160 unit_height];
         b1.BackgroundColor = [1 1 1];
         b1.ValueChangedFcn = @(src, event) subtraction_change(src, event, plot_panel, d2);
 
@@ -154,135 +171,144 @@ methods
 
         % Button to add entry defined by selected type,
         % frequency, angle, and speed to list of plotted cases
-        button2_y = button1_y - 35;
+        button2_y = button1_y - (unit_height + unit_spacing);
         b2 = uibutton(option_panel);
-        b2.Position = [15 button2_y 80 30];
+        b2.Position = [15 button2_y 80 unit_height];
         b2.Text = "Add entry";
 
         % Button to remove entry defined by selected type,
         % frequency, angle, and speed from list of plotted cases
         b3 = uibutton(option_panel);
-        b3.Position = [105 button2_y 80 30];
+        b3.Position = [105 button2_y 80 unit_height];
         b3.Text = "Delete entry";
 
         % List of cases currently displayed on the plots
-        list_y = button2_y - 145;
+        list_y = button2_y - (4*(unit_height + unit_spacing) + unit_spacing);
         lbox = uilistbox(option_panel);
         lbox.Items = strings(0);
-        lbox.Position = [10 list_y 180 140];
+        lbox.Position = [10 list_y 180 4*(unit_height + unit_spacing)];
 
         b2.ButtonPushedFcn = @(src, event) addToList(src, event, plot_panel, lbox);
         b3.ButtonPushedFcn = @(src, event) removeFromList(src, event, plot_panel, lbox);
 
         % Dropdown box for which force/moment axes to display
-        drop_y9 = list_y - 35;
+        drop_y9 = list_y - (unit_height + unit_spacing);
         d9 = uidropdown(option_panel);
-        d9.Position = [10 drop_y9 180 30];
+        d9.Position = [10 drop_y9 180 unit_height];
         d9.Items = obj.axes_labels;
         d9.ValueChangedFcn = @(src, event) index_change(src, event, plot_panel);
 
-        button3_y = drop_y9 - 35;
+        button3_y = drop_y9 - (unit_height + unit_spacing);
         b4 = uibutton(option_panel,"state");
         b4.Text = "Normalize Y-Axis";
-        b4.Position = [20 button3_y 160 30];
+        b4.Position = [20 button3_y 160 unit_height];
         b4.BackgroundColor = [1 1 1];
         b4.ValueChangedFcn = @(src, event) norm_change(src, event, plot_panel, d2);
 
-        button4_y = button3_y - 35;
+        button4_y = button3_y - (unit_height + unit_spacing);
         b5 = uibutton(option_panel,"state");
         b5.Text = "Normalize X-Axis";
-        b5.Position = [20 button4_y 160 30];
+        b5.Position = [20 button4_y 160 unit_height];
         b5.Value = true;
         b5.BackgroundColor = [0.3010 0.7450 0.9330];
         b5.ValueChangedFcn = @(src, event) norm_period_change(src, event, plot_panel);
+        
+        button5_y = button4_y - (unit_height + unit_spacing);
+        b6 = uibutton(option_panel,"state");
+        b6.Text = "Shift Pitch To LE";
+        b6.Position = [20 button5_y 160 unit_height];
+        b6.Value = true;
+        b6.BackgroundColor = [0.3010 0.7450 0.9330];
+        b6.ValueChangedFcn = @(src, event) pitch_shift_change(src, event, plot_panel);
 
-        model_panel_height = 170;
-        model_panel_y = button4_y - 5 - model_panel_height;
+        model_panel_height = 0.16*screen_height;
+        model_panel_y = button5_y - unit_spacing - model_panel_height;
         model_panel = uipanel(option_panel);
         model_panel.Title = "Model";
         model_panel.TitlePosition = 'centertop';
         model_panel.Position = [30 model_panel_y 140 model_panel_height];
 
-        check1_y = model_panel_height - 55;
+        check1_y = model_panel_height - 1.6*unit_height;
         c1 = uicheckbox(model_panel);
         c1.Text = "Inertial";
-        c1.Position = [30 check1_y 120 30];
+        c1.Position = [30 check1_y 120 unit_height];
         c1.ValueChangedFcn = @(src, event) model_inertial_change(src, event, plot_panel);
 
-        check2_y = check1_y - 35;
+        check2_y = check1_y - (unit_height + unit_spacing);
         c2 = uicheckbox(model_panel);
         c2.Text = "Added Mass";
-        c2.Position = [30 check2_y 120 30];
+        c2.Position = [30 check2_y 120 unit_height];
         c2.ValueChangedFcn = @(src, event) model_added_mass_change(src, event, plot_panel);
 
-        check3_y = check2_y - 35;
+        check3_y = check2_y - (unit_height + unit_spacing);
         c3 = uicheckbox(model_panel);
         c3.Text = "Thin Airfoil";
-        c3.Position = [30 check3_y 120 30];
+        c3.Position = [30 check3_y 120 unit_height];
         c3.ValueChangedFcn = @(src, event) model_aero_change(src, event, plot_panel);
 
-        check4_y = check3_y - 35;
+        check4_y = check3_y - (unit_height + unit_spacing);
         c4 = uicheckbox(model_panel);
         c4.Text = "Total";
-        c4.Position = [30 check4_y 120 30];
+        c4.Position = [30 check4_y 120 unit_height];
         c4.ValueChangedFcn = @(src, event) model_total_change(src, event, plot_panel);
 
         filt_types = ["Raw", "Filtered - F_c = 50 Hz", "Filtered - F_c = 10*w_f Hz"];
-        drop_y10 = model_panel_y - 35;
+        drop_y10 = model_panel_y - (unit_height + unit_spacing);
         d10 = uidropdown(option_panel);
         d10.Items = filt_types;
         d10.Value = filt_types(end);
-        d10.Position = [5 drop_y10 190 30];
+        d10.Position = [5 drop_y10 190 unit_height];
         s = uistyle(Interpreter="tex");
         addStyle(d10,s)
         d10.ValueChangedFcn = @(src, event) filt_change(src, event, plot_panel);
 
-        button5_y = drop_y10 - 35;
-        b6 = uibutton(option_panel,"state");
-        b6.Text = "Spectrum";
-        b6.Position = [20 button5_y 160 30];
-        b6.BackgroundColor = [1 1 1];
-        b6.ValueChangedFcn = @(src, event) spectrum_change(src, event, plot_panel);
+        button6_y = drop_y10 - (unit_height + unit_spacing);
+        b7 = uibutton(option_panel,"state");
+        b7.Text = "Spectrum";
+        b7.Position = [20 button6_y 160 unit_height];
+        b7.BackgroundColor = [1 1 1];
+        b7.ValueChangedFcn = @(src, event) spectrum_change(src, event, plot_panel);
 
          % Button to add entry defined by selected type,
         % frequency, angle, and speed to list of plotted cases
-        button6_y = button5_y - 35;
-        b7 = uibutton(option_panel, "state");
-        b7.Position = [15 button6_y 80 30];
-        b7.BackgroundColor = [1 1 1];
-        b7.Text = "f_w scale";
-        b7.Interpreter = 'tex';
-        b7.ValueChangedFcn = @(src, event) freq_scale_change(src, event, plot_panel);
+        button7_y = button6_y - (unit_height + unit_spacing);
+        b8 = uibutton(option_panel, "state");
+        b8.Position = [15 button7_y 80 unit_height];
+        b8.BackgroundColor = [1 1 1];
+        b8.Text = "f_w scale";
+        b8.Interpreter = 'tex';
+        b8.ValueChangedFcn = @(src, event) freq_scale_change(src, event, plot_panel);
 
         % Button to remove entry defined by selected type,
         % frequency, angle, and speed from list of plotted cases
-        b8 = uibutton(option_panel, "state");
-        b8.Position = [105 button6_y 80 30];
-        b8.BackgroundColor = [1 1 1];
-        b8.Text = "Log scale";
-        b8.Interpreter = 'tex';
-        b8.ValueChangedFcn = @(src, event) log_scale_change(src, event, plot_panel);
+        b9 = uibutton(option_panel, "state");
+        b9.Position = [105 button7_y 80 unit_height];
+        b9.BackgroundColor = [1 1 1];
+        b9.Text = "Log scale";
+        b9.Interpreter = 'tex';
+        b9.ValueChangedFcn = @(src, event) log_scale_change(src, event, plot_panel);
 
         % ------------------------------------------------------
         % -------Buttons built up from bottom of screen---------
         % ------------------------------------------------------
 
-        % Button to export data on plot to .mat file
-        button7_y = 5;
-        b9 = uibutton(option_panel);
-        b9.Position = [15 button7_y 160 30];
-        b9.Text = "Export Data";
-        % b7.ButtonPushedFcn = @(src, event) exportData(src, event, plot_panel);
+        button8_y = unit_spacing;
+        field_y = button8_y + (unit_height + unit_spacing);
+        label_y = field_y + unit_height - unit_spacing;
 
-        field_y = button7_y + 35;
+        fnl = uilabel(option_panel);
+        fnl.Position = [65 label_y 80 unit_height];
+        fnl.Text = "File Name";
+
         ef = uieditfield(option_panel);
-        ef.Position = [15 field_y 160 30];
+        ef.Position = [15 field_y 160 unit_height];
         ef.Placeholder = "test";
 
-        label_y = field_y + 25;
-        fnl = uilabel(option_panel);
-        fnl.Position = [65 label_y 80 30];
-        fnl.Text = "File Name";
+        % Button to export data on plot to .mat file
+        b10 = uibutton(option_panel);
+        b10.Position = [15 button8_y 160 unit_height];
+        b10.Text = "Export Data";
+        b10.ButtonPushedFcn = @(src, event) exportData(src, event, ef);
 
         % Set up plot titles and axes
         obj.update_plot(plot_panel);
@@ -431,6 +457,18 @@ methods
             obj.update_plot(plot_panel);
         end
 
+        function pitch_shift_change(src, ~, plot_panel)
+            if (src.Value)
+                obj.pitch_shift = true;
+                src.BackgroundColor = [0.3010 0.7450 0.9330];
+            else
+                obj.pitch_shift = false;
+                src.BackgroundColor = [1 1 1];
+            end
+
+            obj.update_plot(plot_panel);
+        end
+
         function model_inertial_change(src, ~, plot_panel)
             if (src.Value)
                 obj.mod_inertial = true;
@@ -516,6 +554,12 @@ methods
             obj.update_plot(plot_panel);
         end
 
+        function exportData(~, ~, ef)
+            filename = [ef.Value '.mat'];
+            curves = obj.plot_curves;
+            save(filename, "curves")
+        end
+
         %-----------------------------------------------------%
         %-----------------------------------------------------%
         
@@ -537,7 +581,7 @@ methods(Static, Access = private)
             type = "tail no wings";
         elseif (name == "Half Body")
             type = "half body no wings";
-        elseif (name == "Inertial Wings")
+        elseif (name == "Inertial Wings with Full Body")
             type = "inertial wings";
         else
             type = name;
@@ -558,7 +602,7 @@ methods(Static, Access = private)
         elseif (type == "half body no wings")
             name = "Half Body";
         elseif (type == "inertial wings")
-            name = "Inertial Wings";
+            name = "Inertial Wings with Full Body";
         else
             name = type;
         end
@@ -769,34 +813,9 @@ methods(Static, Access = private)
         end
     end
 
-    function [time, inertial_force, added_mass_force, aero_force] = model(sel_freq, AoA, wind_speed)
-        wing_freq = str2double(extractBefore(sel_freq, " Hz"));
-
-        CAD_bool = true;
-        [time, ang_disp, ang_vel, ang_acc] = get_kinematics(wing_freq, CAD_bool);
-
-        [center_to_LE, chord, COM_span, ...
-            wing_length, arm_length] = getWingMeasurements();
-    
-        full_length = wing_length + arm_length;
-        r = arm_length:0.001:full_length;
-        lin_vel = deg2rad(ang_vel) * r;
-        lin_acc = deg2rad(ang_acc) * r;
-        
-        [eff_AoA, u_rel] = get_eff_wind(time, lin_vel, AoA, wind_speed);
-    
-        [inertial_force] = get_inertial(ang_disp, ang_acc, r, COM_span, AoA);
-        
-        thinAirfoil = true;
-        [C_L, C_D, C_N, C_M] = get_aero(eff_AoA, u_rel, wind_speed, wing_length, thinAirfoil);
-        aero_force = [C_D, C_L, C_M];
-    
-        [added_mass_force] = get_added_mass(ang_disp, ang_acc, r, wing_length, AoA);
-    end
-
     function [frames, cycle_avg_forces, cycle_std_forces, ...
             cycle_min_forces, cycle_max_forces, cycle_rmse_forces, norm_factors] ...
-            = load_data(data_folder, data_filename, filt_num, norm_bool)
+            = load_data(data_folder, data_filename, filt_num, shift_bool, AoA, norm_bool)
         if (filt_num == 1)
             vars = {'wingbeat_avg_forces_raw', 'wingbeat_std_forces_raw',...
             'wingbeat_min_forces_raw', 'wingbeat_max_forces_raw',...
@@ -844,6 +863,12 @@ methods(Static, Access = private)
             error("Bad filt number")
         end
         disp(" ")
+
+        % Shift pitch moment from center of force transducer to LE
+        if (shift_bool)
+            cycle_avg_forces = shiftPitchMoment(cycle_avg_forces, AoA);
+            cycle_std_forces = shiftPitchMoment(cycle_std_forces, AoA);
+        end
 
         if (norm_bool)
             cycle_avg_forces(1:3,:) = cycle_avg_forces(1:3,:) / norm_factors(1);
@@ -921,7 +946,7 @@ methods(Static, Access = private)
         power = 10*log10(pxx);
     end
 
-    function [x_label, y_labels] = get_labels(x_norm, y_norm, spectrum)
+    function [x_label, y_labels] = get_labels(x_norm, y_norm, spectrum, freq_scale)
         % Variables for plotting later
         if (x_norm)
             x_label = "Wingbeat Period (t/T)";
@@ -938,14 +963,18 @@ methods(Static, Access = private)
         end
 
         if (spectrum)
-            x_label = "Frequency (Hz)";
+            if freq_scale
+                x_label = "Wingbeat Normalized Frequency (Hz)";
+            else
+                x_label = "Frequency (Hz)";
+            end
             y_label_F = "Power/Frequency (dB/Hz)";
             y_label_M = "Power/Frequency (dB/Hz)";
         end
 
         y_labels = [y_label_F, y_label_F, y_label_F, y_label_M, y_label_M, y_label_M];
     end
-
+    
     function [abbr_sel] = get_abbr_names(sel)
         non_type_words = ["deg", "m/s", "Hz"];
         ind_to_remove = [];
@@ -983,6 +1012,7 @@ methods(Static, Access = private)
             % abbr_sel = strtrim(abbr_sel);
         end
     end
+
 end
 
 %% --------------------------------------------------------------
@@ -994,7 +1024,7 @@ methods (Access = private)
     function update_plot(obj, plot_panel)
         delete(plot_panel.Children)
 
-        [x_label, y_labels] = compareWingbeatUI.get_labels(obj.norm_period, obj.norm, obj.spectrum);
+        [x_label, y_labels] = compareWingbeatUI.get_labels(obj.norm_period, obj.norm, obj.spectrum, obj.freq_scale);
         titles = obj.axes_labels(2:7);
 
         if (~isempty(obj.selection))
@@ -1036,22 +1066,15 @@ methods (Access = private)
             processed_data_files = [processed_data_files; compareWingbeatUI.getFiles(processed_data_path, '*.mat')];
         end
 
-        colors = getColors(length(uniq_types), length(uniq_speeds), length(uniq_freqs));
+        colors = getColors(length(uniq_types), length(uniq_speeds), length(uniq_freqs), length(obj.selection));
 
-        uniq_counts = [length(uniq_types), length(uniq_speeds), length(uniq_freqs)];
+        uniq_counts = [length(uniq_types), length(uniq_speeds)];
         [B, I] = sort(uniq_counts);
         
-        % color_ind.var2 selected as longest uniq vars
-        % color_ind.var1 selected as 2nd longest uniq vars
-        for k = 1:2
-            varName = ['var' num2str(k)];
-            if (I(k+1) == 1)
-                color_ind.(varName) = uniq_types;
-            elseif (I(k+1) == 2)
-                color_ind.(varName) = string(uniq_speeds);
-            elseif (I(k+1) == 3)
-                color_ind.(varName) = uniq_freqs;
-            end
+        if (I(2) == 1)
+            common_var = uniq_types;
+        else
+            common_var = string(uniq_speeds);
         end
 
         % Back when model lines had specific colors
@@ -1084,6 +1107,8 @@ methods (Access = private)
                 tiles = [tiles ax];
             end
 
+            last_freq = 0;
+            last_speed = 0;
             for i = 1:length(obj.selection)
             
             [sel_type, sel_speed, sel_freq, sel_angle] = compareWingbeatUI.parseCases(obj.selection(i));
@@ -1093,8 +1118,8 @@ methods (Access = private)
             end
             
             % Get color for this case name
-            sels = [sel_type, sel_speed, sel_freq];
-            original_color = colors(find(color_ind.var2 == sels(I(3))), find(color_ind.var1 == sels(I(2)))); % hex
+            sels = [sel_type, sel_speed];
+            original_color = colors(find(uniq_freqs == sel_freq), find(common_var == sels(I(2)))); % hex
             lighter_color = compareWingbeatUI.getLightColor(original_color); % RGB
 
             % Using what all case names have in common, come up
@@ -1109,13 +1134,41 @@ methods (Access = private)
             % Find exact filename matching this case
             [data_filename, data_folder] = compareWingbeatUI.findMatchFile(sel_type, sel_speed, sel_freq, sel_angle, obj.freqs, processed_data_files);
         
+            if (obj.spectrum)
+            [time_data, force_data, f, power, norm_factors] ...
+            = compareWingbeatUI.load_spectrum_data(data_folder, data_filename, obj.filt_num, obj.norm);
+
+            if (obj.freq_scale)
+                f = f / wing_freq;
+            end
+
+            for idx = 1:6
+                ax = tiles(idx);
+
+                hold(ax, 'on');
+                line = plot(ax, f, power(:,idx));
+                if (obj.log_scale)
+                    set(ax, 'XScale', 'log');
+                end
+                if (obj.freq_scale)
+                    xlim(ax, [0 20])
+                else
+                    xlim(ax, [0 100])
+                end
+                line.DisplayName = abbr_name;
+                line.Color = original_color;
+                line.LineWidth = 2;
+            end
+
+            else
+
             % Get forces from quasi-steady model
-            [time, inertial_force, added_mass_force, aero_force] = compareWingbeatUI.model(sel_freq, sel_angle, sel_speed);
+            [time, inertial_force, added_mass_force, aero_force] = getModel(sel_freq, sel_angle, sel_speed);
 
             % Load data from file
             [frames, cycle_avg_forces, cycle_std_forces, ...
                 cycle_min_forces, cycle_max_forces, cycle_rmse_forces, norm_factors] ...
-            = compareWingbeatUI.load_data(data_folder, data_filename, obj.filt_num, obj.norm);
+            = compareWingbeatUI.load_data(data_folder, data_filename, obj.filt_num, obj.pitch_shift, sel_angle, obj.norm);
 
             % Use dynamic pressure force to scale modeled data
             if (obj.norm)
@@ -1149,7 +1202,7 @@ methods (Access = private)
             % Load data from file
             [sub_frames, sub_cycle_avg_forces, sub_cycle_std_forces, ...
                 sub_cycle_min_forces, sub_cycle_max_forces, sub_cycle_rmse_forces, sub_norm_factors] ...
-            = compareWingbeatUI.load_data(sub_folder, sub_filename, obj.filt_num, obj.norm);
+            = compareWingbeatUI.load_data(sub_folder, sub_filename, obj.filt_num, obj.pitch_shift, sel_angle, obj.norm);
 
             cycle_avg_forces = cycle_avg_forces - sub_cycle_avg_forces;
             cycle_std_forces = cycle_std_forces + sub_cycle_std_forces;
@@ -1175,18 +1228,25 @@ methods (Access = private)
                 hold(ax, 'on');
                 xconf = [frames, frames(end:-1:1)];         
                 yconf = [upper_results(idx, :), lower_results(idx, end:-1:1)];
-                p = fill(ax, xconf, yconf, 'blue',HandleVisibility='off');
-                p.FaceColor = lighter_color;      
+                p = fill(ax, xconf, yconf, lighter_color);
+                p.HandleVisibility = 'off';
                 p.EdgeColor = 'none';
                 data_l = plot(ax, frames, cycle_avg_forces(idx, :));
                 data_l.DisplayName = abbr_name;
                 data_l.Color = original_color;
                 data_l.LineWidth = 2;
 
+                if (last_freq ~= wing_freq || last_speed ~= sel_speed)
                 obj.plot_model(idx, ax, original_color, time, inertial_force, added_mass_force, aero_force, total_force, abbr_name);
+                if (idx == 5)
+                    last_freq = wing_freq;
+                    last_speed = sel_speed;
+                end
+                end
 
                 % plot_wingbeat_patch();
                 hold(ax, 'off');
+            end
             end
             end
 
@@ -1197,6 +1257,8 @@ methods (Access = private)
             ax = axes(plot_panel);
             idx = obj.index;
 
+            last_freq = 0;
+            last_speed = 0;
             for i = 1:length(obj.selection)
             
             [sel_type, sel_speed, sel_freq, sel_angle] = compareWingbeatUI.parseCases(obj.selection(i));
@@ -1206,8 +1268,8 @@ methods (Access = private)
             end
 
             % Get color for this case name
-            sels = [sel_type, sel_speed, sel_freq];
-            original_color = colors(find(color_ind.var2 == sels(I(3))), find(color_ind.var1 == sels(I(2)))); % hex
+            sels = [sel_type, sel_speed];
+            original_color = colors(find(uniq_freqs == sel_freq), find(common_var == sels(I(2)))); % hex
             lighter_color = compareWingbeatUI.getLightColor(original_color); % RGB
 
             % Using what all case names have in common, come up
@@ -1245,12 +1307,12 @@ methods (Access = private)
             else
 
             % Get forces from quasi-steady model
-            [time, inertial_force, added_mass_force, aero_force] = compareWingbeatUI.model(sel_freq, sel_angle, sel_speed);
+            [time, inertial_force, added_mass_force, aero_force] = getModel(sel_freq, sel_angle, sel_speed);
 
             % Load data from file
             [frames, cycle_avg_forces, cycle_std_forces, ...
                 cycle_min_forces, cycle_max_forces, cycle_rmse_forces, norm_factors] ...
-            = compareWingbeatUI.load_data(data_folder, data_filename, obj.filt_num, obj.norm);
+            = compareWingbeatUI.load_data(data_folder, data_filename, obj.filt_num, obj.pitch_shift, sel_angle, obj.norm);
 
             if (obj.norm)
                 inertial_force = [inertial_force(:,1) / norm_factors(1),...
@@ -1291,7 +1353,7 @@ methods (Access = private)
             % Load data from file
             [sub_frames, sub_cycle_avg_forces, sub_cycle_std_forces, ...
                 sub_cycle_min_forces, sub_cycle_max_forces, sub_cycle_rmse_forces, sub_norm_factors] ...
-            = compareWingbeatUI.load_data(sub_folder, sub_filename, obj.filt_num, obj.norm);
+            = compareWingbeatUI.load_data(sub_folder, sub_filename, obj.filt_num, obj.pitch_shift, sel_angle, obj.norm);
 
             cycle_avg_forces = cycle_avg_forces - sub_cycle_avg_forces;
             cycle_std_forces = cycle_std_forces + sub_cycle_std_forces;
@@ -1302,6 +1364,11 @@ methods (Access = private)
             % cycle_max_forces = cycle_max_forces;
             % cycle_rmse_forces = cycle_rmse_forces;
             end
+
+            %=============================================
+            % ----------test freq scaling of peaks--------
+            %=============================================
+            % cycle_avg_forces = cycle_avg_forces / wing_freq^2;
 
             if (~obj.norm_period)
                 % Scale x-axis back to time domain
@@ -1314,16 +1381,28 @@ methods (Access = private)
             hold(ax, 'on');
             xconf = [frames, frames(end:-1:1)];         
             yconf = [upper_results(idx, :), lower_results(idx, end:-1:1)];
-            p = fill(ax, xconf, yconf, 'blue',HandleVisibility='off');
-            p.FaceColor = lighter_color;      
+            p = fill(ax, xconf, yconf, lighter_color);
+            p.HandleVisibility = 'off';      
             p.EdgeColor = 'none';
             line = plot(ax, frames, cycle_avg_forces(idx, :));
             line.DisplayName = abbr_name;
             line.Color = original_color;
             line.LineWidth = 2;
 
+            abbr_name_chars = convertStringsToChars(abbr_name);
+            % v added to struct name since it can't start with a
+            % numeric value
+            struct_name = "v" + abbr_name_chars(~isspace(abbr_name_chars));
+            % obj.plot_curves.(struct_name) = [frames; cycle_avg_forces(idx, :)];
+
+            if (last_freq ~= wing_freq || last_speed ~= sel_speed)
             obj.plot_model(idx, ax, original_color, time, inertial_force, added_mass_force, aero_force, total_force, abbr_name);
+            last_freq = wing_freq;
+            last_speed = sel_speed;
+            end
             hold(ax, 'off');
+            end
+
             end
 
             title(ax, titles(idx));
@@ -1332,7 +1411,6 @@ methods (Access = private)
             grid(ax, 'on');
             legend(ax, Location="northeast");
             ax.FontSize = 18;
-            end
         end
     end
 

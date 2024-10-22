@@ -1,6 +1,6 @@
-function [option_panel, plot_panel, screen_size] = setupFig(mon_num)
+function [option_panel, plot_panel, fig_size] = setupFig(mon_num)
         monitor_positions = get(0, 'MonitorPositions');
-        
+
         % Check if a second monitor exists
         if size(monitor_positions, 1) >= 2 && mon_num == 2
             screen_size = monitor_positions(2, :);
@@ -12,12 +12,14 @@ function [option_panel, plot_panel, screen_size] = setupFig(mon_num)
         end
         
         fig = uifigure('Name', 'Dynamic Force Plotting');
-        fig.Position = [screen_size(1) screen_size(2) + 40 screen_size(3) screen_size(4) - 70];
+        fig_size = [screen_size(1) screen_size(2) + 40 screen_size(3) screen_size(4) - 70];
+        fig.Position = fig_size;
         
         % Create a grid layout
         plot_grid = uigridlayout(fig, [1, 2]);
         plot_grid.RowHeight = {'1x'};
         plot_grid.ColumnWidth = {200, '1x'};
+        % 0.1*screen_size(3)
         
         % Panel for dropdowns
         option_panel = uipanel(plot_grid);
