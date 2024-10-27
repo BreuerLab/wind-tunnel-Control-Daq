@@ -1,4 +1,4 @@
-function [mod_filtered_data] = shiftPitchMoment(filtered_data, AoA)
+function [mod_filtered_data] = shiftPitchMoment(filtered_data, center_to_LE, AoA)
     mod_filtered_data = filtered_data;
 
     % Shift pitch moment to LE
@@ -8,7 +8,6 @@ function [mod_filtered_data] = shiftPitchMoment(filtered_data, AoA)
     
     normal_force = lift_force*cosd(AoA) + drag_force*sind(AoA);
     
-    [center_to_LE, chord] = getWingMeasurements();
     shift_distance = -center_to_LE;
     
     % Shift pitch moment

@@ -623,7 +623,7 @@ methods(Static, Access = private)
         end
     end
 
-    function aero_force = get_model(flapper, AoA_list, freq, speed)
+    function aero_force = get_model(flapper, path, AoA_list, freq, speed)
         C_L_vals = zeros(1, length(AoA_list));
         C_D_vals = zeros(1, length(AoA_list));
         C_N_vals = zeros(1, length(AoA_list));
@@ -633,7 +633,7 @@ methods(Static, Access = private)
         for i = 1:length(AoA_list)
             AoA = AoA_list(i);
 
-            [time, ang_disp, ang_vel, ang_acc] = get_kinematics(freq, true);
+            [time, ang_disp, ang_vel, ang_acc] = get_kinematics(path, freq, true);
     
             [center_to_LE, chord, COM_span, ...
                 wing_length, arm_length] = getWingMeasurements(flapper);
@@ -858,7 +858,7 @@ methods (Access = private)
                         % Predictions
                         wing_freq = obj.sel_bird.freqs(freq_index);
                         wing_freq = str2double(extractBefore(wing_freq, " Hz"));
-                        aero_force = compareAoAUI.get_model(obj.sel_bird.name, lim_AoA_sel, wing_freq, wind_speed);
+                        aero_force = compareAoAUI.get_model(obj.sel_bird.name, obj.data_path, lim_AoA_sel, wing_freq, wind_speed);
 
                         for idx = 1:6
                         ax = tiles(idx);
@@ -940,7 +940,7 @@ methods (Access = private)
                         % Predictions
                         wing_freq = obj.sel_bird.freqs(freq_index);
                         wing_freq = str2double(extractBefore(wing_freq, " Hz"));
-                        aero_force = compareAoAUI.get_model(obj.sel_bird.name, lim_AoA_sel, wing_freq, wind_speed);
+                        aero_force = compareAoAUI.get_model(obj.sel_bird.name, obj.data_path, lim_AoA_sel, wing_freq, wind_speed);
 
                         hold(ax, 'on');
                         if (obj.regress)

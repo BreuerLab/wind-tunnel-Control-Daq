@@ -1,4 +1,4 @@
-function [inertial_force_vec] = get_inertial(ang_disp, ang_acc, r, COM_span, AoA)
+function [inertial_force_vec] = get_inertial(ang_disp, ang_acc, r, COM_span, chord, AoA)
     lin_acc = deg2rad(ang_acc) * r;
 
     lin_acc_COM = lin_acc(:, round(r,3) == round(COM_span,3));
@@ -12,7 +12,6 @@ function [inertial_force_vec] = get_inertial(ang_disp, ang_acc, r, COM_span, AoA
     % % acceleration of wing mass
 
     % assume inertial force acts at center of wings
-    [center_to_LE, chord] = getWingMeasurements();
     shift_distance = -chord/2;
 
     drag_force = inertial_force * sind(AoA);

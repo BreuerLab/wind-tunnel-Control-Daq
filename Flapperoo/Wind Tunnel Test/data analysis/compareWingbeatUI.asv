@@ -590,7 +590,7 @@ methods(Static, Access = private)
         sel_freq = strjoin(case_parts(start_ind:end_ind));
     end
 
-    function [uniq_types, uniq_speeds, uniq_freqs] = getUniqParams(selected_cases, bird, sub_bool)
+    function [uniq_types, uniq_speeds, uniq_freqs] = getUniqParams(selected_cases, types, sub_bool)
         uniq_types = [];
         uniq_speeds = [];
         uniq_freqs = [];
@@ -610,7 +610,7 @@ methods(Static, Access = private)
             end
 
             if (sub_bool)
-                sub_type = compareWingbeatUI.getSubType(sel_type, bird);
+                sub_type = compareWingbeatUI.getSubType(sel_type, types);
                 if (sum(strcmp(uniq_types, sub_type)) == 0)
                     uniq_types = [uniq_types sub_type];
                 end
@@ -620,13 +620,13 @@ methods(Static, Access = private)
         uniq_speeds = sort(uniq_speeds);
     end
 
-    function sub_type = getSubType(sel_type, bird)
+    function sub_type = getSubType(sel_type, types)
         sub_type = "";
-        for k = 1:length(bird.types)
+        for k = 1:length(types)
             % 'Wing with Full Body' will contain 'Full
             % Body', but the inverse will never be true
-            if (contains(typeToName(bird.name, sel_type), bird.types(k)))
-                sub_type = nameToType(bird.name, bird.types(k));
+            if (contains(typeToName(obj.sel_bird.name, sel_type), types(k)))
+                sub_type = nameToType(obj.sel_bird.name, types(k));
             end
         end
     end
@@ -754,7 +754,7 @@ methods(Static, Access = private)
             'wingbeat_rmse_forces_raw', 'frames', 'Re', 'St', 'norm_factors'};
             load([data_folder '\' data_filename], vars{:});
         
-            disp("Loading wingbeat data from " + data_filename)
+            disp("Loading raw data from " + data_filename)
             disp("From: " + data_folder)
         
             cycle_avg_forces = wingbeat_avg_forces_raw;
@@ -961,7 +961,7 @@ methods (Access = private)
 
         if (~isempty(obj.selection))
         % Parse selected cases
-        [uniq_types, uniq_speeds, uniq_freqs] = compareWingbeatUI.getUniqParams(obj.selection, obj.sel_bird, obj.sub);
+        [uniq_types, uniq_speeds, uniq_freqs] = compareWingbeatUI.getUniqParams(obj.selection, obj.sel_bird.types, obj.sub);
         
         % Get all type folders in the speed folders
         type_dir_names = [];
@@ -1046,7 +1046,7 @@ methods (Access = private)
             [sel_type, sel_speed, sel_freq, sel_angle] = compareWingbeatUI.parseCases(obj.selection(i));
             wing_freq = str2double(extractBefore(sel_freq, " Hz"));
             if (obj.sub)
-                sub_type = compareWingbeatUI.getSubType(sel_type, obj.sel_bird);
+                sub_type = compareWingbeatUI.getSubType(sel_type, obj.sel_bird.types);
             end
             
             % Get color for this case name
@@ -1202,7 +1202,7 @@ methods (Access = private)
             [sel_type, sel_speed, sel_freq, sel_angle] = compareWingbeatUI.parseCases(obj.selection(i));
             wing_freq = str2double(extractBefore(sel_freq, " Hz"));
             if (obj.sub)
-                sub_type = compareWingbeatUI.getSubType(sel_type, obj.sel_bird);
+                sub_type = compareWingbeatUI.getSubType(sel_type, obj.sel_bird.types);
             end
 
             % Get color for this case name
@@ -1236,18 +1236,6 @@ methods (Access = private)
             if (obj.spectrum)
             [time_data, force_data, f, power, norm_factors] ...
             = compareWingbeatUI.load_spectrum_data(data_folder, data_filename, obj.filt_num, obj.norm);
-
-            if (obj.sub)
-                [sub_time, sub_force, sub_f, sub_power, ~]...
-                    = compareWingbeatUI.load_spectrum_data(sub_folder, sub_filename, obj.filt_num, obj.norm);
-
-                disp("Subtracting spectrum from: " + sub_folder + "  /  " + sub_filename)
-                if (f == sub_f)
-                    power = power - sub_power;
-                else
-                    error("Frequencies don't match!")
-                end
-            end
 
             hold(ax, 'on');
             if (obj.freq_scale)
@@ -1316,6 +1304,13 @@ methods (Access = private)
 
             cycle_avg_forces = cycle_avg_forces - sub_cycle_avg_forces;
             cycle_std_forces = cycle_std_forces + sub_cycle_std_forces;
+
+            if (obj.spectrum)
+                [time_data, force_data, f, power, norm_factors] ...
+                = compareWingbeatUI.load_spectrum_data(sub_folder, sub_filename, obj.filt_num, obj.norm);
+
+
+            end
 
             % How should the following be modified by
             % subtraction?

@@ -1,4 +1,4 @@
-function [added_mass_force_vec] = get_added_mass(ang_disp, ang_acc, r, wing_length, AoA)
+function [added_mass_force_vec] = get_added_mass(ang_disp, ang_acc, r, wing_length, chord, AoA)
     lin_acc = deg2rad(ang_acc) * r;
 
     air_density = 1.2; % kg / m^3
@@ -10,7 +10,6 @@ function [added_mass_force_vec] = get_added_mass(ang_disp, ang_acc, r, wing_leng
     added_mass_force = (sum(added_mass_force_r,2)*0.001) / wing_length;
 
     % assume inertial force acts at center of wings
-    [center_to_LE, chord] = getWingMeasurements();
     shift_distance = -chord/2;
 
     drag_force = added_mass_force * sind(AoA);
