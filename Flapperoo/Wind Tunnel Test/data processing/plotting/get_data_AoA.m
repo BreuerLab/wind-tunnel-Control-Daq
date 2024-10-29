@@ -117,7 +117,8 @@ for i = 1 : length(processed_files)
         end
 
         if (shift_bool)
-        [mod_filtered_data] = shiftPitchMoment(filtered_data, AoA);
+        [center_to_LE, ~, ~, ~, ~] = getWingMeasurements("Flapperoo");
+        [mod_filtered_data] = shiftPitchMoment(filtered_data, center_to_LE, AoA);
         filtered_data = mod_filtered_data;
         end
 
@@ -274,7 +275,8 @@ function [forces_body] = getBody(wing_freq_sel, AoA_sel, wind_speed_sel, ...
         load([baseFolder '\' baseFileName]);
 
         if (shift_bool)
-        [mod_filtered_data] = shiftPitchMoment(filtered_data, AoA);
+        [center_to_LE, ~, ~, ~, ~] = getWingMeasurements("Flapperoo");
+        [mod_filtered_data] = shiftPitchMoment(filtered_data, center_to_LE, AoA);
         filtered_data = mod_filtered_data;
         end
 

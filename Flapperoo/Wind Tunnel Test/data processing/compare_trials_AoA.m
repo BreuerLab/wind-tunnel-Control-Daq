@@ -28,12 +28,13 @@ type_list = [type_sel sub_strings];
 type_list = strrep(type_list, ' ', '_');
 
 % set up Slack messenger
-slack_path = "../";
-s = slackMsg(slack_path);
+data_path = "D:\Final Force Data/";
+s = slackMsg(data_path);
+bot = slackProgressBar(data_path);
 
 % assuming that all experiment folders are in the same speed
 % folder
-speed_path = "../" + wind_speed_sel + " m.s/";
+speed_path = data_path + "Flapperoo/" + wind_speed_sel + " m.s/";
 filePattern = fullfile(speed_path);
 dir_names = dir(filePattern);
 
@@ -81,7 +82,6 @@ time_now = datetime;
 time_now.Format = 'yyyy_MM_dd HH_mm_ss';
 s.send("Started making plots at: " + string(time_now))
 
-bot = slackProgressBar();
 % Post the initial message
 [channelID, messageTs] = bot.makeBar();
 

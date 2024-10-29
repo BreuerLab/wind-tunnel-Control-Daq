@@ -239,7 +239,7 @@ methods
         b6.Text = "Shift Pitch Moment";
         b6.Position = [20 button5_y 160 unit_height];
         b6.BackgroundColor = [1 1 1];
-        b6.ValueChangedFcn = @(src, event) shift_change(src, event, plot_panel, d1);
+        b6.ValueChangedFcn = @(src, event) shift_change(src, event, plot_panel, d5);
 
         button6_y = button5_y - (unit_height + unit_spacing);
         b7 = uibutton(option_panel,"state");
@@ -601,7 +601,8 @@ methods(Static, Access = private)
         end
     end
 
-    function [abbr_sel] = get_abbr_names(sel)
+    function [sub_title, abbr_sel] = get_abbr_names(sel)
+        sub_title = "";
         abbr_sel = strrep(strrep(sel, "_", " "), "/", " ");
 
         if (length(sel) > 1)
@@ -629,6 +630,20 @@ methods(Static, Access = private)
         num_uniq_types = length(unique(types));
         num_uniq_speeds = length(unique(speeds));
         num_uniq_freqs = length(unique(freqs));
+
+        % For attributes shared by all cases, add to sub_title
+        if (num_uniq_flappers == 1)
+            sub_title = sub_title + flapper_name + " ";
+        end
+        if (num_uniq_types == 1)
+            sub_title = sub_title + type + " ";
+        end
+        if (num_uniq_speeds == 1)
+            sub_title = sub_title + wind_speed + " m/s ";
+        end
+        if (num_uniq_freqs == 1)
+            sub_title = sub_title + trial_name;
+        end
 
         for i = 1:length(sel)
             flapper_name = string(extractBefore(sel(i), "/")) + " ";
@@ -721,6 +736,20 @@ methods(Static, Access = private)
         aero_force(1,:) = C_D_vals;
         aero_force(3,:) = C_L_vals;
         aero_force(5,:) = C_M_vals;
+    end
+
+    function idx = findClosestStString(strToMatch, strList)
+        cur_St = str2double(extractAfter(strToMatch, "St: ")); % fails for v2 cases
+        available_Sts = [];
+        for k = 1:length(strList)
+            St_num = str2double(extractAfter(strList(k), "St: "));
+            if (~isnan(St_num))
+                available_Sts = [available_Sts St_num];
+            end
+        end
+        [M, I] = min(abs(available_Sts - cur_St));
+        idx = I;
+        disp("Closest match to St: " + cur_St + " is St: " + available_Sts(I))
     end
 
 end
@@ -857,7 +886,7 @@ methods (Access = private)
         % count is number of type + speed combos
         colors = getColors(1, num_dir, num_freq, length(obj.selection));
 
-        [abbr_sel] = compareAoAUI.get_abbr_names(obj.selection);
+        [sub_title, abbr_sel] = compareAoAUI.get_abbr_names(obj.selection);
         end
 
         % but what if we have 2 hz and 2 hz v2, I don't them to
@@ -882,6 +911,7 @@ methods (Access = private)
                 legend(ax);
                 tiles = [tiles ax];
             end
+            title(tcl, sub_title)
 
             if (obj.regress)
                 error("No point doing regression on all axes")
@@ -889,20 +919,24 @@ methods (Access = private)
 
             last_f_ind = 0;
             last_s_ind = 0;
-            for i = 1:length(struct_matches)
-                selector = struct_matches(i).selector;
-                label_idx = find(obj.selection == selector);
+            for i = 1:length(obj.selection)
+                for j = 1:length(struct_matches)
+                    if (obj.selection(i) == struct_matches(j).selector)
+                        cur_struct_match = struct_matches(j);
+                        break;
+                    end
+                end
 
-                flapper_name = string(extractBefore(selector, "/"));
-                dir_name = string(extractBefore(extractAfter(selector, "/"), "/"));
-                trial_name = extractAfter(extractAfter(selector, "/"), "/");
+                flapper_name = string(extractBefore(obj.selection(i), "/"));
+                dir_name = string(extractBefore(extractAfter(obj.selection(i), "/"), "/"));
+                trial_name = extractAfter(extractAfter(obj.selection(i), "/"), "/");
 
                 cur_bird = getBirdFromName(flapper_name, obj.Flapperoo, obj.MetaBird);
 
                 lim_AoA_sel = cur_bird.angles(cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2));
 
-                disp("Loading " + obj.data_path + "/plot data/" + cur_bird.name + "/" + struct_matches(i).file_name)
-                load(obj.data_path + "/plot data/" + cur_bird.name + "/" + struct_matches(i).file_name, "avg_forces", "err_forces")
+                disp("Loading " + obj.data_path + "/plot data/" + cur_bird.name + "/" + cur_struct_match.file_name)
+                load(obj.data_path + "/plot data/" + cur_bird.name + "/" + cur_struct_match.file_name, "avg_forces", "err_forces")
                 lim_avg_forces = avg_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
                 lim_err_forces = err_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
 
@@ -916,54 +950,55 @@ methods (Access = private)
                 wind_speed = sscanf(dir_parts(end), '%g', 1);
                 s_ind = find(cur_bird.speeds == wind_speed);
 
-                % if current trial selection is in file we
-                % just loaded in
-                if (contains(struct_matches(i).dir_name, dir_name))
-                    ind_c_dir = find([unique_dir.dir_names] == dir_name);
-                    ind_c_trial = find(unique_dir(ind_c_dir).trial_names == trial_name);
-                    freq_index = find(strtrim(struct_matches(i).trial_names) == trial_name);
+                ind_c_dir = find([unique_dir.dir_names] == dir_name);
+                ind_c_trial = find(unique_dir(ind_c_dir).trial_names == trial_name);
+                freq_index = find(strtrim(cur_struct_match.trial_names) == trial_name);
 
-                    % Get Quasi-Steady Model Force
-                    % Predictions
-                    wing_freq = cur_bird.freqs(freq_index);
-                    wing_freq = str2double(extractBefore(wing_freq, " Hz"));
-                    aero_force = compareAoAUI.get_model(cur_bird.name, obj.data_path, lim_AoA_sel, wing_freq, wind_speed);
+                if (isempty(freq_index))
+                    disp("Oops. Didn't find an exact wingbeat frequency match.")
+                    freq_index = compareAoAUI.findClosestStString(trial_name, cur_struct_match.trial_names);
+                end
 
-                    for idx = 1:6
-                    ax = tiles(idx);
-                    hold(ax, 'on');
-                    e = errorbar(ax, lim_AoA_sel, lim_avg_forces(idx,:,freq_index), lim_err_forces(idx,:,freq_index),'.');
-                    e.MarkerSize = 25;
-                    e.Color = colors(ind_c_trial, ind_c_dir);
-                    e.MarkerFaceColor = colors(ind_c_trial, ind_c_dir);
-                    e.DisplayName = abbr_sel(label_idx);
-                    % e.Marker = markers(m);
-                    
+                % Get Quasi-Steady Model Force
+                % Predictions
+                wing_freq = cur_bird.freqs(freq_index);
+                wing_freq = str2double(extractBefore(wing_freq, " Hz"));
+                aero_force = compareAoAUI.get_model(cur_bird.name, obj.data_path, lim_AoA_sel, wing_freq, wind_speed);
 
-                    % ---------Plotting model-----------
-                    % aerodynamics model is nondimensionalized, so
-                    % data should also be nondimensionalized when
-                    % comparing the two. Also only occurs if
-                    % frequency or wind speed have changed
-                    if (obj.norm && obj.aero_model && (last_f_ind ~= freq_index || last_s_ind ~= s_ind))
-                    
-                    % if index is odd
-                    if (mod(idx, 2) ~= 0)
-                        line = plot(ax, lim_AoA_sel, aero_force(idx, :));
-                        line.Color = colors(ind_c_trial, ind_c_dir);
-                        line.LineStyle = "--";
-                        line.LineWidth = 2;
-                        line.DisplayName = "Aero Model - " + abbr_sel(label_idx);
-                    end
-    
-                    if (idx == 5)
-                    last_f_ind = freq_index;
-                    last_s_ind = s_ind;
-                    end
-                    end
+                for idx = 1:6
+                ax = tiles(idx);
+                hold(ax, 'on');
+                e = errorbar(ax, lim_AoA_sel, lim_avg_forces(idx,:,freq_index), lim_err_forces(idx,:,freq_index),'.');
+                e.MarkerSize = 25;
+                e.Color = colors(ind_c_trial, ind_c_dir);
+                e.MarkerFaceColor = colors(ind_c_trial, ind_c_dir);
+                e.DisplayName = abbr_sel(i);
+                % e.Marker = markers(m);
+                
 
-                    hold(ax, 'off');
-                    end
+                % ---------Plotting model-----------
+                % aerodynamics model is nondimensionalized, so
+                % data should also be nondimensionalized when
+                % comparing the two. Also only occurs if
+                % frequency or wind speed have changed
+                if (obj.norm && obj.aero_model && (last_f_ind ~= freq_index || last_s_ind ~= s_ind))
+                
+                % if index is odd
+                if (mod(idx, 2) ~= 0)
+                    line = plot(ax, lim_AoA_sel, aero_force(idx, :));
+                    line.Color = colors(ind_c_trial, ind_c_dir);
+                    line.LineStyle = "--";
+                    line.LineWidth = 2;
+                    line.DisplayName = "Aero Model - " + abbr_sel(i);
+                end
+
+                if (idx == 5)
+                last_f_ind = freq_index;
+                last_s_ind = s_ind;
+                end
+                end
+
+                hold(ax, 'off');
                 end
            end
 
@@ -977,20 +1012,24 @@ methods (Access = private)
 
             last_f_ind = 0;
             last_s_ind = 0;
-            for i = 1:length(struct_matches)
-                selector = struct_matches(i).selector;
-                label_idx = find(obj.selection == selector);
+            for i = 1:length(obj.selection)
+                for j = 1:length(struct_matches)
+                    if (obj.selection(i) == struct_matches(j).selector)
+                        cur_struct_match = struct_matches(j);
+                        break;
+                    end
+                end
 
-                flapper_name = string(extractBefore(selector, "/"));
-                dir_name = string(extractBefore(extractAfter(selector, "/"), "/"));
-                trial_name = extractAfter(extractAfter(selector, "/"), "/");
+                flapper_name = string(extractBefore(obj.selection(i), "/"));
+                dir_name = string(extractBefore(extractAfter(obj.selection(i), "/"), "/"));
+                trial_name = extractAfter(extractAfter(obj.selection(i), "/"), "/");
 
                 cur_bird = getBirdFromName(flapper_name, obj.Flapperoo, obj.MetaBird);
 
                 lim_AoA_sel = cur_bird.angles(cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2));
                 
-                disp("Loading " + obj.data_path + "/plot data/" + cur_bird.name + "/" + struct_matches(i).file_name)
-                load(obj.data_path + "/plot data/" + cur_bird.name + "/" + struct_matches(i).file_name, "avg_forces", "err_forces")
+                disp("Loading " + obj.data_path + "/plot data/" + cur_bird.name + "/" + cur_struct_match.file_name)
+                load(obj.data_path + "/plot data/" + cur_bird.name + "/" + cur_struct_match.file_name, "avg_forces", "err_forces")
                 lim_avg_forces = avg_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
                 lim_err_forces = err_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
 
@@ -1004,60 +1043,63 @@ methods (Access = private)
                 wind_speed = sscanf(dir_parts(end), '%g', 1);
                 s_ind = find(cur_bird.speeds == wind_speed);
 
-                if (contains(struct_matches(i).dir_name, dir_name))
-                    ind_c_dir = find([unique_dir.dir_names] == dir_name);
-                    ind_c_trial = find(unique_dir(ind_c_dir).trial_names == trial_name);
-                    freq_index = find(strtrim(struct_matches(i).trial_names) == trial_name);
+                ind_c_dir = find([unique_dir.dir_names] == dir_name);
+                ind_c_trial = find(unique_dir(ind_c_dir).trial_names == trial_name);
+                freq_index = find(strtrim(cur_struct_match.trial_names) == trial_name);
 
-                    % Get Quasi-Steady Model Force
-                    % Predictions
-                    wing_freq = cur_bird.freqs(freq_index);
-                    wing_freq = str2double(extractBefore(wing_freq, " Hz"));
-                    aero_force = compareAoAUI.get_model(cur_bird.name, obj.data_path, lim_AoA_sel, wing_freq, wind_speed);
+                if (isempty(freq_index))
+                    disp("Oops. Didn't find an exact wingbeat frequency match.")
+                    freq_index = compareAoAUI.findClosestStString(trial_name, cur_struct_match.trial_names);
+                end
 
-                    hold(ax, 'on');
-                    if (obj.regress)
-                        x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
-                        y = lim_avg_forces(idx,:,freq_index)';
-                        b = x\y;
-                        model = x*b;
-                        Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
-                        label = "y = " + round(b(2),3) + "x + " + round(b(1),3) + ", R^2 = " + round(Rsq,3);
-                        p = plot(ax, lim_AoA_sel, model);
-                        p.DisplayName = label;
-                        p.Color = colors(ind_c_trial, ind_c_dir);
-                        p.LineWidth = 2;
-                    end
-                    e = errorbar(ax, lim_AoA_sel, lim_avg_forces(idx,:,freq_index), lim_err_forces(idx,:,freq_index),'.');
-                    e.MarkerSize = 25;
-                    e.Color = colors(ind_c_trial, ind_c_dir);
-                    e.MarkerFaceColor = colors(ind_c_trial, ind_c_dir);
-                    e.DisplayName = abbr_sel(label_idx);
-                    
-                    % ---------Plotting model-----------
-                    % aerodynamics model is nondimensionalized, so
-                    % data should also be nondimensionalized when
-                    % comparing the two. Also only occurs if
-                    % frequency or wind speed have changed
-                    if (obj.norm && obj.aero_model && (last_f_ind ~= freq_index || last_s_ind ~= s_ind))
-                    
-                    % if index is odd
-                    if (mod(idx, 2) ~= 0)
-                        line = plot(ax, lim_AoA_sel, aero_force(idx, :));
-                        line.Color = colors(ind_c_trial, ind_c_dir);
-                        line.LineStyle = "--";
-                        line.LineWidth = 2;
-                        line.DisplayName = "Aero Model - " + abbr_sel(label_idx);
-                    end
-    
-                    last_f_ind = freq_index;
-                    last_s_ind = s_ind;
-                    end
+                % Get Quasi-Steady Model Force
+                % Predictions
+                wing_freq = cur_bird.freqs(freq_index);
+                wing_freq = str2double(extractBefore(wing_freq, " Hz"));
+                aero_force = compareAoAUI.get_model(cur_bird.name, obj.data_path, lim_AoA_sel, wing_freq, wind_speed);
+
+                hold(ax, 'on');
+                if (obj.regress)
+                    x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
+                    y = lim_avg_forces(idx,:,freq_index)';
+                    b = x\y;
+                    model = x*b;
+                    Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
+                    label = "y = " + round(b(2),3) + "x + " + round(b(1),3) + ", R^2 = " + round(Rsq,3);
+                    p = plot(ax, lim_AoA_sel, model);
+                    p.DisplayName = label;
+                    p.Color = colors(ind_c_trial, ind_c_dir);
+                    p.LineWidth = 2;
+                end
+                e = errorbar(ax, lim_AoA_sel, lim_avg_forces(idx,:,freq_index), lim_err_forces(idx,:,freq_index),'.');
+                e.MarkerSize = 25;
+                e.Color = colors(ind_c_trial, ind_c_dir);
+                e.MarkerFaceColor = colors(ind_c_trial, ind_c_dir);
+                e.DisplayName = abbr_sel(i);
+                
+                % ---------Plotting model-----------
+                % aerodynamics model is nondimensionalized, so
+                % data should also be nondimensionalized when
+                % comparing the two. Also only occurs if
+                % frequency or wind speed have changed
+                if (obj.norm && obj.aero_model && (last_f_ind ~= freq_index || last_s_ind ~= s_ind))
+                
+                % if index is odd
+                if (mod(idx, 2) ~= 0)
+                    line = plot(ax, lim_AoA_sel, aero_force(idx, :));
+                    line.Color = colors(ind_c_trial, ind_c_dir);
+                    line.LineStyle = "--";
+                    line.LineWidth = 2;
+                    line.DisplayName = "Aero Model - " + abbr_sel(i);
+                end
+
+                last_f_ind = freq_index;
+                last_s_ind = s_ind;
                 end
 
             end
 
-            title(ax, titles(idx));
+            title(ax, [sub_title titles(idx)]);
             xlabel(ax, x_label);
             ylabel(ax, y_labels(idx))
             grid(ax, 'on');
