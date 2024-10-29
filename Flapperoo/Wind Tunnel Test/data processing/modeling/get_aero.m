@@ -1,10 +1,10 @@
-function [C_L, C_D, C_N, C_M] = get_aero(eff_AoA, u_rel, wind_speed_sel, wing_length, thinAirfoil, single_AR)
+function [C_L, C_D, C_N, C_M] = get_aero(ang_disp, eff_AoA, u_rel, wind_speed_sel, wing_length, thinAirfoil, single_AR)
     if (thinAirfoil)
         AR = 2*single_AR;
         lift_slope = ((2*pi) / (1 + 2/AR));
         alpha_zero = 0;
         if (wind_speed_sel ~= 0)
-            C_L_r = lift_slope*deg2rad(eff_AoA - alpha_zero) .* (u_rel / wind_speed_sel).^2;
+            C_L_r = lift_slope*deg2rad(eff_AoA - alpha_zero) .* (u_rel / wind_speed_sel).^2 .* cosd(ang_disp);
         else
             C_L_r = zeros(size(eff_AoA));
         end

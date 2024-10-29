@@ -136,21 +136,6 @@ methods
         unit_height = round(0.03*screen_height);
         unit_spacing = round(0.005*screen_height);
 
-        % tree_y = screen_height - round(0.5*screen_height);
-        % tree_h = round(0.47*screen_height);
-        % t = uitree(option_panel,'checkbox');
-        % t.Position = [10 tree_y 180 tree_h];
-        % % Assign callback in response to node selection
-        % t.CheckedNodesChangedFcn = @(src, event) select(src, event, plot_panel);
-        % for i = 1:length(obj.uniq_list)
-        %     data_struct = obj.uniq_list(i);
-        %     parent = uitreenode(t, 'Text', data_struct.dir_name);
-        % 
-        %     for j = 1:length(data_struct.trial_names)
-        %         child = uitreenode(parent, 'Text', data_struct.trial_names(j));
-        %     end
-        % end
-
         %-----------------------------------------------
 
         % Dropdown box for flapper selection
@@ -589,23 +574,12 @@ methods(Static, Access = private)
         data_struct.trial_names = names;
     end
 
-    function update_tree(t, uniq_list)
-        for i = 1:length(uniq_list)
-            data_struct = uniq_list(i);
-            parent = t.Children(i);
-
-            for j = 1:length(t.Children(i).Children)
-                child = parent.Children(j);
-                child.Text = data_struct.trial_names(j);
-            end
-        end
-    end
-
     function [sub_title, abbr_sel] = get_abbr_names(sel)
         sub_title = "";
-        abbr_sel = strrep(strrep(sel, "_", " "), "/", " ");
-
-        if (length(sel) > 1)
+        abbr_sel = "";
+        if (isscalar(sel))
+            abbr_sel = strrep(strrep(sel, "_", " "), "/", " ");
+        elseif (length(sel) > 1)
         flappers = [];
         types = [];
         speeds = [];
@@ -725,7 +699,7 @@ methods(Static, Access = private)
             else
                 error("Oops. Unknown flapper")
             end
-            [C_L, C_D, C_N, C_M] = get_aero(eff_AoA, u_rel, speed, wing_length, thinAirfoil, single_AR);
+            [C_L, C_D, C_N, C_M] = get_aero(ang_disp, eff_AoA, u_rel, speed, wing_length, thinAirfoil, single_AR);
             
             C_L_vals(i) = mean(C_L);
             C_D_vals(i) = mean(C_D);
@@ -821,7 +795,10 @@ methods (Access = private)
             for j = 1:length(cur_bird.file_list)
                 if (cur_bird.file_list(j).file_name == name_match)
                     struct_match = cur_bird.file_list(j);
-                    struct_match.selector = obj.selection(i);
+                    selector = char(obj.selection(i));
+                    slashIndices = strfind(selector, '/');
+                    selector = selector(1:slashIndices(2) - 1);
+                    struct_match.selector = string(selector);
                 end
             end
 
@@ -853,7 +830,6 @@ methods (Access = private)
         if (~isempty(obj.selection))
         unique_dir = [];
         num_dir = 0; % number of unique selected directories
-        freq_count_arr = [];
         for j = 1:length(obj.selection)
             flapper_name = string(extractBefore(obj.selection(j), "/"));
             dir_name = string(extractBefore(extractAfter(obj.selection(j), "/"), "/"));
@@ -865,34 +841,37 @@ methods (Access = private)
                 dir_name = strjoin(dir_parts, "_");
             end
 
-            if(isempty(unique_dir) || sum([unique_dir.dir_names] == dir_name) == 0)
-                data_struct.dir_names = dir_name;
+            if(isempty(unique_dir) || sum([unique_dir.dir_name] == dir_name) == 0)
+                data_struct.dir_name = dir_name;
                 data_struct.trial_names = [];
                 unique_dir = [unique_dir data_struct];
                 num_dir = num_dir + 1;
-                freq_count_arr(num_dir) = 0;
             end
-            if(isempty(unique_dir(num_dir).trial_names) || sum(unique_dir(num_dir).trial_names == trial_name) == 0)
-                unique_dir(num_dir).trial_names = [unique_dir(num_dir).trial_names trial_name];
-                freq_count_arr(num_dir) = freq_count_arr(num_dir) + 1;
+
+            for k = 1:length(unique_dir)
+                if (dir_name == unique_dir(k).dir_name)
+                    cur_idx = k;
+                end
+            end
+            if(isempty(unique_dir(cur_idx).trial_names) || sum(unique_dir(cur_idx).trial_names == trial_name) == 0)
+                unique_dir(cur_idx).trial_names = [unique_dir(cur_idx).trial_names trial_name];
             end
         end
 
-        num_freq = max(freq_count_arr);
+        num_freq = 0;
+        for k = 1:length(unique_dir)
+            if (length(unique_dir(k).trial_names) > num_freq)
+                num_freq = length(unique_dir(k).trial_names);
+            end
+        end
 
         uniq_counts = [num_dir, num_freq];
         [B, I] = sort(uniq_counts);
 
         % count is number of type + speed combos
         colors = getColors(1, num_dir, num_freq, length(obj.selection));
-
-        [sub_title, abbr_sel] = compareAoAUI.get_abbr_names(obj.selection);
         end
-
-        % but what if we have 2 hz and 2 hz v2, I don't them to
-        % have a color range, I'd rather they have unique colors
-        % for each unique dir, there can be a separate list of
-        % unique freqs
+        [sub_title, abbr_sel] = compareAoAUI.get_abbr_names(obj.selection);
 
         % -----------------------------------------------------
         % ---- Plotting all six axes (3 forces, 3 moments) ----
@@ -920,8 +899,11 @@ methods (Access = private)
             last_f_ind = 0;
             last_s_ind = 0;
             for i = 1:length(obj.selection)
+                selector = char(obj.selection(i));
+                slashIndices = strfind(selector, '/');
+                selector = string(selector(1:slashIndices(2) - 1));
                 for j = 1:length(struct_matches)
-                    if (obj.selection(i) == struct_matches(j).selector)
+                    if (selector == struct_matches(j).selector)
                         cur_struct_match = struct_matches(j);
                         break;
                     end
@@ -934,7 +916,7 @@ methods (Access = private)
                 cur_bird = getBirdFromName(flapper_name, obj.Flapperoo, obj.MetaBird);
 
                 lim_AoA_sel = cur_bird.angles(cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2));
-
+                
                 disp("Loading " + obj.data_path + "/plot data/" + cur_bird.name + "/" + cur_struct_match.file_name)
                 load(obj.data_path + "/plot data/" + cur_bird.name + "/" + cur_struct_match.file_name, "avg_forces", "err_forces")
                 lim_avg_forces = avg_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
@@ -950,7 +932,7 @@ methods (Access = private)
                 wind_speed = sscanf(dir_parts(end), '%g', 1);
                 s_ind = find(cur_bird.speeds == wind_speed);
 
-                ind_c_dir = find([unique_dir.dir_names] == dir_name);
+                ind_c_dir = find([unique_dir.dir_name] == dir_name);
                 ind_c_trial = find(unique_dir(ind_c_dir).trial_names == trial_name);
                 freq_index = find(strtrim(cur_struct_match.trial_names) == trial_name);
 
@@ -1013,8 +995,11 @@ methods (Access = private)
             last_f_ind = 0;
             last_s_ind = 0;
             for i = 1:length(obj.selection)
+                selector = char(obj.selection(i));
+                slashIndices = strfind(selector, '/');
+                selector = string(selector(1:slashIndices(2) - 1));
                 for j = 1:length(struct_matches)
-                    if (obj.selection(i) == struct_matches(j).selector)
+                    if (selector == struct_matches(j).selector)
                         cur_struct_match = struct_matches(j);
                         break;
                     end
@@ -1028,8 +1013,9 @@ methods (Access = private)
 
                 lim_AoA_sel = cur_bird.angles(cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2));
                 
-                disp("Loading " + obj.data_path + "/plot data/" + cur_bird.name + "/" + cur_struct_match.file_name)
-                load(obj.data_path + "/plot data/" + cur_bird.name + "/" + cur_struct_match.file_name, "avg_forces", "err_forces")
+                cur_file = obj.data_path + "/plot data/" + cur_bird.name + "/" + cur_struct_match.file_name;
+                disp("Loading " + cur_file)
+                load(cur_file, "avg_forces", "err_forces")
                 lim_avg_forces = avg_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
                 lim_err_forces = err_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
 
@@ -1043,7 +1029,7 @@ methods (Access = private)
                 wind_speed = sscanf(dir_parts(end), '%g', 1);
                 s_ind = find(cur_bird.speeds == wind_speed);
 
-                ind_c_dir = find([unique_dir.dir_names] == dir_name);
+                ind_c_dir = find([unique_dir.dir_name] == dir_name);
                 ind_c_trial = find(unique_dir(ind_c_dir).trial_names == trial_name);
                 freq_index = find(strtrim(cur_struct_match.trial_names) == trial_name);
 
@@ -1054,9 +1040,11 @@ methods (Access = private)
 
                 % Get Quasi-Steady Model Force
                 % Predictions
-                wing_freq = cur_bird.freqs(freq_index);
-                wing_freq = str2double(extractBefore(wing_freq, " Hz"));
-                aero_force = compareAoAUI.get_model(cur_bird.name, obj.data_path, lim_AoA_sel, wing_freq, wind_speed);
+                if (obj.aero_model)
+                    wing_freq = cur_bird.freqs(freq_index);
+                    wing_freq = str2double(extractBefore(wing_freq, " Hz"));
+                    aero_force = compareAoAUI.get_model(cur_bird.name, obj.data_path, lim_AoA_sel, wing_freq, wind_speed);
+                end
 
                 hold(ax, 'on');
                 if (obj.regress)
