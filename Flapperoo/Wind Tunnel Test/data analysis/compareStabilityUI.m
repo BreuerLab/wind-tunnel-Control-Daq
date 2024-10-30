@@ -24,6 +24,7 @@ properties
     shift;
     drift;
     aero_model;
+    equilibrium_plot;
 end
 
 methods
@@ -46,6 +47,7 @@ methods
         obj.shift = false;
         obj.drift = false;
         obj.aero_model = false;
+        obj.equilibrium_plot = false;
 
         for i = 1:2
             path = obj.data_path;
@@ -215,6 +217,13 @@ methods
         b8.BackgroundColor = [1 1 1];
         b8.ValueChangedFcn = @(src, event) model_change(src, event, plot_panel);
 
+        button8_y = button7_y - (unit_height + unit_spacing);
+        b9 = uibutton(option_panel,"state");
+        b9.Text = "Equilibrium Position";
+        b9.Position = [20 button8_y 160 unit_height];
+        b9.BackgroundColor = [1 1 1];
+        b9.ValueChangedFcn = @(src, event) plot_type_change(src, event, plot_panel);
+
         AoA_y = 0.05*screen_height;
         s = uislider(option_panel,"range");
         s.Position = [10 AoA_y 180 3];
@@ -370,6 +379,18 @@ methods
                 src.BackgroundColor = [0.3010 0.7450 0.9330];
             else
                 obj.aero_model = false;
+                src.BackgroundColor = [1 1 1];
+            end
+
+            obj.update_plot(plot_panel);
+        end
+
+        function plot_type_change(src, ~, plot_panel)
+            if (src.Value)
+                obj.equilibrium_plot = true;
+                src.BackgroundColor = [0.3010 0.7450 0.9330];
+            else
+                obj.equilibrium_plot = false;
                 src.BackgroundColor = [1 1 1];
             end
 
@@ -657,10 +678,18 @@ methods (Access = private)
             x_label = "Wingbeat Frequency (Hz)";
         end
 
-        if (obj.norm)
-            y_label = "Normalized Pitch Stability Slope";
+        if (obj.equilibrium_plot)
+            if (obj.norm)
+                y_label = "Normalized Equilibrium Angle (deg)";
+            else
+                y_label = "Equilibrium Angle (deg)";
+            end
         else
-            y_label = "Pitch Stability Slope";
+            if (obj.norm)
+                y_label = "Normalized Pitch Stability Slope";
+            else
+                y_label = "Pitch Stability Slope";
+            end
         end
 
         if (~isempty(obj.selection))
@@ -740,9 +769,16 @@ methods (Access = private)
             lim_avg_forces = avg_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
             lim_err_forces = err_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
 
+            if (wind_speed == 6)
+                wing_freqs_str = cur_bird.freqs(1:end-4);
+            else
+                wing_freqs_str = cur_bird.freqs(1:end-2);
+            end
+
             slopes = [];
+            x_intercepts = [];
             err_slopes = [];
-            for k = 1:length(cur_bird.freqs) - 2
+            for k = 1:length(wing_freqs_str)
                 idx = 5; % pitch moment
                 x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
                 y = lim_avg_forces(idx,:,k)';
@@ -750,17 +786,19 @@ methods (Access = private)
                 model = x*b;
                 % Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
                 SE_slope = (sum((y - model).^2) / (sum((lim_AoA_sel - mean(lim_AoA_sel)).^2)*(length(lim_AoA_sel) - 2)) ).^(1/2);
-                err_slopes = [err_slopes SE_slope];
+                x_int = - b(1) / b(2);
+
                 slopes = [slopes b(2)];
+                err_slopes = [err_slopes SE_slope];
+                x_intercepts = [x_intercepts x_int];
             end
 
-            wing_freqs = cur_bird.freqs;
-            wing_freqs = str2double(extractBefore(wing_freqs, " Hz"));
-            wing_freqs = wing_freqs(1:end-2);
+            wing_freqs = str2double(extractBefore(wing_freqs_str, " Hz"));
             
             % Get Quasi-Steady Model Force
             % Predictions
             mod_slopes = [];
+            mod_x_intercepts = [];
             if (obj.aero_model)
                 for k = 1:length(wing_freqs)
                 wing_freq = wing_freqs(k);
@@ -772,7 +810,10 @@ methods (Access = private)
                 b = x\y;
                 % model = x*b;
                 % Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
+                x_int = - b(1) / b(2);
+
                 mod_slopes = [mod_slopes b(2)];
+                mod_x_intercepts = [mod_x_intercepts x_int];
                 end
             end
 
@@ -784,8 +825,18 @@ methods (Access = private)
             else
                 x_vals = wing_freqs;
             end
+
+            if (~obj.equilibrium_plot)
+                y_vals = slopes;
+                err_vals = err_slopes;
+                y_mod_vals = mod_slopes;
+            else
+                y_vals = x_intercepts;
+                err_vals = zeros(1,length(x_intercepts));
+                y_mod_vals = mod_x_intercepts;
+            end
             
-            e = errorbar(ax, x_vals, slopes, err_slopes, '.');
+            e = errorbar(ax, x_vals, y_vals, err_vals, '.');
             e.MarkerSize = 25;
             e.Color = colors(s_ind, t_ind);
             e.MarkerFaceColor = colors(s_ind, t_ind);
@@ -797,7 +848,7 @@ methods (Access = private)
             % comparing the two. Also only occurs if
             % frequency or wind speed have changed
             if (obj.norm && obj.aero_model)
-            e = errorbar(ax, x_vals, mod_slopes, zeros(1,length(mod_slopes)), '.');
+            e = errorbar(ax, x_vals, y_mod_vals, zeros(1,length(y_mod_vals)), '.');
             e.MarkerSize = 25;
             e.Color = colors(s_ind, t_ind);
             e.MarkerFaceColor = colors(s_ind, t_ind);
