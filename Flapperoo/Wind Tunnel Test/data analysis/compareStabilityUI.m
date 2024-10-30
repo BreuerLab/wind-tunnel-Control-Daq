@@ -8,7 +8,6 @@ properties
     selection;
 
     % force and moment axes labels used in dropdown box
-    axes_labels;
     range;
 
     Flapperoo;
@@ -19,12 +18,11 @@ properties
     sel_speed;
 
     % booleans
-    whichBird;
     sub;
     norm;
+    st;
     shift;
     drift;
-    regress;
     aero_model;
 end
 
@@ -34,8 +32,6 @@ methods
         obj.data_path = data_path;
 
         obj.selection = strings(0);
-        obj.axes_labels = ["All", "Drag", "Transverse Lift", "Lift",...
-            "Roll Moment", "Pitch Moment", "Yaw Moment"];
         obj.range = [-16 16];
         obj.Flapperoo = flapper("Flapperoo");
         obj.MetaBird = flapper("MetaBird");
@@ -46,7 +42,7 @@ methods
 
         obj.sub = false;
         obj.norm = false;
-        obj.regress = false;
+        obj.st = false;
         obj.shift = false;
         obj.drift = false;
         obj.aero_model = false;
@@ -150,7 +146,7 @@ methods
         d4 = uidropdown(option_panel);
         d4.Position = [10 drop_y4 180 unit_height];
         d4.Items = obj.sel_bird.speeds + " m/s";
-        d4.ValueChangedFcn = @(src, event) speed_change(src, event, d3);
+        d4.ValueChangedFcn = @(src, event) speed_change(src, event);
 
         d1.ValueChangedFcn = @(src, event) flapper_change(src, event, d2, d3, d4);
 
@@ -186,24 +182,24 @@ methods
 
         button3_y = list_y - (unit_height + unit_spacing);
         b4 = uibutton(option_panel,"state");
-        b4.Text = "Normalize";
+        b4.Text = "Normalize Moment";
         b4.Position = [20 button3_y 160 unit_height];
         b4.BackgroundColor = [1 1 1];
-        b4.ValueChangedFcn = @(src, event) norm_change(src, event, plot_panel, d3);
+        b4.ValueChangedFcn = @(src, event) norm_change(src, event, plot_panel);
 
         button4_y = button3_y - (unit_height + unit_spacing);
         b5 = uibutton(option_panel,"state");
-        b5.Text = "Regression";
+        b5.Text = "St Scaling";
         b5.Position = [20 button4_y 160 unit_height];
         b5.BackgroundColor = [1 1 1];
-        b5.ValueChangedFcn = @(src, event) regress_change(src, event, plot_panel);
+        b5.ValueChangedFcn = @(src, event) st_change(src, event, plot_panel);
 
         button5_y = button4_y - (unit_height + unit_spacing);
         b6 = uibutton(option_panel,"state");
         b6.Text = "Shift Pitch Moment";
         b6.Position = [20 button5_y 160 unit_height];
         b6.BackgroundColor = [1 1 1];
-        b6.ValueChangedFcn = @(src, event) shift_change(src, event, plot_panel, d5);
+        b6.ValueChangedFcn = @(src, event) shift_change(src, event, plot_panel);
 
         button6_y = button5_y - (unit_height + unit_spacing);
         b7 = uibutton(option_panel,"state");
@@ -267,25 +263,9 @@ methods
         end
 
         % update speed variable with new value selected by user
-        function speed_change(src, ~, d2)
+        function speed_change(src, ~)
             speed = str2double(extractBefore(src.Value, " m/s"));
             obj.sel_speed = speed;
-            % 4.5 Hz and 5 Hz were run for all wind speeds except
-            % 6 m/s
-            if (speed == 6)
-                shortened_list = obj.sel_bird.freqs(obj.sel_bird.freqs ~= "4.5 Hz" & obj.sel_bird.freqs ~= "5 Hz");
-                d2.Items = shortened_list;
-            else
-                d2.Items = obj.sel_bird.freqs;
-            end
-
-            if (obj.norm)
-                for i = 1:length(d2.Items)
-                    wing_freq = str2double(extractBefore(d2.Items{i}, " Hz"));
-                    St = freqToSt(obj.sel_bird.name, wing_freq, obj.sel_speed);
-                    d2.Items{i} = ['St: ' num2str(St)];
-                end
-            end
         end
 
         function subtraction_change(src, ~, plot_panel)
@@ -322,7 +302,7 @@ methods
             % removing value from list used for plotting
             if (obj.norm)
                 flapper_name = string(extractBefore(obj.selection(i), "/"));
-            dir_name = string(extractAfter(obj.selection(i), "/"));
+                dir_name = string(extractAfter(obj.selection(i), "/"));
 
                 wing_freq = str2double(extractBefore(trial_name, " Hz"));
                 dir_parts = split(dir_name, '_');
@@ -336,81 +316,38 @@ methods
             obj.update_plot(plot_panel);
         end
 
-        function norm_change(src, ~, plot_panel, d2)
+        function norm_change(src, ~, plot_panel)
             if (src.Value)
                 obj.norm = true;
                 src.BackgroundColor = [0.3010 0.7450 0.9330];
-                % replace freqs with strouhal numbers
-                for i = 1:length(d2.Items)
-                    wing_freq = str2double(extractBefore(d2.Items{i}, " Hz"));
-                    St = freqToSt(obj.sel_bird.name, wing_freq, obj.sel_speed);
-                    d2.Items{i} = ['St: ' num2str(St)];
-                end
-
-                % replace freqs with strouhal numbers
-                for i = 1:length(obj.selection)
-                    flapper_name = string(extractBefore(obj.selection(i), "/"));
-                    dir_name = string(extractAfter(obj.selection(i), "/"));
-
-                    wing_freq = str2double(extractBefore(trial_name, " Hz"));
-                    dir_parts = split(dir_name, '_');
-                    wind_speed = sscanf(dir_parts(end), '%g', 1);
-
-                    St = freqToSt(obj.sel_bird.name, wing_freq, wind_speed);
-                    obj.selection(i) = flapper_name + "/" + dir_name + "/" + ['St: ' num2str(St)];
-                end
             else
                 obj.norm = false;
                 src.BackgroundColor = [1 1 1];
-                % replace strouhal numbers with freqs
-                if (obj.sel_speed == 6)
-                    shortened_list = obj.sel_bird.freqs(obj.sel_bird.freqs ~= "4.5 Hz" & obj.sel_bird.freqs ~= "5 Hz");
-                    d2.Items = shortened_list;
-                else
-                    d2.Items = obj.sel_bird.freqs;
-                end
-
-                % replace strouhal numbers with freqs
-                for i = 1:length(obj.selection)
-                    flapper_name = string(extractBefore(obj.selection(i), "/"));
-                    dir_name = string(extractAfter(obj.selection(i), "/"));
-
-                    St = str2double(extractAfter(trial_name, "St: "));
-                    dir_parts = split(dir_name, '_');
-                    wind_speed = sscanf(dir_parts(end), '%g', 1);
-                    
-                    abbr_freqs = str2double(extractBefore(obj.sel_bird.freqs(1:end-2), " Hz")); % remove v2 trials
-                    freq = stToFreq(obj.sel_bird.name, St, wind_speed, abbr_freqs);
-                    obj.selection(i) = flapper_name + "/" + dir_name + "/" + freq + " Hz";
-                end
             end
 
             obj.update_plot(plot_panel);
         end
 
-        function regress_change(src, ~, plot_panel)
+        function st_change(src, ~, plot_panel)
             if (src.Value)
-                obj.regress = true;
+                obj.st = true;
                 src.BackgroundColor = [0.3010 0.7450 0.9330];
             else
-                obj.regress = false;
+                obj.st = false;
                 src.BackgroundColor = [1 1 1];
             end
 
             obj.update_plot(plot_panel);
         end
 
-        function shift_change(src, ~, plot_panel, dropdown)
+        function shift_change(src, ~, plot_panel)
             if (src.Value)
                 obj.shift = true;
                 src.BackgroundColor = [0.3010 0.7450 0.9330];
-                obj.axes_labels(6) = "Pitch Moment (LE)";
             else
                 obj.shift = false;
                 src.BackgroundColor = [1 1 1];
-                obj.axes_labels(6) = "Pitch Moment";
             end
-            dropdown.Items = obj.axes_labels;
 
             obj.update_plot(plot_panel);
         end
@@ -491,6 +428,69 @@ methods(Static, Access = private)
         end
     end
 
+    function [sub_title, abbr_sel] = get_abbr_names(sel)
+        sub_title = "";
+        abbr_sel = "";
+        if (isscalar(sel))
+            abbr_sel = strrep(strrep(sel, "_", " "), "/", " ");
+        elseif (length(sel) > 1)
+        flappers = [];
+        types = [];
+        speeds = [];
+        freqs = [];
+
+        for i = 1:length(sel)
+            flapper_name = string(extractBefore(sel(i), "/"));
+            dir_name = string(extractAfter(sel(i), "/"));
+            
+            dir_parts = split(dir_name, '_');
+            type = strjoin(dir_parts(1:end-1));
+            wind_speed = sscanf(dir_parts(end), '%g', 1);
+
+            flappers = [flappers flapper_name];
+            types = [types type];
+            speeds = [speeds wind_speed];
+        end
+
+        num_uniq_flappers = length(unique(flappers));
+        num_uniq_types = length(unique(types));
+        num_uniq_speeds = length(unique(speeds));
+
+        % For attributes shared by all cases, add to sub_title
+        if (num_uniq_flappers == 1)
+            sub_title = sub_title + flapper_name + " ";
+        end
+        if (num_uniq_types == 1)
+            sub_title = sub_title + type + " ";
+        end
+        if (num_uniq_speeds == 1)
+            sub_title = sub_title + wind_speed + " m/s ";
+        end
+
+        for i = 1:length(sel)
+            flapper_name = string(extractBefore(sel(i), "/"));
+            dir_name = string(extractAfter(sel(i), "/"));
+            
+            dir_parts = split(dir_name, '_');
+            type = strjoin(dir_parts(1:end-1)) + " ";
+            wind_speed = dir_parts(end) + " ";
+
+            if (num_uniq_flappers == 1)
+                flapper_name = "";
+            end
+            if (num_uniq_types == 1)
+                type = "";
+            end
+            if (num_uniq_speeds == 1)
+                wind_speed = "";
+            end
+
+            cur_abbr_sel = flapper_name + type + wind_speed;
+            abbr_sel(i) = cur_abbr_sel;
+        end
+        end
+    end
+
     function data_struct = get_file_structure(path, baseFileName, parsed_name)
         load(path + baseFileName, "names");
         data_struct.file_name = baseFileName;
@@ -514,28 +514,29 @@ methods(Static, Access = private)
         C_M_vals = zeros(1, length(AoA_list));
         aero_force = zeros(6, length(AoA_list));
 
+        [time, ang_disp, ang_vel, ang_acc] = get_kinematics(path, freq, true);
+            
+        [center_to_LE, chord, COM_span, ...
+            wing_length, arm_length] = getWingMeasurements(flapper);
+        
+        full_length = wing_length + arm_length;
+        r = arm_length:0.001:full_length;
+        lin_vel = deg2rad(ang_vel) * r;
+
+        thinAirfoil = true;
+        if (flapper == "Flapperoo")
+            single_AR = 2.5;
+        elseif (flapper == "MetaBird")
+            single_AR = 2.5; % NEEDS UPDATING
+        else
+            error("Oops. Unknown flapper")
+        end
+
         for i = 1:length(AoA_list)
             AoA = AoA_list(i);
-
-            [time, ang_disp, ang_vel, ang_acc] = get_kinematics(path, freq, true);
-    
-            [center_to_LE, chord, COM_span, ...
-                wing_length, arm_length] = getWingMeasurements(flapper);
-            
-            full_length = wing_length + arm_length;
-            r = arm_length:0.001:full_length;
-            lin_vel = deg2rad(ang_vel) * r;
             
             [eff_AoA, u_rel] = get_eff_wind(time, lin_vel, AoA, speed);
             
-            thinAirfoil = true;
-            if (flapper == "Flapperoo")
-                single_AR = 2.5;
-            elseif (flapper == "MetaBird")
-                single_AR = 2.5; % NEEDS UPDATING
-            else
-                error("Oops. Unknown flapper")
-            end
             [C_L, C_D, C_N, C_M] = get_aero(ang_disp, eff_AoA, u_rel, speed, wing_length, thinAirfoil, single_AR);
             
             C_L_vals(i) = mean(C_L);
@@ -650,7 +651,12 @@ methods (Access = private)
             disp("--------------------------------------------")
         end
 
-        x_label = "Wingbeat Frequency (Hz)";
+        if (obj.st)
+            x_label = "Strouhal Number";
+        else
+            x_label = "Wingbeat Frequency (Hz)";
+        end
+
         if (obj.norm)
             y_label = "Normalized Pitch Stability Slope";
         else
@@ -659,10 +665,11 @@ methods (Access = private)
 
         if (~isempty(obj.selection))
         unique_dir = [];
-        num_dir = 0; % number of unique selected directories
+        unique_speeds = [];
+        unique_types = [];
         for j = 1:length(obj.selection)
-            flapper_name = string(extractBefore(obj.selection(i), "/"));
-            dir_name = string(extractAfter(obj.selection(i), "/"));
+            flapper_name = string(extractBefore(obj.selection(j), "/"));
+            dir_name = string(extractAfter(obj.selection(j), "/"));
 
             if (obj.sub)
                 dir_parts = split(dir_name, '_');
@@ -670,35 +677,23 @@ methods (Access = private)
                 dir_name = strjoin(dir_parts, "_");
             end
 
+            dir_parts = split(dir_name, '_');
+            wind_speed = sscanf(dir_parts(end), '%g', 1);
+            type = strjoin(dir_parts(1:end-1));
+
+            if(isempty(unique_speeds) || sum(unique_speeds == wind_speed) == 0)
+                unique_speeds = [unique_speeds wind_speed];
+            end
+            if(isempty(unique_types) || sum(unique_types == type) == 0)
+                unique_types = [unique_types type];
+            end
             if(isempty(unique_dir) || sum([unique_dir.dir_name] == dir_name) == 0)
                 data_struct.dir_name = dir_name;
-                data_struct.trial_names = [];
                 unique_dir = [unique_dir data_struct];
-                num_dir = num_dir + 1;
-            end
-
-            for k = 1:length(unique_dir)
-                if (dir_name == unique_dir(k).dir_name)
-                    cur_idx = k;
-                end
-            end
-            if(isempty(unique_dir(cur_idx).trial_names) || sum(unique_dir(cur_idx).trial_names == trial_name) == 0)
-                unique_dir(cur_idx).trial_names = [unique_dir(cur_idx).trial_names trial_name];
             end
         end
 
-        num_freq = 0;
-        for k = 1:length(unique_dir)
-            if (length(unique_dir(k).trial_names) > num_freq)
-                num_freq = length(unique_dir(k).trial_names);
-            end
-        end
-
-        uniq_counts = [num_dir, num_freq];
-        [B, I] = sort(uniq_counts);
-
-        % count is number of type + speed combos
-        colors = getColors(1, num_dir, num_freq, length(obj.selection));
+        colors = getColors(1, length(unique_types), length(unique_speeds), length(obj.selection));
         end
         [sub_title, abbr_sel] = compareStabilityUI.get_abbr_names(obj.selection);
 
@@ -707,15 +702,11 @@ methods (Access = private)
         % -----------------------------------------------------
         ax = axes(plot_panel);
 
-
-        last_f_ind = 0;
+        last_t_ind = 0;
         last_s_ind = 0;
         for i = 1:length(obj.selection)
-            selector = char(obj.selection(i));
-            slashIndices = strfind(selector, '/');
-            selector = string(selector(1:slashIndices(2) - 1));
             for j = 1:length(struct_matches)
-                if (selector == struct_matches(j).selector)
+                if (obj.selection(i) == struct_matches(j).selector)
                     cur_struct_match = struct_matches(j);
                     break;
                 end
@@ -726,6 +717,21 @@ methods (Access = private)
 
             cur_bird = getBirdFromName(flapper_name, obj.Flapperoo, obj.MetaBird);
 
+            dir_parts = split(dir_name, '_');
+
+            if (obj.sub)
+                dir_parts = split(dir_name, '_');
+                dir_parts(2) = "Sub";
+                dir_name = strjoin(dir_parts, "_");
+            end
+
+            dir_parts = split(dir_name, '_');
+            wind_speed = sscanf(dir_parts(end), '%g', 1);
+            s_ind = find(unique_speeds == wind_speed);
+
+            type = strjoin(dir_parts(1:end-1));
+            t_ind = find(unique_types == type);
+
             lim_AoA_sel = cur_bird.angles(cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2));
             
             cur_file = obj.data_path + "/plot data/" + cur_bird.name + "/" + cur_struct_match.file_name;
@@ -734,50 +740,55 @@ methods (Access = private)
             lim_avg_forces = avg_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
             lim_err_forces = err_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
 
-            dir_parts = split(dir_name, '_');
-
-            if (obj.sub)
-                dir_parts(2) = "Sub";
-                dir_name = strjoin(dir_parts, "_");
+            slopes = [];
+            err_slopes = [];
+            for k = 1:length(cur_bird.freqs) - 2
+                idx = 5; % pitch moment
+                x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
+                y = lim_avg_forces(idx,:,k)';
+                b = x\y;
+                model = x*b;
+                % Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
+                SE_slope = (sum((y - model).^2) / (sum((lim_AoA_sel - mean(lim_AoA_sel)).^2)*(length(lim_AoA_sel) - 2)) ).^(1/2);
+                err_slopes = [err_slopes SE_slope];
+                slopes = [slopes b(2)];
             end
 
-            wind_speed = sscanf(dir_parts(end), '%g', 1);
-            s_ind = find(cur_bird.speeds == wind_speed);
-
-            ind_c_dir = find([unique_dir.dir_name] == dir_name);
-            ind_c_trial = find(unique_dir(ind_c_dir).trial_names == trial_name);
-            freq_index = find(strtrim(cur_struct_match.trial_names) == trial_name);
-
-            if (isempty(freq_index))
-                disp("Oops. Didn't find an exact wingbeat frequency match.")
-                freq_index = compareStabilityUI.findClosestStString(trial_name, cur_struct_match.trial_names);
-            end
-
+            wing_freqs = cur_bird.freqs;
+            wing_freqs = str2double(extractBefore(wing_freqs, " Hz"));
+            wing_freqs = wing_freqs(1:end-2);
+            
             % Get Quasi-Steady Model Force
             % Predictions
+            mod_slopes = [];
             if (obj.aero_model)
-                wing_freq = cur_bird.freqs(freq_index);
-                wing_freq = str2double(extractBefore(wing_freq, " Hz"));
+                for k = 1:length(wing_freqs)
+                wing_freq = wing_freqs(k);
                 aero_force = compareStabilityUI.get_model(cur_bird.name, obj.data_path, lim_AoA_sel, wing_freq, wind_speed);
+
+                idx = 5; % pitch moment
+                x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
+                y = aero_force(idx,:)';
+                b = x\y;
+                % model = x*b;
+                % Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
+                mod_slopes = [mod_slopes b(2)];
+                end
             end
 
             hold(ax, 'on');
-            if (obj.regress)
-                x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
-                y = lim_avg_forces(idx,:,freq_index)';
-                b = x\y;
-                model = x*b;
-                Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
-                label = "y = " + round(b(2),3) + "x + " + round(b(1),3) + ", R^2 = " + round(Rsq,3);
-                p = plot(ax, lim_AoA_sel, model);
-                p.DisplayName = label;
-                p.Color = colors(ind_c_trial, ind_c_dir);
-                p.LineWidth = 2;
+
+            if (obj.st)
+                St = freqToSt(cur_bird.name, wing_freqs, wind_speed);
+                x_vals = St;
+            else
+                x_vals = wing_freqs;
             end
-            e = errorbar(ax, lim_AoA_sel, lim_avg_forces(idx,:,freq_index), lim_err_forces(idx,:,freq_index),'.');
+            
+            e = errorbar(ax, x_vals, slopes, err_slopes, '.');
             e.MarkerSize = 25;
-            e.Color = colors(ind_c_trial, ind_c_dir);
-            e.MarkerFaceColor = colors(ind_c_trial, ind_c_dir);
+            e.Color = colors(s_ind, t_ind);
+            e.MarkerFaceColor = colors(s_ind, t_ind);
             e.DisplayName = abbr_sel(i);
             
             % ---------Plotting model-----------
@@ -785,24 +796,17 @@ methods (Access = private)
             % data should also be nondimensionalized when
             % comparing the two. Also only occurs if
             % frequency or wind speed have changed
-            if (obj.norm && obj.aero_model && (last_f_ind ~= freq_index || last_s_ind ~= s_ind))
-            
-            % if index is odd
-            if (mod(idx, 2) ~= 0)
-                line = plot(ax, lim_AoA_sel, aero_force(idx, :));
-                line.Color = colors(ind_c_trial, ind_c_dir);
-                line.LineStyle = "--";
-                line.LineWidth = 2;
-                line.DisplayName = "Aero Model - " + abbr_sel(i);
-            end
-
-            last_f_ind = freq_index;
-            last_s_ind = s_ind;
+            if (obj.norm && obj.aero_model)
+            e = errorbar(ax, x_vals, mod_slopes, zeros(1,length(mod_slopes)), '.');
+            e.MarkerSize = 25;
+            e.Color = colors(s_ind, t_ind);
+            e.MarkerFaceColor = colors(s_ind, t_ind);
+            e.DisplayName = "Model: " + abbr_sel(i);
             end
 
         end
 
-        % title(ax, );
+        title(ax, sub_title);
         xlabel(ax, x_label);
         ylabel(ax, y_label)
         grid(ax, 'on');
