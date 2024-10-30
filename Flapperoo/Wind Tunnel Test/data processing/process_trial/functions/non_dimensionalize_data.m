@@ -35,7 +35,7 @@ function [norm_data, norm_factors, St, Re] = non_dimensionalize_data(path, resul
     % Grab each file and process the data from that file, storing the results
     for k = 1 : length(theFiles)
         baseFileName = theFiles(k).name;
-        [case_name_cur, type_cur, wing_freq_cur, AoA_cur, U_cur] = parse_filename(baseFileName);
+        [case_name_cur, ~, ~, ~, ~] = parse_filename(baseFileName);
         if strcmp(case_name,case_name_cur)
             file_name = convertCharsToStrings(baseFileName);
             break

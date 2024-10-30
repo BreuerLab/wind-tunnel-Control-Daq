@@ -31,7 +31,7 @@ function [time, inertial_force, added_mass_force, aero_force] = getModel(path, f
     else
         error("Oops. Unknown flapper")
     end
-    [C_L, C_D, C_N, C_M] = get_aero(eff_AoA, u_rel, wind_speed, wing_length, thinAirfoil, single_AR);
+    [C_L, C_D, C_N, C_M] = get_aero(ang_disp, eff_AoA, u_rel, wind_speed, wing_length, thinAirfoil, single_AR);
     aero_force = [C_D, C_L, C_M];
 
     [added_mass_force] = get_added_mass(ang_disp, ang_acc, r, wing_length, chord, AoA);

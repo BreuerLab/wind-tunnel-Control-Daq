@@ -354,7 +354,7 @@ methods
             if (obj.norm)
                 for i = 1:length(d2.Items)
                     wing_freq = str2double(extractBefore(d2.Items{i}, " Hz"));
-                    St = freqToSt(wing_freq, obj.sel_speed);
+                    St = freqToSt(obj.sel_bird.name, wing_freq, obj.sel_speed);
                     d2.Items{i} = ['St: ' num2str(St)];
                 end
             end
@@ -377,7 +377,7 @@ methods
                 % Extract first number after 'St: '
                 St = sscanf(extractAfter(obj.sel_freq, "St: "), '%g', 1);
                 abbr_freqs = str2double(extractBefore(obj.sel_bird.freqs(1:end-2), " Hz")); % remove v2 trials
-                sel_freq = stToFreq(St, obj.sel_speed, abbr_freqs);
+                sel_freq = stToFreq(obj.sel_bird.name, St, obj.sel_speed, abbr_freqs);
                 case_name = obj.sel_type + " " + obj.sel_speed + " m/s " + sel_freq + " Hz " + obj.sel_angle + " deg";
                 % disp_case_name = obj.sel_type + " " + obj.sel_speed + " m/s " + obj.sel_freq + " " + obj.sel_angle + " deg";
             else
@@ -427,7 +427,7 @@ methods
                 % replace freqs with strouhal numbers
                 for i = 1:length(d2.Items)
                     wing_freq = str2double(extractBefore(d2.Items{i}, " Hz"));
-                    St = freqToSt(wing_freq, obj.sel_speed);
+                    St = freqToSt(obj.sel_bird.name, wing_freq, obj.sel_speed);
                     d2.Items{i} = ['St: ' num2str(St)];
                 end
             else
@@ -435,7 +435,7 @@ methods
                 src.BackgroundColor = [1 1 1];
                 % replace strouhal numbers with freqs
                 if (obj.sel_speed == 6)
-                    shortened_list = obj.sel_bird.freqs(obj.freqs ~= "4.5 Hz" & obj.sel_bird.freqs ~= "5 Hz");
+                    shortened_list = obj.sel_bird.freqs(obj.sel_bird.freqs ~= "4.5 Hz" & obj.sel_bird.freqs ~= "5 Hz");
                     d2.Items = shortened_list;
                 else
                     d2.Items = obj.sel_bird.freqs;

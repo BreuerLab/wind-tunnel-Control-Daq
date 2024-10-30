@@ -546,7 +546,7 @@ methods(Static, Access = private)
 
         thinAirfoil = true;
         if (flapper == "Flapperoo")
-            single_AR = 2.5;
+            single_AR = 250;
         elseif (flapper == "MetaBird")
             single_AR = 2.5; % NEEDS UPDATING
         else
@@ -678,10 +678,18 @@ methods (Access = private)
             x_label = "Wingbeat Frequency (Hz)";
         end
 
-        if (obj.norm)
-            y_label = "Normalized Pitch Stability Slope";
+        if (obj.equilibrium_plot)
+            if (obj.norm)
+                y_label = "Normalized Equilibrium Angle (deg)";
+            else
+                y_label = "Equilibrium Angle (deg)";
+            end
         else
-            y_label = "Pitch Stability Slope";
+            if (obj.norm)
+                y_label = "Normalized Pitch Stability Slope";
+            else
+                y_label = "Pitch Stability Slope";
+            end
         end
 
         if (~isempty(obj.selection))
@@ -777,12 +785,12 @@ methods (Access = private)
                 b = x\y;
                 model = x*b;
                 % Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
-                slope = b(2);
                 SE_slope = (sum((y - model).^2) / (sum((lim_AoA_sel - mean(lim_AoA_sel)).^2)*(length(lim_AoA_sel) - 2)) ).^(1/2);
+                x_int = - b(1) / b(2);
 
                 slopes = [slopes b(2)];
                 err_slopes = [err_slopes SE_slope];
-                x_intercepts = [x_intercepts ]
+                x_intercepts = [x_intercepts x_int];
             end
 
             wing_freqs = str2double(extractBefore(wing_freqs_str, " Hz"));
@@ -790,6 +798,7 @@ methods (Access = private)
             % Get Quasi-Steady Model Force
             % Predictions
             mod_slopes = [];
+            mod_x_intercepts = [];
             if (obj.aero_model)
                 for k = 1:length(wing_freqs)
                 wing_freq = wing_freqs(k);
@@ -801,7 +810,10 @@ methods (Access = private)
                 b = x\y;
                 % model = x*b;
                 % Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
+                x_int = - b(1) / b(2);
+
                 mod_slopes = [mod_slopes b(2)];
+                mod_x_intercepts = [mod_x_intercepts x_int];
                 end
             end
 
@@ -819,8 +831,9 @@ methods (Access = private)
                 err_vals = err_slopes;
                 y_mod_vals = mod_slopes;
             else
-                % y_vals = ;
-                % err_vals = ;
+                y_vals = x_intercepts;
+                err_vals = zeros(1,length(x_intercepts));
+                y_mod_vals = mod_x_intercepts;
             end
             
             e = errorbar(ax, x_vals, y_vals, err_vals, '.');
