@@ -27,6 +27,7 @@ properties
     drift;
     regress;
     aero_model;
+    thinAirfoil;
 end
 
 methods
@@ -53,76 +54,18 @@ methods
         obj.shift = false;
         obj.drift = false;
         obj.aero_model = false;
+        obj.thinAirfoil = false;
 
         for i = 1:2
             path = obj.data_path;
-        if i == 1
-            path = path + "/plot data/" + "Flapperoo/";
-            cur_bird = obj.Flapperoo;
-        elseif i == 2
-            path = path  + "/plot data/" + "MetaBird/";
-            cur_bird = obj.MetaBird;
-        end
-        % Get a list of all files in the folder with the desired file name pattern.
-        filePattern = fullfile(path, '*.mat');
-        theFiles = dir(filePattern);
-        
-        % Grab each file and process the data from that file, storing the results
-        for k = 1 : length(theFiles)
-            baseFileName = convertCharsToStrings(theFiles(k).name);
-            parsed_name = extractBefore(baseFileName, "_saved");
-
-            [data_struct] = compareAoAUI.get_file_structure(path, baseFileName, parsed_name);
-            cur_bird.file_list = [cur_bird.file_list data_struct];
-
-            case_name = extractBefore(baseFileName, "._");
-
-            % Add to list if not already on list
-            if (isempty(cur_bird.uniq_list) || sum([cur_bird.uniq_list.dir_name] == case_name) == 0)
-                [data_struct] = compareAoAUI.get_file_structure(path, baseFileName, case_name);
-                data_struct.file_name = [];
-                cur_bird.uniq_list = [cur_bird.uniq_list data_struct];
+            if i == 1
+                path = path + "/plot data/" + "Flapperoo/";
+                cur_bird = obj.Flapperoo;
+            elseif i == 2
+                path = path  + "/plot data/" + "MetaBird/";
+                cur_bird = obj.MetaBird;
             end
-
-            if (contains(parsed_name, "norm"))
-                data_struct = compareAoAUI.get_file_structure(path, baseFileName, parsed_name);
-                cur_bird.norm_list = [cur_bird.norm_list data_struct];
-            end
-            if (contains(parsed_name, "shift"))
-                data_struct = compareAoAUI.get_file_structure(path, baseFileName, parsed_name);
-                cur_bird.shift_list = [cur_bird.shift_list data_struct];
-            end
-            if (contains(parsed_name, "drift"))
-                data_struct = compareAoAUI.get_file_structure(path, baseFileName, parsed_name);
-                cur_bird.drift_list = [cur_bird.drift_list data_struct];
-            end
-        end
-
-        % Fill any lists that may be empty with one empty struct
-        data_struct.file_name = "";
-        data_struct.dir_name = "";
-        data_struct.trial_names = strings(0);
-
-        if (isempty(cur_bird.norm_list))
-            cur_bird.norm_list = [cur_bird.norm_list data_struct];
-        end
-        if (isempty(cur_bird.shift_list))
-            cur_bird.shift_list = [cur_bird.shift_list data_struct];
-        end
-        if (isempty(cur_bird.drift_list))
-            cur_bird.drift_list = [cur_bird.drift_list data_struct];
-        end
-
-        uniq_norm_list_str = setdiff(setdiff([cur_bird.norm_list.file_name], [cur_bird.shift_list.file_name]),...
-                                    [cur_bird.drift_list.file_name]);
-
-        for j = 1:length(cur_bird.file_list)
-            if (sum(uniq_norm_list_str == cur_bird.file_list(j).file_name) > 0)
-                struct_match = cur_bird.file_list(j);
-                struct_match.dir_name = extractBefore(struct_match.dir_name, "_norm");
-                cur_bird.uniq_norm_list = [cur_bird.uniq_norm_list struct_match];
-            end
-        end
+            attachFileListsToBird(path, cur_bird)
         end
     end
 
@@ -545,6 +488,8 @@ methods(Static, Access = private)
                 sel = "Half Body";
             elseif (type == "inertial wings")
                 sel = "Full Inertial";
+            elseif (type == "no shoulders")
+                sel = "No Shoulders";
             else
                 sel = type;
             end
@@ -555,22 +500,6 @@ methods(Static, Access = private)
         else
             sel = type;
         end
-    end
-
-    function data_struct = get_file_structure(path, baseFileName, parsed_name)
-        load(path + baseFileName, "names");
-        data_struct.file_name = baseFileName;
-        data_struct.dir_name = parsed_name;
-
-        for j = 1:length(names)
-        % distinguish repeat trials with unique name
-        if(sum(names == names(j)) > 1)
-            ind = find(names == names(j), 1, 'last');
-            names(ind) = names(ind) + " v2";
-        end
-        end
-
-        data_struct.trial_names = names;
     end
 
     function [sub_title, abbr_sel] = get_abbr_names(sel)
@@ -646,48 +575,48 @@ methods(Static, Access = private)
         end
     end
 
-    function aero_force = get_model(flapper, path, AoA_list, freq, speed)
-        C_L_vals = zeros(1, length(AoA_list));
-        C_D_vals = zeros(1, length(AoA_list));
-        C_N_vals = zeros(1, length(AoA_list));
-        C_M_vals = zeros(1, length(AoA_list));
-        aero_force = zeros(6, length(AoA_list));
-
-        [time, ang_disp, ang_vel, ang_acc] = get_kinematics(path, freq, true);
-    
-        [center_to_LE, chord, COM_span, ...
-            wing_length, arm_length] = getWingMeasurements(flapper);
-        
-        full_length = wing_length + arm_length;
-        r = arm_length:0.001:full_length;
-        lin_vel = deg2rad(ang_vel) * r;
-
-        thinAirfoil = true;
-        if (flapper == "Flapperoo")
-            single_AR = 2.5;
-        elseif (flapper == "MetaBird")
-            single_AR = 2.5; % NEEDS UPDATING
-        else
-            error("Oops. Unknown flapper")
-        end
-
-        for i = 1:length(AoA_list)
-            AoA = AoA_list(i);
-            
-            [eff_AoA, u_rel] = get_eff_wind(time, lin_vel, AoA, speed);
-            
-            [C_L, C_D, C_N, C_M] = get_aero(ang_disp, eff_AoA, u_rel, speed, wing_length, thinAirfoil, single_AR);
-            
-            C_L_vals(i) = mean(C_L);
-            C_D_vals(i) = mean(C_D);
-            C_N_vals(i) = mean(C_N);
-            C_M_vals(i) = mean(C_M);
-        end
-
-        aero_force(1,:) = C_D_vals;
-        aero_force(3,:) = C_L_vals;
-        aero_force(5,:) = C_M_vals;
-    end
+    % function aero_force = get_model(flapper, path, AoA_list, freq, speed)
+    %     C_L_vals = zeros(1, length(AoA_list));
+    %     C_D_vals = zeros(1, length(AoA_list));
+    %     C_N_vals = zeros(1, length(AoA_list));
+    %     C_M_vals = zeros(1, length(AoA_list));
+    %     aero_force = zeros(6, length(AoA_list));
+    % 
+    %     [time, ang_disp, ang_vel, ang_acc] = get_kinematics(path, freq, true);
+    % 
+    %     [center_to_LE, chord, COM_span, ...
+    %         wing_length, arm_length] = getWingMeasurements(flapper);
+    % 
+    %     full_length = wing_length + arm_length;
+    %     r = arm_length:0.001:full_length;
+    %     lin_vel = deg2rad(ang_vel) * r;
+    % 
+    %     thinAirfoil = true;
+    %     if (flapper == "Flapperoo")
+    %         single_AR = 2.5;
+    %     elseif (flapper == "MetaBird")
+    %         single_AR = 2.5; % NEEDS UPDATING
+    %     else
+    %         error("Oops. Unknown flapper")
+    %     end
+    % 
+    %     for i = 1:length(AoA_list)
+    %         AoA = AoA_list(i);
+    % 
+    %         [eff_AoA, u_rel] = get_eff_wind(time, lin_vel, AoA, speed);
+    % 
+    %         [C_L, C_D, C_N, C_M] = get_aero(ang_disp, eff_AoA, u_rel, speed, wing_length, thinAirfoil, single_AR);
+    % 
+    %         C_L_vals(i) = mean(C_L);
+    %         C_D_vals(i) = mean(C_D);
+    %         C_N_vals(i) = mean(C_N);
+    %         C_M_vals(i) = mean(C_M);
+    %     end
+    % 
+    %     aero_force(1,:) = C_D_vals;
+    %     aero_force(3,:) = C_L_vals;
+    %     aero_force(5,:) = C_M_vals;
+    % end
 
     function idx = findClosestStString(strToMatch, strList)
         cur_St = str2double(extractAfter(strToMatch, "St: ")); % fails for v2 cases
@@ -709,81 +638,8 @@ methods (Access = private)
     function update_plot(obj, plot_panel)
         delete(plot_panel.Children)
         
-        struct_matches = [];
-        for i = 1:length(obj.selection)
-            flapper_name = string(extractBefore(obj.selection(i), "/"));
-            dir_name = string(extractBefore(extractAfter(obj.selection(i), "/"), "/"));
-            % trial_name = extractAfter(extractAfter(obj.selection(i), "/"), "/");
-
-            cur_bird = getBirdFromName(flapper_name, obj.Flapperoo, obj.MetaBird);
-
-            if (obj.sub)
-                    dir_parts = split(dir_name, '_');
-                    dir_parts(2) = "Sub";
-                    dir_name = strjoin(dir_parts, "_");
-            end
-
-            if (obj.norm)
-                if (obj.shift)
-                    if (obj.drift)
-                        shortened_list = intersect(intersect([cur_bird.norm_list.file_name], [cur_bird.shift_list.file_name]),...
-                                                   [cur_bird.drift_list.file_name]);
-                        name_match = shortened_list(contains(shortened_list, dir_name));
-                    else
-                        shortened_list = setdiff(intersect([cur_bird.norm_list.file_name], [cur_bird.shift_list.file_name]),...
-                                                 [cur_bird.drift_list.file_name]);
-                        name_match = shortened_list(contains(shortened_list, dir_name));
-                    end
-                else
-                    if (obj.drift)
-                        shortened_list = intersect(setdiff([cur_bird.norm_list.file_name], [cur_bird.shift_list.file_name]),...
-                                                   [cur_bird.drift_list.file_name]);
-                        name_match = shortened_list(contains(shortened_list, dir_name));
-                    else
-                        shortened_list = setdiff(setdiff([cur_bird.norm_list.file_name], [cur_bird.shift_list.file_name]),...
-                                                 [cur_bird.drift_list.file_name]);
-                        name_match = shortened_list(contains(shortened_list, dir_name));
-                    end
-                end
-            else
-                if (obj.shift)
-                    if (obj.drift)
-                        shortened_list = intersect(intersect(setdiff([cur_bird.file_list.file_name], [cur_bird.norm_list.file_name]),...
-                        [cur_bird.shift_list.file_name]), [cur_bird.drift_list.file_name]);
-                        name_match = shortened_list(contains(shortened_list, dir_name));
-                    else
-                        shortened_list = setdiff(intersect(setdiff([cur_bird.file_list.file_name], [cur_bird.norm_list.file_name]),...
-                        [cur_bird.shift_list.file_name]), [cur_bird.drift_list.file_name]);
-                        name_match = shortened_list(contains(shortened_list, dir_name));
-                    end
-                else
-                    if (obj.drift)
-                        shortened_list = intersect(setdiff(setdiff([cur_bird.file_list.file_name], [cur_bird.norm_list.file_name]),...
-                        [cur_bird.shift_list.file_name]), [cur_bird.drift_list.file_name]);
-                        name_match = shortened_list(contains(shortened_list, dir_name));
-                    else
-                        shortened_list = setdiff(setdiff(setdiff([cur_bird.file_list.file_name], [cur_bird.norm_list.file_name]),...
-                        [cur_bird.shift_list.file_name]), [cur_bird.drift_list.file_name]);
-                        name_match = shortened_list(contains(shortened_list, dir_name));
-                    end
-                end
-            end
-
-            for j = 1:length(cur_bird.file_list)
-                if (cur_bird.file_list(j).file_name == name_match)
-                    struct_match = cur_bird.file_list(j);
-                    selector = char(obj.selection(i));
-                    slashIndices = strfind(selector, '/');
-                    selector = selector(1:slashIndices(2) - 1);
-                    struct_match.selector = string(selector);
-                end
-            end
-
-            % check for repeat files to load
-            if (length(struct_matches) == 0 || sum(contains([struct_matches.dir_name], struct_match.dir_name)) == 0)
-                struct_matches = [struct_matches struct_match];
-            end
-        end
+        struct_matches = get_file_matches(obj.selection, obj.norm, obj.shift, obj.drift, obj.sub, obj.Flapperoo, obj.MetaBird);
+        
         disp("Found following matches:")
         disp(struct_matches)
 
@@ -876,9 +732,12 @@ methods (Access = private)
             last_f_ind = 0;
             last_s_ind = 0;
             for i = 1:length(obj.selection)
-                selector = char(obj.selection(i));
-                slashIndices = strfind(selector, '/');
-                selector = string(selector(1:slashIndices(2) - 1));
+                % remove wingbeat frequency from selector
+                % selector = char(obj.selection(i));
+                % selector = obj.selection(i);ces = strfind(selector, '/');
+                % selector = string(selector(1:slashIndices(2) - 1));
+                selector = obj.selection(i);
+
                 for j = 1:length(struct_matches)
                     if (selector == struct_matches(j).selector)
                         cur_struct_match = struct_matches(j);
@@ -920,9 +779,22 @@ methods (Access = private)
 
                 % Get Quasi-Steady Model Force
                 % Predictions
-                wing_freq = cur_bird.freqs(freq_index);
-                wing_freq = str2double(extractBefore(wing_freq, " Hz"));
-                aero_force = compareAoAUI.get_model(cur_bird.name, obj.data_path, lim_AoA_sel, wing_freq, wind_speed);
+                if (obj.aero_model)
+                    wing_freq = cur_bird.freqs(freq_index);
+                    wing_freq = str2double(extractBefore(wing_freq, " Hz"));
+    
+                    AR = 2*cur_bird.AR;
+    
+                    if obj.thinAirfoil
+                        lift_slope = ((2*pi) / (1 + 2/AR));
+                        pitch_slope = -lift_slope / 4;
+                    else
+                        [lift_slope, pitch_slope] = getGlideSlopes(lim_AoA_sel, lim_avg_forces);
+                    end
+    
+                    aero_force = get_model(cur_bird.name, obj.data_path, lim_AoA_sel, wing_freq, wind_speed,...
+                                                        lift_slope, pitch_slope, AR);
+                end
 
                 for idx = 1:6
                 ax = tiles(idx);
@@ -972,9 +844,12 @@ methods (Access = private)
             last_f_ind = 0;
             last_s_ind = 0;
             for i = 1:length(obj.selection)
-                selector = char(obj.selection(i));
-                slashIndices = strfind(selector, '/');
-                selector = string(selector(1:slashIndices(2) - 1));
+                % remove wingbeat frequency from selector
+                % selector = char(obj.selection(i));
+                % slashIndices = strfind(selector, '/');
+                % selector = string(selector(1:slashIndices(2) - 1));
+                selector = obj.selection(i);
+                
                 for j = 1:length(struct_matches)
                     if (selector == struct_matches(j).selector)
                         cur_struct_match = struct_matches(j);
@@ -1020,7 +895,18 @@ methods (Access = private)
                 if (obj.aero_model)
                     wing_freq = cur_bird.freqs(freq_index);
                     wing_freq = str2double(extractBefore(wing_freq, " Hz"));
-                    aero_force = compareAoAUI.get_model(cur_bird.name, obj.data_path, lim_AoA_sel, wing_freq, wind_speed);
+
+                    AR = 2*cur_bird.AR;
+
+                    if obj.thinAirfoil
+                        lift_slope = ((2*pi) / (1 + 2/AR));
+                        pitch_slope = -lift_slope / 4;
+                    else
+                        [lift_slope, pitch_slope] = getGlideSlopes(lim_AoA_sel, lim_avg_forces);
+                    end
+    
+                    aero_force = get_model(cur_bird.name, obj.data_path, lim_AoA_sel, wing_freq, wind_speed,...
+                                                        lift_slope, pitch_slope, AR);
                 end
 
                 hold(ax, 'on');

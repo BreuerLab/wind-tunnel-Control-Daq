@@ -11,14 +11,14 @@ addpath ../plotting
 addpath ../general
 
 wind_speed_sel = 0;
-type = "no_shoulders"; % needs to match folder name only
+type = "L_wing_R_inertial"; % needs to match folder name only
 
 % set up Slack messenger objects
-slack_path = "../../";
+slack_path = "D:\Final Force Data/";
 s = slackMsg(slack_path);
 bot = slackProgressBar(slack_path);
 
-speed_path = "../../Flapperoo/" + wind_speed_sel + " m.s/";
+speed_path = "D:\Final Force Data/Flapperoo/" + wind_speed_sel + " m.s/";
 filePattern = fullfile(speed_path); % Change to whatever pattern you need.
 dir_names = dir(filePattern);
 
@@ -45,7 +45,7 @@ for i = 1:length(filePattern)
 end
 
 % Record log of outputs while processing data
-diary("../../processing logs/" + wind_speed_sel + "ms_" + type + ".txt")
+diary("D:\Final Force Data/processing logs/" + wind_speed_sel + "ms_" + type + ".txt")
 percent_complete = 0;
 try
 time_now = datetime;

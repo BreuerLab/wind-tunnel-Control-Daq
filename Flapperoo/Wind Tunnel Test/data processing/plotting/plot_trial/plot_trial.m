@@ -1,4 +1,4 @@
-function plot_trial(file, raw_data_files, processed_data_files, bools, sub_strings, nondimensional)
+function plot_trial(path, file, raw_data_files, processed_data_files, bools, sub_strings, nondimensional)
 
 if (isempty(sub_strings))
     body_subtraction = false;
@@ -113,11 +113,12 @@ end
 
 end
 
-CAD_bool = true;
-[time, ang_disp, ang_vel, ang_acc] = get_kinematics(wing_freq, CAD_bool);
+flapper = "Flapperoo";
+[center_to_LE, chord, COM_span, wing_length, arm_length] = getWingMeasurements(flapper);
 
-wing_length = 0.25; % meters
-arm_length = 0.016;
+CAD_bool = true;
+[time, ang_disp, ang_vel, ang_acc] = get_kinematics(path, wing_freq, CAD_bool);
+
 full_length = wing_length + arm_length;
 r = arm_length:0.001:full_length;
 lin_vel = deg2rad(ang_vel) * r;
@@ -126,11 +127,11 @@ lin_acc = deg2rad(ang_acc) * r;
 [eff_AoA, u_rel] = get_eff_wind(time, lin_vel, AoA, wind_speed);
 
 if (wing_freq > 0)
-    [mod_avg_data] = shiftPitchMoment(wingbeat_avg_forces_smoothest, AoA);
+    [mod_avg_data] = shiftPitchMoment(wingbeat_avg_forces_smoothest, center_to_LE, AoA);
     wingbeat_avg_forces_smoothest = mod_avg_data;
-    [mod_min_data] = shiftPitchMoment(wingbeat_min_forces_smoothest, AoA);
+    [mod_min_data] = shiftPitchMoment(wingbeat_min_forces_smoothest, center_to_LE, AoA);
     wingbeat_min_forces_smoothest = mod_min_data;
-    [mod_max_data] = shiftPitchMoment(wingbeat_max_forces_smoothest, AoA);
+    [mod_max_data] = shiftPitchMoment(wingbeat_max_forces_smoothest, center_to_LE, AoA);
     wingbeat_max_forces_smoothest = mod_max_data;
     % Note that it's unnecessary to shift the SD or rmse
     
@@ -209,7 +210,7 @@ if (body_subtraction)
     for i =1:length(sub_folders)
     load(sub_folders(i) + '\' + sub_filenames(i), vars{:});
 
-    [mod_filtered_data] = shiftPitchMoment(wingbeat_avg_forces_smoothest, sub_AoA);
+    [mod_filtered_data] = shiftPitchMoment(wingbeat_avg_forces_smoothest, center_to_LE, sub_AoA);
     wingbeat_avg_forces_smoothest = mod_filtered_data;
 
     cycle_avg_forces = cycle_avg_forces - wingbeat_avg_forces_smoothest;

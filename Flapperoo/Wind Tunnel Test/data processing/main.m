@@ -16,7 +16,10 @@ type = "blue wings";
 wind_speed = 4;
 wing_freq = 5;
 AoA = 0;
+
 file = type + " " + wind_speed + "m.s " + AoA + "deg " + wing_freq + "Hz";
+data_path = "D:\Final Force Data";
+flapper_type = "\Flapperoo\";
 
 % If set to true, user is allowed to select their own file
 userSelect = false;
@@ -52,7 +55,7 @@ dir_names = [];
 speed_list = [wind_speed sub_string_speeds];
 speed_list = unique(speed_list);
 for i = 1:length(speed_list)
-    speed_path = "../" + speed_list(i) + " m.s/";
+    speed_path = data_path + flapper_type + speed_list(i) + " m.s/";
     dir_names = [dir_names; dir(speed_path)];
 end
 
@@ -69,9 +72,9 @@ dir_names(ind_to_remove) = [];
 for i = 1:length(dir_names)
     cur_name_parts = split(dir_names(i).name);
     cur_type = strrep(cur_name_parts{1},'_',' ');
-    cur_speed = string(extractAfter(dir_names(i).folder, 'Data\'));
+    cur_speed = string(extractAfter(dir_names(i).folder, flapper_type));
     if (sum(contains(dir_list, cur_type)) > 0 && sum(contains(dir_list, erase(cur_speed, " "))) > 0) % find matches
-        filepath = "../" + cur_speed + "/" + dir_names(i).name;
+        filepath = data_path + flapper_type + cur_speed + "/" + dir_names(i).name;
         raw_data_path = [raw_data_path filepath + "/raw data/experiment data/"];
         processed_data_path = [processed_data_path filepath + "/processed data/"];
     end
@@ -82,9 +85,8 @@ processed_data_files = getFiles(processed_data_path, '*.mat');
 
 if userSelect
     disp("Default file will be overwritten by user selection.")
-    data_path = '..\';
     % Ask the user to select a file to examine the data from
-    [file,path] = uigetfile(data_path + '*.mat');
+    [file,path] = uigetfile(data_path + flapper_type + '*.mat');
     if isequal(file,0)
        disp('User selected Cancel');
     else
@@ -93,7 +95,7 @@ if userSelect
     file = convertCharsToStrings(file);
 end
 
-plot_trial(file, raw_data_files, processed_data_files, bools, sub_strings, nondimensional)
+plot_trial(data_path, file, raw_data_files, processed_data_files, bools, sub_strings, nondimensional)
 
 function theFiles = getFiles(filepath, filetype)
     % Get a list of all files in the folder with the desired file name pattern.

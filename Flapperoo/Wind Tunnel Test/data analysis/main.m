@@ -12,7 +12,7 @@ clear
 close all force
 
 % Sets up UI for comparing data over angles of attack
-monitor_num = 1;
+monitor_num = 2;
 data_path = "D:\Final Force Data";
 a = compareAoAUI(monitor_num, data_path);
 a.dynamic_plotting();

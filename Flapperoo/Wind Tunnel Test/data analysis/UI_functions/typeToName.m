@@ -14,6 +14,10 @@ function name = typeToName(flapper, type)
             name = "Half Body";
         elseif (type == "inertial wings")
             name = "Inertial Wings with Full Body";
+        elseif (type == "L wing R inertial")
+            name = "Left Wing & Right Inertial";
+        elseif (type == "no shoulders")
+            name = "No Shoulders";
         end
     elseif (flapper == "MetaBird")
         if (type == "full body short tail low")
