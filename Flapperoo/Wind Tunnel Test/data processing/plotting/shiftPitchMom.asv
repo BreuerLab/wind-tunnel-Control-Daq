@@ -8,10 +8,8 @@ function [mod_avg_data] = shiftPitchMom(avg_data, shift_distance, AoA_sel)
     lift_force = avg_data(3,:);
     pitch_moment = avg_data(5,:);
 
-    normal_force = zeros(size(drag_force));
     for i = 1:length(AoA_sel)
-        AoA = AoA_sel(i);
-        normal_force(i) = lift_force(i)*cosd(AoA) + drag_force(i)*sind(AoA);
+        normal_force = lift_force*cosd(AoA) + drag_force*sind(AoA);
     end
     
     % Shift pitch moment

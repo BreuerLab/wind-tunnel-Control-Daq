@@ -1,8 +1,5 @@
-function [added_mass_force_vec] = get_added_mass(ang_disp, ang_acc, r, wing_length, chord, AoA)
-    lin_acc = deg2rad(ang_acc) * r;
-
+function [added_mass_force_vec] = get_added_mass(ang_disp, lin_acc, wing_length, chord, AoA)
     air_density = 1.2; % kg / m^3
-    chord = 0.1; % m
     air_mass = air_density*chord^2; % kg / m
 
     added_mass_force_r = 2*air_mass*lin_acc.*cosd(ang_disp);

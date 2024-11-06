@@ -1094,8 +1094,19 @@ methods (Access = private)
 
             else
 
+            AR = 2*obj.sel_bird.AR;
+
+            thinAirfoil = true;
+            if thinAirfoil % MAKE A BUTTON
+                lift_slope = ((2*pi) / (1 + 2/AR));
+                pitch_slope = -lift_slope / 4;
+            else
+                [lift_slope, pitch_slope] = getGlideSlopes(lim_AoA_sel, lim_avg_forces); % INPUTS UNDEFINED
+            end
+
             % Get forces from quasi-steady model
-            [time, inertial_force, added_mass_force, aero_force] = getModel(obj.data_path, obj.sel_bird.name, sel_freq, sel_angle, sel_speed);
+            [time, inertial_force, added_mass_force, aero_force] = ...
+                getModel(obj.data_path, obj.sel_bird.name, sel_freq, sel_angle, sel_speed, lift_slope, pitch_slope, AR);
 
             [center_to_LE, ~, ~, ~, ~] = getWingMeasurements(obj.sel_bird.name);
 
@@ -1268,8 +1279,19 @@ methods (Access = private)
 
             else
 
+            AR = 2*obj.sel_bird.AR;
+
+            thinAirfoil = true;
+            if thinAirfoil % MAKE A BUTTON
+                lift_slope = ((2*pi) / (1 + 2/AR));
+                pitch_slope = -lift_slope / 4;
+            else
+                [lift_slope, pitch_slope] = getGlideSlopes(lim_AoA_sel, lim_avg_forces); % INPUTS UNDEFINED
+            end
+
             % Get forces from quasi-steady model
-            [time, inertial_force, added_mass_force, aero_force] = getModel(obj.data_path, obj.sel_bird.name, sel_freq, sel_angle, sel_speed);
+            [time, inertial_force, added_mass_force, aero_force] = ...
+                getModel(obj.data_path, obj.sel_bird.name, sel_freq, sel_angle, sel_speed, lift_slope, pitch_slope, AR);
 
             [center_to_LE, ~, ~, ~, ~] = getWingMeasurements(obj.sel_bird.name);
 

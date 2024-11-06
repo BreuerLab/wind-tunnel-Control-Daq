@@ -25,7 +25,8 @@ properties
     drift;
     aero_model;
     thinAirfoil;
-    equilibrium_plot;
+
+    plot_type;
 end
 
 methods
@@ -49,7 +50,8 @@ methods
         obj.drift = false;
         obj.aero_model = false;
         obj.thinAirfoil = false;
-        obj.equilibrium_plot = false;
+
+        obj.plot_type = 1;
 
         for i = 1:2
             path = obj.data_path;
@@ -87,16 +89,16 @@ methods
         d2.ValueChangedFcn = @(src, event) type_change(src, event);
 
         % Dropdown box for wind speed selection
-        drop_y4 = drop_y2 - (unit_height + unit_spacing);
-        d4 = uidropdown(option_panel);
-        d4.Position = [10 drop_y4 180 unit_height];
-        d4.Items = obj.sel_bird.speeds + " m/s";
-        d4.ValueChangedFcn = @(src, event) speed_change(src, event);
+        drop_y3 = drop_y2 - (unit_height + unit_spacing);
+        d3 = uidropdown(option_panel);
+        d3.Position = [10 drop_y3 180 unit_height];
+        d3.Items = obj.sel_bird.speeds + " m/s";
+        d3.ValueChangedFcn = @(src, event) speed_change(src, event);
 
-        d1.ValueChangedFcn = @(src, event) flapper_change(src, event, d2, d3, d4);
+        d1.ValueChangedFcn = @(src, event) flapper_change(src, event, d2, d3);
 
         % Subtraction Case Selection
-        button1_y = drop_y4 - (unit_height + unit_spacing);
+        button1_y = drop_y3 - (unit_height + unit_spacing);
         b1 = uibutton(option_panel,"state");
         b1.Text = "Subtraction";
         b1.Position = [20 button1_y 160 unit_height];
@@ -166,13 +168,6 @@ methods
         b9.BackgroundColor = [1 1 1];
         b9.ValueChangedFcn = @(src, event) thinAirfoil_change(src, event, plot_panel);
 
-        button8_y = button7_y - (unit_height + unit_spacing);
-        b10 = uibutton(option_panel,"state");
-        b10.Text = "Equilibrium Position";
-        b10.Position = [20 button8_y 160 unit_height];
-        b10.BackgroundColor = [1 1 1];
-        b10.ValueChangedFcn = @(src, event) plot_type_change(src, event, plot_panel);
-
         AoA_y = 0.05*screen_height;
         s = uislider(option_panel,"range");
         s.Position = [10 AoA_y 180 3];
@@ -181,6 +176,12 @@ methods
         s.MajorTicks = [-16 -12 -8 -4 0 4 8 12 16];
         s.MinorTicks = [-14.5 -13 -11:1:-9 -7.5:0.5:-4.5 -3.5:0.5:-0.5 0.5:0.5:3.5 4.5:0.5:7.5 9:1:11 13 14.5];
         s.ValueChangedFcn = @(src, event) AoA_change(src, event, plot_panel);
+
+        drop_y4 = AoA_y + (unit_height + unit_spacing);
+        d4 = uidropdown(option_panel);
+        d4.Position = [10 drop_y4 180 unit_height];
+        d4.Items = ["Stability Slope", "Equilibrium Position", "COM", "Static Margin"];
+        d4.ValueChangedFcn = @(src, event) plot_type_change(src, event, plot_panel);
 
         obj.update_plot(plot_panel);
 
@@ -195,7 +196,7 @@ methods
         %-----------------------------------------------------%
 
         % update type variable with new value selected by user
-        function flapper_change(src, ~, type_box, freq_box, speed_box)
+        function flapper_change(src, ~, type_box, speed_box)
             if (src.Value == "Flapperoo")
                 obj.sel_bird = obj.Flapperoo;
             elseif (src.Value == "MetaBird")
@@ -204,14 +205,12 @@ methods
                 error("This bird selection is not recognized.")
             end
             type_box.Items = obj.sel_bird.types;
-            freq_box.Items = obj.sel_bird.freqs;
             speed_box.Items = obj.sel_bird.speeds + " m/s";
 
             obj.sel_type = nameToType(obj.sel_bird.name, obj.sel_bird.types(1));
             obj.sel_speed = obj.sel_bird.speeds(1);
 
             type_box.Value = obj.sel_bird.types(1);
-            freq_box.Value = obj.sel_bird.freqs(1);
             speed_box.Value = obj.sel_bird.speeds(1) + " m/s";
         end
 
@@ -347,17 +346,12 @@ methods
         end
 
         function plot_type_change(src, ~, plot_panel)
-            if (src.Value)
-                obj.equilibrium_plot = true;
-                src.BackgroundColor = [0.3010 0.7450 0.9330];
-            else
-                obj.equilibrium_plot = false;
-                src.BackgroundColor = [1 1 1];
-            end
+            options = ["Stability Slope", "Equilibrium Position", "COM", "Static Margin"];
+            obj.plot_type = find(options == src.Value);
 
             obj.update_plot(plot_panel);
         end
-    
+
         function AoA_change(src, ~, plot_panel)
             % ensure that slider can only be moved to discrete
             % acceptable locations where a measurement was
@@ -503,23 +497,31 @@ methods (Access = private)
             disp("--------------------------------------------")
         end
 
-        if (obj.st)
-            x_label = "Strouhal Number";
-        else
-            x_label = "Wingbeat Frequency (Hz)";
-        end
-
-        if (obj.equilibrium_plot)
-            if (obj.norm)
-                y_label = "Normalized Equilibrium Angle (deg)";
+        if (obj.plot_type == 1 || obj.plot_type == 2)
+            if (obj.st)
+                x_label = "Strouhal Number";
             else
-                y_label = "Equilibrium Angle (deg)";
+                x_label = "Wingbeat Frequency (Hz)";
             end
         else
+            if (obj.plot_type == 3)
+                x_label = "COM Position";
+            elseif (obj.plot_type == 4)
+                x_label = "Static Margin";
+            end
+        end
+
+        if (obj.plot_type == 1 || obj.plot_type == 3 || obj.plot_type == 4)
             if (obj.norm)
                 y_label = "Normalized Pitch Stability Slope";
             else
                 y_label = "Pitch Stability Slope";
+            end
+        elseif (obj.plot_type == 2)
+            if (obj.norm)
+                y_label = "Normalized Equilibrium Angle (deg)";
+            else
+                y_label = "Equilibrium Angle (deg)";
             end
         end
 
@@ -561,6 +563,7 @@ methods (Access = private)
         % -------------------- Plotting -----------------------
         % -----------------------------------------------------
         ax = axes(plot_panel);
+        hold(ax, 'on');
 
         last_t_ind = 0;
         last_s_ind = 0;
@@ -605,11 +608,22 @@ methods (Access = private)
             else
                 wing_freqs_str = cur_bird.freqs(1:end-2);
             end
+            wing_freqs = str2double(extractBefore(wing_freqs_str, " Hz"));
+
+            map = ["#ccebc5"; "#a8ddb5"; "#7bccc4"; "#43a2ca"; "#0868ac"];
+            map = hex2rgb(map);
+            xquery = linspace(0,1,128);
+            numColors = size(map);
+            numColors = numColors(1);
+            map = interp1(linspace(0,1,numColors), map, xquery,'pchip');
+
+            cmap = colormap(ax, map);
+            zmap = linspace(0, 0.5, length(cmap));
 
             slopes = [];
             x_intercepts = [];
             err_slopes = [];
-            for k = 1:length(wing_freqs_str)
+            for k = 1:length(wing_freqs)
                 idx = 5; % pitch moment
                 x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
                 y = lim_avg_forces(idx,:,k)';
@@ -622,9 +636,18 @@ methods (Access = private)
                 slopes = [slopes b(2)];
                 err_slopes = [err_slopes SE_slope];
                 x_intercepts = [x_intercepts x_int];
-            end
 
-            wing_freqs = str2double(extractBefore(wing_freqs_str, " Hz"));
+                if (obj.plot_type == 3)
+                    St = freqToSt(cur_bird.name, wing_freqs(k), wind_speed);
+
+                    [center_to_LE, chord, ~, ~, ~] = getWingMeasurements(cur_bird.name);
+                    [distance_vals_chord, slopes_pos] = findCOMrange(lim_avg_forces(:,:,k), lim_AoA_sel, center_to_LE, chord);
+                    line = plot(ax, distance_vals_chord, slopes_pos);
+                    line.LineWidth = 2;
+                    line.Color = interp1(zmap, cmap, St);
+                    line.HandleVisibility = 'off';
+                end
+            end
             
             % Get Quasi-Steady Model Force
             % Predictions
@@ -643,7 +666,7 @@ methods (Access = private)
                     [lift_slope, pitch_slope] = getGlideSlopes(lim_AoA_sel, lim_avg_forces);
                 end
 
-                aero_force = compareStabilityUI.get_model(cur_bird.name, obj.data_path, lim_AoA_sel, wing_freq, wind_speed, lift_slope, pitch_slope, AR);
+                aero_force = get_model(cur_bird.name, obj.data_path, lim_AoA_sel, wing_freq, wind_speed, lift_slope, pitch_slope, AR);
 
                 idx = 5; % pitch moment
                 x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
@@ -658,7 +681,7 @@ methods (Access = private)
                 end
             end
 
-            hold(ax, 'on');
+            if (obj.plot_type == 1 || obj.plot_type == 2)
 
             if (obj.st)
                 St = freqToSt(cur_bird.name, wing_freqs, wind_speed);
@@ -667,11 +690,11 @@ methods (Access = private)
                 x_vals = wing_freqs;
             end
 
-            if (~obj.equilibrium_plot)
+            if (obj.plot_type == 1)
                 y_vals = slopes;
                 err_vals = err_slopes;
                 y_mod_vals = mod_slopes;
-            else
+            elseif (obj.plot_type == 2)
                 y_vals = x_intercepts;
                 err_vals = zeros(1,length(x_intercepts));
                 y_mod_vals = mod_x_intercepts;
@@ -693,6 +716,7 @@ methods (Access = private)
             s.MarkerEdgeColor = colors(s_ind, t_ind);
             s.LineWidth = 2;
             s.DisplayName = "Model: " + abbr_sel(i);
+            end
             end
 
         end

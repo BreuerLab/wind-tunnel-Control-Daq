@@ -347,7 +347,10 @@ end
 % This function provides preliminary force data in the form of a 2 x 3
 % grid plot. The data has not been filtered, but if triggers are being
 % used the data will also be plotted as trimmed by the trigger signal.
-function [f1, f2, f3] = plot_results(obj, results, case_name, drift, aliasing, f1, f2, f3, tiles_1, tiles_2, tiles_3)
+function [f1, f2, f3] = plot_results(obj, results, case_name, drift, aliasing)
+    f1 = figure;
+    f2 = figure;
+    f3 = f;
     titles = ["F_x","F_y","F_z","M_x","M_y","M_z"];
 
     if aliasing
@@ -386,8 +389,15 @@ function [f1, f2, f3] = plot_results(obj, results, case_name, drift, aliasing, f
 
     %% Figure with raw data and trimmed data overlaid
 
+    x_label = "Time (s)";
+    y_label_F = "Force (N)";
+    y_label_M = "Moment (N*m)";
+    axes_labels = [x_label, y_label_F, y_label_M];
+
     % Open a new figure.
     figure(f1)
+    f1.Position = [1940 600 1150 750];
+    tcl = tiledlayout(2,3);
     
     raw_time = results(:, 1);
     if (A_trigger_detected)
@@ -404,7 +414,7 @@ function [f1, f2, f3] = plot_results(obj, results, case_name, drift, aliasing, f
     force_mins = round(min(forces), 3);
 
     for k = 1:6
-        axes(tiles_1{k})
+        nexttile(tcl)
         hold on
         raw_line = plot(raw_time, forces(:, k), 'DisplayName', 'raw');
         if (obj.num_triggers > 0 && A_trigger_detected)
@@ -417,6 +427,8 @@ function [f1, f2, f3] = plot_results(obj, results, case_name, drift, aliasing, f
         end
         title([titles(k), "avg: " + force_means(k) + "    SD: " ...
             + force_SDs(k), "max: " + force_maxs(k) + "    min: " + force_mins(k)]);
+        xlabel(axes_labels(1));
+        ylabel(axes_labels(1 + ceil(k/3)));
     end
 
     if (obj.num_triggers == 1 && A_trigger_detected)
@@ -439,13 +451,15 @@ function [f1, f2, f3] = plot_results(obj, results, case_name, drift, aliasing, f
 
     time_now = datetime;
     time_now.Format = 'yyyy-MM-dd HH-mm-ss';
-    saveas(f1,'data\plots\' + case_name + "_" + string(time_now) + "_raw.jpg")
+    saveas(f1,'data\plots\' + case_name + "_" + string(time_now) + "_raw.fig")
 
     %% Figure with trimmed data only (using first trigger)
     if (obj.num_triggers == 1 && A_trigger_detected)
 
     % Open a new figure.
     figure(f2)
+    f2.Position = [1940 -260 1150 750];
+    tcl = tiledlayout(2,3);
 
     A_forces = A_trimmed_results(:,2:7);
     A_force_means = round(mean(forces), 3);
@@ -454,27 +468,36 @@ function [f1, f2, f3] = plot_results(obj, results, case_name, drift, aliasing, f
     A_force_mins = round(min(forces), 3);
 
     for k = 1:6
-        axes(tiles_2{k})
+        nexttile(tcl)
         plot(A_trimmed_time, A_forces(:, k), ...
             'DisplayName', 'galil trigger');
         title([titles(k), "avg: " + A_force_means(k) + "    SD: " ...
             + A_force_SDs(k), "max: " + A_force_maxs(k) + "    min: " + A_force_mins(k)]);
         xlim([A_trimmed_time(1); A_trimmed_time(1) + 2])
+        xlabel(axes_labels(1));
+        ylabel(axes_labels(1 + ceil(k/3)));
     end
 
     % Label the whole figure.
     sgtitle({"Trimmed Force Transducer Data" strrep(case_name,'_','  ')});
 
-    saveas(f2,'data\plots\' + case_name + "_" + string(time_now) + "_A_trimmed.jpg")
+    saveas(f2,'data\plots\' + case_name + "_" + string(time_now) + "_A_trimmed.fig")
 
     %% histogram for trimmed data
 
+    y_label = "Probability";
+    x_label_F = "Force (N)";
+    x_label_M = "Moment (N*m)";
+    axes_labels = [y_label, x_label_F, x_label_M];
+
     % Open a new figure.
     figure(f3)
+    f3.Position = [1940 600 1150 750];
+    tcl = tiledlayout(2,3);
 
     for k = 1:6
         % Create three subplots to show the force time histories. 
-        axes(tiles_3{k})
+        nexttile(tcl)
         hold on
         h = histogram(A_forces(:, k));
         h.Normalization = 'probability';
@@ -490,13 +513,15 @@ function [f1, f2, f3] = plot_results(obj, results, case_name, drift, aliasing, f
 
         title([titles(k), "avg: " + A_force_means(k) + "    SD: " ...
             + A_force_SDs(k), "max: " + A_force_maxs(k) + "    min: " + A_force_mins(k)]);
+        xlabel(axes_labels(1 + ceil(k/3)));
+        ylabel(axes_labels(1));
         hold off
     end
     
     % Label the whole figure.
     sgtitle({"Histogram for Trimmed Force Transducer Data " strrep(case_name,'_','  ')});
 
-    saveas(f3,'data\plots\' + case_name + "_" + string(time_now) + "_A_trimmed_hist.jpg")
+    saveas(f3,'data\plots\' + case_name + "_" + string(time_now) + "_A_trimmed_hist.fig")
 
     end
 
@@ -551,7 +576,7 @@ function [f1, f2, f3] = plot_results(obj, results, case_name, drift, aliasing, f
     % Label the whole figure.
     sgtitle({"Trimmed Force Transducer Data" strrep(case_name,'_','  ')});
 
-    saveas(f,'data\plots\' + case_name + "_" + string(time_now) + "_B_trimmed.jpg")
+    saveas(f,'data\plots\' + case_name + "_" + string(time_now) + "_B_trimmed.fig")
 
     disp("Standard deviations from this trimmed trial for each axis:")
     disp(std(abs(trimmed_results(:,2:4))));

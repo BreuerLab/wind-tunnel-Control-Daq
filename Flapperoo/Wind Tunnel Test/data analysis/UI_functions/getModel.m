@@ -5,7 +5,9 @@
 % Outputs:
 % All are 1 x n arrays where n represents many points over a
 % wingbeat period
-function [time, inertial_force, added_mass_force, aero_force] = getModel(path, flapper, sel_freq, AoA, wind_speed)
+function [time, inertial_force, added_mass_force, aero_force] = ...
+    getModel(path, flapper, sel_freq, AoA, wind_speed, lift_slope, pitch_slope, AR)
+
     wing_freq = str2double(extractBefore(sel_freq, " Hz"));
 
     CAD_bool = true;
@@ -22,17 +24,9 @@ function [time, inertial_force, added_mass_force, aero_force] = getModel(path, f
     [eff_AoA, u_rel] = get_eff_wind(time, lin_vel, AoA, wind_speed);
 
     [inertial_force] = get_inertial(ang_disp, ang_acc, r, COM_span, chord, AoA);
-    
-    thinAirfoil = true;
-    if (flapper == "Flapperoo")
-        single_AR = 2.5;
-    elseif (flapper == "MetaBird")
-        single_AR = 2.5; % NEEDS UPDATING
-    else
-        error("Oops. Unknown flapper")
-    end
-    [C_L, C_D, C_N, C_M] = get_aero(ang_disp, eff_AoA, u_rel, wind_speed, wing_length, thinAirfoil, single_AR);
+
+    [C_L, C_D, C_N, C_M] = get_aero(ang_disp, eff_AoA, u_rel, wind_speed, wing_length, lift_slope, pitch_slope, AR);
     aero_force = [C_D, C_L, C_M];
 
-    [added_mass_force] = get_added_mass(ang_disp, ang_acc, r, wing_length, chord, AoA);
+    [added_mass_force] = get_added_mass(ang_disp, lin_acc, wing_length, chord, AoA);
 end
