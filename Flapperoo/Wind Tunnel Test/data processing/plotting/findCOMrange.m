@@ -1,4 +1,4 @@
-function [distance_vals_chord, slopes] = findCOMrange(avg_results, AoA_sel, center_to_LE, chord)
+function [distance_vals_chord, static_margin, slopes] = findCOMrange(avg_results, AoA_sel, center_to_LE, chord)
 
     plot_bool = false;
     
@@ -48,6 +48,8 @@ function [distance_vals_chord, slopes] = findCOMrange(avg_results, AoA_sel, cent
 
     distance_vals = linspace(NP_pos, shift_distance, iter);
     [distance_vals_LE, distance_vals_chord] = posToChord(distance_vals, center_to_LE, chord);
+
+    static_margin = NP_pos_chord - distance_vals_chord;
 
     if plot_bool
         figure

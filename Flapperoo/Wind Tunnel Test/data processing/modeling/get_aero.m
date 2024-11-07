@@ -1,4 +1,4 @@
-function [C_L, C_D, C_N, C_M] = get_aero(ang_disp, eff_AoA, u_rel, wind_speed_sel, wing_length, lift_slope, pitch_slope, AR)
+function [C_L, C_D, C_N, C_M] = get_aero(ang_disp, eff_AoA, u_rel, wind_speed_sel, wing_length, lift_slope, pitch_slope, AR, AoA)
     alpha_zero = 0;
     if (wind_speed_sel ~= 0)
         % h = (r .* abs(sind(ang_disp)) .* abs(sind(AoA)) + chord .* cosd(AoA)) / chord;

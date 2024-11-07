@@ -1,18 +1,12 @@
-function St = freqToSt(flapper, wing_freq, wind_speed)
+function St = freqToSt(flapper, wing_freq, wind_speed, path, amp)
     [~, ~, ~, wing_length, arm_length] = getWingMeasurements(flapper);
     
-    if (flapper == "Flapperoo")
-    angle_up = 30; % degrees
-    angle_down = 30; % degrees
-    elseif (flapper == "MetaBird")
-    angle_up = 30; % degrees
-    angle_down = 30; % degrees
-    else
-        error("Oops. Unknown flapper")
-    end
+    [time, ang_disp, ang_vel, ang_acc] = get_kinematics(path, wing_freq, amp);
+    angle_up = max(ang_disp);
+    angle_down = min(ang_disp);
 
     lever_length = wing_length + arm_length; % meters, distance from wingtip to axis of rotation
-    amplitude = lever_length * (sind(angle_up) + sind(angle_down));
+    amplitude = lever_length * (abs(sind(angle_up)) + abs(sind(angle_down)));
     % m, vertical distance traversed by wings during a full stroke, a
     % single wingbeat consists of two strokes: upstroke & downstroke
 

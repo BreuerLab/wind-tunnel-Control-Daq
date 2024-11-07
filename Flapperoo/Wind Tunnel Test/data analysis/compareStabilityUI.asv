@@ -162,17 +162,18 @@ methods
         b8.BackgroundColor = [1 1 1];
         b8.ValueChangedFcn = @(src, event) model_change(src, event, plot_panel);
 
+        button8_y = button7_y - (unit_height + unit_spacing);
         b9 = uibutton(option_panel,"state");
         b9.Text = "Thin Airfoil";
-        b9.Position = [105 button7_y 80 unit_height];
+        b9.Position = [15 button8_y 80 unit_height];
         b9.BackgroundColor = [1 1 1];
         b9.ValueChangedFcn = @(src, event) thinAirfoil_change(src, event, plot_panel);
 
-        drop_y4 = AoA_y + (unit_height + unit_spacing);
-        d4 = uidropdown(option_panel);
-        d4.Position = [20 drop_y4 160 unit_height];
-        d4.Items = ["Stability Slope", "Equilibrium Position", "COM", "Static Margin"];
-        d4.ValueChangedFcn = @(src, event) plot_type_change(src, event, plot_panel);
+        b10 = uibutton(option_panel,"state");
+        b10.Text = "Amplitudes";
+        b10.Position = [105 button7_y 80 unit_height];
+        b10.BackgroundColor = [1 1 1];
+        b10.ValueChangedFcn = @(src, event) amplitudes_change(src, event, plot_panel);
 
         AoA_y = 0.05*screen_height;
         s = uislider(option_panel,"range");
@@ -182,6 +183,12 @@ methods
         s.MajorTicks = [-16 -12 -8 -4 0 4 8 12 16];
         s.MinorTicks = [-14.5 -13 -11:1:-9 -7.5:0.5:-4.5 -3.5:0.5:-0.5 0.5:0.5:3.5 4.5:0.5:7.5 9:1:11 13 14.5];
         s.ValueChangedFcn = @(src, event) AoA_change(src, event, plot_panel);
+
+        drop_y4 = AoA_y + (unit_height + unit_spacing);
+        d4 = uidropdown(option_panel);
+        d4.Position = [10 drop_y4 180 unit_height];
+        d4.Items = ["Stability Slope", "Equilibrium Position", "COM", "Static Margin"];
+        d4.ValueChangedFcn = @(src, event) plot_type_change(src, event, plot_panel);
 
         obj.update_plot(plot_panel);
 
@@ -352,11 +359,6 @@ methods
             obj.update_plot(plot_panel);
         end
 
-        % update type variable with new value selected by user
-        function type_change(src, ~)
-            obj.sel_type = nameToType(obj.sel_bird.name, src.Value);
-        end
-    
         function AoA_change(src, ~, plot_panel)
             % ensure that slider can only be moved to discrete
             % acceptable locations where a measurement was
@@ -502,23 +504,31 @@ methods (Access = private)
             disp("--------------------------------------------")
         end
 
-        if (obj.st)
-            x_label = "Strouhal Number";
-        else
-            x_label = "Wingbeat Frequency (Hz)";
-        end
-
-        if (obj.plot_type == 1)
-            if (obj.norm)
-                y_label = "Normalized Equilibrium Angle (deg)";
+        if (obj.plot_type == 1 || obj.plot_type == 2)
+            if (obj.st)
+                x_label = "Strouhal Number";
             else
-                y_label = "Equilibrium Angle (deg)";
+                x_label = "Wingbeat Frequency (Hz)";
             end
         else
+            if (obj.plot_type == 3)
+                x_label = "COM Position (% chord)";
+            elseif (obj.plot_type == 4)
+                x_label = "Static Margin (% chord)";
+            end
+        end
+
+        if (obj.plot_type == 1 || obj.plot_type == 3 || obj.plot_type == 4)
             if (obj.norm)
                 y_label = "Normalized Pitch Stability Slope";
             else
                 y_label = "Pitch Stability Slope";
+            end
+        elseif (obj.plot_type == 2)
+            if (obj.norm)
+                y_label = "Normalized Equilibrium Angle (deg)";
+            else
+                y_label = "Equilibrium Angle (deg)";
             end
         end
 
@@ -560,6 +570,7 @@ methods (Access = private)
         % -------------------- Plotting -----------------------
         % -----------------------------------------------------
         ax = axes(plot_panel);
+        hold(ax, 'on');
 
         last_t_ind = 0;
         last_s_ind = 0;
@@ -604,11 +615,22 @@ methods (Access = private)
             else
                 wing_freqs_str = cur_bird.freqs(1:end-2);
             end
+            wing_freqs = str2double(extractBefore(wing_freqs_str, " Hz"));
+
+            map = ["#ccebc5"; "#a8ddb5"; "#7bccc4"; "#43a2ca"; "#0868ac"];
+            map = hex2rgb(map);
+            xquery = linspace(0,1,128);
+            numColors = size(map);
+            numColors = numColors(1);
+            map = interp1(linspace(0,1,numColors), map, xquery,'pchip');
+
+            cmap = colormap(ax, map);
+            zmap = linspace(0, 0.5, length(cmap));
 
             slopes = [];
             x_intercepts = [];
             err_slopes = [];
-            for k = 1:length(wing_freqs_str)
+            for k = 1:length(wing_freqs)
                 idx = 5; % pitch moment
                 x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
                 y = lim_avg_forces(idx,:,k)';
@@ -621,9 +643,26 @@ methods (Access = private)
                 slopes = [slopes b(2)];
                 err_slopes = [err_slopes SE_slope];
                 x_intercepts = [x_intercepts x_int];
-            end
 
-            wing_freqs = str2double(extractBefore(wing_freqs_str, " Hz"));
+                if (obj.plot_type == 3 || obj.plot_type == 4)
+                    St = freqToSt(cur_bird.name, wing_freqs(k), wind_speed);
+
+                    [center_to_LE, chord, ~, ~, ~] = getWingMeasurements(cur_bird.name);
+                    [distance_vals_chord, static_margin, slopes_pos] = ...
+                        findCOMrange(lim_avg_forces(:,:,k), lim_AoA_sel, center_to_LE, chord);
+                    
+                    if (obj.plot_type == 3)
+                        x_vals = distance_vals_chord;
+                    elseif (obj.plot_type == 4)
+                        x_vals = static_margin;
+                    end
+
+                    line = plot(ax, x_vals, slopes_pos);
+                    line.LineWidth = 2;
+                    line.Color = interp1(zmap, cmap, St);
+                    line.HandleVisibility = 'off';
+                end
+            end
             
             % Get Quasi-Steady Model Force
             % Predictions
@@ -657,7 +696,7 @@ methods (Access = private)
                 end
             end
 
-            hold(ax, 'on');
+            if (obj.plot_type == 1 || obj.plot_type == 2)
 
             if (obj.st)
                 St = freqToSt(cur_bird.name, wing_freqs, wind_speed);
@@ -692,6 +731,7 @@ methods (Access = private)
             s.MarkerEdgeColor = colors(s_ind, t_ind);
             s.LineWidth = 2;
             s.DisplayName = "Model: " + abbr_sel(i);
+            end
             end
 
         end

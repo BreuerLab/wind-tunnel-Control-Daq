@@ -4,8 +4,8 @@
 % Solidworks. Therefore this kinematic information should be viewed
 % with a grain of salt as it may not exactly describe the true
 % kinematics.
-function [time_cycle, ang_disp_cycle, ang_vel_cycle, ang_acc_cycle] = get_kinematics(path, freq, CAD_bool)
-if (CAD_bool)
+function [time_cycle, ang_disp_cycle, ang_vel_cycle, ang_acc_cycle] = get_kinematics(path, freq, amp)
+if (amp == -1)
 if (freq == 0)
 time_cycle = 0;
 ang_disp_cycle = 0;
@@ -63,11 +63,10 @@ end
 else
     time_cycle = 0:0.01:1;
     time_cycle = time_cycle' / freq;
-    A = pi/6;%rad
 
-    ang_disp_cycle = A.*cos(2*pi*freq.*time_cycle);
-    ang_vel_cycle = -2*pi*freq*A.*sin(2*pi*freq.*time_cycle);
-    ang_acc_cycle = -4* pi^2 * freq^2 * A .* cos(2*pi*freq.*time_cycle);
+    ang_disp_cycle = amp.*cos(2*pi*freq.*time_cycle);
+    ang_vel_cycle = -2*pi*freq*amp.*sin(2*pi*freq.*time_cycle);
+    ang_acc_cycle = -4* pi^2 * freq^2 * amp .* cos(2*pi*freq.*time_cycle);
 
     ang_disp_cycle = rad2deg(ang_disp_cycle);
     ang_vel_cycle = rad2deg(ang_vel_cycle);
