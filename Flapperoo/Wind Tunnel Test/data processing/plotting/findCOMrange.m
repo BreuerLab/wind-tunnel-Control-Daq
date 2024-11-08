@@ -1,4 +1,4 @@
-function [distance_vals_chord, static_margin, slopes] = findCOMrange(avg_results, AoA_sel, center_to_LE, chord)
+function [distance_vals_chord, static_margin, slopes] = findCOMrange(avg_results, AoA_sel, center_to_LE, chord, norm_bool, norm_factors)
 
     plot_bool = false;
     
@@ -31,9 +31,17 @@ function [distance_vals_chord, static_margin, slopes] = findCOMrange(avg_results
     while(shift_distance > -max_shift_distance)
         shifted_results = shiftPitchMom(avg_results, shift_distance, AoA_sel);
         shifted_pitch_moment = shifted_results(5,:);
+
+        norm_shifted_results = dimensionless(shifted_results, norm_factors);
+        norm_shifted_pitch_moment = norm_shifted_results(5,:);
     
+        if (norm_bool)
+            y = norm_shifted_pitch_moment';
+        else
+            y = shifted_pitch_moment';
+        end
+
         x = [ones(size(AoA_sel')), AoA_sel'];
-        y = shifted_pitch_moment';
         b = x\y;
         model = x*b;
         Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);

@@ -501,6 +501,23 @@ methods(Static, Access = private)
         disp("Closest match to St: " + cur_St + " is St: " + available_Sts(I))
     end
 
+    function matched_filename = get_norm_factors_name(path, plot_data_dir_name)
+        % Get a list of all files in the folder with the desired file name pattern.
+        filePattern = fullfile(path, '*.mat');
+        theFiles = dir(filePattern);
+        parsed_dir_name = extractBefore(plot_data_dir_name, "m.s.");
+
+        % Grab each file and process the data from that file, storing the results
+        for k = 1 : length(theFiles)
+            baseFileName = convertCharsToStrings(theFiles(k).name);
+            parsed_name = extractBefore(baseFileName, "m.s.");
+            if (parsed_name == parsed_dir_name)
+                matched_filename = baseFileName;
+                break
+            end
+        end
+
+    end
 end
 
 methods (Access = private)
@@ -585,6 +602,36 @@ methods (Access = private)
         ax = axes(plot_panel);
         hold(ax, 'on');
 
+        if (obj.plot_type == 3 || obj.plot_type == 4)
+            % sequential colors
+            map = ["#ccebc5"; "#a8ddb5"; "#7bccc4"; "#43a2ca"; "#0868ac"];
+            % map = ["#fef0d9"; "#fdcc8a"; "#fc8d59"; "#e34a33"; "#b30000"];
+            % diverging colors
+            % map = ["#d7191c"; "#fdae61"; "#ffffbf"; "#abdda4"; "#2b83ba"];
+            map = hex2rgb(map);
+            xquery = linspace(0,1,128);
+            numColors = size(map);
+            numColors = numColors(1);
+            map = interp1(linspace(0,1,numColors), map, xquery,'pchip');
+            cmap = colormap(ax, map);
+
+            if (obj.st)
+                minSt = 0;
+                maxSt = 0.5;
+                zmap = linspace(minSt, maxSt, length(cmap));
+                clim(ax, [minSt, maxSt])
+                cb = colorbar(ax);
+                ylabel(cb,'Strouhal Number','FontSize',16,'Rotation',270)
+            else
+                minFreq = 0;
+                maxFreq = 5;
+                zmap = linspace(minFreq, maxFreq, length(cmap));
+                clim(ax, [minFreq, maxFreq])
+                cb = colorbar(ax);
+                ylabel(cb,'Wingbeat Frequency','FontSize',16,'Rotation',270)
+            end
+        end
+
         last_t_ind = 0;
         last_s_ind = 0;
         for i = 1:length(obj.selection)
@@ -617,6 +664,30 @@ methods (Access = private)
 
             lim_AoA_sel = cur_bird.angles(cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2));
             
+            % Load associated norm_factors file, used for COM
+            % plot where normalization can only be done after
+            % shifting pitch moment
+            if (obj.plot_type == 3 || obj.plot_type == 4)
+            norm_factors_path = obj.data_path + "/plot data/" + cur_bird.name + "/norm_factors/";
+            norm_factors_filename = compareStabilityUI.get_norm_factors_name(norm_factors_path, cur_struct_match.dir_name);
+
+            cur_file = norm_factors_path + norm_factors_filename;
+            disp("Loading " + cur_file)
+            load(cur_file, "norm_factors")
+
+            % Also strip norm from filename as we want to hand
+            % findCOMrange the non-normalized data
+            if (obj.norm)
+                parsed_name = erase(extractBefore(cur_struct_match.file_name, "_saved"), "_norm");
+                for k = 1:length(cur_bird.file_list)
+                    cur_struct = cur_bird.file_list(k);
+                    if (cur_struct.dir_name == parsed_name)
+                        cur_struct_match.file_name = cur_struct.file_name;
+                    end
+                end
+            end
+            end
+
             cur_file = obj.data_path + "/plot data/" + cur_bird.name + "/" + cur_struct_match.file_name;
             disp("Loading " + cur_file)
             load(cur_file, "avg_forces", "err_forces")
@@ -629,16 +700,6 @@ methods (Access = private)
                 wing_freqs_str = cur_bird.freqs(1:end-2);
             end
             wing_freqs = str2double(extractBefore(wing_freqs_str, " Hz"));
-
-            map = ["#ccebc5"; "#a8ddb5"; "#7bccc4"; "#43a2ca"; "#0868ac"];
-            map = hex2rgb(map);
-            xquery = linspace(0,1,128);
-            numColors = size(map);
-            numColors = numColors(1);
-            map = interp1(linspace(0,1,numColors), map, xquery,'pchip');
-
-            cmap = colormap(ax, map);
-            zmap = linspace(0, 0.5, length(cmap));
 
             slopes = [];
             x_intercepts = [];
@@ -658,11 +719,9 @@ methods (Access = private)
                 x_intercepts = [x_intercepts x_int];
 
                 if (obj.plot_type == 3 || obj.plot_type == 4)
-                    St = freqToSt(cur_bird.name, wing_freqs(k), wind_speed, obj.data_path, -1);
-
                     [center_to_LE, chord, ~, ~, ~] = getWingMeasurements(cur_bird.name);
                     [distance_vals_chord, static_margin, slopes_pos] = ...
-                        findCOMrange(lim_avg_forces(:,:,k), lim_AoA_sel, center_to_LE, chord);
+                        findCOMrange(lim_avg_forces(:,:,k), lim_AoA_sel, center_to_LE, chord, obj.norm, norm_factors);
                     
                     if (obj.plot_type == 3)
                         x_vals = distance_vals_chord;
@@ -672,8 +731,13 @@ methods (Access = private)
 
                     line = plot(ax, x_vals, slopes_pos);
                     line.LineWidth = 2;
-                    line.Color = interp1(zmap, cmap, St);
                     line.HandleVisibility = 'off';
+                    if (obj.st)
+                    St = freqToSt(cur_bird.name, wing_freqs(k), wind_speed, obj.data_path, -1);
+                    line.Color = interp1(zmap, cmap, St);
+                    else
+                    line.Color = interp1(zmap, cmap, wing_freqs(k));
+                    end
                 end
             end
             
@@ -793,7 +857,9 @@ methods (Access = private)
         xlabel(ax, x_label);
         ylabel(ax, y_label)
         grid(ax, 'on');
-        legend(ax, Location="best");
+        if ~(obj.plot_type == 3 || obj.plot_type == 4)
+            legend(ax, Location="best");
+        end
         ax.FontSize = 18;
     end
 end

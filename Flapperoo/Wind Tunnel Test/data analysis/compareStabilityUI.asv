@@ -25,6 +25,7 @@ properties
     drift;
     aero_model;
     thinAirfoil;
+    amplitudes;
 
     plot_type;
 end
@@ -158,7 +159,7 @@ methods
         button7_y = button6_y - (unit_height + unit_spacing);
         b8 = uibutton(option_panel,"state");
         b8.Text = "Aero Model";
-        b8.Position = [15 button7_y 80 unit_height];
+        b8.Position = [20 button7_y 160 unit_height];
         b8.BackgroundColor = [1 1 1];
         b8.ValueChangedFcn = @(src, event) model_change(src, event, plot_panel);
 
@@ -171,7 +172,7 @@ methods
 
         b10 = uibutton(option_panel,"state");
         b10.Text = "Amplitudes";
-        b10.Position = [105 button7_y 80 unit_height];
+        b10.Position = [105 button8_y 80 unit_height];
         b10.BackgroundColor = [1 1 1];
         b10.ValueChangedFcn = @(src, event) amplitudes_change(src, event, plot_panel);
 
@@ -272,7 +273,7 @@ methods
                 dir_parts = split(dir_name, '_');
                 wind_speed = sscanf(dir_parts(end), '%g', 1);
 
-                St = freqToSt(obj.sel_bird.name, wing_freq, wind_speed);
+                St = freqToSt(obj.sel_bird.name, wing_freq, wind_speed, obj.data_path, -1);
                 case_name = dir_name + "/" + ['St: ' num2str(St)];
             end
             new_list_indices = obj.selection ~= case_name;
@@ -346,6 +347,18 @@ methods
                 src.BackgroundColor = [0.3010 0.7450 0.9330];
             else
                 obj.thinAirfoil = false;
+                src.BackgroundColor = [1 1 1];
+            end
+
+            obj.update_plot(plot_panel);
+        end
+
+        function amplitudes_change(src, ~, plot_panel)
+            if (src.Value)
+                obj.amplitudes = true;
+                src.BackgroundColor = [0.3010 0.7450 0.9330];
+            else
+                obj.amplitudes = false;
                 src.BackgroundColor = [1 1 1];
             end
 
@@ -488,6 +501,23 @@ methods(Static, Access = private)
         disp("Closest match to St: " + cur_St + " is St: " + available_Sts(I))
     end
 
+    function matched_filename = get_norm_factors_name(path, plot_data_dir_name)
+        % Get a list of all files in the folder with the desired file name pattern.
+        filePattern = fullfile(path, '*.mat');
+        theFiles = dir(filePattern);
+        parsed_dir_name = extractBefore(plot_data_dir_name, "m.s.");
+
+        % Grab each file and process the data from that file, storing the results
+        for k = 1 : length(theFiles)
+            baseFileName = convertCharsToStrings(theFiles(k).name);
+            parsed_name = extractBefore(baseFileName, "m.s.");
+            if (parsed_name == parsed_dir_name)
+                matched_filename = baseFileName;
+                break
+            end
+        end
+
+    end
 end
 
 methods (Access = private)
@@ -572,6 +602,33 @@ methods (Access = private)
         ax = axes(plot_panel);
         hold(ax, 'on');
 
+        if (obj.plot_type == 3 || obj.plot_type == 4)
+            map = ["#ccebc5"; "#a8ddb5"; "#7bccc4"; "#43a2ca"; "#0868ac"];
+            map = ["#d7191c"; "#fdae61"; ; ;]
+            map = hex2rgb(map);
+            xquery = linspace(0,1,128);
+            numColors = size(map);
+            numColors = numColors(1);
+            map = interp1(linspace(0,1,numColors), map, xquery,'pchip');
+            cmap = colormap(ax, map);
+
+            if (obj.st)
+                minSt = 0;
+                maxSt = 0.5;
+                zmap = linspace(minSt, maxSt, length(cmap));
+                clim(ax, [minSt, maxSt])
+                cb = colorbar(ax);
+                ylabel(cb,'Strouhal Number','FontSize',16,'Rotation',270)
+            else
+                minFreq = 0;
+                maxFreq = 5;
+                zmap = linspace(minFreq, maxFreq, length(cmap));
+                clim(ax, [minFreq, maxFreq])
+                cb = colorbar(ax);
+                ylabel(cb,'Frequency','FontSize',16,'Rotation',270)
+            end
+        end
+
         last_t_ind = 0;
         last_s_ind = 0;
         for i = 1:length(obj.selection)
@@ -604,6 +661,30 @@ methods (Access = private)
 
             lim_AoA_sel = cur_bird.angles(cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2));
             
+            % Load associated norm_factors file, used for COM
+            % plot where normalization can only be done after
+            % shifting pitch moment
+            if (obj.plot_type == 3 || obj.plot_type == 4)
+            norm_factors_path = obj.data_path + "/plot data/" + cur_bird.name + "/norm_factors/";
+            norm_factors_filename = compareStabilityUI.get_norm_factors_name(norm_factors_path, cur_struct_match.dir_name);
+
+            cur_file = norm_factors_path + norm_factors_filename;
+            disp("Loading " + cur_file)
+            load(cur_file, "norm_factors")
+
+            % Also strip norm from filename as we want to hand
+            % findCOMrange the non-normalized data
+            if (obj.norm)
+                parsed_name = erase(extractBefore(cur_struct_match.file_name, "_saved"), "_norm");
+                for k = 1:length(cur_bird.file_list)
+                    cur_struct = cur_bird.file_list(k);
+                    if (cur_struct.dir_name == parsed_name)
+                        cur_struct_match.file_name = cur_struct.file_name;
+                    end
+                end
+            end
+            end
+
             cur_file = obj.data_path + "/plot data/" + cur_bird.name + "/" + cur_struct_match.file_name;
             disp("Loading " + cur_file)
             load(cur_file, "avg_forces", "err_forces")
@@ -616,16 +697,6 @@ methods (Access = private)
                 wing_freqs_str = cur_bird.freqs(1:end-2);
             end
             wing_freqs = str2double(extractBefore(wing_freqs_str, " Hz"));
-
-            map = ["#ccebc5"; "#a8ddb5"; "#7bccc4"; "#43a2ca"; "#0868ac"];
-            map = hex2rgb(map);
-            xquery = linspace(0,1,128);
-            numColors = size(map);
-            numColors = numColors(1);
-            map = interp1(linspace(0,1,numColors), map, xquery,'pchip');
-
-            cmap = colormap(ax, map);
-            zmap = linspace(0, 0.5, length(cmap));
 
             slopes = [];
             x_intercepts = [];
@@ -645,11 +716,9 @@ methods (Access = private)
                 x_intercepts = [x_intercepts x_int];
 
                 if (obj.plot_type == 3 || obj.plot_type == 4)
-                    St = freqToSt(cur_bird.name, wing_freqs(k), wind_speed);
-
                     [center_to_LE, chord, ~, ~, ~] = getWingMeasurements(cur_bird.name);
                     [distance_vals_chord, static_margin, slopes_pos] = ...
-                        findCOMrange(lim_avg_forces(:,:,k), lim_AoA_sel, center_to_LE, chord);
+                        findCOMrange(lim_avg_forces(:,:,k), lim_AoA_sel, center_to_LE, chord, obj.norm, norm_factors);
                     
                     if (obj.plot_type == 3)
                         x_vals = distance_vals_chord;
@@ -659,8 +728,13 @@ methods (Access = private)
 
                     line = plot(ax, x_vals, slopes_pos);
                     line.LineWidth = 2;
-                    line.Color = interp1(zmap, cmap, St);
                     line.HandleVisibility = 'off';
+                    if (obj.st)
+                    St = freqToSt(cur_bird.name, wing_freqs(k), wind_speed, obj.data_path, -1);
+                    line.Color = interp1(zmap, cmap, St);
+                    else
+                    line.Color = interp1(zmap, cmap, wing_freqs(k));
+                    end
                 end
             end
             
@@ -669,6 +743,18 @@ methods (Access = private)
             mod_slopes = [];
             mod_x_intercepts = [];
             if (obj.aero_model)
+                if (obj.amplitudes)
+                    amplitude_list = [pi/12, pi/6, pi/4, pi/3];
+                else
+                    amplitude_list = -1;
+                end
+
+                mod_slopes = zeros(length(amplitude_list), length(wing_freqs));
+                mod_x_intercepts = zeros(length(amplitude_list), length(wing_freqs));
+
+                for j = 1:length(amplitude_list)
+                amp = amplitude_list(j);
+
                 for k = 1:length(wing_freqs)
                 wing_freq = wing_freqs(k);
 
@@ -681,7 +767,7 @@ methods (Access = private)
                     [lift_slope, pitch_slope] = getGlideSlopes(lim_AoA_sel, lim_avg_forces);
                 end
 
-                aero_force = get_model(cur_bird.name, obj.data_path, lim_AoA_sel, wing_freq, wind_speed, lift_slope, pitch_slope, AR);
+                aero_force = get_model(cur_bird.name, obj.data_path, lim_AoA_sel, wing_freq, wind_speed, lift_slope, pitch_slope, AR, amp);
 
                 idx = 5; % pitch moment
                 x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
@@ -691,18 +777,35 @@ methods (Access = private)
                 % Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
                 x_int = - b(1) / b(2);
 
-                mod_slopes = [mod_slopes b(2)];
-                mod_x_intercepts = [mod_x_intercepts x_int];
+                mod_slopes(j,k) = b(2);
+                mod_x_intercepts(j,k) = x_int;
+                end
                 end
             end
 
             if (obj.plot_type == 1 || obj.plot_type == 2)
 
             if (obj.st)
-                St = freqToSt(cur_bird.name, wing_freqs, wind_speed);
-                x_vals = St;
+                x_vals = zeros(1,length(wing_freqs));
+                for k = 1:length(wing_freqs)
+                    x_vals(k) = freqToSt(cur_bird.name, wing_freqs(k), wind_speed, obj.data_path, -1);
+                end
+
+                if (obj.aero_model)
+                x_vals_mod = zeros(length(amplitude_list),length(wing_freqs));
+                for j = 1:length(amplitude_list)
+                    for k = 1:length(wing_freqs)
+                        x_vals_mod(j,k) = freqToSt(cur_bird.name, wing_freqs(k), wind_speed, obj.data_path, amplitude_list(j));
+                    end
+                end
+                end
             else
                 x_vals = wing_freqs;
+                if (obj.aero_model)
+                for j = 1:length(amplitude_list)
+                    x_vals_mod(j,:) = x_vals;
+                end
+                end
             end
 
             if (obj.plot_type == 1)
@@ -727,10 +830,21 @@ methods (Access = private)
             % comparing the two. Also only occurs if
             % frequency or wind speed have changed
             if (obj.norm && obj.aero_model)
-            s = scatter(ax, x_vals, y_mod_vals, 40);
-            s.MarkerEdgeColor = colors(s_ind, t_ind);
-            s.LineWidth = 2;
-            s.DisplayName = "Model: " + abbr_sel(i);
+                marker_list = ["o", "square", "^", "v"];
+                if (obj.amplitudes)
+                for j = 1:length(amplitude_list)
+                    s = scatter(ax, x_vals_mod(j,:), y_mod_vals(j,:), 40);
+                    s.MarkerEdgeColor = colors(s_ind, t_ind);
+                    s.LineWidth = 2;
+                    s.DisplayName = "A = " + rad2deg(amplitude_list(j)) + ", Model: " + abbr_sel(i);
+                    s.Marker = marker_list(j);
+                end
+                else
+                    s = scatter(ax, x_vals_mod, y_mod_vals, 40);
+                    s.MarkerEdgeColor = colors(s_ind, t_ind);
+                    s.LineWidth = 2;
+                    s.DisplayName = "Model: " + abbr_sel(i);
+                end
             end
             end
 

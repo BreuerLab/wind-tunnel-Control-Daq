@@ -69,7 +69,6 @@ end
 norm_bool = true;
 shift_bool = false;
 regress_bool = false;
-err_bool = true;
 sub_drift_bool = true;
 
 % Put all our selected variables into a struct called selected_vars
