@@ -104,41 +104,49 @@ methods
         unit_height = round(0.03*screen_height);
         unit_spacing = round(0.005*screen_height);
 
-        % Dropdown box for flapper type selection
+        % Dropdown box for flapper selection
         drop_y1 = screen_height - round(0.06*screen_height);
         d1 = uidropdown(option_panel);
         d1.Position = [10 drop_y1 180 30];
-        d1.Items = obj.sel_bird.types;
-        d1.ValueChangedFcn = @(src, event) type_change(src, event);
+        d1.Items = ["Flapperoo", "MetaBird"];
 
-        % Dropdown box for wingbeat frequency selection
+        % Dropdown box for flapper type selection
         drop_y2 = drop_y1 - (unit_height + unit_spacing);
         d2 = uidropdown(option_panel);
-        d2.Position = [10 drop_y2 180 unit_height];
-        d2.Items = obj.sel_bird.freqs(obj.sel_bird.freqs ~= "0 Hz");
-        d2.ValueChangedFcn = @(src, event) freq_change(src, event);
+        d2.Position = [10 drop_y2 180 30];
+        d2.Items = obj.sel_bird.types;
+        d2.ValueChangedFcn = @(src, event) type_change(src, event);
 
-        % Dropdown box for angle of attack selection
+        % Dropdown box for wingbeat frequency selection
         drop_y3 = drop_y2 - (unit_height + unit_spacing);
         d3 = uidropdown(option_panel);
         d3.Position = [10 drop_y3 180 unit_height];
-        d3.Items = obj.sel_bird.angles + " deg";
-        d3.ValueChangedFcn = @(src, event) angle_change(src, event);
+        d3.Items = obj.sel_bird.freqs(obj.sel_bird.freqs ~= "0 Hz");
+        d3.ValueChangedFcn = @(src, event) freq_change(src, event);
 
-        % Dropdown box for wind speed selection
+        % Dropdown box for angle of attack selection
         drop_y4 = drop_y3 - (unit_height + unit_spacing);
         d4 = uidropdown(option_panel);
         d4.Position = [10 drop_y4 180 unit_height];
-        d4.Items = obj.sel_bird.speeds + " m/s";
-        d4.ValueChangedFcn = @(src, event) speed_change(src, event, d2);
+        d4.Items = obj.sel_bird.angles + " deg";
+        d4.ValueChangedFcn = @(src, event) angle_change(src, event);
+
+        % Dropdown box for wind speed selection
+        drop_y5 = drop_y4 - (unit_height + unit_spacing);
+        d5 = uidropdown(option_panel);
+        d5.Position = [10 drop_y5 180 unit_height];
+        d5.Items = obj.sel_bird.speeds + " m/s";
+        d5.ValueChangedFcn = @(src, event) speed_change(src, event, d3);
+
+        d1.ValueChangedFcn = @(src, event) flapper_change(src, event, d2, d3, d4, d5);
 
         % Subtraction Case Selection
-        button1_y = drop_y4 - (unit_height + unit_spacing);
+        button1_y = drop_y5 - (unit_height + unit_spacing);
         b1 = uibutton(option_panel,"state");
         b1.Text = "Subtraction";
         b1.Position = [20 button1_y 160 unit_height];
         b1.BackgroundColor = [1 1 1];
-        b1.ValueChangedFcn = @(src, event) subtraction_change(src, event, plot_panel, d2);
+        b1.ValueChangedFcn = @(src, event) subtraction_change(src, event, plot_panel, d3);
 
         % Subtraction Case Selection
         % % Dropdown box for flapper type selection
@@ -203,7 +211,7 @@ methods
         b4.Text = "Normalize Y-Axis";
         b4.Position = [20 button3_y 160 unit_height];
         b4.BackgroundColor = [1 1 1];
-        b4.ValueChangedFcn = @(src, event) norm_change(src, event, plot_panel, d2);
+        b4.ValueChangedFcn = @(src, event) norm_change(src, event, plot_panel, d3);
 
         button4_y = button3_y - (unit_height + unit_spacing);
         b5 = uibutton(option_panel,"state");
@@ -267,7 +275,7 @@ methods
         b7.Text = "Spectrum";
         b7.Position = [20 button6_y 160 unit_height];
         b7.BackgroundColor = [1 1 1];
-        b7.ValueChangedFcn = @(src, event) spectrum_change(src, event, plot_panel, d2);
+        b7.ValueChangedFcn = @(src, event) spectrum_change(src, event, plot_panel, d3);
 
          % Button to add entry defined by selected type,
         % frequency, angle, and speed to list of plotted cases
@@ -323,6 +331,31 @@ methods
         %-----------------------------------------------------%
         %-----------------------------------------------------%
     
+        % update type variable with new value selected by user
+        function flapper_change(src, ~, type_box, freq_box, angle_box, speed_box)
+            if (src.Value == "Flapperoo")
+                obj.sel_bird = obj.Flapperoo;
+            elseif (src.Value == "MetaBird")
+                obj.sel_bird = obj.MetaBird;
+            else
+                error("This bird selection is not recognized.")
+            end
+            type_box.Items = obj.sel_bird.types;
+            freq_box.Items = obj.sel_bird.freqs;
+            angle_box.Items = obj.sel_bird.angles + " deg";
+            speed_box.Items = obj.sel_bird.speeds + " m/s";
+
+            obj.sel_type = nameToType(obj.sel_bird.name, obj.sel_bird.types(1));
+            obj.sel_freq = obj.sel_bird.freqs(1);
+            obj.sel_angle = obj.sel_bird.angles(1);
+            obj.sel_speed = obj.sel_bird.speeds(1);
+
+            % type_box.Value = obj.sel_bird.types(1);
+            % freq_box.Value = obj.sel_bird.freqs(1);
+            % angle_box.Value = obj.sel_bird.angles(1) + " deg";
+            % speed_box.Value = obj.sel_bird.speeds(1) + " m/s";
+        end
+
         % update type variable with new value selected by user
         function type_change(src, ~)
             obj.sel_type = nameToType(obj.sel_bird.name, src.Value);
@@ -798,8 +831,8 @@ methods(Static, Access = private)
 
         % Shift pitch moment from center of force transducer to LE
         if (shift_bool)
-            cycle_avg_forces = shiftPitchMoment(cycle_avg_forces, center_to_LE, AoA);
-            cycle_std_forces = shiftPitchMoment(cycle_std_forces, center_to_LE, AoA);
+            cycle_avg_forces = shiftPitchMomentToLE(cycle_avg_forces, center_to_LE, AoA);
+            cycle_std_forces = shiftPitchMomentToLE(cycle_std_forces, center_to_LE, AoA);
         end
 
         if (norm_bool)
