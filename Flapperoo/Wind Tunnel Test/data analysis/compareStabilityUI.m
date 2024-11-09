@@ -264,18 +264,7 @@ methods
             new_list_indices = string(lbox.Items) ~= case_name;
             lbox.Items = lbox.Items(new_list_indices);
 
-            % removing value from list used for plotting
-            if (obj.norm)
-                flapper_name = string(extractBefore(obj.selection(i), "/"));
-                dir_name = string(extractAfter(obj.selection(i), "/"));
-
-                wing_freq = str2double(extractBefore(trial_name, " Hz"));
-                dir_parts = split(dir_name, '_');
-                wind_speed = sscanf(dir_parts(end), '%g', 1);
-
-                St = freqToSt(obj.sel_bird.name, wing_freq, wind_speed, obj.data_path, -1);
-                case_name = dir_name + "/" + ['St: ' num2str(St)];
-            end
+            % removing value from object's list
             new_list_indices = obj.selection ~= case_name;
             obj.selection = obj.selection(new_list_indices);
             obj.update_plot(plot_panel);
@@ -506,6 +495,10 @@ methods(Static, Access = private)
         filePattern = fullfile(path, '*.mat');
         theFiles = dir(filePattern);
         parsed_dir_name = extractBefore(plot_data_dir_name, "m.s.");
+
+        if (contains(parsed_dir_name, "Sub"))
+            parsed_dir_name = strrep(parsed_dir_name, "Sub", "Wings");
+        end
 
         % Grab each file and process the data from that file, storing the results
         for k = 1 : length(theFiles)
@@ -755,20 +748,22 @@ methods (Access = private)
                 mod_slopes = zeros(length(amplitude_list), length(wing_freqs));
                 mod_x_intercepts = zeros(length(amplitude_list), length(wing_freqs));
 
-                for j = 1:length(amplitude_list)
-                amp = amplitude_list(j);
-
-                for k = 1:length(wing_freqs)
-                wing_freq = wing_freqs(k);
-
                 AR = 2*cur_bird.AR;
 
                 if obj.thinAirfoil
                     lift_slope = ((2*pi) / (1 + 2/AR));
                     pitch_slope = -lift_slope / 4;
                 else
-                    [lift_slope, pitch_slope] = getGlideSlopes(lim_AoA_sel, lim_avg_forces);
+                    % Find slopes for all wind speeds and average
+                    path = obj.data_path + "/plot data/" + cur_bird.name;
+                    [lift_slope, pitch_slope] = getGlideSlopes(path, cur_bird, cur_struct_match.dir_name, obj.range);
                 end
+
+                for j = 1:length(amplitude_list)
+                amp = amplitude_list(j);
+
+                for k = 1:length(wing_freqs)
+                wing_freq = wing_freqs(k);
 
                 aero_force = get_model(cur_bird.name, obj.data_path, lim_AoA_sel, wing_freq, wind_speed, lift_slope, pitch_slope, AR, amp);
 
