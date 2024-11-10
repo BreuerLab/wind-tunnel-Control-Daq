@@ -272,7 +272,7 @@ methods
             if (obj.norm)
                 for i = 1:length(d2.Items)
                     wing_freq = str2double(extractBefore(d2.Items{i}, " Hz"));
-                    St = freqToSt(obj.sel_bird.name, wing_freq, obj.sel_speed);
+                    St = freqToSt(obj.sel_bird.name, wing_freq, obj.sel_speed, obj.data_path, -1);
                     d2.Items{i} = ['St: ' num2str(St)];
                 end
             end
@@ -330,7 +330,7 @@ methods
                 dir_parts = split(dir_name, '_');
                 wind_speed = sscanf(dir_parts(end), '%g', 1);
 
-                St = freqToSt(obj.sel_bird.name, wing_freq, wind_speed);
+                St = freqToSt(obj.sel_bird.name, wing_freq, wind_speed, obj.data_path, -1);
                 case_name = dir_name + "/" + ['St: ' num2str(St)];
             end
             new_list_indices = obj.selection ~= case_name;
@@ -350,7 +350,7 @@ methods
                 % replace freqs with strouhal numbers
                 for i = 1:length(d2.Items)
                     wing_freq = str2double(extractBefore(d2.Items{i}, " Hz"));
-                    St = freqToSt(obj.sel_bird.name, wing_freq, obj.sel_speed);
+                    St = freqToSt(obj.sel_bird.name, wing_freq, obj.sel_speed, obj.data_path, -1);
                     d2.Items{i} = ['St: ' num2str(St)];
                 end
 
@@ -364,7 +364,7 @@ methods
                     dir_parts = split(dir_name, '_');
                     wind_speed = sscanf(dir_parts(end), '%g', 1);
 
-                    St = freqToSt(obj.sel_bird.name, wing_freq, wind_speed);
+                    St = freqToSt(obj.sel_bird.name, wing_freq, wind_speed, obj.data_path, -1);
                     obj.selection(i) = flapper_name + "/" + dir_name + "/" + ['St: ' num2str(St)];
                 end
             else
