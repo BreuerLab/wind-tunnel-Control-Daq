@@ -28,4 +28,6 @@ function eff_wind_plot(time, u_rel, eff_AoA, case_title)
     ylabel("Effective Angle of Attack (deg)")
     title(["Effective Angle of Attack during Flapping" case_title])
     legend(Location="northeast")
+
+    % Animation 
 end
