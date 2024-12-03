@@ -12,14 +12,15 @@ addpath robot_parameters/
 raw_data_path = [];
 processed_data_path = [];
 
-type = "blue wings";
-wind_speed = 4;
+type = "blue wings half body";
+wind_speed = 3;
 wing_freq = 5;
 AoA = 0;
 
 file = type + " " + wind_speed + "m.s " + AoA + "deg " + wing_freq + "Hz";
-data_path = "D:\Final Force Data";
-flapper_type = "\Flapperoo\";
+% data_path = "D:\Final Force Data";
+data_path = "/Users/ronangiss/Desktop/data/";
+flapper_type = "/Flapperoo/";
 
 % If set to true, user is allowed to select their own file
 userSelect = false;
@@ -27,8 +28,8 @@ userSelect = false;
 nondimensional = false;
 
 % Decide which plots to show using this struct of booleans
-bools.raw = true; % Plot the raw data readings?
-bools.time_data = true; % Plot the data in time
+bools.raw = false; % Plot the raw data readings?
+bools.time_data = false; % Plot the data in time
 bools.kinematics = true; % Plot the wingbeat kinematics?
 bools.eff_wind = true; % Plot the effective wind and AoA?
 bools.model = true; % Plot the modeled forces?
