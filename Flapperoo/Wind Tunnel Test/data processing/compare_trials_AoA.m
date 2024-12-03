@@ -42,6 +42,11 @@ dir_names = dir(filePattern);
 processed_data_path = [];
 % path to folders where offsets data (.csv files) are stored
 offsets_path = [];
+% ----------------------------------------------
+% INDEX SHIFTED TO 4 ON MAC INSTEAD OF 3 SINCE NEED TO SKIP
+% .DSSTORE directory too
+% FIX THIS BY CHECKING FOR ., .., AND .DS_STORE DIRECTORIES
+% ----------------------------------------------
 for i = 3:(length(dir_names))
     cur_name_parts = split(dir_names(i).name);
     cur_name = cur_name_parts{1}; % strip date from name

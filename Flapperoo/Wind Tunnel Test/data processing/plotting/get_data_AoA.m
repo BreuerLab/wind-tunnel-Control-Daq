@@ -109,7 +109,7 @@ for i = 1 : length(processed_files)
         end
         end
 
-        load([baseFolder '\' modFileName]);
+        load([baseFolder '/' modFileName]);
 
         if (sub_drift)
             [drift] = get_drift(modFileName, offsets_files);
@@ -272,7 +272,7 @@ function [forces_body] = getBody(wing_freq_sel, AoA_sel, wind_speed_sel, ...
         && AoA == AoA_sel ...
         && wind_speed == sub_wind_speed)
 
-        load([baseFolder '\' baseFileName]);
+        load([baseFolder '/' baseFileName]);
 
         if (shift_bool)
         [center_to_LE, ~, ~, ~, ~] = getWingMeasurements("Flapperoo");

@@ -3,7 +3,7 @@
 function [drift] = get_drift(experiment_filename, offsets_files)
     wing_freqs = [3.5, 4, 3.75, 2, 3, 0, 0.1, 2.5, 4.5, 5, 2, 4];
     offsets_string = "_before_offsets_";
-    cal_mat = obtain_cal("Calibration Files\FT43243.cal");
+    cal_mat = obtain_cal("Calibration Files/FT43243.cal");
 
     [case_name_exp, time_stamp_exp, type_exp, wing_freq_exp, AoA_exp, wind_speed_exp] = parse_filename(experiment_filename);
 
