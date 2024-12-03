@@ -37,7 +37,7 @@ acc = acc(i:end);
 
 % one cycle lasts (1/freq) seconds
 j = 1;
-while (time_vel(j) <= time_vel(1) + 1/freq)
+while (round(time_vel(j),3) < round(time_vel(1) + 1/freq,3))
     j = j + 1;
 end
 time_cycle = time_vel(1:j);
