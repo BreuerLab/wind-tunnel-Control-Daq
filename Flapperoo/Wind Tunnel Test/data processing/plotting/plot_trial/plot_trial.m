@@ -97,11 +97,11 @@ else
     y_label_M = "Moment (N*m)";
     subtitle = "Trimmed, Rotated";
     axes_labels = [x_label, y_label_F, y_label_M];
-    plot_forces(time_data, results_lab, case_name, subtitle, axes_labels, 0);
+    plot_forces(time_data, results_lab, case_name, subtitle, axes_labels, 5);
     
     subtitle = "Trimmed, Rotated, Filtered";
     axes_labels = [x_label, y_label_F, y_label_M];
-    plot_forces(time_data, filtered_data, case_name, subtitle, axes_labels, 0);
+    plot_forces(time_data, filtered_data, case_name, subtitle, axes_labels, 5);
 
     y_label = "Probability";
     x_label_F = "Force (N)";
@@ -116,8 +116,8 @@ end
 flapper = "Flapperoo";
 [center_to_LE, chord, COM_span, wing_length, arm_length] = getWingMeasurements(flapper);
 
-CAD_bool = true;
-[time, ang_disp, ang_vel, ang_acc] = get_kinematics(path, wing_freq, CAD_bool);
+amp = -1;
+[time, ang_disp, ang_vel, ang_acc] = get_kinematics(path, wing_freq, amp);
 
 full_length = wing_length + arm_length;
 r = arm_length:0.001:full_length;
@@ -127,11 +127,11 @@ lin_acc = deg2rad(ang_acc) * r;
 [eff_AoA, u_rel] = get_eff_wind(time, lin_vel, AoA, wind_speed);
 
 if (wing_freq > 0)
-    [mod_avg_data] = shiftPitchMoment(wingbeat_avg_forces_smoothest, center_to_LE, AoA);
+    [mod_avg_data] = shiftPitchMomentToLE(wingbeat_avg_forces_smoothest, center_to_LE, AoA);
     wingbeat_avg_forces_smoothest = mod_avg_data;
-    [mod_min_data] = shiftPitchMoment(wingbeat_min_forces_smoothest, center_to_LE, AoA);
+    [mod_min_data] = shiftPitchMomentToLE(wingbeat_min_forces_smoothest, center_to_LE, AoA);
     wingbeat_min_forces_smoothest = mod_min_data;
-    [mod_max_data] = shiftPitchMoment(wingbeat_max_forces_smoothest, center_to_LE, AoA);
+    [mod_max_data] = shiftPitchMomentToLE(wingbeat_max_forces_smoothest, center_to_LE, AoA);
     wingbeat_max_forces_smoothest = mod_max_data;
     % Note that it's unnecessary to shift the SD or rmse
     
@@ -210,7 +210,7 @@ if (body_subtraction)
     for i =1:length(sub_folders)
     load(sub_folders(i) + '\' + sub_filenames(i), vars{:});
 
-    [mod_filtered_data] = shiftPitchMoment(wingbeat_avg_forces_smoothest, center_to_LE, sub_AoA);
+    [mod_filtered_data] = shiftPitchMomentToLE(wingbeat_avg_forces_smoothest, center_to_LE, sub_AoA);
     wingbeat_avg_forces_smoothest = mod_filtered_data;
 
     cycle_avg_forces = cycle_avg_forces - wingbeat_avg_forces_smoothest;
@@ -239,7 +239,7 @@ else
 end
 
 if (bools.kinematics)
-    plot_kinematics(time, ang_disp, ang_vel, lin_vel, lin_acc);
+    plot_kinematics(time, ang_disp, ang_vel, lin_vel, lin_acc, case_title);
 end
 
 if (bools.eff_wind)
@@ -261,7 +261,7 @@ if (wing_freq > 0)
             sub_case_title = "";
         end
         
-        model_plot(wind_speed, wing_freq, AoA, ...
+        model_plot(path, wind_speed, wing_freq, AoA, ...
                         sub_wind_speed, sub_wing_freq, sub_AoA, ...
                         case_title, sub_case_title, ...
                         frames, cycle_avg_forces, cycle_std_forces,...

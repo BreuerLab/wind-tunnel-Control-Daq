@@ -24,11 +24,11 @@ flapper_type = "\Flapperoo\";
 % If set to true, user is allowed to select their own file
 userSelect = false;
 
-nondimensional = true;
+nondimensional = false;
 
 % Decide which plots to show using this struct of booleans
-bools.raw = false; % Plot the raw data readings?
-bools.time_data = false; % Plot the data in time
+bools.raw = true; % Plot the raw data readings?
+bools.time_data = true; % Plot the data in time
 bools.kinematics = true; % Plot the wingbeat kinematics?
 bools.eff_wind = true; % Plot the effective wind and AoA?
 bools.model = true; % Plot the modeled forces?

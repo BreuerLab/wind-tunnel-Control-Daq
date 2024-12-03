@@ -22,6 +22,12 @@ function type = nameToType(flapper, name)
     elseif (flapper == "MetaBird")
         if (name == "Wings with Tail (Low)")
             type = "full body short tail low";
+        elseif (name == "Wings")
+            type = "full body";
+        elseif (name == "Flipped Wings")
+            type = "upside down no tail";
+        elseif (name == "Body")
+            type = "no wings";
         end
     else
         type = name;

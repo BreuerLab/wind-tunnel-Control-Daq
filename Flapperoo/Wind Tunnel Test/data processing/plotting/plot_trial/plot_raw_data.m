@@ -72,6 +72,21 @@ function plot_raw_data(raw_time, raw_force, trimmed_time, trimmed_force, case_na
     ylabel(yLabs(index));
     legend(Location="best")
 
+    % Add the zoomed-in plot as a smaller axes inside the main plot
+    startX = 20;
+    endX = 20.6;
+    startY = -0.3;
+    endY = 0.3;
+    axes('Position', [0.35, 0.35, 0.25, 0.25]);  % Set position [x y width height] (adjust as needed)
+    hold on
+    plot(trimmed_time, trimmed_force(index, :), Color="#D95319");
+    rectangle('Position', [startX, startY, endX - startX, endY - startY], 'EdgeColor', 'k', 'LineWidth', 1.5);
+    hold off
+    % Set limits for zoomed-in area
+    xlim([startX, endX]);
+    ylim([startY, endY]);
+
+
     figure;
     hold on
     plot(trimmed_time - trimmed_time(1), trimmed_force(index, :),Color=[0.8500, 0.3250, 0.0980]);

@@ -28,7 +28,7 @@ methods
             obj.speeds = [0, 3, 4, 5, 6];
             obj.AR = 2.5;
         elseif (name == "MetaBird")
-            obj.types = ["Wings with Tail (Low)"];
+            obj.types = ["Wings with Tail (Low)", "Wings", "Flipped Wings", "Body"];
             obj.freqs = ["0 Hz", "6 Hz", "8 Hz", "9 Hz", "12 Hz"];
             obj.angles = [-16:2:-10 -8:1:8 10:2:16];
             obj.speeds = [0, 2, 3, 4];

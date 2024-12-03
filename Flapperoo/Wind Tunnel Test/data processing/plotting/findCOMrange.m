@@ -16,10 +16,14 @@ function [distance_vals_chord, static_margin, slopes] = findCOMrange(avg_results
     % og_slope = b(2);
 
     NP_pos = findNP(avg_results, AoA_sel);
-    [NP_pos_LE, NP_pos_chord] = posToChord(NP_pos, center_to_LE, chord);
 
-    shift_distance = NP_pos;
-    max_shift_distance = center_to_LE;
+    shift_distance_init = 2.5*chord - center_to_LE;
+    max_shift_distance = center_to_LE + chord;
+    [NP_pos_LE, NP_pos_chord] = posToChord(NP_pos, center_to_LE, chord);
+    
+    % shift_distance = NP_pos;
+    % max_shift_distance = center_to_LE;
+
     % changed from 2*center_to_LE, seemed too big
     % Old comment:
     % this used to just be center_to_LE which would go all the
@@ -27,6 +31,7 @@ function [distance_vals_chord, static_margin, slopes] = findCOMrange(avg_results
 
     slopes = zeros(1,10000);
 
+    shift_distance = shift_distance_init;
     iter = 0;
     while(shift_distance > -max_shift_distance)
         shifted_results = shiftPitchMom(avg_results, shift_distance, AoA_sel);
@@ -52,9 +57,11 @@ function [distance_vals_chord, static_margin, slopes] = findCOMrange(avg_results
         slopes(iter) = slope;
     end
 
+    % trim off remaining values at end
     slopes = slopes(slopes ~= 0);
 
-    distance_vals = linspace(NP_pos, shift_distance, iter);
+    % distance_vals = linspace(NP_pos, shift_distance, iter);
+    distance_vals = linspace(shift_distance_init, shift_distance, iter);
     [distance_vals_LE, distance_vals_chord] = posToChord(distance_vals, center_to_LE, chord);
 
     static_margin = NP_pos_chord - distance_vals_chord;

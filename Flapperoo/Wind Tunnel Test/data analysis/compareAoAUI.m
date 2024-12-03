@@ -28,6 +28,7 @@ properties
     regress;
     aero_model;
     thinAirfoil;
+    saveFig;
 end
 
 methods
@@ -55,6 +56,7 @@ methods
         obj.drift = false;
         obj.aero_model = false;
         obj.thinAirfoil = false;
+        obj.saveFig = false;
 
         for i = 1:2
             path = obj.data_path;
@@ -190,6 +192,13 @@ methods
         s.MajorTicks = [-16 -12 -8 -4 0 4 8 12 16];
         s.MinorTicks = [-14.5 -13 -11:1:-9 -7.5:0.5:-4.5 -3.5:0.5:-0.5 0.5:0.5:3.5 4.5:0.5:7.5 9:1:11 13 14.5];
         s.ValueChangedFcn = @(src, event) AoA_change(src, event, plot_panel);
+
+        button8_y = AoA_y + (unit_height + unit_spacing);
+        b9 = uibutton(option_panel);
+        b9.Text = "Save Fig";
+        b9.Position = [20 button8_y 160 unit_height];
+        b9.BackgroundColor = [1 1 1];
+        b9.ButtonPushedFcn = @(src, event) save_figure(src, event, plot_panel);
 
         obj.update_plot(plot_panel);
 
@@ -464,6 +473,12 @@ methods
     
             obj.update_plot(plot_panel);
         end
+
+        function save_figure(~, ~, plot_panel)
+            obj.saveFig = true;
+            obj.update_plot(plot_panel);
+            obj.saveFig = false;
+        end
         %-----------------------------------------------------%
         %-----------------------------------------------------%
         
@@ -495,7 +510,13 @@ methods(Static, Access = private)
             end
         elseif (flapper == "MetaBird")
             if (type == "full body short tail low")
-                sel = "Tail Low Wings";
+                sel = "Wings Tail Low";
+            elseif (type == "full body")
+                sel = "Wings";
+            elseif (type == "upside down no tail")
+                sel = "Wings Flipped";
+            elseif (type == "no wings")
+                sel = "Body";
             end
         else
             sel = type;
@@ -954,8 +975,24 @@ methods (Access = private)
             xlabel(ax, x_label);
             ylabel(ax, y_labels(idx))
             grid(ax, 'on');
-            legend(ax, Location="best");
+            l = legend(ax, Location="best");
             ax.FontSize = 18;
+        end
+        if (obj.saveFig)
+            filename = "saved_figure.fig";
+            fignew = figure('Visible','off'); % Invisible figure
+            if (exist("l", "var"))
+                copyobj([l ax], fignew); % Copy the appropriate axes
+            elseif (exist("cb", "var"))
+                copyobj([ax cb], fignew); % Copy the appropriate axes
+            else
+                copyobj(ax, fignew); % Copy the appropriate axes
+            end
+
+            % set(fignew, 'Position', [200 200 800 600])
+            set(fignew,'CreateFcn','set(gcbf,''Visible'',''on'')'); % Make it visible upon loading
+            savefig(fignew,filename);
+            delete(fignew);
         end
     end
 end

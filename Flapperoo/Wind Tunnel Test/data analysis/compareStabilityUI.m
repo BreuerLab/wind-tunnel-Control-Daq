@@ -26,6 +26,7 @@ properties
     aero_model;
     thinAirfoil;
     amplitudes;
+    saveFig;
 
     plot_type;
 end
@@ -51,6 +52,7 @@ methods
         obj.drift = false;
         obj.aero_model = false;
         obj.thinAirfoil = false;
+        obj.saveFig = false;
 
         obj.plot_type = 1;
 
@@ -190,6 +192,13 @@ methods
         d4.Position = [10 drop_y4 180 unit_height];
         d4.Items = ["Stability Slope", "Equilibrium Position", "COM", "Static Margin"];
         d4.ValueChangedFcn = @(src, event) plot_type_change(src, event, plot_panel);
+
+        button9_y = drop_y4 + (unit_height + unit_spacing);
+        b11 = uibutton(option_panel);
+        b11.Text = "Save Fig";
+        b11.Position = [20 button9_y 160 unit_height];
+        b11.BackgroundColor = [1 1 1];
+        b11.ButtonPushedFcn = @(src, event) save_figure(src, event, plot_panel);
 
         obj.update_plot(plot_panel);
 
@@ -376,6 +385,12 @@ methods
             obj.range = src.Value;
     
             obj.update_plot(plot_panel);
+        end
+
+        function save_figure(~, ~, plot_panel)
+            obj.saveFig = true;
+            obj.update_plot(plot_panel);
+            obj.saveFig = false;
         end
         %-----------------------------------------------------%
         %-----------------------------------------------------%
@@ -687,12 +702,20 @@ methods (Access = private)
             lim_avg_forces = avg_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
             lim_err_forces = err_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
 
-            if (wind_speed == 6)
-                wing_freqs_str = cur_bird.freqs(1:end-4);
-            else
-                wing_freqs_str = cur_bird.freqs(1:end-2);
+            if cur_bird.name == "Flapperoo"
+                if (wind_speed == 6)
+                    wing_freqs_str = cur_bird.freqs(1:end-4);
+                else
+                    wing_freqs_str = cur_bird.freqs(1:end-2);
+                end
+            elseif cur_bird.name == "MetaBird"
+                wing_freqs_str = cur_bird.freqs;
             end
             wing_freqs = str2double(extractBefore(wing_freqs_str, " Hz"));
+
+            % Skip gliding case
+            % wing_freqs = wing_freqs(wing_freqs ~= 0);
+            % wing_freqs = wing_freqs(wing_freqs ~= 0.1);
 
             slopes = [];
             x_intercepts = [];
@@ -722,15 +745,18 @@ methods (Access = private)
                         x_vals = static_margin;
                     end
 
+                    if (obj.st)
+                    St = freqToSt(cur_bird.name, wing_freqs(k), wind_speed, obj.data_path, -1);
+                    line_color = interp1(zmap, cmap, St);
+                    % slopes_pos = slopes_pos / (wing_freqs(k));
+                    else
+                    line_color = interp1(zmap, cmap, wing_freqs(k));
+                    end
+
                     line = plot(ax, x_vals, slopes_pos);
                     line.LineWidth = 2;
                     line.HandleVisibility = 'off';
-                    if (obj.st)
-                    St = freqToSt(cur_bird.name, wing_freqs(k), wind_speed, obj.data_path, -1);
-                    line.Color = interp1(zmap, cmap, St);
-                    else
-                    line.Color = interp1(zmap, cmap, wing_freqs(k));
-                    end
+                    line.Color = line_color;
                 end
             end
             
@@ -800,6 +826,7 @@ methods (Access = private)
             else
                 x_vals = wing_freqs;
                 if (obj.aero_model)
+                x_vals_mod = zeros(length(amplitude_list),length(wing_freqs));
                 for j = 1:length(amplitude_list)
                     x_vals_mod(j,:) = x_vals;
                 end
@@ -853,9 +880,26 @@ methods (Access = private)
         ylabel(ax, y_label)
         grid(ax, 'on');
         if ~(obj.plot_type == 3 || obj.plot_type == 4)
-            legend(ax, Location="best");
+            l = legend(ax, Location="best");
         end
         ax.FontSize = 18;
+
+        if (obj.saveFig)
+            filename = "saved_figure.fig";
+            fignew = figure('Visible','off'); % Invisible figure
+            if (exist("l", "var"))
+                copyobj([l ax], fignew); % Copy the appropriate axes
+            elseif (exist("cb", "var"))
+                copyobj([ax cb], fignew); % Copy the appropriate axes
+            else
+                copyobj(ax, fignew); % Copy the appropriate axes
+            end
+
+            % set(fignew, 'Position', [200 200 800 600])
+            set(fignew,'CreateFcn','set(gcbf,''Visible'',''on'')'); % Make it visible upon loading
+            savefig(fignew,filename);
+            delete(fignew);
+        end
     end
 end
 end

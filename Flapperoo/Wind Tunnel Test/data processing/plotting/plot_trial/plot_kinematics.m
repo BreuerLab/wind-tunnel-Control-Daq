@@ -1,4 +1,4 @@
-function plot_kinematics(time, ang_disp, ang_vel, lin_vel, lin_acc)
+function plot_kinematics(time, ang_disp, ang_vel, lin_vel, lin_acc, case_title)
 
     % Just angular displacement
     fig = figure;
@@ -7,7 +7,7 @@ function plot_kinematics(time, ang_disp, ang_vel, lin_vel, lin_acc)
     xlim([0 max(time)])
     xlabel("Time (s)")
     ylabel("Angular Displacement (deg)")
-    title("Angular Displacement of Wings Flapping at 1 Hz")
+    title(["Angular Displacement of Wings Flapping" case_title])
 
     % Just angular velocity
     fig = figure;
@@ -16,7 +16,7 @@ function plot_kinematics(time, ang_disp, ang_vel, lin_vel, lin_acc)
     xlim([0 max(time)])
     xlabel("Time (s)")
     ylabel("Angular Velocity (deg/s)")
-    title("Angular Velocity of Wings Flapping at 1 Hz")
+    title(["Angular Velocity of Wings Flapping" case_title])
 
     % Both displacement and velocity
     fig = figure;
@@ -30,37 +30,39 @@ function plot_kinematics(time, ang_disp, ang_vel, lin_vel, lin_acc)
     xlim([0 max(time)])
     xlabel("Time (s)")
     ylabel("Angular Displacement/Velocity")
-    title("Angular Motion of Wings Flapping at 1 Hz")
+    title(["Angular Motion of Wings Flapping" case_title])
     legend(Location="northeast")
     
     % Linear velocity
     fig = figure;
     fig.Position = [200 50 900 560];
     hold on
-    plot(time, lin_vel(:,51), DisplayName="r = 0.05")
-    plot(time, lin_vel(:,151), DisplayName="r = 0.15")
-    plot(time, lin_vel(:,251), DisplayName="r = 0.25")
+    plot(time, lin_vel(:,51), DisplayName="Near Wing Root")
+    % plot(time, lin_vel(:,151), DisplayName="b = 0.15")
+    plot(time, lin_vel(:,251), DisplayName="Wing Tip")
+    set(gca,'DefaultLineLineWidth',2)
     xlim([0 max(time)])
     plot_wingbeat_patch();
     hold off
     xlabel("Time (s)")
     ylabel("Linear Velocity (m/s)")
-    title("Linear Velocity of Wings Flapping at 1 Hz")
+    title(["Linear Velocity of Wings Flapping" case_title])
     legend(Location="northeast")
     
     % Linear acceleration
     fig = figure;
     fig.Position = [200 50 900 560];
     hold on
-    plot(time, lin_acc(:,51), DisplayName="r = 0.05")
-    plot(time, lin_acc(:,151), DisplayName="r = 0.15")
-    plot(time, lin_acc(:,251), DisplayName="r = 0.25")
+    plot(time, lin_acc(:,51), DisplayName="Near Wing Root")
+    % plot(time, lin_acc(:,151), DisplayName="b = 0.15")
+    plot(time, lin_acc(:,251), DisplayName="Wing Tip")
+    set(gca,'DefaultLineLineWidth',2)
     xlim([0 max(time)])
     plot_wingbeat_patch();
     hold off
     xlabel("Time (s)")
     ylabel("Linear Acceleration (m/s^2)")
-    title("Linear Acceleration of Wings Flapping at 1 Hz")
+    title(["Linear Acceleration of Wings Flapping" case_title])
     legend(Location="northeast")
 
 end
