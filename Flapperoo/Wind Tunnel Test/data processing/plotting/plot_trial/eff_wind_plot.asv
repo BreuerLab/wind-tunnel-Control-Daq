@@ -43,8 +43,16 @@ function eff_wind_plot(time, u_rel, eff_AoA, case_title)
         hold on
         yline(0, LineWidth=2, Color='black')
         quiver(p1(i, 1),p1(i, 2),dp(i, 1),dp(i, 2),0, LineWidth=2)
-        xlim([-3.5 5])
-        ylim([-ceil(max(u_rel)) ceil(max(u_rel))])
+        quiver(p2(i, 1),p1(i, 2),p2(i, 1),dp(i, 2),0, LineWidth=2) % v_y
+        quiver(p1(i, 1),p1(i, 2),dp(i, 1),p2(i, 2),0, LineWidth=2) % v_x
+        text(p2(i, 1) + 0.2, p1(i, 2) + dp(i, 2)/2, "v")
+        if (p1(i, 2) > 0)
+            text(p1(i, 1) + dp(i, 1)/2, p1(i, 2) + 0.5, "U_{\infty}")
+        else
+            text(p1(i, 1) + dp(i, 1)/2, p1(i, 2) - 0.5, "U_{\infty}")
+        end
+        xlim([-ceil(min(u_rel(:,251)) + 0.5) 5])
+        ylim([-ceil(max(u_rel(:,251))) ceil(max(u_rel(:,251)))])
         set(gca,'XTick',[], 'YTick', [])
         % alpha(1)
 
