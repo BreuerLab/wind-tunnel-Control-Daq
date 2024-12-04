@@ -16,8 +16,8 @@ addpath 'plotting'
 % wing_freq_sel = [0, 2, 3, 4, 5];
 wing_freq_sel = [0, 0.1, 2, 2.5, 3, 3.5, 3.75, 4, 4.5, 5, 2, 4];
 % wing_freq_sel = [0, 0.1, 2, 2.5, 3, 3.5, 3.75, 4, 2, 4];
-wind_speed_sel = [0];
-type_sel = ["no shoulders"];
+wind_speed_sel = [3];
+type_sel = ["blue wings half body"];
 % AoA_sel = [-12:1:-9 -8:0.5:8 9:1:12];
 AoA_sel = [-16:1.5:-13 -12:1:-9 -8:0.5:8 9:1:12 13:1.5:16];
 sub_strings = [];
@@ -28,7 +28,8 @@ type_list = [type_sel sub_strings];
 type_list = strrep(type_list, ' ', '_');
 
 % set up Slack messenger
-data_path = "D:\Final Force Data/";
+% data_path = "D:\Final Force Data/";
+data_path = "/Users/ronangiss/Documents/data/";
 s = slackMsg(data_path);
 bot = slackProgressBar(data_path);
 

@@ -115,12 +115,23 @@ for i = 1 : length(processed_files)
             forces = filtered_data;
         else
             forces = cycle_avg_forces;
-            up_forces = upstroke_avg_forces;
         end
         % Maybe need to add squeeze(cycle_avg_forces) above
 
-        forces = applyBools(forces, sub_drift, shift_bool, nondimensional);
-        up_forces = applyBools(up_forces, sub_drift, shift_bool, nondimensional);
+        if (sub_drift)
+            [drift] = get_drift(modFileName, offsets_files);
+            forces = forces - drift;
+        end
+
+        if (shift_bool)
+            [center_to_LE, ~, ~, ~, ~] = getWingMeasurements("Flapperoo");
+            [mod_plot_data] = shiftPitchMomentToLE(forces, center_to_LE, AoA);
+            forces = mod_plot_data;
+        end
+
+        if (nondimensional)
+            forces = dimensionless(forces, norm_factors);
+        end
         
         norm_factors_arr(:, AoA_sel == AoA, wing_freq_ind, wind_speed_sel == wind_speed) = norm_factors;
 

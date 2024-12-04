@@ -10,8 +10,8 @@ addpath ../robot_parameters/
 addpath ../plotting
 addpath ../general
 
-wind_speed_sel = [3];
-type = "blue_wings_half_body"; % needs to match folder name only
+wind_speeds = [3];
+types = ["blue_wings_half_body"]; % needs to match folder name only
 
 for n = 1:length(wind_speeds)
     for m = 1:length(types)
@@ -21,7 +21,8 @@ type = types(m);
 
 % set up Slack messenger objects
 % data_path = "D:\Final Force Data/";
-data_path = "/Users/ronangiss/Desktop/data/";
+data_path = "/Users/ronangiss/Documents/data/";
+% data_path = '/Volumes/ENG_Breuer_Shared/group/Ronan/Final Force Data/';
 s = slackMsg(data_path);
 bot = slackProgressBar(data_path);
 

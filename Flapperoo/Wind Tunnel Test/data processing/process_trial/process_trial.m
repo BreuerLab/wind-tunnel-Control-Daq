@@ -116,12 +116,16 @@ filt_smoothest_wing_vars = {'wingbeat_forces_smoothest', 'frames_smoothest',...
 
 vars = [saved_vars, raw_wing_vars, filt_wing_vars, filt_smoothest_wing_vars];
 
-save(processed_data_path + filename, vars{:})
 else
-    cycle_forces = reshape(results_lab, 6, length(results_lab)/24, 24);
-    cycle_avg_forces = squeeze(mean(cycle_forces,2));
-
-    vars = [saved_vars 'cycle_avg_forces'];
-    save(processed_data_path + filename, vars{:})
+    vars = saved_vars;
 end
+
+save(processed_data_path + filename, vars{:})
+% else
+%     cycle_forces = reshape(results_lab, 6, length(results_lab)/24, 24);
+%     cycle_avg_forces = squeeze(mean(cycle_forces,2));
+% 
+%     vars = [saved_vars 'cycle_avg_forces'];
+%     save(processed_data_path + filename, vars{:})
+% end
 end
