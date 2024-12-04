@@ -11,7 +11,8 @@ function eff_wind_plot(time, u_rel, eff_AoA, case_title)
     hold off
     xlabel("Time (s)")
     ylabel("Effective Wind Speed (m/s)")
-    title(["Effective Wind Speed during Flapping" case_title])
+    title(["Effective Wind Speed during Flapping" case_title...
+           "Average Effective Wind Speed: " + mean(u_rel, "all")])
     legend(Location="northeast")
 
     fig = figure;
@@ -26,10 +27,12 @@ function eff_wind_plot(time, u_rel, eff_AoA, case_title)
     hold off
     xlabel("Time (s)")
     ylabel("Effective Angle of Attack (deg)")
-    title(["Effective Angle of Attack during Flapping" case_title])
+    title(["Effective Angle of Attack during Flapping" case_title...
+            "Average Effective AoA: " + mean(eff_AoA, "all")])
     legend(Location="northeast")
 
-
+    movie_bool = false;
+    if (movie_bool)
     % Animation showing effective wind vector moving relative to wing
     a_loc = 51;
     p1 = [-u_rel(:,a_loc).*cosd(eff_AoA(:,a_loc)) -u_rel(:,a_loc).*sind(eff_AoA(:,a_loc))];                         % First Point
@@ -77,4 +80,5 @@ function eff_wind_plot(time, u_rel, eff_AoA, case_title)
     open(v);
     writeVideo(v,wingbeats_animation);
     close(v);
+    end
 end

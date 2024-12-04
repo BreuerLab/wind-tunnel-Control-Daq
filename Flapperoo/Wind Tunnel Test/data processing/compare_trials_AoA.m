@@ -93,8 +93,8 @@ s.send("Started making plots at: " + string(time_now))
 for i = 1:2
     for j = 1:2
         for k = 1:2
-
-            [avg_forces, err_forces, names, sub_title, norm_factors] = ...
+            [avg_forces, avg_up_forces, avg_down_forces, err_forces, ...
+             err_up_forces, err_down_forces, names, sub_title, norm_factors] = ...
     get_data_AoA(selected_vars, processed_files, offsets_files, norm_bool, sub_strings, shift_bool, sub_drift_bool);
             
             bot.updateProgress(channelID, messageTs, (k + 2*(j-1) + 4*(i-1))*(100/8));
