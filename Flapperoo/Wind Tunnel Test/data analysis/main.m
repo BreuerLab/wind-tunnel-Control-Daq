@@ -6,7 +6,7 @@ restoredefaultpath
 % overloaded function).
 addpath(genpath('../data processing'))
 
-addpath UI_functions\
+addpath UI_functions/
 
 clear
 close all force

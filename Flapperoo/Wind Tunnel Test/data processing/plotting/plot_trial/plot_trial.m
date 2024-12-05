@@ -28,7 +28,7 @@ if (bools.raw)
     end
     
     % Get raw data from file
-    data = readmatrix([data_folder '\' data_filename]);
+    data = readmatrix([data_folder '/' data_filename]);
     
     raw_time = data(:,1);
     raw_force = data(:,2:7);
@@ -63,7 +63,7 @@ for i = 1 : length(processed_data_files)
     end
 end
 
-load([data_folder '\' data_filename]);
+load([data_folder '/' data_filename]);
 
 Re_og = Re;
 St_og = St;
@@ -208,7 +208,7 @@ if (body_subtraction)
 
     sub_case_title = [];
     for i =1:length(sub_folders)
-    load(sub_folders(i) + '\' + sub_filenames(i), vars{:});
+    load(sub_folders(i) + '/' + sub_filenames(i), vars{:});
 
     [mod_filtered_data] = shiftPitchMomentToLE(wingbeat_avg_forces_smoothest, center_to_LE, sub_AoA);
     wingbeat_avg_forces_smoothest = mod_filtered_data;

@@ -10,15 +10,23 @@ addpath ../robot_parameters/
 addpath ../plotting
 addpath ../general
 
-wind_speed_sel = 0;
-type = "L_wing_R_inertial"; % needs to match folder name only
+wind_speeds = [3];
+types = ["blue_wings_half_body"]; % needs to match folder name only
+
+for n = 1:length(wind_speeds)
+    for m = 1:length(types)
+
+wind_speed_sel = wind_speeds(n);
+type = types(m);
 
 % set up Slack messenger objects
-slack_path = "D:\Final Force Data/";
-s = slackMsg(slack_path);
-bot = slackProgressBar(slack_path);
+% data_path = "D:\Final Force Data/";
+data_path = "/Users/ronangiss/Documents/data/";
+% data_path = '/Volumes/ENG_Breuer_Shared/group/Ronan/Final Force Data/';
+s = slackMsg(data_path);
+bot = slackProgressBar(data_path);
 
-speed_path = "D:\Final Force Data/Flapperoo/" + wind_speed_sel + " m.s/";
+speed_path = data_path + "Flapperoo/" + wind_speed_sel + " m.s/";
 filePattern = fullfile(speed_path); % Change to whatever pattern you need.
 dir_names = dir(filePattern);
 
@@ -45,7 +53,7 @@ for i = 1:length(filePattern)
 end
 
 % Record log of outputs while processing data
-diary("D:\Final Force Data/processing logs/" + wind_speed_sel + "ms_" + type + ".txt")
+diary(data_path + "processing logs/" + wind_speed_sel + "ms_" + type + ".txt")
 percent_complete = 0;
 try
 time_now = datetime;
@@ -80,4 +88,7 @@ time_now.Format = 'yyyy_MM_dd HH_mm_ss';
 s.send("Encountered error while processing files at: " + string(time_now)...
     + ". " + percent_complete + "% complete.")    
 rethrow(ME)
+end
+
+    end
 end
