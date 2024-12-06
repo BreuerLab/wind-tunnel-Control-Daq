@@ -31,7 +31,7 @@ function eff_wind_plot(time, u_rel, eff_AoA, case_title)
             "Average Effective AoA: " + mean(eff_AoA, "all")])
     legend(Location="northeast")
 
-    movie_bool = false;
+    movie_bool = true;
     if (movie_bool)
     % Animation showing effective wind vector moving relative to wing
     a_loc = 51;

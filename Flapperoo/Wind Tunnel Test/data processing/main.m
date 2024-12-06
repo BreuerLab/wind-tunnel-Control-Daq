@@ -13,13 +13,13 @@ raw_data_path = [];
 processed_data_path = [];
 
 type = "blue wings half body";
-wind_speed = 3;
-wing_freq = 3;
-AoA = -10;
+wind_speed = 4;
+wing_freq = 4;
+AoA = 0;
 
 file = type + " " + wind_speed + "m.s " + AoA + "deg " + wing_freq + "Hz";
-% data_path = "D:\Final Force Data";
-data_path = "/Users/ronangiss/Documents/data/";
+data_path = "D:/Final Force Data";
+% data_path = "/Users/ronangiss/Documents/data/";
 flapper_type = "/Flapperoo/";
 
 % If set to true, user is allowed to select their own file
@@ -72,8 +72,9 @@ dir_names(ind_to_remove) = [];
 % path to folders where raw data (.csv files) are stored
 for i = 1:length(dir_names)
     cur_name_parts = split(dir_names(i).name);
+    cur_folder = strrep(dir_names(i).folder, '\', '/');
     cur_type = strrep(cur_name_parts{1},'_',' ');
-    cur_speed = string(extractAfter(dir_names(i).folder, flapper_type));
+    cur_speed = string(extractAfter(cur_folder, flapper_type));
     if (sum(contains(dir_list, cur_type)) > 0 && sum(contains(dir_list, erase(cur_speed, " "))) > 0) % find matches
         filepath = data_path + flapper_type + cur_speed + "/" + dir_names(i).name;
         raw_data_path = [raw_data_path filepath + "/raw data/experiment data/"];
