@@ -1,4 +1,4 @@
-classdef compareKinematicsUI
+classdef compareKinematicsFreqUI
 properties
     % 1 or 2, monitor to display plot on
     mon_num;
@@ -7,43 +7,37 @@ properties
 
     selection;
 
-    % force and moment axes labels used in dropdown box
-    range;
-
     Flapperoo;
     MetaBird;
     sel_bird;
 
     sel_angle;
-    sel_freq;
     sel_speed;
+    freq_range;
 
     % booleans
     st;
 
     plot_id;
-    plot_sub_id;
 end
 
 methods
-    function obj = compareKinematicsUI(mon_num, data_path)
+    function obj = compareKinematicsFreqUI(mon_num, data_path)
         obj.mon_num = mon_num;
         obj.data_path = data_path;
 
         obj.selection = strings(0);
-        obj.range = [-16 16];
         obj.Flapperoo = flapper("Flapperoo");
         obj.MetaBird = flapper("MetaBird");
         
         obj.sel_bird = obj.Flapperoo;
-        obj.sel_freq = obj.sel_bird.freqs(1);
-        obj.sel_speed = obj.sel_bird.speeds(1);
         obj.sel_angle = obj.sel_bird.angles(1);
+        obj.sel_speed = obj.sel_bird.speeds(1);
+        obj.freq_range = [0 5];
 
         obj.st = false;
 
-        obj.plot_id = "Time";
-        obj.plot_sub_id = "Angular Displacement";
+        obj.plot_id = "Effective AoA";
     end
 
     function dynamic_plotting(obj)
@@ -68,15 +62,8 @@ methods
         d2.Items = obj.sel_bird.angles + " deg";
         d2.ValueChangedFcn = @(src, event) angle_change(src, event);
 
-        % Dropdown box for wingbeat frequency selection
-        drop_y3 = drop_y2 - (unit_height + unit_spacing);
-        d3 = uidropdown(option_panel);
-        d3.Position = [10 drop_y3 180 unit_height];
-        d3.Items = obj.sel_bird.freqs;
-        d3.ValueChangedFcn = @(src, event) freq_change(src, event);
-
         % Dropdown box for wind speed selection
-        drop_y4 = drop_y3 - (unit_height + unit_spacing);
+        drop_y4 = drop_y2 - (unit_height + unit_spacing);
         d4 = uidropdown(option_panel);
         d4.Position = [10 drop_y4 180 unit_height];
         d4.Items = obj.sel_bird.speeds + " m/s";
@@ -107,22 +94,12 @@ methods
         b2.ButtonPushedFcn = @(src, event) addToList(src, event, plot_panel, lbox);
         b3.ButtonPushedFcn = @(src, event) removeFromList(src, event, plot_panel, lbox);
 
-        % Dropdown box for plot type selection (vs time or vs
-        % freq or vs St)
-        drop_y5 = list_y - (unit_height + unit_spacing);
-        d5 = uidropdown(option_panel);
-        d5.Position = [10 drop_y5 180 unit_height];
-        d5.Items = ["Time", "Frequency", "Strouhal"];
-        d5.ValueChangedFcn = @(src, event) plot_type_change(src, event, plot_panel);
-
-        % Dropdown box for plot type sub-selection
-        drop_y6 = drop_y5 - (unit_height + unit_spacing);
+        % Dropdown box for plot type selection
+        drop_y6 = list_y - (unit_height + unit_spacing);
         d6 = uidropdown(option_panel);
         d6.Position = [10 drop_y6 180 unit_height];
-        d6.Items = ["Angular Displacement", "Angular Velocity", "Angular Acceleration",...
-                    "Linear Displacement", "Linear Velocity", "Linear Acceleration",...
-                    "Effective AoA", "Effective Wind"];
-        d6.ValueChangedFcn = @(src, event) plot_sub_type_change(src, event, plot_panel);
+        d6.Items = ["Effective AoA", "Effective Wind"];
+        d6.ValueChangedFcn = @(src, event) plot_type_change(src, event, plot_panel);
 
         button3_y = drop_y6 - (unit_height + unit_spacing);
         b4 = uibutton(option_panel,"state");
@@ -167,11 +144,6 @@ methods
             obj.sel_angle = str2double(extractBefore(src.Value, " deg"));
         end
 
-        % update frequency variable with new value selected by user
-        function freq_change(src, ~)
-            obj.sel_freq = src.Value;
-        end
-
         % update speed variable with new value selected by user
         function speed_change(src, ~)
             speed = str2double(extractBefore(src.Value, " m/s"));
@@ -179,7 +151,7 @@ methods
         end
     
         function addToList(~, ~, plot_panel, lbox)
-            case_name = obj.sel_bird.name + "/" + obj.sel_speed + " m/s " + obj.sel_freq + " " + obj.sel_angle + " deg";
+            case_name = obj.sel_bird.name + "/" + obj.sel_speed + " m/s " + obj.sel_angle + " deg";
 
             if (sum(strcmp(string(lbox.Items), case_name)) == 0)
                 lbox.Items = [lbox.Items, case_name];
@@ -218,11 +190,6 @@ methods
             obj.update_plot(plot_panel);
         end
 
-        function plot_sub_type_change(src, ~, plot_panel)
-            obj.plot_sub_id = convertCharsToStrings(src.Value);
-            obj.update_plot(plot_panel);
-        end
-
         %-----------------------------------------------------%
         %-----------------------------------------------------%
         
@@ -230,7 +197,7 @@ methods
 end
 
 methods(Static, Access = private)
-    function [flapper_name, sel_angle, sel_speed, sel_freq] = parseSelection(sel)
+    function [flapper_name, sel_angle, sel_speed] = parseSelection(sel)
         flapper_name = string(extractBefore(sel, "/"));
         dir_name = string(extractAfter(sel, "/"));
 
@@ -240,8 +207,6 @@ methods(Static, Access = private)
                 sel_angle = str2double(dir_parts(k-1));
             elseif (contains(dir_parts(k), "m/s"))
                 sel_speed = str2double(dir_parts(k-1));
-            elseif (contains(dir_parts(k), "Hz"))
-                sel_freq = str2double(dir_parts(k-1));
             end
         end
     end
@@ -303,26 +268,36 @@ methods (Access = private)
     function update_plot(obj, plot_panel)
         delete(plot_panel.Children)
 
+        if (obj.st)
+            x_label = "Strouhal Number";
+        else
+            x_label = "Wingbeat Frequency (Hz)";
+        end
+
+        if (obj.plot_id == "Effective AoA")
+            y_label = "Effective AoA (deg)";
+            sub_title = "Effective AoA";
+        elseif (obj.plot_id == "Effective Wind")
+            y_label = "Effective Wind Speed (m/s) u_{eff} / U_{\infty}";
+            sub_title = "Effective Wind Speed";
+        end
+
         if (~isempty(obj.selection))
         uniq_speeds = [];
-        uniq_freqs = [];
+        uniq_angles = [];
         for j = 1:length(obj.selection)
-            [flapper_name, cur_angle, cur_speed, cur_freq] = compareKinematicsUI.parseSelection(obj.selection(j));
+            [flapper_name, cur_angle, cur_speed] = compareKinematicsFreqUI.parseSelection(obj.selection(j));
 
             if (sum(uniq_speeds == cur_speed) == 0)
                 uniq_speeds = [uniq_speeds cur_speed];
             end
-            if (sum(strcmp(uniq_freqs, cur_freq)) == 0)
-                uniq_freqs = [uniq_freqs cur_freq];
+            if (sum(strcmp(uniq_angles, cur_angle)) == 0)
+                uniq_angles = [uniq_angles cur_angle];
             end
         end
 
-        abbr_sel = compareKinematicsUI.get_abbr_names(obj.selection);
-        colors = getColors(1, length(uniq_freqs), length(uniq_speeds), length(obj.selection));
-        else
-            x_label = "Wingbeat Period (t/T)";
-            y_label = "Angular Displacement (deg)";
-            sub_title = "Angular Displacement";
+        abbr_sel = compareKinematicsFreqUI.get_abbr_names(obj.selection);
+        colors = getColors(1, length(uniq_angles), length(uniq_speeds), length(obj.selection));
         end
 
         % -----------------------------------------------------
@@ -331,82 +306,76 @@ methods (Access = private)
         ax = axes(plot_panel);
         hold(ax, 'on');
 
+        freq_vals = linspace(obj.freq_range(1), obj.freq_range(2), 20);
+        x_var = freq_vals;
+
         for i = 1:length(obj.selection)
-            [flapper_name, cur_angle, cur_speed, cur_freq] = compareKinematicsUI.parseSelection(obj.selection(i));
+            [flapper_name, cur_angle, cur_speed] = compareKinematicsFreqUI.parseSelection(obj.selection(i));
 
             [center_to_LE, chord, COM_span, wing_length, arm_length] = getWingMeasurements(flapper_name);
 
-            amp = -1;
-            [time, ang_disp, ang_vel, ang_acc] = get_kinematics(obj.data_path, cur_freq, amp);
-            
-            full_length = wing_length + arm_length;
-            r = arm_length:0.001:full_length;
-            lin_disp = deg2rad(ang_disp) * r;
-            lin_vel = deg2rad(ang_vel) * r;
-            lin_acc = deg2rad(ang_acc) * r;
-            
-            [eff_AoA, u_rel] = get_eff_wind(time, lin_vel, cur_angle, cur_speed);
+            mean_eff_AoA = zeros(size(freq_vals));
+            mean_u_rel = zeros(size(freq_vals));
+            for j = 1:length(freq_vals)
+                cur_freq = freq_vals(j);
 
-            % Normalize time into wingbeat period format
-            time = time / time(end);
+                amp = -1;
+                [time, ang_disp, ang_vel, ang_acc] = get_kinematics(obj.data_path, cur_freq, amp);
+                
+                full_length = wing_length + arm_length;
+                r = arm_length:0.001:full_length+0.2;
+                % linear displacements taken only in the vertical
+                % direction, excluding left-right motion
+                lin_disp = cosd(ang_disp) * r;
+                lin_vel = (deg2rad(ang_vel) .* cosd(ang_disp)) * r;
+                lin_acc = (deg2rad(ang_acc) .* cosd(ang_disp)) * r;
+                
+                [eff_AoA, u_rel] = get_eff_wind(time, lin_vel, cur_angle, cur_speed);
+                mean_eff_AoA(j) = mean(eff_AoA, 'all');
+                mean_u_rel(j) = mean(u_rel, 'all');
 
-            if (obj.plot_id == "Time")
-                x_label = "Wingbeat Period (t/T)";
-                x_var = time;
+                % mean_eff_AoA(j) = max(eff_AoA, [], 'all');
+                % mean_u_rel(j) = max(u_rel, [], 'all');
 
-                if (obj.plot_sub_id == "Angular Displacement")
-                    y_var = ang_disp;
-                    y_label = "Angular Displacement (deg)";
-                    sub_title = "Angular Displacement";
-                elseif (obj.plot_sub_id == "Angular Velocity")
-                    y_var = ang_vel;
-                    y_label = "Angular Velocity (deg/s)";
-                    sub_title = "Angular Velocity";
-                elseif (obj.plot_sub_id == "Angular Acceleration")
-                    y_var = ang_acc;
-                    y_label = "Angular Acceleration (deg/s^2)";
-                    sub_title = "Angular Acceleration";
-                elseif (obj.plot_sub_id == "Linear Displacement")
-                    y_var = lin_disp;
-                    y_label = "Linear Displacement (m)";
-                    sub_title = "Linear Displacement";
-                elseif (obj.plot_sub_id == "Linear Velocity")
-                    y_var = lin_vel;
-                    y_label = "Linear Velocity (m/s)";
-                    sub_title = "Linear Velocity";
-                elseif (obj.plot_sub_id == "Linear Acceleration")
-                    y_var = lin_acc;
-                    y_label = "Linear Acceleration (m/s^2)";
-                    sub_title = "Linear Acceleration";
-                elseif (obj.plot_sub_id == "Effective AoA")
-                    y_var = eff_AoA;
-                    y_label = "Effective AoA (deg)";
-                    sub_title = "Effective AoA";
-                elseif (obj.plot_sub_id == "Effective Wind")
-                    y_var = u_rel;
-                    y_label = "Effective Wind Speed (m/s)";
-                    sub_title = "Effective Wind Speed";
+                % test = sum(u_rel .* eff_AoA, 2);
+                % mean_u_rel(j) = mean(test);
+            end
+
+            % normalize effective wind speeds by freestream
+            mean_u_rel = mean_u_rel / cur_speed;
+
+            if (obj.st)
+                for k = 1:length(freq_vals)
+                    x_var(k) = freqToSt(flapper_name, freq_vals(k), cur_speed, obj.data_path, -1);
                 end
             end
 
-            if (contains(obj.plot_sub_id, "Angular"))
-                p = plot(ax, x_var, y_var);
-                p.LineWidth = 2;
-                p.DisplayName = abbr_sel;
-            else
-                pl = plot(ax, x_var, y_var(:,51));
-              
-                pl.LineWidth = 2;
-                pl.DisplayName = "Near Wing Root";
-                ph.LineWidth = 2;
-                ph.DisplayName = "Wing Tip";
+            if (obj.plot_id == "Effective AoA")
+                y_var = mean_eff_AoA;
+            elseif (obj.plot_id == "Effective Wind")
+                y_var = mean_u_rel;
             end
 
-            % e = errorbar(ax, x_vals, y_vals, err_vals, '.');
-            % e.MarkerSize = 25;
-            % e.Color = colors(s_ind, t_ind);
-            % e.MarkerFaceColor = colors(s_ind, t_ind);
-            % e.DisplayName = abbr_sel(i);
+            p = plot(ax, x_var, y_var);
+            p.LineWidth = 2;
+            p.DisplayName = abbr_sel(i);
+
+            % fit power law
+            x_var_mod = x_var(2:end);
+            y_var_mod = y_var(2:end);
+
+            % logX = log(x_var);
+            % logY = log(y_var);
+            % 
+            % p = polyfit(logX, logY, 1);
+            % disp(p(1))
+
+            % y_mod = exp(p(2)) * x_var.^(p(1));
+
+            test_fit = fit(x_var_mod', y_var_mod', 'power2')
+            y_mod = test_fit.a * x_var_mod.^(test_fit.b) + test_fit.c;
+
+            % plot(ax, x_var, y_mod, LineStyle="--",Color="black")
 
         end
 

@@ -848,6 +848,23 @@ methods (Access = private)
             e.Color = colors(s_ind, t_ind);
             e.MarkerFaceColor = colors(s_ind, t_ind);
             e.DisplayName = abbr_sel(i);
+
+            % fit power law
+            x_var_mod = x_vals(2:end);
+            y_var_mod = y_vals(2:end);
+
+            % logX = log(x_var);
+            % logY = log(y_var);
+            % 
+            % p = polyfit(logX, logY, 1);
+            % disp(p(1))
+
+            % y_mod = exp(p(2)) * x_var.^(p(1));
+
+            % test_fit = fit(x_var_mod', y_var_mod', 'power2')
+            % y_mod = test_fit.a * x_var_mod.^(test_fit.b) + test_fit.c;
+
+            % plot(ax, x_var_mod, y_mod, LineStyle="--",Color="black")
             
             % ---------Plotting model-----------
             % aerodynamics model is nondimensionalized, so
@@ -869,6 +886,12 @@ methods (Access = private)
                     s.MarkerEdgeColor = colors(s_ind, t_ind);
                     s.LineWidth = 2;
                     s.DisplayName = "Model: " + abbr_sel(i);
+
+                    x_var_mod = x_vals_mod(2:end);
+                    y_var_mod = y_mod_vals(2:end);
+
+                    test_fit = fit(x_var_mod', y_var_mod', 'power2')
+                    y_mod = test_fit.a * x_var_mod.^(test_fit.b) + test_fit.c;
                 end
             end
             end
