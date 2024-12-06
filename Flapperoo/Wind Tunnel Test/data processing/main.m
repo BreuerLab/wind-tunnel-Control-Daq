@@ -13,8 +13,8 @@ raw_data_path = [];
 processed_data_path = [];
 
 type = "blue wings half body";
-wind_speed = 4;
-wing_freq = 4;
+wind_speed = 3;
+wing_freq = 3;
 AoA = 0;
 
 file = type + " " + wind_speed + "m.s " + AoA + "deg " + wing_freq + "Hz";
