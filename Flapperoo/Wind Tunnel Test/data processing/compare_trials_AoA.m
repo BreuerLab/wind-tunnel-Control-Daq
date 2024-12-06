@@ -118,7 +118,8 @@ for i = 1:2
                 name = name + "Sub_" + sub_strings;
             end
 
-            save(name + ".mat","avg_forces", "err_forces", "names")
+            save(name + ".mat","avg_forces", "avg_up_forces", "avg_down_forces",...
+                "err_forces", "err_up_forces", "err_down_forces", "norm_factors", "names")
 
             norm_bool = ~norm_bool;
         end

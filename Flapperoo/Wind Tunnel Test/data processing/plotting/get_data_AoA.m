@@ -127,9 +127,9 @@ for i = 1 : length(processed_files)
         end
         % Maybe need to add squeeze(cycle_avg_forces) above
 
-        forces = applyBools(forces, sub_drift, modFileName, offsets_files, shift_bool, nondimensional, norm_factors);
-        up_forces = applyBools(up_forces, sub_drift, modFileName, offsets_files, shift_bool, nondimensional, norm_factors);
-        down_forces = applyBools(down_forces, sub_drift, modFileName, offsets_files, shift_bool, nondimensional, norm_factors);
+        forces = applyBools(forces, sub_drift, modFileName, offsets_files, shift_bool, AoA, nondimensional, norm_factors);
+        up_forces = applyBools(up_forces, sub_drift, modFileName, offsets_files, shift_bool, AoA, nondimensional, norm_factors);
+        down_forces = applyBools(down_forces, sub_drift, modFileName, offsets_files, shift_bool, AoA, nondimensional, norm_factors);
         
         norm_factors_arr(:, AoA_sel == AoA, wing_freq_ind, wind_speed_sel == wind_speed) = norm_factors;
 
