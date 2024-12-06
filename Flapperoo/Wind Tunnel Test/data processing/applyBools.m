@@ -1,4 +1,4 @@
-function forces = applyBools(forces, sub_drift, modFileName, offsets_files, shift_bool, nondimensional, norm_factors)
+function forces = applyBools(forces, sub_drift, modFileName, offsets_files, shift_bool, AoA, nondimensional, norm_factors)
     if (sub_drift)
         [drift] = get_drift(modFileName, offsets_files);
         forces = forces - drift;
