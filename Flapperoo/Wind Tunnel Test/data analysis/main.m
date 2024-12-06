@@ -29,12 +29,21 @@ close all force
 % c = compareStabilityUI(monitor_num, data_path);
 % c.dynamic_plotting();
 
-% Sets up UI for comparing data over phase averaged wingbeat
+% monitor_num = 2;
+% data_path = "D:\Final Force Data/";
+% d = compareKinematicsUI(monitor_num, data_path);
+% d.dynamic_plotting();
+
+% monitor_num = 2;
+% data_path = "D:\Final Force Data/";
+% e = compareKinematicsAoAUI(monitor_num, data_path);
+% e.dynamic_plotting();
+
 monitor_num = 2;
 data_path = "D:\Final Force Data/";
-d = compareKinematicsUI(monitor_num, data_path);
-d.dynamic_plotting();
+f = compareKinematicsFreqUI(monitor_num, data_path);
+f.dynamic_plotting();
 
 % Set up basic UI as demo for this kind of tool
-% c = basicUI(2);
-% c.dynamic_plotting();
+% z = basicUI(2);
+% z.dynamic_plotting();
