@@ -7,11 +7,10 @@ properties
 
     selection;
     index;
-    stroke_index;
+    stroke_ind
 
     % force and moment axes labels used in dropdown box
     axes_labels;
-    stroke_labels;
     range;
 
     Flapperoo;
@@ -42,8 +41,6 @@ methods
         obj.index = 0;
         obj.axes_labels = ["All", "Drag", "Transverse Lift", "Lift",...
             "Roll Moment", "Pitch Moment", "Yaw Moment"];
-        obj.stroke_index = 0;
-        obj.stroke_labels = ["Full", "Upstroke", "Downstroke"];
         obj.range = [-16 16];
         obj.Flapperoo = flapper("Flapperoo");
         obj.MetaBird = flapper("MetaBird");
@@ -156,7 +153,7 @@ methods
         drop_y6 = drop_y5 - (unit_height + unit_spacing);
         d6 = uidropdown(option_panel);
         d6.Position = [10 drop_y6 180 unit_height];
-        d6.Items = obj.stroke_labels;
+        d6.Items = ["Full", "Upstroke", "Downstroke"];
         d6.ValueChangedFcn = @(src, event) stroke_change(src, event, plot_panel);
 
         button3_y = drop_y6 - (unit_height + unit_spacing);
@@ -359,11 +356,6 @@ methods
 
         function index_change(src, ~, plot_panel)
             obj.index = find(obj.axes_labels == src.Value) - 1;
-            obj.update_plot(plot_panel);
-        end
-
-        function stroke_change(src, ~, plot_panel)
-            obj.stroke_index = find(obj.stroke_labels == src.Value) - 1;
             obj.update_plot(plot_panel);
         end
 
@@ -789,24 +781,10 @@ methods (Access = private)
 
                 lim_AoA_sel = cur_bird.angles(cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2));
                 
-                cur_file = obj.data_path + "/plot data/" + cur_bird.name + "/" + cur_struct_match.file_name;
-                disp("Loading " + cur_file)
-                if (obj.stroke_index == 0)
-                    load(cur_file, "avg_forces", "err_forces")
-                    disp("Full Stroke")
-                    lim_avg_forces = avg_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
-                    lim_err_forces = err_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
-                elseif (obj.stroke_index == 1)
-                    load(cur_file, "avg_up_forces", "err_up_forces")
-                    disp("Upstroke")
-                    lim_avg_forces = avg_up_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
-                    lim_err_forces = err_up_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
-                elseif (obj.stroke_index == 2)
-                    load(cur_file, "avg_down_forces", "err_down_forces")
-                    disp("Downstroke")
-                    lim_avg_forces = avg_down_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
-                    lim_err_forces = err_down_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
-                end
+                disp("Loading " + obj.data_path + "/plot data/" + cur_bird.name + "/" + cur_struct_match.file_name)
+                load(obj.data_path + "/plot data/" + cur_bird.name + "/" + cur_struct_match.file_name, "avg_forces", "err_forces")
+                lim_avg_forces = avg_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
+                lim_err_forces = err_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
 
                 dir_parts = split(dir_name, '_');
 
@@ -917,22 +895,9 @@ methods (Access = private)
                 
                 cur_file = obj.data_path + "/plot data/" + cur_bird.name + "/" + cur_struct_match.file_name;
                 disp("Loading " + cur_file)
-                if (obj.stroke_index == 0)
-                    load(cur_file, "avg_forces", "err_forces")
-                    disp("Full Stroke")
-                    lim_avg_forces = avg_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
-                    lim_err_forces = err_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
-                elseif (obj.stroke_index == 1)
-                    load(cur_file, "avg_up_forces", "err_up_forces")
-                    disp("Upstroke")
-                    lim_avg_forces = avg_up_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
-                    lim_err_forces = err_up_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
-                elseif (obj.stroke_index == 2)
-                    load(cur_file, "avg_down_forces", "err_down_forces")
-                    disp("Downstroke")
-                    lim_avg_forces = avg_down_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
-                    lim_err_forces = err_down_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
-                end
+                load(cur_file, "avg_forces", "err_forces")
+                lim_avg_forces = avg_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
+                lim_err_forces = err_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
 
                 dir_parts = split(dir_name, '_');
 
