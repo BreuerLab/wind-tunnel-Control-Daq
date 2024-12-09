@@ -34,7 +34,7 @@ function eff_wind_plot(time, u_rel, eff_AoA, case_title)
     movie_bool = true;
     if (movie_bool)
     % Animation showing effective wind vector moving relative to wing
-    a_loc = 251;
+    a_loc = 51;
     p1 = [-u_rel(:,a_loc).*cosd(eff_AoA(:,a_loc)) -u_rel(:,a_loc).*sind(eff_AoA(:,a_loc))];                         % First Point
     p2 = zeros(size(p1));                         % Second Point
     dp = p2 - p1;                         % Difference

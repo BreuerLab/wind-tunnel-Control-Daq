@@ -339,9 +339,9 @@ methods (Access = private)
             
             full_length = wing_length + arm_length;
             r = arm_length:0.001:full_length;
-            lin_disp = deg2rad(ang_disp) * r;
-            lin_vel = deg2rad(ang_vel) * r;
-            lin_acc = deg2rad(ang_acc) * r;
+            lin_disp = cosd(ang_disp) * r;
+            lin_vel = (deg2rad(ang_vel) .* cosd(ang_disp)) * r;
+            lin_acc = (deg2rad(ang_acc) .* cosd(ang_disp)) * r;
             
             mean_eff_AoA = zeros(size(AoA_vals));
             mean_u_rel = zeros(size(AoA_vals));

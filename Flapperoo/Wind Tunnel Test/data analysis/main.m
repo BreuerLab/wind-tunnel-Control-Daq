@@ -29,15 +29,15 @@ close all force
 % c = compareStabilityUI(monitor_num, data_path);
 % c.dynamic_plotting();
 
-% monitor_num = 2;
-% data_path = "D:\Final Force Data/";
-% d = compareKinematicsUI(monitor_num, data_path);
-% d.dynamic_plotting();
+monitor_num = 1;
+data_path = "D:\Final Force Data/";
+d = compareKinematicsUI(monitor_num, data_path);
+d.dynamic_plotting();
 
-% monitor_num = 2;
-% data_path = "D:\Final Force Data/";
-% e = compareKinematicsAoAUI(monitor_num, data_path);
-% e.dynamic_plotting();
+monitor_num = 2;
+data_path = "D:\Final Force Data/";
+e = compareKinematicsAoAUI(monitor_num, data_path);
+e.dynamic_plotting();
 
 monitor_num = 2;
 data_path = "D:\Final Force Data/";
