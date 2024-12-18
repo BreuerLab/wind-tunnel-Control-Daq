@@ -79,11 +79,11 @@ if (nondimensional)
     y_label_M = "Moment Coefficient";
     subtitle = "Trimmed, Rotated";
     axes_labels = [x_label, y_label_F, y_label_M];
-    plot_forces(time_data, dimensionless(results_lab, norm_factors), case_name, subtitle, axes_labels, 5);
+    plot_forces(time_data, dimensionless(results_lab, norm_factors), case_name, subtitle, axes_labels, 0);
     
     subtitle = "Trimmed, Rotated, Filtered";
     axes_labels = [x_label, y_label_F, y_label_M];
-    plot_forces(time_data, dimensionless(filtered_data, norm_factors), case_name, subtitle, axes_labels, 5);
+    plot_forces(time_data, dimensionless(filtered_data, norm_factors), case_name, subtitle, axes_labels, 0);
 
     y_label = "Probability";
     x_label_F = "Force Coefficient";

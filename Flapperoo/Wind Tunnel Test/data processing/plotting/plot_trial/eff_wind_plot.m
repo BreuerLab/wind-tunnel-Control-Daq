@@ -50,12 +50,31 @@ function eff_wind_plot(time, u_rel, eff_AoA, case_title)
         set(fig, 'Units','pixels','Position', [0, 0, 800, 800]);
         hold on
         % yline(0, LineWidth=2, Color='black')
-        quiver(p1(i, 1),p1(i, 2),dp(i, 1),dp(i, 2),0, LineWidth=4)
+        quiver(p1(i, 1),p1(i, 2),dp(i, 1),dp(i, 2),0, LineWidth=4) % u_eff
         quiver(p2(i, 1),p1(i, 2),p2(i, 1),dp(i, 2),0, LineWidth=4) % v_y
         quiver(p1(i, 1),p1(i, 2),dp(i, 1),p2(i, 2),0, LineWidth=4) % v_x
 
+        % Calculate angle between v_x and u_eff
+        % Calculate the angle between the vectors
+        dot_product = dot(p1(i, :), [p2(i, 1), p1(i, 2)]);
+        magnitude_A = norm(A);
+        magnitude_B = norm(B);
+        cos_theta = dot_product / (magnitude_A * magnitude_B);
+        theta = acos(cos_theta); % Angle in radians
+        theta_deg = rad2deg(theta); % Convert to degrees
+        
+        % Display the angle in the plot
+        text(1, 1, ['\theta = ', num2str(theta_deg, '%.2f'), '^\circ'], ...
+            'FontSize', 12, 'Color', 'black');
+        
+        % Optionally, add a curved line or arc showing the angle
+        t = linspace(0, theta, 50);
+        arc_x = 0.5 * cos(t);
+        arc_y = 0.5 * sin(t);
+        plot(arc_x, arc_y, 'k--');
+
         f_s = 20;
-        text(p2(i, 1) + 0.2, p1(i, 2) + dp(i, 2)/2, "u_{wing}",FontSize=f_s)
+        text(p2(i, 1) + 0.2, p1(i, 2) + dp(i, 2)/2, "u_{root}",FontSize=f_s)
         if (p1(i, 2) > 0)
             text(p1(i, 1) + dp(i, 1)/2, p1(i, 2) + 0.5, "U_{\infty}",FontSize=f_s)
             text(p1(i, 1) + dp(i, 1)/2 - 0.2, p1(i, 2) + dp(i, 2)/2 - 0.5, "u_{eff}",FontSize=f_s)

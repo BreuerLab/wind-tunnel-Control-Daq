@@ -35,5 +35,13 @@ function plot_forces(time_data, results, case_name, subtitle, axes_labels, index
         title(titles(index));
         xlabel(axes_labels(1));
         ylabel(axes_labels(1 + ceil(index/3)));
+
+        % ADDED THIS LINE JUST FOR FIGURE CROPPING
+        t_l = length(time_data);
+        zoomed_time = time_data(round(t_l/20):2*round(t_l/20));
+        zoomed_results = results(index, round(t_l/20):2*round(t_l/20));
+
+        xlim([min(zoomed_time) max(zoomed_time)])
+        ylim([min(zoomed_results) max(zoomed_results)])
     end
 end

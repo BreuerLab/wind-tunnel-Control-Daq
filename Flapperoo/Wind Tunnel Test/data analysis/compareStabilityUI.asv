@@ -544,7 +544,7 @@ methods (Access = private)
 
         if (obj.plot_type == 1 || obj.plot_type == 2)
             if (obj.st)
-                x_label = "Strouhal Number"; % $\mathbf{St = \frac{f A}{U_{\infty}}}
+                x_label = "Strouhal Number $St = \frac{f A} / U_{\infty}$";
             else
                 x_label = "Wingbeat Frequency (Hz)";
             end
@@ -843,7 +843,7 @@ methods (Access = private)
                 y_mod_vals = mod_x_intercepts;
             end
             
-            show_data = true;
+            show_data = false;
             if show_data
             e = errorbar(ax, x_vals, y_vals, err_vals, '.');
             e.MarkerSize = 25;
@@ -881,8 +881,8 @@ methods (Access = private)
                     s = scatter(ax, x_vals_mod(j,:), y_mod_vals(j,:), 40);
                     s.MarkerEdgeColor = colors(s_ind, t_ind);
                     s.LineWidth = 2; % char(176) for degree symbol
-                    s.DisplayName = "A = " + rad2deg(amplitude_list(j)); % + ", Model: " + abbr_sel(i);
-                    s.Marker = marker_list(j); % + "\textbf{^{\circ}}"
+                    s.DisplayName = "A = " + rad2deg(amplitude_list(j)) + "^{\circ}"; % + ", Model: " + abbr_sel(i);
+                    s.Marker = marker_list(j);
                 end
                 else
                     s = scatter(ax, x_vals_mod, y_mod_vals, 40);
@@ -910,11 +910,11 @@ methods (Access = private)
         end
         ax.FontSize = 18;
 
-        % set(findall(ax, 'Type', 'text'), 'Interpreter', 'latex');
-        % legH = findall(gcf, "Type", "legend");
-        % set(legH, "Interpreter", 'latex')
-        % axesH = findall(gcf, "Type", "axes");
-        % set(axesH, "TickLabelInterpreter", 'latex')
+        set(findall(ax, 'Type', 'text'), 'Interpreter', 'latex');
+        legH = findall(gcf, "Type", "legend");
+        set(legH, "Interpreter", 'latex')
+        axesH = findall(gcf, "Type", "axes");
+        set(axesH, "TickLabelInterpreter", 'latex')
 
         if (obj.saveFig)
             filename = "saved_figure.fig";
