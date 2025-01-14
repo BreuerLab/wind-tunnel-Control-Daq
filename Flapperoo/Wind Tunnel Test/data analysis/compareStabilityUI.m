@@ -663,6 +663,14 @@ methods (Access = private)
 
         last_t_ind = 0;
         last_s_ind = 0;
+        x_vals_tot = [];
+        x_vals_mod_tot = [];
+        y_vals_tot = [];
+        y_vals_mod_tot = [];
+        err_vals_tot = [];
+        s_ind_tot = [];
+        t_ind_tot = [];
+
         for i = 1:length(obj.selection)
             for j = 1:length(struct_matches)
                 if (obj.selection(i) == struct_matches(j).selector)
@@ -857,28 +865,46 @@ methods (Access = private)
             if (obj.plot_type == 1)
                 y_vals = slopes;
                 err_vals = err_slopes;
-                y_mod_vals = mod_slopes;
+                y_vals_mod = mod_slopes;
             elseif (obj.plot_type == 2)
                 y_vals = x_intercepts;
                 err_vals = zeros(1,length(x_intercepts));
-                y_mod_vals = mod_x_intercepts;
+                y_vals_mod = mod_x_intercepts;
             end
+
+            x_vals_tot = [x_vals_tot x_vals];
+            y_vals_tot = [y_vals_tot y_vals];
+            err_vals_tot = [err_vals_tot err_vals];
+            s_ind_tot = [s_ind_tot s_ind*ones(size(err_vals))];
+            t_ind_tot = [t_ind_tot t_ind*ones(size(err_vals))];
             
+            if (obj.aero_model)
+            x_vals_mod_tot = [x_vals_mod_tot x_vals_mod];
+            y_vals_mod_tot = [y_vals_mod_tot y_vals_mod];
+            end
+
+        % Plot data after getting it all %% ----------------- %%
+
+        if ~obj.logScale
             show_data = true;
             if show_data
-            if (obj.logScale)
-                y_vals = -y_vals; % can't do log of a negative num
-            end
+
             e = errorbar(ax, x_vals, y_vals, err_vals, '.');
             e.MarkerSize = 25;
             e.Color = colors(s_ind, t_ind);
             e.MarkerFaceColor = colors(s_ind, t_ind);
             e.DisplayName = abbr_sel(i);
+
+            x_var_mod = x_vals(2:end);
+            y_var_mod = y_vals(2:end);
+
+            test_fit = fit(x_var_mod', y_var_mod', 'power2')
+            y_mod = test_fit.a * x_var_mod.^(test_fit.b) + test_fit.c;
             end
 
             % fit power law
-            x_var_mod = x_vals(2:end);
-            y_var_mod = y_vals(2:end);
+            % x_var_mod = x_vals(2:end);
+            % y_var_mod = y_vals(2:end);
 
             % logX = log(x_var);
             % logY = log(y_var);
@@ -902,13 +928,10 @@ methods (Access = private)
                 marker_list = ["o", "square", "^", "v"];
                 temp_colors(:,1) = ["#fdbe85";"#fd8d3c";"#e6550d";...
                        "#a63603"];
-                if (obj.logScale)
-                    y_mod_vals = -y_mod_vals; % can't do log of a negative num
-                end
 
                 if (obj.amplitudes)
                 for j = 1:length(amplitude_list)
-                    s = scatter(ax, x_vals_mod(j,:), y_mod_vals(j,:), 40);
+                    s = scatter(ax, x_vals_mod(j,:), y_vals_mod(j,:), 40);
                     % s.MarkerEdgeColor = colors(s_ind, t_ind);
                     s.MarkerEdgeColor = temp_colors(j);
                     s.LineWidth = 2; % char(176) for degree symbol
@@ -916,19 +939,131 @@ methods (Access = private)
                     s.Marker = marker_list(j); % + "\textbf{^{\circ}}"
                 end
                 else
-                    s = scatter(ax, x_vals_mod, y_mod_vals, 40);
+                    s = scatter(ax, x_vals_mod, y_vals_mod, 40);
                     s.MarkerEdgeColor = colors(s_ind, t_ind);
                     s.LineWidth = 2;
                     s.DisplayName = "Model: " + abbr_sel(i);
 
                     x_var_mod = x_vals_mod(2:end);
-                    y_var_mod = y_mod_vals(2:end);
+                    y_var_mod = y_vals_mod(2:end);
 
                     test_fit = fit(x_var_mod', y_var_mod', 'power2')
                     y_mod = test_fit.a * x_var_mod.^(test_fit.b) + test_fit.c;
                 end
             end
+        end
             end
+
+
+        end
+
+        if (obj.logScale)
+            y_vals_tot = -y_vals_tot; % can't do log of a negative num
+            y_vals_tot = y_vals_tot - min(y_vals_tot);
+            
+            bad_ind = [];
+            for n = 1:length(x_vals_tot)
+                if (x_vals_tot(n) < 0.01 || y_vals_tot(n) == 0)
+                   bad_ind = [bad_ind n]; 
+                end
+            end
+            x_vals_tot(bad_ind) = [];
+            y_vals_tot(bad_ind) = [];
+            err_vals_tot(bad_ind) = [];
+            s_ind_tot(bad_ind) = [];
+            t_ind_tot(bad_ind) = [];
+
+            % regression
+            x_vals_reg = log(x_vals_tot);
+            y_vals_reg = log(y_vals_tot);
+            x = [ones(size(x_vals_reg')), x_vals_reg'];
+            y = y_vals_reg';
+            b = x\y;
+            model = x*b;
+            Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
+            % label = "y = " + round(b(2),3) + "x + " + round(b(1),3) + ", R^2 = " + round(Rsq,3);
+            label = "y = " + round(exp(b(1)),3) + "*x^{" + round(b(2),3) + "}, R^2 = " + round(Rsq,3);
+
+            uniq_s = unique(s_ind_tot);
+            uniq_t = unique(t_ind_tot);
+            for n = 1:length(uniq_t)
+                t_ind = uniq_t(n);
+            for m = 1:length(uniq_s)
+                s_ind = uniq_s(m);
+            e = errorbar(ax, x_vals_tot(s_ind_tot == s_ind), y_vals_tot(s_ind_tot == s_ind), err_vals_tot(s_ind_tot == s_ind), '.');
+            e.MarkerSize = 25;
+            e.Color = colors(s_ind, t_ind);
+            e.MarkerFaceColor = colors(s_ind, t_ind);
+            e.DisplayName = abbr_sel(m);
+            end
+            end
+
+            [x_vals_tot_s, sortIndices] = sort(x_vals_tot);
+            model_s = model(sortIndices);
+
+            p = plot(ax, x_vals_tot_s, exp(model_s));
+            p.Color = 'black';
+            p.DisplayName = label;
+            p.LineWidth = 2;
+
+            % ---------Plotting model-----------
+            % aerodynamics model is nondimensionalized, so
+            % data should also be nondimensionalized when
+            % comparing the two. Also only occurs if
+            % frequency or wind speed have changed
+            if (obj.norm && obj.aero_model)
+                y_vals_mod_tot = -y_vals_mod_tot; % can't do log of a negative num
+                y_vals_mod_tot = y_vals_mod_tot - min(y_vals_mod_tot);
+                
+                bad_ind = [];
+                for n = 1:length(x_vals_mod_tot)
+                    if (x_vals_mod_tot(n) < 0.01 || y_vals_mod_tot(n) == 0)
+                       bad_ind = [bad_ind n]; 
+                    end
+                end
+                x_vals_mod_tot(bad_ind) = [];
+                y_vals_mod_tot(bad_ind) = [];
+
+                marker_list = ["o", "square", "^", "v"];
+                temp_colors(:,1) = ["#fdbe85";"#fd8d3c";"#e6550d";...
+                       "#a63603"];
+
+                if (obj.amplitudes)
+                for j = 1:length(amplitude_list)
+                    % HAVENT FIXED THIS TO MAKE IT WORK YET
+                    s = scatter(ax, x_vals_mod(j,:), y_vals_mod(j,:), 40);
+                    % s.MarkerEdgeColor = colors(s_ind, t_ind);
+                    s.MarkerEdgeColor = temp_colors(j);
+                    s.LineWidth = 2; % char(176) for degree symbol
+                    s.DisplayName = "A = " + rad2deg(amplitude_list(j)); % + ", Model: " + abbr_sel(i);
+                    s.Marker = marker_list(j); % + "\textbf{^{\circ}}"
+                end
+                else
+                    s = scatter(ax, x_vals_mod_tot, y_vals_mod_tot, 40);
+                    % s.MarkerEdgeColor = colors(s_ind, t_ind);
+                    s.LineWidth = 2;
+                    % s.DisplayName = "Model: " + abbr_sel(i);
+
+                    % regression
+                    x_vals_reg = log(x_vals_mod_tot);
+                    y_vals_reg = log(y_vals_mod_tot);
+                    x = [ones(size(x_vals_reg')), x_vals_reg'];
+                    y = y_vals_reg';
+                    b = x\y;
+                    model = x*b;
+                    Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
+                    % label = "y = " + round(b(2),3) + "x + " + round(b(1),3) + ", R^2 = " + round(Rsq,3);
+                    label = "y = " + round(exp(b(1)),3) + "*x^{" + round(b(2),3) + "}, R^2 = " + round(Rsq,3);
+
+                    [x_vals_mod_tot_s, sortIndices] = sort(x_vals_mod_tot);
+                    model_s = model(sortIndices);
+        
+                    p = plot(ax, x_vals_mod_tot_s, exp(model_s));
+                    p.DisplayName = label;
+                    p.LineWidth = 2;
+                end
+            end
+
 
         end
 
