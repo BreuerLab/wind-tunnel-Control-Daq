@@ -27,6 +27,7 @@ properties
     thinAirfoil;
     amplitudes;
     saveFig;
+    logScale;
 
     plot_type;
 end
@@ -53,6 +54,7 @@ methods
         obj.aero_model = false;
         obj.thinAirfoil = false;
         obj.saveFig = false;
+        obj.logScale = false;
 
         obj.plot_type = 1;
 
@@ -199,6 +201,13 @@ methods
         b11.Position = [20 button9_y 160 unit_height];
         b11.BackgroundColor = [1 1 1];
         b11.ButtonPushedFcn = @(src, event) save_figure(src, event, plot_panel);
+
+        button10_y = button9_y + (unit_height + unit_spacing);
+        b12 = uibutton(option_panel,"state");
+        b12.Text = "Log Scaling";
+        b12.Position = [20 button10_y 160 unit_height];
+        b12.BackgroundColor = [1 1 1];
+        b12.ValueChangedFcn = @(src, event) log_scaling(src, event, plot_panel);
 
         obj.update_plot(plot_panel);
 
@@ -391,6 +400,18 @@ methods
             obj.saveFig = true;
             obj.update_plot(plot_panel);
             obj.saveFig = false;
+        end
+
+        function log_scaling(src, ~, plot_panel)
+            if (src.Value)
+                obj.logScale = true;
+                src.BackgroundColor = [0.3010 0.7450 0.9330];
+            else
+                obj.logScale = false;
+                src.BackgroundColor = [1 1 1];
+            end
+
+            obj.update_plot(plot_panel);
         end
         %-----------------------------------------------------%
         %-----------------------------------------------------%
@@ -774,7 +795,7 @@ methods (Access = private)
                 mod_slopes = zeros(length(amplitude_list), length(wing_freqs));
                 mod_x_intercepts = zeros(length(amplitude_list), length(wing_freqs));
 
-                AR = 2*cur_bird.AR;
+                AR = cur_bird.AR;
 
                 if obj.thinAirfoil
                     lift_slope = ((2*pi) / (1 + 2/AR));
@@ -845,6 +866,9 @@ methods (Access = private)
             
             show_data = true;
             if show_data
+            if (obj.logScale)
+                y_vals = -y_vals; % can't do log of a negative num
+            end
             e = errorbar(ax, x_vals, y_vals, err_vals, '.');
             e.MarkerSize = 25;
             e.Color = colors(s_ind, t_ind);
@@ -876,10 +900,17 @@ methods (Access = private)
             % frequency or wind speed have changed
             if (obj.norm && obj.aero_model)
                 marker_list = ["o", "square", "^", "v"];
+                temp_colors(:,1) = ["#fdbe85";"#fd8d3c";"#e6550d";...
+                       "#a63603"];
+                if (obj.logScale)
+                    y_mod_vals = -y_mod_vals; % can't do log of a negative num
+                end
+
                 if (obj.amplitudes)
                 for j = 1:length(amplitude_list)
                     s = scatter(ax, x_vals_mod(j,:), y_mod_vals(j,:), 40);
-                    s.MarkerEdgeColor = colors(s_ind, t_ind);
+                    % s.MarkerEdgeColor = colors(s_ind, t_ind);
+                    s.MarkerEdgeColor = temp_colors(j);
                     s.LineWidth = 2; % char(176) for degree symbol
                     s.DisplayName = "A = " + rad2deg(amplitude_list(j)); % + ", Model: " + abbr_sel(i);
                     s.Marker = marker_list(j); % + "\textbf{^{\circ}}"
@@ -907,6 +938,10 @@ methods (Access = private)
         grid(ax, 'on');
         if ~(obj.plot_type == 3 || obj.plot_type == 4)
             l = legend(ax, Location="best");
+        end
+        if (obj.logScale)
+            set(ax, 'XScale', 'log');
+            set(ax, 'YScale', 'log');
         end
         ax.FontSize = 18;
 

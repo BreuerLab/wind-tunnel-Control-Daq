@@ -50,31 +50,53 @@ function eff_wind_plot(time, u_rel, eff_AoA, case_title)
         set(fig, 'Units','pixels','Position', [0, 0, 800, 800]);
         hold on
         % yline(0, LineWidth=2, Color='black')
-        quiver(p1(i, 1),p1(i, 2),dp(i, 1),dp(i, 2),0, LineWidth=4) % u_eff
-        quiver(p2(i, 1),p1(i, 2),p2(i, 1),dp(i, 2),0, LineWidth=4) % v_y
-        quiver(p1(i, 1),p1(i, 2),dp(i, 1),p2(i, 2),0, LineWidth=4) % v_x
+        quiver(p1(i, 1), p1(i, 2), dp(i, 1), dp(i, 2), 0, LineWidth=4) % u_eff
+        quiver(0, p1(i, 2), 0, dp(i, 2), 0, LineWidth=4) % v_y
+        quiver(p1(i, 1), p1(i, 2), dp(i, 1), 0, 0, LineWidth=4) % v_x
 
         % Calculate angle between v_x and u_eff
         % Calculate the angle between the vectors
-        dot_product = dot(p1(i, :), [p2(i, 1), p1(i, 2)]);
-        magnitude_A = norm(A);
-        magnitude_B = norm(B);
-        cos_theta = dot_product / (magnitude_A * magnitude_B);
-        theta = acos(cos_theta); % Angle in radians
-        theta_deg = rad2deg(theta); % Convert to degrees
-        
-        % Display the angle in the plot
-        text(1, 1, ['\theta = ', num2str(theta_deg, '%.2f'), '^\circ'], ...
-            'FontSize', 12, 'Color', 'black');
+        A_vec = dp(i, :);
+        B_vec = [dp(i, 1), 0];
+        x_product = A_vec(1)*B_vec(2) - A_vec(2)*B_vec(1);
+        magnitude_A = norm(A_vec);
+        magnitude_B = norm(B_vec);
+        scaled_product = x_product / (magnitude_A * magnitude_B);
+        theta = asind(scaled_product); % Angle in degrees
+
+        % disp(A_vec)
+        % disp(B_vec)
+        % disp("-------")
+        % disp("-------")
+
+        % XY location of points at middle of vectors to begin drawing arc
+        u_eff_mid = p1(i, :) + dp(i, :) / 2;
+        v_x_mid = [p1(i, 1) + dp(i, 1) / 2, p1(i, 2)];
+        translated_vec = dp(i, :) / 2;
+        translated_vec_s = dp(i, :) * (7 / 16);
+
+        % arc_vector = [u_eff_mid; v_x_mid];
+        % plot(arc_vector(:,1), arc_vector(:,2), Color="black")
         
         % Optionally, add a curved line or arc showing the angle
-        t = linspace(0, theta, 50);
-        arc_x = 0.5 * cos(t);
-        arc_y = 0.5 * sin(t);
-        plot(arc_x, arc_y, 'k--');
+        t = linspace(0, theta, 100);
+        arc = zeros(length(t),2);
+        arc_text = zeros(length(t),2);
+        for j = 1:length(t)
+            rot = [cosd(t(j)), -sind(t(j));
+                   sind(t(j)), cosd(t(j))];
+            arc(j, :) = (rot * translated_vec') + p1(i, :)';
+            arc_text(j,:) = (rot * translated_vec_s') + p1(i, :)';
+        end
+        % arc_x = norm(u_eff_mid)/2 * cosd(t);
+        % arc_y = norm(u_eff_mid)/2 * sind(t);
+        % plot(arc_x, arc_y, Color="black", LineWidth=3);
+        plot(arc_text(:,1), arc_text(:,2), Color="black", LineWidth=3);
 
+        % Labels for vectors
         f_s = 20;
         text(p2(i, 1) + 0.2, p1(i, 2) + dp(i, 2)/2, "u_{root}",FontSize=f_s)
+        % text(arc(51,1), arc(51,2), "\alpha_{eff}",FontSize=f_s);
         if (p1(i, 2) > 0)
             text(p1(i, 1) + dp(i, 1)/2, p1(i, 2) + 0.5, "U_{\infty}",FontSize=f_s)
             text(p1(i, 1) + dp(i, 1)/2 - 0.2, p1(i, 2) + dp(i, 2)/2 - 0.5, "u_{eff}",FontSize=f_s)

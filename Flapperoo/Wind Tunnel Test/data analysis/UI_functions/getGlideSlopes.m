@@ -69,6 +69,10 @@ function [lift_slope, pitch_slope] = getGlideSlopes(path, cur_bird, dir_name, Ao
     lift_slope = mean(lift_slopes);
     pitch_slope = mean(pitch_slopes);
 
+    % Changing slope to be contribution for single wing
+    lift_slope = lift_slope / 2;
+    pitch_slope = pitch_slope / 2;
+
     plot_bool = false;
     if (plot_bool)
         figure

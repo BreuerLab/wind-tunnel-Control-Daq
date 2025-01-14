@@ -28,11 +28,11 @@ userSelect = false;
 nondimensional = true;
 
 % Decide which plots to show using this struct of booleans
-bools.raw = true; % Plot the raw data readings?
-bools.time_data = true; % Plot the data in time
+bools.raw = false; % Plot the raw data readings?
+bools.time_data = false; % Plot the data in time
 bools.kinematics = false; % Plot the wingbeat kinematics?
-bools.eff_wind = false; % Plot the effective wind and AoA?
-bools.model = true; % Plot the modeled forces?
+bools.eff_wind = true; % Plot the effective wind and AoA?
+bools.model = false; % Plot the modeled forces?
 bools.COP = false; % Plot the movement of the Center-of-Pressure?
 bools.movie = false; % Make a movie using all wingbeats?
 bools.spectrum = false; % Plot a frequency spectrum?
