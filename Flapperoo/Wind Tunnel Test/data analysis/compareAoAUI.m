@@ -739,6 +739,7 @@ methods (Access = private)
 
         % count is number of type + speed combos
         colors = getColors(1, num_dir, num_freq, length(obj.selection));
+        % colors = getColors(1, num_freq, num_dir, length(obj.selection));
         end
         [sub_title, abbr_sel] = compareAoAUI.get_abbr_names(obj.selection);
 
@@ -983,12 +984,15 @@ methods (Access = private)
                     p = plot(ax, lim_AoA_sel, model);
                     p.DisplayName = label;
                     p.Color = colors(ind_c_trial, ind_c_dir);
+                    % p.Color = colors(ind_c_dir, ind_c_trial);
                     p.LineWidth = 2;
                 end
                 e = errorbar(ax, lim_AoA_sel, lim_avg_forces(idx,:,freq_index), lim_err_forces(idx,:,freq_index),'.');
                 e.MarkerSize = 25;
                 e.Color = colors(ind_c_trial, ind_c_dir);
                 e.MarkerFaceColor = colors(ind_c_trial, ind_c_dir);
+                % e.Color = colors(ind_c_dir, ind_c_trial);
+                % e.MarkerFaceColor = colors(ind_c_dir, ind_c_trial);
                 e.DisplayName = abbr_sel(i);
                 
                 % ---------Plotting model-----------

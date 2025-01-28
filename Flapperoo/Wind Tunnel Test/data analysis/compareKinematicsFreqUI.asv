@@ -396,10 +396,9 @@ methods (Access = private)
 
                 lift = [];
                 % DOWNSTROKE
-                down_freq = cur_freq * (1/0.3);
-                time_cycle = linspace(0,1,1000);
+                down_freq = cur_freq;
+                time_cycle = linspace(0,0.3,1000);
                 time_cycle = time_cycle' / down_freq;
-                end_down = time_cycle(end);
             
                 ang_disp_cycle = amp.*cos(2*pi*down_freq.*time_cycle);
                 ang_vel_cycle = -2*pi*down_freq*amp.*sin(2*pi*down_freq.*time_cycle);
@@ -423,10 +422,9 @@ methods (Access = private)
                 lift = [lift; down_lift];
 
                 % UPSTROKE
-                up_freq = cur_freq * (1/0.7);
-                time_cycle = linspace(0,1,1000);
+                up_freq = cur_freq;
+                time_cycle = linspace(0.,1,1000);
                 time_cycle = time_cycle' / up_freq;
-                time_cycle = time_cycle + end_down;
             
                 ang_disp_cycle = amp.*cos(2*pi*up_freq.*time_cycle);
                 ang_vel_cycle = -2*pi*up_freq*amp.*sin(2*pi*up_freq.*time_cycle);

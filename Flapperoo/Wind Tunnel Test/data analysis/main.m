@@ -12,7 +12,7 @@ clear
 close all force
 
 % Sets up UI for comparing data over angles of attack
-% monitor_num = 2;
+% monitor_num = 1;
 % data_path = "F:\Final Force Data";
 % a = compareAoAUI(monitor_num, data_path);
 % a.dynamic_plotting();
@@ -39,7 +39,7 @@ c.dynamic_plotting();
 % e = compareKinematicsAoAUI(monitor_num, data_path);
 % e.dynamic_plotting();
 % 
-% monitor_num = 2;
+% monitor_num = 1;
 % data_path = "F:\Final Force Data/";
 % f = compareKinematicsFreqUI(monitor_num, data_path);
 % f.dynamic_plotting();

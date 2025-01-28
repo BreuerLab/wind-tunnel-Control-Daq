@@ -192,7 +192,7 @@ methods
         drop_y4 = AoA_y + (unit_height + unit_spacing);
         d4 = uidropdown(option_panel);
         d4.Position = [10 drop_y4 180 unit_height];
-        d4.Items = ["Stability Slope", "Equilibrium Position", "COM", "Static Margin"];
+        d4.Items = ["Stability Slope", "Equilibrium Position", "COM", "Static Margin", "Neutral Position"];
         d4.ValueChangedFcn = @(src, event) plot_type_change(src, event, plot_panel);
 
         button9_y = drop_y4 + (unit_height + unit_spacing);
@@ -373,7 +373,7 @@ methods
         end
 
         function plot_type_change(src, ~, plot_panel)
-            options = ["Stability Slope", "Equilibrium Position", "COM", "Static Margin"];
+            options = ["Stability Slope", "Equilibrium Position", "COM", "Static Margin", "Neutral Position"];
             obj.plot_type = find(options == src.Value);
 
             obj.update_plot(plot_panel);
@@ -563,9 +563,11 @@ methods (Access = private)
             disp("--------------------------------------------")
         end
 
-        if (obj.plot_type == 1 || obj.plot_type == 2)
+        if (obj.plot_type == 1 || obj.plot_type == 2 || obj.plot_type == 5)
             if (obj.st)
                 x_label = "Strouhal Number"; % $\mathbf{St = \frac{f A}{U_{\infty}}}
+            elseif (obj.amplitudes)
+                x_label = "Amplitude (°)";
             else
                 x_label = "Wingbeat Frequency (Hz)";
             end
@@ -584,11 +586,11 @@ methods (Access = private)
                 y_label = "Pitch Stability Slope";
             end
         elseif (obj.plot_type == 2)
-            if (obj.norm)
-                y_label = "Normalized Equilibrium Angle (deg)";
-            else
-                y_label = "Equilibrium Angle (deg)";
-            end
+            y_label = "Equilibrium Angle (deg)";
+            % Previously had a "normalized equilibrium angle", don't know
+            % why that should be different, one case I looked at was same
+        elseif (obj.plot_type == 5)
+            y_label = "Neutral Position (% chord)";
         end
 
         if (~isempty(obj.selection))
@@ -704,7 +706,7 @@ methods (Access = private)
             % Load associated norm_factors file, used for COM
             % plot where normalization can only be done after
             % shifting pitch moment
-            if (obj.plot_type == 3 || obj.plot_type == 4)
+            if (obj.plot_type == 3 || obj.plot_type == 4 || obj.plot_type == 5)
             norm_factors_path = obj.data_path + "/plot data/" + cur_bird.name + "/norm_factors/";
             norm_factors_filename = compareStabilityUI.get_norm_factors_name(norm_factors_path, cur_struct_match.dir_name);
 
@@ -749,6 +751,7 @@ methods (Access = private)
             slopes = [];
             x_intercepts = [];
             err_slopes = [];
+            NP_positions = [];
             for k = 1:length(wing_freqs)
                 idx = 5; % pitch moment
                 x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
@@ -763,8 +766,15 @@ methods (Access = private)
                 err_slopes = [err_slopes SE_slope];
                 x_intercepts = [x_intercepts x_int];
 
+                [center_to_LE, chord, ~, ~, ~] = getWingMeasurements(cur_bird.name);
+
+                if (obj.plot_type == 5)
+                    NP_pos = findNP(lim_avg_forces(:,:,k), lim_AoA_sel);
+                    [NP_pos_LE, NP_pos_chord] = posToChord(NP_pos, center_to_LE, chord);
+                    NP_positions = [NP_positions NP_pos_chord];
+                end
+
                 if (obj.plot_type == 3 || obj.plot_type == 4)
-                    [center_to_LE, chord, ~, ~, ~] = getWingMeasurements(cur_bird.name);
                     [distance_vals_chord, static_margin, slopes_pos] = ...
                         findCOMrange(lim_avg_forces(:,:,k), lim_AoA_sel, center_to_LE, chord, obj.norm, norm_factors);
                     
@@ -793,6 +803,7 @@ methods (Access = private)
             % Predictions
             mod_slopes = [];
             mod_x_intercepts = [];
+            mult_amp = false;
             if (obj.aero_model)
                 if (obj.amplitudes)
                     amplitude_list = [pi/12, pi/6, pi/4, pi/3];
@@ -836,7 +847,7 @@ methods (Access = private)
                 end
             end
 
-            if (obj.plot_type == 1 || obj.plot_type == 2)
+            if (obj.plot_type == 1 || obj.plot_type == 2 || obj.plot_type == 5)
 
             if (obj.st)
                 x_vals = zeros(1,length(wing_freqs));
@@ -857,7 +868,10 @@ methods (Access = private)
                 if (obj.aero_model)
                 x_vals_mod = zeros(length(amplitude_list),length(wing_freqs));
                 for j = 1:length(amplitude_list)
-                    x_vals_mod(j,:) = x_vals;
+                    for k = 1:length(wing_freqs)
+                        % x_vals_mod(j,k) = x_vals(j,k);
+                        x_vals_mod(j,k) = amplitude_list(j);
+                    end
                 end
                 end
             end
@@ -870,6 +884,9 @@ methods (Access = private)
                 y_vals = x_intercepts;
                 err_vals = zeros(1,length(x_intercepts));
                 y_vals_mod = mod_x_intercepts;
+            elseif (obj.plot_type == 5)
+                y_vals = NP_positions;
+                err_vals = zeros(1,length(NP_positions));
             end
 
             x_vals_tot = [x_vals_tot x_vals];
@@ -926,17 +943,19 @@ methods (Access = private)
             % frequency or wind speed have changed
             if (obj.norm && obj.aero_model)
                 marker_list = ["o", "square", "^", "v"];
-                temp_colors(:,1) = ["#fdbe85";"#fd8d3c";"#e6550d";...
-                       "#a63603"];
+                temp_colors(:,1) = ["#deebf7","#c6dbef","#9ecae1","#6baed6",...
+                    "#4292c6","#2171b5","#08519c","#08306b","#fee6ce","#fdd0a2","#fdae6b","#fd8d3c",...
+                    "#f16913","#d94801","#a63603","#7f2704"];
 
                 if (obj.amplitudes)
-                for j = 1:length(amplitude_list)
-                    s = scatter(ax, x_vals_mod(j,:), y_vals_mod(j,:), 40);
+                for j = 1:length(wing_freqs)
+                    s = scatter(ax, x_vals_mod(:,j), y_vals_mod(:,j), 40);
                     % s.MarkerEdgeColor = colors(s_ind, t_ind);
                     s.MarkerEdgeColor = temp_colors(j);
                     s.LineWidth = 2; % char(176) for degree symbol
-                    s.DisplayName = "A = " + rad2deg(amplitude_list(j)); % + ", Model: " + abbr_sel(i);
-                    s.Marker = marker_list(j); % + "\textbf{^{\circ}}"
+                    % s.DisplayName = "A = " + rad2deg(amplitude_list(j)) + "°"; % + ", Model: " + abbr_sel(i);
+                    s.DisplayName = "Model: " + abbr_sel(i);
+                    % s.Marker = marker_list(j); % + "\textbf{^{\circ}}"
                 end
                 else
                     s = scatter(ax, x_vals_mod, y_vals_mod, 40);
@@ -1006,6 +1025,14 @@ methods (Access = private)
             p.DisplayName = label;
             p.LineWidth = 2;
 
+            len = length(x_vals_tot_s);
+            p = plot(ax, x_vals_tot_s, 0.04*x_vals_tot_s);
+            % p = plot(ax, x_vals_tot_s(round(len*(1/4)):round(len*(3/4))), 0.04*x_vals_tot_s(round(len*(1/4)):round(len*(3/4))));
+            p.Color = 'black';
+            p.DisplayName = "Linear";
+            p.LineWidth = 2;
+            p.LineStyle = '--';
+
             % ---------Plotting model-----------
             % aerodynamics model is nondimensionalized, so
             % data should also be nondimensionalized when
@@ -1028,7 +1055,7 @@ methods (Access = private)
                 temp_colors(:,1) = ["#fdbe85";"#fd8d3c";"#e6550d";...
                        "#a63603"];
 
-                if (obj.amplitudes)
+                if (mult_amp)
                 for j = 1:length(amplitude_list)
                     % HAVENT FIXED THIS TO MAKE IT WORK YET
                     s = scatter(ax, x_vals_mod(j,:), y_vals_mod(j,:), 40);
