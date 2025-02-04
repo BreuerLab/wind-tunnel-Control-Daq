@@ -26,7 +26,7 @@ function [NP_pos, NP_pos_err, NP_mom] = findNP(avg_results, AoA_sel)
 
     shift_distance = 0;
     iter = 0;
-    max_iter = 100000;
+    max_iter = 200000;
     Rsq_vals = zeros(1,max_iter);
     res_vals = zeros(1,max_iter);
     % keep adjusting COP position until slope falls within

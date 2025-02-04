@@ -42,6 +42,8 @@ frames_per_beat = length(results) / num_wingbeats;
 results = results(:, round(frames_per_beat*(1/4)):end - round(frames_per_beat*(3/4)));
 num_wingbeats = num_wingbeats - 1;
 
+% I think I'm using 102/202 from kinematics since it's not perfectly
+% symmetric in terms of time spent in downstroke/upstroke
 downstroke_length = round(frames_per_beat * (102/202));
 
 wingbeat_forces = zeros(6, num_wingbeats, round(frames_per_beat));

@@ -32,11 +32,8 @@ function [distance_vals_chord, static_margin, slopes, x_ints] = findCOMrange(avg
     slopes = NaN(1,10000);
     x_ints = NaN(1,10000);
 
-    movie_bool = false;
-    if (movie_bool)
-        outputFolder = "COM_movie";
-        mkdir(outputFolder)
-    end
+    outputFolder = "COM_movie";
+    mkdir(outputFolder)
 
     shift_distance = shift_distance_init;
     iter = 0;
@@ -65,23 +62,20 @@ function [distance_vals_chord, static_margin, slopes, x_ints] = findCOMrange(avg
         slopes(iter) = slope;
         x_ints(iter) = x_int;
 
-        if (movie_bool && mod(iter,10) == 0)
+        if (movie_bool)
         % Open a new figure.
         fig = figure;
         fig.Visible = "off";
         set(fig, 'Units','pixels','Position', [0, 0, 800, 800]);
 
-        hold on
-        scatter(AoA_sel, y, 'filled')
-        plot(AoA_sel, model, 'k--')
-        xline(0)
-        yline(0)
-        ylim([-2.5 2.5])
+        plot(AoA_sel, model)
 
         exportgraphics(fig, fullfile(outputFolder, sprintf('frame%04d.png',iter)), ...
             'Resolution',300)
 
-        disp(iter + " frames")
+        if (mod(iter,10) == 0)
+            disp(iter + " frames")
+        end
         end
     end
 

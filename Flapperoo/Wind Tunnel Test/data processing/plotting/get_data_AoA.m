@@ -118,13 +118,15 @@ for i = 1 : length(processed_files)
 
         if (wing_freq == 0)
             forces = filtered_data;
-            up_forces = zeros(size(filtered_data));
-            down_forces = zeros(size(filtered_data));
+            % up_forces = zeros(size(filtered_data));
+            % down_forces = zeros(size(filtered_data));
         else
             forces = cycle_avg_forces;
-            up_forces = upstroke_avg_forces;
-            down_forces = downstroke_avg_forces;
+            % up_forces = upstroke_avg_forces;
+            % down_forces = downstroke_avg_forces;
         end
+        up_forces = zeros(size(forces));
+        down_forces = zeros(size(forces));
         % Maybe need to add squeeze(cycle_avg_forces) above
 
         forces = applyBools(forces, sub_drift, modFileName, offsets_files, shift_bool, AoA, nondimensional, norm_factors);

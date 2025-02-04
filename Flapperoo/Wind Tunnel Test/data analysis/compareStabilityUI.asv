@@ -192,7 +192,7 @@ methods
         drop_y4 = AoA_y + (unit_height + unit_spacing);
         d4 = uidropdown(option_panel);
         d4.Position = [10 drop_y4 180 unit_height];
-        d4.Items = ["Stability Slope", "Equilibrium Position", "COM", "Static Margin", "Neutral Position"];
+        d4.Items = ["Stability Slope", "Equilibrium Position", "COM", "Static Margin", "Neutral Position", "Moment at NP", "Equilibrium"];
         d4.ValueChangedFcn = @(src, event) plot_type_change(src, event, plot_panel);
 
         button9_y = drop_y4 + (unit_height + unit_spacing);
@@ -373,7 +373,7 @@ methods
         end
 
         function plot_type_change(src, ~, plot_panel)
-            options = ["Stability Slope", "Equilibrium Position", "COM", "Static Margin", "Neutral Position"];
+            options = ["Stability Slope", "Equilibrium Position", "COM", "Static Margin", "Neutral Position", "Moment at NP", "Equilibrium"];
             obj.plot_type = find(options == src.Value);
 
             obj.update_plot(plot_panel);
@@ -563,16 +563,16 @@ methods (Access = private)
             disp("--------------------------------------------")
         end
 
-        if (obj.plot_type == 1 || obj.plot_type == 2 || obj.plot)
+        if (obj.plot_type == 1 || obj.plot_type == 2 || obj.plot_type == 5 || obj.plot_type == 6)
             if (obj.st)
                 x_label = "Strouhal Number"; % $\mathbf{St = \frac{f A}{U_{\infty}}}
-            elseif (obj.amplitudes)
-                x_label = "Amplitude (°)";
+            % elseif (obj.amplitudes)
+            %     x_label = "Amplitude (°)";
             else
                 x_label = "Wingbeat Frequency (Hz)";
             end
         else
-            if (obj.plot_type == 3)
+            if (obj.plot_type == 3 || obj.plot_type == 7)
                 x_label = "COM Position (% chord)";
             elseif (obj.plot_type == 4)
                 x_label = "Static Margin (% chord)";
@@ -591,6 +591,10 @@ methods (Access = private)
             % why that should be different, one case I looked at was same
         elseif (obj.plot_type == 5)
             y_label = "Neutral Position (% chord)";
+        elseif (obj.plot_type == 6)
+            y_label = "Moment at Neutral Position";
+        elseif (obj.plot_type == 7)
+            y_label = "Equilibrium Angle (deg)";
         end
 
         if (~isempty(obj.selection))
@@ -633,7 +637,7 @@ methods (Access = private)
         ax = axes(plot_panel);
         hold(ax, 'on');
 
-        if (obj.plot_type == 3 || obj.plot_type == 4)
+        if (obj.plot_type == 3 || obj.plot_type == 4 || obj.plot_type == 7)
             % sequential colors
             map = ["#ccebc5"; "#a8ddb5"; "#7bccc4"; "#43a2ca"; "#0868ac"];
             % map = ["#fef0d9"; "#fdcc8a"; "#fc8d59"; "#e34a33"; "#b30000"];
@@ -706,7 +710,7 @@ methods (Access = private)
             % Load associated norm_factors file, used for COM
             % plot where normalization can only be done after
             % shifting pitch moment
-            if (obj.plot_type == 3 || obj.plot_type == 4 || obj.plot_type == 5)
+            if (obj.plot_type == 3 || obj.plot_type == 4 || obj.plot_type == 5 || obj.plot_type == 6 || obj.plot_type == 7)
             norm_factors_path = obj.data_path + "/plot data/" + cur_bird.name + "/norm_factors/";
             norm_factors_filename = compareStabilityUI.get_norm_factors_name(norm_factors_path, cur_struct_match.dir_name);
 
@@ -743,6 +747,9 @@ methods (Access = private)
                 wing_freqs_str = cur_bird.freqs;
             end
             wing_freqs = str2double(extractBefore(wing_freqs_str, " Hz"));
+            
+            % temp test to remove 0 and 0.1 Hz
+            % wing_freqs = wing_freqs(3:end);
 
             % Skip gliding case
             % wing_freqs = wing_freqs(wing_freqs ~= 0);
@@ -752,6 +759,7 @@ methods (Access = private)
             x_intercepts = [];
             err_slopes = [];
             NP_positions = [];
+            NP_moms = [];
             for k = 1:length(wing_freqs)
                 idx = 5; % pitch moment
                 x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
@@ -766,22 +774,57 @@ methods (Access = private)
                 err_slopes = [err_slopes SE_slope];
                 x_intercepts = [x_intercepts x_int];
 
+                % -----------------
+                % temp code to consider slopes about gliding NP
+                shifted_results = shiftPitchMom(lim_avg_forces(:,:,k), NP_pos, lim_AoA_sel);
+                shifted_pitch_moment = shifted_results(5,:);
+
+                x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
+                y = shifted_pitch_moment';
+                b = x\y;
+                model = x*b;
+                % Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
+                SE_slope = (sum((y - model).^2) / (sum((lim_AoA_sel - mean(lim_AoA_sel)).^2)*(length(lim_AoA_sel) - 2)) ).^(1/2);
+                x_int = - b(1) / b(2);
+
+                slopes = [slopes b(2)];
+                err_slopes = [err_slopes SE_slope];
+                x_intercepts = [x_intercepts x_int];
+
+                % --------------
+
                 [center_to_LE, chord, ~, ~, ~] = getWingMeasurements(cur_bird.name);
 
-                if (obj.plot_type == 5)
-                    NP_pos = findNP(lim_avg_forces(:,:,k), lim_AoA_sel);
+                if (obj.plot_type == 5 || obj.plot_type == 6)
+                    [NP_pos, NP_pos_err, NP_mom] = findNP(lim_avg_forces(:,:,k), lim_AoA_sel);
+
+                    % temp code to consider slopes about gliding NP
+                    % shifted_results = shiftPitchMom(avg_results, shift_distance, AoA_sel);
+                    % shifted_pitch_moment = shifted_results(5,:);
+
+                    if (obj.norm)
+                        NP_mom = NP_mom / norm_factors(2);
+                    end
                     [NP_pos_LE, NP_pos_chord] = posToChord(NP_pos, center_to_LE, chord);
                     NP_positions = [NP_positions NP_pos_chord];
+                    NP_moms = [NP_moms NP_mom];
                 end
 
-                if (obj.plot_type == 3 || obj.plot_type == 4)
-                    [distance_vals_chord, static_margin, slopes_pos] = ...
+                if (obj.plot_type == 3 || obj.plot_type == 4 || obj.plot_type == 7)
+                    [distance_vals_chord, static_margin, slopes_pos, x_ints] = ...
                         findCOMrange(lim_avg_forces(:,:,k), lim_AoA_sel, center_to_LE, chord, obj.norm, norm_factors);
                     
                     if (obj.plot_type == 3)
                         x_vals = distance_vals_chord;
+                        y_vals = slopes_pos;
+                        % temp test to see if lines will collapse
+                        % y_vals = y_vals / (wing_freqs(k) / wind_speed)^(1.6);
                     elseif (obj.plot_type == 4)
                         x_vals = static_margin;
+                        y_vals = slopes_pos;
+                    elseif (obj.plot_type == 7)
+                        x_vals = distance_vals_chord;
+                        y_vals = x_ints;
                     end
 
                     if (obj.st)
@@ -792,10 +835,14 @@ methods (Access = private)
                     line_color = interp1(zmap, cmap, wing_freqs(k));
                     end
 
-                    line = plot(ax, x_vals, slopes_pos);
+                    line = plot(ax, x_vals, y_vals);
                     line.LineWidth = 2;
                     line.HandleVisibility = 'off';
                     line.Color = line_color;
+                    if (obj.plot_type == 7)
+                        ylim(ax, [-5 5])
+                        xlim(ax, [min(x_vals) max(x_vals)])
+                    end
                 end
             end
             
@@ -803,6 +850,8 @@ methods (Access = private)
             % Predictions
             mod_slopes = [];
             mod_x_intercepts = [];
+            mod_NPs = [];
+            mod_NP_moms = [];
             mult_amp = false;
             if (obj.aero_model)
                 if (obj.amplitudes)
@@ -813,6 +862,8 @@ methods (Access = private)
 
                 mod_slopes = zeros(length(amplitude_list), length(wing_freqs));
                 mod_x_intercepts = zeros(length(amplitude_list), length(wing_freqs));
+                mod_NPs = zeros(length(amplitude_list), length(wing_freqs));
+                mod_NP_moms = zeros(length(amplitude_list), length(wing_freqs));
 
                 AR = cur_bird.AR;
 
@@ -843,11 +894,32 @@ methods (Access = private)
 
                 mod_slopes(j,k) = b(2);
                 mod_x_intercepts(j,k) = x_int;
+
+                if (obj.plot_type == 3 || obj.plot_type == 4 || obj.plot_type == 7)
+                % To find NP, force needs to be non-normalized since
+                % shifting must be done with real dimensions
+                aero_force_dim = zeros(size(squeeze(aero_force)));
+                for m = 1:6
+                    if (m <= 3)
+                        aero_force_dim(m,:) = aero_force(m,:) * norm_factors(1);
+                    else
+                        aero_force_dim(m,:) = aero_force(m,:) * norm_factors(2);
+                    end
+                end
+
+                [NP_pos, NP_pos_err, NP_mom] = findNP(aero_force_dim, lim_AoA_sel);
+                % Nondimensionalize moment
+                NP_mom = NP_mom / norm_factors(2);
+
+                [NP_pos_LE, NP_pos_chord] = posToChord(NP_pos, center_to_LE, chord);
+                mod_NPs(j,k) = NP_pos_chord;
+                mod_NP_moms(j,k) = NP_mom;
+                end
                 end
                 end
             end
 
-            if (obj.plot_type == 1 || obj.plot_type == 2 || obj.plot_type == 5)
+            if (obj.plot_type == 1 || obj.plot_type == 2 || obj.plot_type == 5 || obj.plot_type == 6)
 
             if (obj.st)
                 x_vals = zeros(1,length(wing_freqs));
@@ -865,12 +937,13 @@ methods (Access = private)
                 end
             else
                 x_vals = wing_freqs;
+                
                 if (obj.aero_model)
                 x_vals_mod = zeros(length(amplitude_list),length(wing_freqs));
                 for j = 1:length(amplitude_list)
                     for k = 1:length(wing_freqs)
-                        % x_vals_mod(j,k) = x_vals(j,k);
-                        x_vals_mod(j,k) = amplitude_list(j);
+                        x_vals_mod(j,k) = x_vals(k);
+                        % x_vals_mod(j,k) = amplitude_list(j);
                     end
                 end
                 end
@@ -887,6 +960,11 @@ methods (Access = private)
             elseif (obj.plot_type == 5)
                 y_vals = NP_positions;
                 err_vals = zeros(1,length(NP_positions));
+                y_vals_mod = mod_NPs;
+            elseif (obj.plot_type == 6)
+                y_vals = NP_moms;
+                err_vals = zeros(1,length(NP_moms));
+                y_vals_mod = mod_NP_moms;
             end
 
             x_vals_tot = [x_vals_tot x_vals];
@@ -943,19 +1021,17 @@ methods (Access = private)
             % frequency or wind speed have changed
             if (obj.norm && obj.aero_model)
                 marker_list = ["o", "square", "^", "v"];
-                temp_colors(:,1) = ["#deebf7","#c6dbef","#9ecae1","#6baed6",...
-                    "#4292c6","#2171b5","#08519c","#08306b","#fee6ce","#fdd0a2","#fdae6b","#fd8d3c",...
-                    "#f16913","#d94801","#a63603","#7f2704"];
+                temp_colors(:,1) = ["#bae4b3";"#74c476";"#31a354";...
+                       "#006d2c"];
 
                 if (obj.amplitudes)
-                for j = 1:length(wing_freqs)
-                    s = scatter(ax, x_vals_mod(:,j), y_vals_mod(:,j), 40);
+                for j = 1:length(amplitude_list)
+                    s = scatter(ax, x_vals_mod(j,:), y_vals_mod(j,:), 40);
                     % s.MarkerEdgeColor = colors(s_ind, t_ind);
                     s.MarkerEdgeColor = temp_colors(j);
                     s.LineWidth = 2; % char(176) for degree symbol
-                    % s.DisplayName = "A = " + rad2deg(amplitude_list(j)) + "°"; % + ", Model: " + abbr_sel(i);
-                    s.DisplayName = "Model: " + abbr_sel(i);
-                    % s.Marker = marker_list(j); % + "\textbf{^{\circ}}"
+                    s.DisplayName = "A = " + rad2deg(amplitude_list(j)) + "°"; % + ", Model: " + abbr_sel(i);
+                    s.Marker = marker_list(j); % + "\textbf{^{\circ}}"
                 end
                 else
                     s = scatter(ax, x_vals_mod, y_vals_mod, 40);
@@ -963,11 +1039,11 @@ methods (Access = private)
                     s.LineWidth = 2;
                     s.DisplayName = "Model: " + abbr_sel(i);
 
-                    x_var_mod = x_vals_mod(2:end);
-                    y_var_mod = y_vals_mod(2:end);
-
-                    test_fit = fit(x_var_mod', y_var_mod', 'power2')
-                    y_mod = test_fit.a * x_var_mod.^(test_fit.b) + test_fit.c;
+                    % x_var_mod = x_vals_mod(2:end);
+                    % y_var_mod = y_vals_mod(2:end);
+                    % 
+                    % test_fit = fit(x_var_mod', y_var_mod', 'power2')
+                    % y_mod = test_fit.a * x_var_mod.^(test_fit.b) + test_fit.c;
                 end
             end
         end
@@ -1098,7 +1174,7 @@ methods (Access = private)
         xlabel(ax, x_label);
         ylabel(ax, y_label)
         grid(ax, 'on');
-        if ~(obj.plot_type == 3 || obj.plot_type == 4)
+        if ~(obj.plot_type == 3 || obj.plot_type == 4 || obj.plot_type == 7)
             l = legend(ax, Location="best");
         end
         if (obj.logScale)
