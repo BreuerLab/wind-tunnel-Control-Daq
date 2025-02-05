@@ -27,8 +27,9 @@ function St = freqToSt(flapper, wing_freq, wind_speed, path, amp)
 
     % [eff_AoA, u_rel] = get_eff_wind(time, lin_vel, 0, wind_speed);
     % % mean_w = mean(abs(lin_vel),"all"); % mean positive wing velocity
-    % % mean_w = mean(abs(u_rel(:,end)),"all"); % mean positive tip velocity
-    % mean_w = max(abs(u_rel),[],"all"); % mean positive tip velocity
+    % mean_w = max(abs(lin_vel),[],"all"); % max positive tip effective velocity
+    % % mean_w = mean(abs(u_rel(:,end)),"all"); % mean positive tip effective velocity
+    % % mean_w = max(abs(u_rel),[],"all"); % max positive tip effective velocity
     % St = (mean_w) / wind_speed;
     % St = round(St,3,"significant");
 

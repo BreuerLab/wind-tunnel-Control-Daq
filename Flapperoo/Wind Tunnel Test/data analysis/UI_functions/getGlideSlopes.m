@@ -1,4 +1,4 @@
-function [lift_slope, pitch_slope] = getGlideSlopes(path, cur_bird, dir_name, AoA_range)
+function [lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha] = getGlideSlopes(path, cur_bird, dir_name, AoA_range)
     speeds = [3, 4, 5, 6];
 
     theFiles = cur_bird.file_list;
@@ -25,7 +25,7 @@ function [lift_slope, pitch_slope] = getGlideSlopes(path, cur_bird, dir_name, Ao
         end
     end
     if count > 4
-        error("Woah, found too many matching files")
+        error("Woah, found " + count + " (too many) matching files")
     end
 
     lim_AoA_sel = cur_bird.angles(cur_bird.angles >= AoA_range(1) & cur_bird.angles <= AoA_range(2));
@@ -35,6 +35,8 @@ function [lift_slope, pitch_slope] = getGlideSlopes(path, cur_bird, dir_name, Ao
 
     lift_slopes = zeros(1,length(matches));
     pitch_slopes = zeros(1,length(matches));
+    zero_lift_alphas = zeros(1,length(matches));
+    zero_pitch_alphas = zeros(1,length(matches));
     for i = 1:length(matches)
         matched_filename = matches(i);
         cur_file = path + "/" + matched_filename;
@@ -50,7 +52,7 @@ function [lift_slope, pitch_slope] = getGlideSlopes(path, cur_bird, dir_name, Ao
         b_l = x\y;
         model_lift = x*b_l;
         cur_lift_slope = b_l(2);
-        % alpha_zero_l = - b_l(1) / b_l(2);
+        zero_l_alpha = - b_l(1) / b_l(2);
         % Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
         % SE_slope = (sum((y - model).^2) / (sum((lim_AoA_sel - mean(lim_AoA_sel)).^2)*(length(lim_AoA_sel) - 2)) ).^(1/2);
         % x_int = - b(1) / b(2);
@@ -60,18 +62,22 @@ function [lift_slope, pitch_slope] = getGlideSlopes(path, cur_bird, dir_name, Ao
         b_p = x\y;
         model_pitch = x*b_p;
         cur_pitch_slope = b_p(2);
-        % alpha_zero_p = - b_p(1) / b_p(2);
+        zero_p_alpha = - b_p(1) / b_p(2);
     
         lift_slopes(i) = cur_lift_slope;
         pitch_slopes(i) = cur_pitch_slope;
+        zero_lift_alphas(i) = zero_l_alpha;
+        zero_pitch_alphas(i) = zero_p_alpha;
     end
 
     lift_slope = mean(lift_slopes);
     pitch_slope = mean(pitch_slopes);
+    zero_lift_alpha = rad2deg(mean(zero_lift_alphas));
+    zero_pitch_alpha = rad2deg(mean(zero_pitch_alphas));
 
     % Changing slope to be contribution for single wing
-    lift_slope = lift_slope / 2;
-    pitch_slope = pitch_slope / 2;
+    % lift_slope = lift_slope / 2;
+    % pitch_slope = pitch_slope / 2;
 
     plot_bool = false;
     if (plot_bool)

@@ -839,12 +839,17 @@ methods (Access = private)
                     if obj.thinAirfoil
                         lift_slope = ((2*pi) / (1 + 2/AR));
                         pitch_slope = -lift_slope / 4;
+                        zero_lift_alpha = 0;
+                        zero_pitch_alpha = 0;
                     else
-                        [lift_slope, pitch_slope] = getGlideSlopes(lim_AoA_sel, lim_avg_forces);
+                        path = obj.data_path + "/plot data/" + cur_bird.name;
+                        [lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha]...
+                            = getGlideSlopes(path, cur_bird, cur_struct_match.dir_name, obj.range);
                     end
     
+                    amp = -1;
                     aero_force = get_model(cur_bird.name, obj.data_path, lim_AoA_sel, wing_freq, wind_speed,...
-                                                        lift_slope, pitch_slope, AR);
+                        lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, amp);
                 end
 
                 for idx = 1:6
@@ -965,12 +970,17 @@ methods (Access = private)
                     if obj.thinAirfoil
                         lift_slope = ((2*pi) / (1 + 2/AR));
                         pitch_slope = -lift_slope / 4;
+                        zero_lift_alpha = 0;
+                        zero_pitch_alpha = 0;
                     else
-                        [lift_slope, pitch_slope] = getGlideSlopes(lim_AoA_sel, lim_avg_forces);
+                        path = obj.data_path + "/plot data/" + cur_bird.name;
+                        [lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha]...
+                            = getGlideSlopes(path, cur_bird, cur_struct_match.dir_name, obj.range);
                     end
     
+                    amp = -1;
                     aero_force = get_model(cur_bird.name, obj.data_path, lim_AoA_sel, wing_freq, wind_speed,...
-                                                        lift_slope, pitch_slope, AR);
+                        lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, amp);
                 end
 
                 hold(ax, 'on');

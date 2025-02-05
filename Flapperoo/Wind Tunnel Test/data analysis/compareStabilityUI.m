@@ -28,6 +28,7 @@ properties
     amplitudes;
     saveFig;
     logScale;
+    zeroSlope;
 
     x_var;
     y_var;
@@ -56,6 +57,7 @@ methods
         obj.thinAirfoil = false;
         obj.saveFig = false;
         obj.logScale = false;
+        obj.zeroSlope = false;
 
         obj.x_var = 1;
         obj.y_var = 1;
@@ -220,6 +222,13 @@ methods
         b12.Position = [20 button10_y 160 unit_height];
         b12.BackgroundColor = [1 1 1];
         b12.ValueChangedFcn = @(src, event) log_scaling(src, event, plot_panel);
+
+        button11_y = button10_y + (unit_height + unit_spacing);
+        b13 = uibutton(option_panel,"state");
+        b13.Text = "Zero Slope";
+        b13.Position = [20 button11_y 160 unit_height];
+        b13.BackgroundColor = [1 1 1];
+        b13.ValueChangedFcn = @(src, event) zero_slope(src, event, plot_panel);
 
         obj.update_plot(plot_panel);
 
@@ -428,6 +437,18 @@ methods
                 src.BackgroundColor = [0.3010 0.7450 0.9330];
             else
                 obj.logScale = false;
+                src.BackgroundColor = [1 1 1];
+            end
+
+            obj.update_plot(plot_panel);
+        end
+
+        function zero_slope(src, ~, plot_panel)
+            if (src.Value)
+                obj.zeroSlope = true;
+                src.BackgroundColor = [0.3010 0.7450 0.9330];
+            else
+                obj.zeroSlope = false;
                 src.BackgroundColor = [1 1 1];
             end
 
@@ -769,8 +790,16 @@ methods (Access = private)
             % wing_freqs = wing_freqs(wing_freqs ~= 0);
             % wing_freqs = wing_freqs(wing_freqs ~= 0.1);
 
-            % get glide NP_pos
-            [NP_pos_glide, ~, ~] = findNP(lim_avg_forces(:,:,1), lim_AoA_sel);
+            % Get slope from gliding
+            idx = 5; % pitch moment
+            x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
+            y = lim_avg_forces(idx,:,1)';
+            b = x\y;
+            model = x*b;
+            % Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
+            SE_slope = (sum((y - model).^2) / (sum((lim_AoA_sel - mean(lim_AoA_sel)).^2)*(length(lim_AoA_sel) - 2)) ).^(1/2);
+            x_int = - b(1) / b(2);
+            glide_slope = b(2);
             
             
             slopes = [];
@@ -787,29 +816,17 @@ methods (Access = private)
                 % Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
                 SE_slope = (sum((y - model).^2) / (sum((lim_AoA_sel - mean(lim_AoA_sel)).^2)*(length(lim_AoA_sel) - 2)) ).^(1/2);
                 x_int = - b(1) / b(2);
+                slope = b(2);
 
-                slopes = [slopes b(2)];
+                % zero slope with glide slope so different body types can
+                % be better compared
+                if (obj.zeroSlope)
+                    slope = slope - glide_slope;
+                end
+
+                slopes = [slopes slope];
                 err_slopes = [err_slopes SE_slope];
                 x_intercepts = [x_intercepts x_int];
-
-                % -----------------
-                % temp code to consider slopes about gliding NP
-                % shifted_results = shiftPitchMom(lim_avg_forces(:,:,k), NP_pos_glide, lim_AoA_sel);
-                % shifted_pitch_moment = shifted_results(5,:);
-                % 
-                % x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
-                % y = shifted_pitch_moment';
-                % b = x\y;
-                % model = x*b;
-                % % Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
-                % SE_slope = (sum((y - model).^2) / (sum((lim_AoA_sel - mean(lim_AoA_sel)).^2)*(length(lim_AoA_sel) - 2)) ).^(1/2);
-                % x_int = - b(1) / b(2);
-                % 
-                % slopes = [slopes b(2)];
-                % err_slopes = [err_slopes SE_slope];
-                % x_intercepts = [x_intercepts x_int];
-
-                % --------------
 
                 [center_to_LE, chord, ~, ~, ~] = getWingMeasurements(cur_bird.name);
 
@@ -889,7 +906,7 @@ methods (Access = private)
                 else
                     % Find slopes for all wind speeds and average
                     path = obj.data_path + "/plot data/" + cur_bird.name;
-                    [lift_slope, pitch_slope] = getGlideSlopes(path, cur_bird, cur_struct_match.dir_name, obj.range);
+                    [lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha] = getGlideSlopes(path, cur_bird, cur_struct_match.dir_name, obj.range);
                 end
 
                 for j = 1:length(amplitude_list)
@@ -898,7 +915,8 @@ methods (Access = private)
                 for k = 1:length(wing_freqs)
                 wing_freq = wing_freqs(k);
 
-                aero_force = get_model(cur_bird.name, obj.data_path, lim_AoA_sel, wing_freq, wind_speed, lift_slope, pitch_slope, AR, amp);
+                aero_force = get_model(cur_bird.name, obj.data_path, lim_AoA_sel, wing_freq, wind_speed,...
+                    lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, amp);
 
                 idx = 5; % pitch moment
                 x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
