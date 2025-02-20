@@ -17,7 +17,9 @@ properties
 
     % booleans
     st;
+    saveFig;
 
+    span_pos;
     plot_id;
 end
 
@@ -36,8 +38,10 @@ methods
         obj.sel_angle = obj.sel_bird.angles(1);
 
         obj.st = false;
+        obj.saveFig = false;
 
         obj.plot_id = "Angular Displacement";
+        obj.span_pos = "Root";
     end
 
     function dynamic_plotting(obj)
@@ -107,15 +111,30 @@ methods
         d6.Position = [10 drop_y6 180 unit_height];
         d6.Items = ["Angular Displacement", "Angular Velocity", "Angular Acceleration",...
                     "Linear Displacement", "Linear Velocity", "Linear Acceleration",...
-                    "Effective AoA", "Effective Wind"];
+                    "Effective AoA", "Effective Wind", "Second Moment AoA"];
         d6.ValueChangedFcn = @(src, event) plot_type_change(src, event, plot_panel);
 
-        button3_y = drop_y6 - (unit_height + unit_spacing);
+        % Dropdown box for spanwise position selection
+        drop_y7 = drop_y6 - (unit_height + unit_spacing);
+        d7 = uidropdown(option_panel);
+        d7.Position = [10 drop_y7 180 unit_height];
+        d7.Items = ["Root", "Tip", "Mean"];
+        d7.ValueChangedFcn = @(src, event) span_pos_change(src, event, plot_panel);
+
+
+        button3_y = drop_y7 - (unit_height + unit_spacing);
         b4 = uibutton(option_panel,"state");
         b4.Text = "St Scaling";
         b4.Position = [20 button3_y 160 unit_height];
         b4.BackgroundColor = [1 1 1];
         b4.ValueChangedFcn = @(src, event) st_change(src, event, plot_panel);
+
+        button8_y = 0.05*screen_height;
+        b9 = uibutton(option_panel);
+        b9.Text = "Save Fig";
+        b9.Position = [20 button8_y 160 unit_height];
+        b9.BackgroundColor = [1 1 1];
+        b9.ButtonPushedFcn = @(src, event) save_figure(src, event, plot_panel);
 
         obj.update_plot(plot_panel);
 
@@ -199,8 +218,19 @@ methods
             obj.update_plot(plot_panel);
         end
 
+        function save_figure(~, ~, plot_panel)
+            obj.saveFig = true;
+            obj.update_plot(plot_panel);
+            obj.saveFig = false;
+        end
+
         function plot_type_change(src, ~, plot_panel)
             obj.plot_id = convertCharsToStrings(src.Value);
+            obj.update_plot(plot_panel);
+        end
+
+        function span_pos_change(src, ~, plot_panel)
+            obj.span_pos = convertCharsToStrings(src.Value);
             obj.update_plot(plot_panel);
         end
 
@@ -317,7 +347,7 @@ methods (Access = private)
 
             [center_to_LE, chord, COM_span, wing_length, arm_length] = getWingMeasurements(flapper_name);
 
-            amp = -1;
+            amp = pi/6;
             [time, ang_disp, ang_vel, ang_acc] = get_kinematics(obj.data_path, cur_freq, amp);
             
             full_length = wing_length + arm_length;
@@ -369,6 +399,10 @@ methods (Access = private)
                 y_var = u_rel;
                 y_label = "Effective Wind Speed (m/s)";
                 sub_title = "Effective Wind Speed";
+            elseif (obj.plot_id == "Second Moment AoA")
+                y_var = eff_AoA .* r.^2;
+                y_label = "Second Moment AoA (m^2 * deg)";
+                sub_title = "Second Moment of Effective AoA";
             end
 
             if (contains(obj.plot_id, "Angular"))
@@ -376,16 +410,20 @@ methods (Access = private)
                 p.LineWidth = 2;
                 p.DisplayName = abbr_sel(i);
             else
-                root_point = false;
-                if (root_point)
-                pl = plot(ax, x_var, y_var(:,51));
-                pl.LineWidth = 2;
-                pl.DisplayName = abbr_sel(i) + " Near Wing Root";
+                if (obj.span_pos == "Root")
+                    y_var_sel = y_var(:,51);
+                    r_leg = " Near Wing Root";
+                elseif (obj.span_pos == "Tip")
+                    y_var_sel = y_var(:,251);
+                    r_leg = " Wing Tip";
+                elseif (obj.span_pos == "Mean")
+                    y_var_sel = mean(y_var,2);
+                    r_leg = " Spanwise Mean";
                 end
 
-                ph = plot(ax, x_var, y_var(:,251));
+                ph = plot(ax, x_var, y_var_sel);
                 ph.LineWidth = 2;
-                ph.DisplayName = abbr_sel(i) + " Wing Tip";
+                ph.DisplayName = abbr_sel(i) + r_leg;
             end
 
         end
@@ -395,7 +433,23 @@ methods (Access = private)
         ylabel(ax, y_label)
         grid(ax, 'on');
         ax.FontSize = 18;
-        legend(ax)
+        l = legend(ax);
+        if (obj.saveFig)
+            filename = "saved_figure.fig";
+            fignew = figure('Visible','off'); % Invisible figure
+            if (exist("l", "var"))
+                copyobj([l ax], fignew); % Copy the appropriate axes
+            elseif (exist("cb", "var"))
+                copyobj([ax cb], fignew); % Copy the appropriate axes
+            else
+                copyobj(ax, fignew); % Copy the appropriate axes
+            end
+
+            % set(fignew, 'Position', [200 200 800 600])
+            set(fignew,'CreateFcn','set(gcbf,''Visible'',''on'')'); % Make it visible upon loading
+            savefig(fignew,filename);
+            delete(fignew);
+        end
     end
 end
 end

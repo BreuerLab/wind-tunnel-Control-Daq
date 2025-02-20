@@ -860,7 +860,7 @@ methods (Access = private)
                     end
 
                     if (obj.st)
-                    St = freqToSt(cur_bird.name, wing_freqs(k), wind_speed, obj.data_path, -1);
+                    St = freqToSt(cur_bird.name, wing_freqs(k), wind_speed, obj.data_path, -1, len);
                     line_color = interp1(zmap, cmap, St);
                     % slopes_pos = slopes_pos / (wing_freqs(k));
                     else
@@ -915,6 +915,9 @@ methods (Access = private)
                 for k = 1:length(wing_freqs)
                 wing_freq = wing_freqs(k);
 
+                % temp code to block out x_int inclusion in model
+                zero_lift_alpha = 0;
+                zero_pitch_alpha = 0;
                 aero_force = get_model(cur_bird.name, obj.data_path, lim_AoA_sel, wing_freq, wind_speed,...
                     lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, amp);
 
@@ -1015,7 +1018,7 @@ methods (Access = private)
         % Plot data after getting it all %% ----------------- %%
 
         if ~obj.logScale
-            show_data = true;
+            show_data = false;
             if show_data
 
             e = errorbar(ax, x_vals, y_vals, err_vals, '.');

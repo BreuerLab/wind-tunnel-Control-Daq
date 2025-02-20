@@ -365,7 +365,7 @@ methods (Access = private)
             for j = 1:length(freq_vals)
                 cur_freq = freq_vals(j);
 
-                if ~(obj.plot_id == "Added Mass Lift")
+                % if ~(obj.plot_id == "Added Mass Lift")
                 amp = -1;
                 [time, ang_disp, ang_vel, ang_acc] = get_kinematics(obj.data_path, cur_freq, amp);
                 
@@ -382,6 +382,10 @@ methods (Access = private)
                 mean_eff_AoA(j) = mean(eff_AoA, 'all');
                 mean_u_rel(j) = mean(u_rel, 'all');
 
+                [added_mass_force_vec] = get_added_mass(ang_disp, lin_acc, wing_length, chord, cur_angle);
+                lift = added_mass_force_vec(:,2);
+                added_mass_lift(j) = mean(lift);
+
                 % mean_eff_AoA(j) = max(eff_AoA, [], 'all');
                 % mean_u_rel(j) = max(u_rel, [], 'all');
 
@@ -391,65 +395,65 @@ methods (Access = private)
                 % This need to be converted to lift coefficent and needs to
                 % be changed so that wingspan shortened to half during
                 % upstroke
-                else
-                amp = pi/6;
-
-                lift = [];
-                % DOWNSTROKE
-                down_freq = cur_freq * (1/0.3);
-                time_cycle = linspace(0,1,1000);
-                time_cycle = time_cycle' / down_freq;
-                end_down = time_cycle(end);
-            
-                ang_disp_cycle = amp.*cos(2*pi*down_freq.*time_cycle);
-                ang_vel_cycle = -2*pi*down_freq*amp.*sin(2*pi*down_freq.*time_cycle);
-                ang_acc_cycle = -4* pi^2 * down_freq^2 * amp .* cos(2*pi*down_freq.*time_cycle);
-            
-                ang_disp = rad2deg(ang_disp_cycle);
-                ang_vel = rad2deg(ang_vel_cycle);
-                ang_acc = rad2deg(ang_acc_cycle);
-
-                full_length = wing_length + arm_length;
-                r = arm_length:0.001:full_length;
-                % linear displacements taken only in the vertical
-                % direction, excluding left-right motion
-                lin_disp = cosd(ang_disp) * r;
-                lin_vel = (deg2rad(ang_vel) .* cosd(ang_disp)) * r;
-                lin_acc = (deg2rad(ang_acc) .* cosd(ang_disp)) * r;
-
-                [added_mass_force_vec] = get_added_mass(ang_disp, lin_acc, wing_length, chord, cur_angle);
-                % Integrating across wing
-                down_lift = added_mass_force_vec(:,2);
-                lift = [lift; down_lift];
-
-                % UPSTROKE
-                up_freq = cur_freq * (1/0.7);
-                time_cycle = linspace(0,1,1000);
-                time_cycle = time_cycle' / up_freq;
-                time_cycle = time_cycle + end_down;
-            
-                ang_disp_cycle = amp.*cos(2*pi*up_freq.*time_cycle);
-                ang_vel_cycle = -2*pi*up_freq*amp.*sin(2*pi*up_freq.*time_cycle);
-                ang_acc_cycle = -4* pi^2 * up_freq^2 * amp .* cos(2*pi*up_freq.*time_cycle);
-            
-                ang_disp = rad2deg(ang_disp_cycle);
-                ang_vel = rad2deg(ang_vel_cycle);
-                ang_acc = rad2deg(ang_acc_cycle);
-
-                short_wing_length = wing_length / 2;
-                full_length = short_wing_length + arm_length;
-                r = arm_length:0.001:full_length;
-                % linear displacements taken only in the vertical
-                % direction, excluding left-right motion
-                lin_disp = cosd(ang_disp) * r;
-                lin_vel = (deg2rad(ang_vel) .* cosd(ang_disp)) * r;
-                lin_acc = (deg2rad(ang_acc) .* cosd(ang_disp)) * r;
-
-                [added_mass_force_vec] = get_added_mass(ang_disp, lin_acc, short_wing_length, chord, cur_angle);
-                up_lift = added_mass_force_vec(:,2);
-                lift = [lift; up_lift];
-                added_mass_lift(j) = mean(lift);
-                end
+                % else
+                % amp = pi/6;
+                % 
+                % lift = [];
+                % % DOWNSTROKE
+                % down_freq = cur_freq * (1/0.3);
+                % time_cycle = linspace(0,1,1000);
+                % time_cycle = time_cycle' / down_freq;
+                % end_down = time_cycle(end);
+                % 
+                % ang_disp_cycle = amp.*cos(2*pi*down_freq.*time_cycle);
+                % ang_vel_cycle = -2*pi*down_freq*amp.*sin(2*pi*down_freq.*time_cycle);
+                % ang_acc_cycle = -4* pi^2 * down_freq^2 * amp .* cos(2*pi*down_freq.*time_cycle);
+                % 
+                % ang_disp = rad2deg(ang_disp_cycle);
+                % ang_vel = rad2deg(ang_vel_cycle);
+                % ang_acc = rad2deg(ang_acc_cycle);
+                % 
+                % full_length = wing_length + arm_length;
+                % r = arm_length:0.001:full_length;
+                % % linear displacements taken only in the vertical
+                % % direction, excluding left-right motion
+                % lin_disp = cosd(ang_disp) * r;
+                % lin_vel = (deg2rad(ang_vel) .* cosd(ang_disp)) * r;
+                % lin_acc = (deg2rad(ang_acc) .* cosd(ang_disp)) * r;
+                % 
+                % [added_mass_force_vec] = get_added_mass(ang_disp, lin_acc, wing_length, chord, cur_angle);
+                % % Integrating across wing
+                % down_lift = added_mass_force_vec(:,2);
+                % lift = [lift; down_lift];
+                % 
+                % % UPSTROKE
+                % up_freq = cur_freq * (1/0.7);
+                % time_cycle = linspace(0,1,1000);
+                % time_cycle = time_cycle' / up_freq;
+                % time_cycle = time_cycle + end_down;
+                % 
+                % ang_disp_cycle = amp.*cos(2*pi*up_freq.*time_cycle);
+                % ang_vel_cycle = -2*pi*up_freq*amp.*sin(2*pi*up_freq.*time_cycle);
+                % ang_acc_cycle = -4* pi^2 * up_freq^2 * amp .* cos(2*pi*up_freq.*time_cycle);
+                % 
+                % ang_disp = rad2deg(ang_disp_cycle);
+                % ang_vel = rad2deg(ang_vel_cycle);
+                % ang_acc = rad2deg(ang_acc_cycle);
+                % 
+                % short_wing_length = wing_length / 2;
+                % full_length = short_wing_length + arm_length;
+                % r = arm_length:0.001:full_length;
+                % % linear displacements taken only in the vertical
+                % % direction, excluding left-right motion
+                % lin_disp = cosd(ang_disp) * r;
+                % lin_vel = (deg2rad(ang_vel) .* cosd(ang_disp)) * r;
+                % lin_acc = (deg2rad(ang_acc) .* cosd(ang_disp)) * r;
+                % 
+                % [added_mass_force_vec] = get_added_mass(ang_disp, lin_acc, short_wing_length, chord, cur_angle);
+                % up_lift = added_mass_force_vec(:,2);
+                % lift = [lift; up_lift];
+                % added_mass_lift(j) = mean(lift);
+                % end
             end
 
             % normalize effective wind speeds by freestream

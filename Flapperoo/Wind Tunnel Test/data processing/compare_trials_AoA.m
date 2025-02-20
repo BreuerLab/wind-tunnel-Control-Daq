@@ -14,10 +14,10 @@ addpath 'plotting'
 % freq_speed_combos = [2, 4; 3, 6; 0, 4; 0, 6];
 
 % wing_freq_sel = [0, 2, 3, 4, 5];
-wing_freq_sel = [0, 0.1, 2, 2.5, 3, 3.5, 3.75, 4, 4.5, 5, 2, 4];
-% wing_freq_sel = [0, 0.1, 2, 2.5, 3, 3.5, 3.75, 4, 2, 4];
-wind_speed_sel = [5];
-type_sel = ["tail blue wings"];
+% wing_freq_sel = [0, 0.1, 2, 2.5, 3, 3.5, 3.75, 4, 4.5, 5, 2, 4];
+wing_freq_sel = [0, 0.1, 2, 2.5, 3, 3.5, 3.75, 4, 2, 4];
+wind_speed_sel = [0];
+type_sel = ["no shoulders"];
 % AoA_sel = [-12:1:-9 -8:0.5:8 9:1:12];
 AoA_sel = [-16:1.5:-13 -12:1:-9 -8:0.5:8 9:1:12 13:1.5:16];
 sub_strings = [];
@@ -90,14 +90,14 @@ s.send("Started making plots at: " + string(time_now))
 % Post the initial message
 [channelID, messageTs] = bot.makeBar();
 
-% for i = 1:2
-%     for j = 1:2
-%         for k = 1:2
+for i = 1:2
+    for j = 1:2
+        for k = 1:2
             [avg_forces, avg_up_forces, avg_down_forces, err_forces, ...
              err_up_forces, err_down_forces, names, sub_title, norm_factors] = ...
     get_data_AoA(selected_vars, processed_files, offsets_files, norm_bool, sub_strings, shift_bool, sub_drift_bool);
             
-            % bot.updateProgress(channelID, messageTs, (k + 2*(j-1) + 4*(i-1))*(100/8));
+            bot.updateProgress(channelID, messageTs, (k + 2*(j-1) + 4*(i-1))*(100/8));
 
             time_now = datetime;
             time_now.Format = 'yyyy_MM_dd HH_mm_ss';
@@ -121,12 +121,12 @@ s.send("Started making plots at: " + string(time_now))
             save(name + ".mat","avg_forces", "avg_up_forces", "avg_down_forces",...
                 "err_forces", "err_up_forces", "err_down_forces", "norm_factors", "names")
 
-%             norm_bool = ~norm_bool;
-%         end
-%         shift_bool = ~shift_bool;
-%     end
-%     sub_drift_bool = ~sub_drift_bool;
-% end
+            norm_bool = ~norm_bool;
+        end
+        shift_bool = ~shift_bool;
+    end
+    sub_drift_bool = ~sub_drift_bool;
+end
 
 time_now = datetime;
 time_now.Format = 'yyyy_MM_dd HH_mm_ss';

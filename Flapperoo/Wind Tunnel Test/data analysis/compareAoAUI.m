@@ -990,7 +990,7 @@ methods (Access = private)
                     b = x\y;
                     model = x*b;
                     Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
-                    label = "y = " + round(b(2),3) + "x + " + round(b(1),3) + ", R^2 = " + round(Rsq,3);
+                    label = "y = " + round(b(2),5) + "x + " + round(b(1),5) + ", R^2 = " + round(Rsq,3);
                     p = plot(ax, lim_AoA_sel, model);
                     p.DisplayName = label;
                     p.Color = colors(ind_c_trial, ind_c_dir);

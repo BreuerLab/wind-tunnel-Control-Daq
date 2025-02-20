@@ -5,13 +5,15 @@
 % with a grain of salt as it may not exactly describe the true
 % kinematics.
 function [time_cycle, ang_disp_cycle, ang_vel_cycle, ang_acc_cycle] = get_kinematics(path, freq, amp)
-if (amp == -1)
 if (freq == 0)
 time_cycle = 0;
 ang_disp_cycle = 0;
 ang_vel_cycle = 0;
 ang_acc_cycle = 0;
-else
+return
+end
+
+if (amp == -1)
 disp_data = readtable(path + "/kinematics/ang_disp_flapperoo.xlsx","NumHeaderLines",2);
 vel_data = readtable(path + "/kinematics/ang_vel_flapperoo.xlsx","NumHeaderLines",2);
 acc_data = readtable(path + "/kinematics/ang_acc_flapperoo.xlsx","NumHeaderLines",2);
@@ -58,8 +60,6 @@ ang_acc_cycle = acc(1:j);
 % for m = k:num_steps
 %     ang_vel_cycle(m) = - ang_vel_cycle(m);
 % end
-
-end
 else
     time_cycle = 0:0.01:1;
     time_cycle = time_cycle' / freq;

@@ -5,6 +5,7 @@ function [added_mass_force_vec] = get_added_mass(ang_disp, lin_acc, wing_length,
     added_mass_force_r = 2*air_mass*lin_acc.*cosd(ang_disp);
 
     added_mass_force = (sum(added_mass_force_r,2)*0.001) / wing_length;
+    % a normal force
 
     % assume inertial force acts at center of wings
     shift_distance = -chord/2;
