@@ -860,7 +860,7 @@ methods (Access = private)
                     end
 
                     if (obj.st)
-                    St = freqToSt(cur_bird.name, wing_freqs(k), wind_speed, obj.data_path, -1);
+                    St = freqToSt(cur_bird.name, wing_freqs(k), wind_speed, obj.data_path, -1, len);
                     line_color = interp1(zmap, cmap, St);
                     % slopes_pos = slopes_pos / (wing_freqs(k));
                     else
@@ -906,7 +906,7 @@ methods (Access = private)
                 else
                     % Find slopes for all wind speeds and average
                     path = obj.data_path + "/plot data/" + cur_bird.name;
-                    [lift_slope, pitch_slope] = getGlideSlopes(path, cur_bird, cur_struct_match.dir_name, obj.range);
+                    [lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha] = getGlideSlopes(path, cur_bird, cur_struct_match.dir_name, obj.range);
                 end
 
                 for j = 1:length(amplitude_list)
@@ -915,7 +915,11 @@ methods (Access = private)
                 for k = 1:length(wing_freqs)
                 wing_freq = wing_freqs(k);
 
-                [aero_force, COP_span_vals] = get_model(cur_bird.name, obj.data_path, lim_AoA_sel, wing_freq, wind_speed, lift_slope, pitch_slope, AR, amp);
+                % temp code to block out x_int inclusion in model
+                zero_lift_alpha = 0;
+                zero_pitch_alpha = 0;
+                aero_force = get_model(cur_bird.name, obj.data_path, lim_AoA_sel, wing_freq, wind_speed,...
+                    lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, amp);
 
                 idx = 5; % pitch moment
                 x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
@@ -957,7 +961,7 @@ methods (Access = private)
             if (obj.st)
                 x_vals = zeros(1,length(wing_freqs));
                 for k = 1:length(wing_freqs)
-                    x_vals(k) = freqToSt(cur_bird.name, wing_freqs(k), wind_speed, obj.data_path, -1, COP_span_pos);
+                    x_vals(k) = freqToSt(cur_bird.name, wing_freqs(k), wind_speed, obj.data_path, -1);
                 end
 
                 if (obj.aero_model)
@@ -1029,7 +1033,6 @@ methods (Access = private)
             test_fit = fit(x_var_mod', y_var_mod', 'power2')
             y_mod = test_fit.a * x_var_mod.^(test_fit.b) + test_fit.c;
             end
-
             % fit power law
             % x_var_mod = x_vals(2:end);
             % y_var_mod = y_vals(2:end);
@@ -1063,7 +1066,7 @@ methods (Access = private)
                     % s.MarkerEdgeColor = colors(s_ind, t_ind);
                     s.MarkerEdgeColor = temp_colors(j);
                     s.LineWidth = 2; % char(176) for degree symbol
-                    s.DisplayName = "A = " + rad2deg(amplitude_list(j)) + "°"; % + ", Model: " + abbr_sel(i);
+                    s.DisplayName = wind_speed + " m/s, A = " + rad2deg(amplitude_list(j)) + "°"; % + ", Model: " + abbr_sel(i);
                     s.Marker = marker_list(j); % + "\textbf{^{\circ}}"
                 end
                 else
@@ -1200,6 +1203,25 @@ methods (Access = private)
                 end
             end
 
+        else
+            if (~ x_vals_mod_tot)
+            % Power law for amplitude plot, only necessary for mult amp
+            x_vals_mod_tot = reshape(x_vals_mod_tot(:,2:end), [], 1);
+            y_vals_mod_tot = reshape(y_vals_mod_tot(:,2:end), [], 1);
+
+            bad_ind = [];
+            for n = 1:length(x_vals_mod_tot)
+                if (x_vals_mod_tot(n) < 0.01 || y_vals_mod_tot(n) == 0)
+                   bad_ind = [bad_ind n]; 
+                end
+            end
+            x_vals_mod_tot(bad_ind) = [];
+            y_vals_mod_tot(bad_ind) = [];
+
+            % [x_mod_sort, sortIndices] = sort(x_vals_mod_tot);
+            % y_mod_sort = y_vals_mod_tot(sortIndices);
+            test_fit = fit(x_vals_mod_tot, y_vals_mod_tot, 'power2')
+            % y_mod = test_fit.a * x_var_mod.^(test_fit.b) + test_fit.c;
 
         end
 

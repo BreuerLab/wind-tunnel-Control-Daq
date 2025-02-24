@@ -21,11 +21,17 @@ function St = freqToSt(flapper, wing_freq, wind_speed, path, amp)
     % - average span
     % - arc length traveled by tip
 
+    amp_ang = deg2rad(abs(angle_up) + abs(angle_down)) / 2;
     %  cos(0.69*amp) 
     % 0.64*cos(0.55*amp)
     % 0.43*cos(0.43*amp)
     % * (0.64*cos(0.55*amp) + 0.43*cos(0.43*amp))
-    St = (wing_freq * amp) / wind_speed;
+    % St = ((wing_freq * amp) / wind_speed)^2 * 0.43*cos(0.43*amp) + 0.64*cos(0.55*amp);
+    % St = 4*pi^2*((wing_freq * amp) / wind_speed)^2.2 * (0.43 / 25.3)*cos(0.43*amp) + ((wing_freq * amp) / wind_speed)^0.2 * 0.64*cos(0.55*amp);
+    % St = 4*pi^2*((wing_freq * amp) / wind_speed)^1.8 * (0.43 / 25.3)*cos(0.43*amp) + ((wing_freq * amp) / wind_speed)^(0.1) * 0.64*cos(0.55*amp);
+    % St = ((wing_freq * amp) / wind_speed)^2.2 * cos(0.43*amp);
+    St = ((wing_freq * amp_ang) / wind_speed);
+    % St = wing_freq*cos(4*amp_ang);
     St = round(St,3,"significant");
 
     % reduced freq: (wing_freq * 0.1) / wind_speed;

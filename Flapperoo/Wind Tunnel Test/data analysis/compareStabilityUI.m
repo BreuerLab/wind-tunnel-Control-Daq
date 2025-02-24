@@ -1033,7 +1033,6 @@ methods (Access = private)
             test_fit = fit(x_var_mod', y_var_mod', 'power2')
             y_mod = test_fit.a * x_var_mod.^(test_fit.b) + test_fit.c;
             end
-
             % fit power law
             % x_var_mod = x_vals(2:end);
             % y_var_mod = y_vals(2:end);
@@ -1067,7 +1066,7 @@ methods (Access = private)
                     % s.MarkerEdgeColor = colors(s_ind, t_ind);
                     s.MarkerEdgeColor = temp_colors(j);
                     s.LineWidth = 2; % char(176) for degree symbol
-                    s.DisplayName = "A = " + rad2deg(amplitude_list(j)) + "°"; % + ", Model: " + abbr_sel(i);
+                    s.DisplayName = wind_speed + " m/s, A = " + rad2deg(amplitude_list(j)) + "°"; % + ", Model: " + abbr_sel(i);
                     s.Marker = marker_list(j); % + "\textbf{^{\circ}}"
                 end
                 else
@@ -1204,7 +1203,26 @@ methods (Access = private)
                 end
             end
 
+        else
+            if (~ x_vals_mod_tot == 0)
+            % Power law for amplitude plot, only necessary for mult amp
+            x_vals_mod_tot = reshape(x_vals_mod_tot(:,2:end), [], 1);
+            y_vals_mod_tot = reshape(y_vals_mod_tot(:,2:end), [], 1);
 
+            bad_ind = [];
+            for n = 1:length(x_vals_mod_tot)
+                if (x_vals_mod_tot(n) < 0.01 || y_vals_mod_tot(n) == 0)
+                   bad_ind = [bad_ind n]; 
+                end
+            end
+            x_vals_mod_tot(bad_ind) = [];
+            y_vals_mod_tot(bad_ind) = [];
+
+            % [x_mod_sort, sortIndices] = sort(x_vals_mod_tot);
+            % y_mod_sort = y_vals_mod_tot(sortIndices);
+            test_fit = fit(x_vals_mod_tot, y_vals_mod_tot, 'power2')
+            % y_mod = test_fit.a * x_var_mod.^(test_fit.b) + test_fit.c;
+            end
         end
 
         title(ax, sub_title);

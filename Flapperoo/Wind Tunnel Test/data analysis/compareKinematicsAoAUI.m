@@ -13,6 +13,7 @@ properties
 
     sel_freq;
     sel_speed;
+    sel_amp;
     range;
 
     % booleans
@@ -34,6 +35,7 @@ methods
         obj.sel_bird = obj.Flapperoo;
         obj.sel_freq = obj.sel_bird.freqs(1);
         obj.sel_speed = obj.sel_bird.speeds(1);
+        obj.sel_amp = pi/10;
         obj.range = [-16 16];
 
         obj.st = false;
@@ -57,8 +59,15 @@ methods
         d1.Position = [10 drop_y1 180 30];
         d1.Items = ["Flapperoo", "MetaBird"];
 
+        % Dropdown box for amplitude selection
+        drop_y2 = drop_y1 - (unit_height + unit_spacing);
+        d2 = uidropdown(option_panel);
+        d2.Position = [10 drop_y2 180 30];
+        d2.Items = [pi/10,pi/8,pi/6,pi/5,pi/4] + " rad";
+        d2.ValueChangedFcn = @(src, event) amp_change(src, event);
+
         % Dropdown box for wingbeat frequency selection
-        drop_y3 = drop_y1 - (unit_height + unit_spacing);
+        drop_y3 = drop_y2 - (unit_height + unit_spacing);
         d3 = uidropdown(option_panel);
         d3.Position = [10 drop_y3 180 unit_height];
         d3.Items = obj.sel_bird.freqs;
@@ -100,7 +109,7 @@ methods
         drop_y6 = list_y - (unit_height + unit_spacing);
         d6 = uidropdown(option_panel);
         d6.Position = [10 drop_y6 180 unit_height];
-        d6.Items = ["Effective AoA", "Effective Wind"];
+        d6.Items = ["Effective AoA", "Difference AoA", "Effective Wind"];
         d6.ValueChangedFcn = @(src, event) plot_type_change(src, event, plot_panel);
 
         button3_y = drop_y6 - (unit_height + unit_spacing);
@@ -162,6 +171,11 @@ methods
             obj.sel_freq = src.Value;
         end
 
+        % update amplitude variable with new value selected by user
+        function amp_change(src, ~)
+            obj.sel_amp = str2double(extractBefore(src.Value, " rad"));
+        end
+
         % update speed variable with new value selected by user
         function speed_change(src, ~)
             speed = str2double(extractBefore(src.Value, " m/s"));
@@ -169,7 +183,7 @@ methods
         end
     
         function addToList(~, ~, plot_panel, lbox)
-            case_name = obj.sel_bird.name + "/" + obj.sel_speed + " m/s " + obj.sel_freq;
+            case_name = obj.sel_bird.name + "/" + obj.sel_speed + " m/s " + obj.sel_freq + " " + obj.sel_amp + " rad";
 
             if (sum(strcmp(string(lbox.Items), case_name)) == 0)
                 lbox.Items = [lbox.Items, case_name];
@@ -238,7 +252,7 @@ methods
 end
 
 methods(Static, Access = private)
-    function [flapper_name, sel_speed, sel_freq] = parseSelection(sel)
+    function [flapper_name, sel_speed, sel_freq, sel_amp] = parseSelection(sel)
         flapper_name = string(extractBefore(sel, "/"));
         dir_name = string(extractAfter(sel, "/"));
 
@@ -248,6 +262,8 @@ methods(Static, Access = private)
                 sel_speed = str2double(dir_parts(k-1));
             elseif (contains(dir_parts(k), "Hz"))
                 sel_freq = str2double(dir_parts(k-1));
+            elseif (contains(dir_parts(k), "rad"))
+                sel_amp = str2double(dir_parts(k-1));
             end
         end
     end
@@ -313,6 +329,9 @@ methods (Access = private)
         if (obj.plot_id == "Effective AoA")
             y_label = "Effective AoA (deg)";
             sub_title = "Effective AoA";
+        elseif (obj.plot_id == "Difference AoA")
+            y_label = "Effective AoA - AoA (deg)";
+            sub_title = "Effective AoA - AoA";
         elseif (obj.plot_id == "Effective Wind")
             y_label = "Effective Wind Speed (m/s)";
             sub_title = "Effective Wind Speed";
@@ -321,14 +340,18 @@ methods (Access = private)
         if (~isempty(obj.selection))
         uniq_speeds = [];
         uniq_freqs = [];
+        uniq_amps = [];
         for j = 1:length(obj.selection)
-            [flapper_name, cur_speed, cur_freq] = compareKinematicsAoAUI.parseSelection(obj.selection(j));
+            [flapper_name, cur_speed, cur_freq, cur_amp] = compareKinematicsAoAUI.parseSelection(obj.selection(j));
 
             if (sum(uniq_speeds == cur_speed) == 0)
                 uniq_speeds = [uniq_speeds cur_speed];
             end
             if (sum(strcmp(uniq_freqs, cur_freq)) == 0)
                 uniq_freqs = [uniq_freqs cur_freq];
+            end
+            if (sum(strcmp(uniq_amps, cur_amp)) == 0)
+                uniq_amps = [uniq_amps cur_amp];
             end
         end
 
@@ -345,12 +368,11 @@ methods (Access = private)
         AoA_vals = linspace(obj.range(1), obj.range(2), 30);
 
         for i = 1:length(obj.selection)
-            [flapper_name, cur_speed, cur_freq] = compareKinematicsAoAUI.parseSelection(obj.selection(i));
+            [flapper_name, cur_speed, cur_freq, cur_amp] = compareKinematicsAoAUI.parseSelection(obj.selection(i));
 
             [center_to_LE, chord, COM_span, wing_length, arm_length] = getWingMeasurements(flapper_name);
 
-            amp = pi/6;
-            [time, ang_disp, ang_vel, ang_acc] = get_kinematics(obj.data_path, cur_freq, amp);
+            [time, ang_disp, ang_vel, ang_acc] = get_kinematics(obj.data_path, cur_freq, cur_amp);
             
             full_length = wing_length + arm_length;
             r = arm_length:0.001:full_length;
@@ -369,6 +391,8 @@ methods (Access = private)
 
             if (obj.plot_id == "Effective AoA")
                 y_var = mean_eff_AoA;
+            elseif (obj.plot_id == "Difference AoA")
+                y_var = mean_eff_AoA - AoA_vals;
             elseif (obj.plot_id == "Effective Wind")
                 y_var = mean_u_rel;
             end

@@ -9,10 +9,10 @@ function [C_L, C_D, C_N, C_M, COP_span] = get_aero(ang_disp, eff_AoA, u_rel, win
 
         % removed 2* in front for 2 wings, this factor of 2 is in numerator
         % and denominator of area term so it drops out
-        C_L_r = lift_slope*deg2rad(eff_AoA - zero_lift_alpha) .* (u_rel / wind_speed_sel).^2 .* cosd(ang_disp);
-        C_M_r = pitch_slope*deg2rad(eff_AoA - zero_pitch_alpha) .* (u_rel / wind_speed_sel).^2 .* cosd(ang_disp);
-        % C_L_r = lift_slope*deg2rad(eff_AoA - zero_lift_alpha) .* (u_rel / wind_speed_sel).^2;
-        % C_M_r = pitch_slope*deg2rad(eff_AoA - zero_pitch_alpha) .* (u_rel / wind_speed_sel).^2;
+        % C_L_r = lift_slope*deg2rad(eff_AoA - zero_lift_alpha) .* (u_rel / wind_speed_sel).^2 .* cosd(ang_disp);
+        % C_M_r = pitch_slope*deg2rad(eff_AoA - zero_pitch_alpha) .* (u_rel / wind_speed_sel).^2 .* cosd(ang_disp);
+        C_L_r = lift_slope*deg2rad(eff_AoA - zero_lift_alpha) .* (u_rel / wind_speed_sel).^2;
+        C_M_r = pitch_slope*deg2rad(eff_AoA - zero_pitch_alpha) .* (u_rel / wind_speed_sel).^2;
         % (cosd(ang_disp).*abs(sind(eff_AoA)))
     else
         C_L_r = zeros(size(eff_AoA));

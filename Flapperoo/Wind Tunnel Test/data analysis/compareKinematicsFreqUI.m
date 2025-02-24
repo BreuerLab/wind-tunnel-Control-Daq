@@ -13,12 +13,14 @@ properties
 
     sel_angle;
     sel_speed;
+    sel_amp;
     freq_range;
 
     % booleans
     st;
 
     plot_id;
+    plot_stat;
 
     saveFig;
     logScale;
@@ -34,13 +36,15 @@ methods
         obj.MetaBird = flapper("MetaBird");
         
         obj.sel_bird = obj.Flapperoo;
-        obj.sel_angle = obj.sel_bird.angles(1);
+        obj.sel_angle = 0;
         obj.sel_speed = obj.sel_bird.speeds(1);
+        obj.sel_amp = pi/7;
         obj.freq_range = [0 5];
 
         obj.st = false;
 
         obj.plot_id = "Effective AoA";
+        obj.plot_stat = "Mean";
 
         obj.saveFig;
         obj.logScale = false;
@@ -66,10 +70,18 @@ methods
         d2 = uidropdown(option_panel);
         d2.Position = [10 drop_y2 180 30];
         d2.Items = obj.sel_bird.angles + " deg";
+        d2.Value = obj.sel_angle + " deg";
         d2.ValueChangedFcn = @(src, event) angle_change(src, event);
 
+        % Dropdown box for amplitude selection
+        drop_y3 = drop_y2 - (unit_height + unit_spacing);
+        d3 = uidropdown(option_panel);
+        d3.Position = [10 drop_y3 180 30];
+        d3.Items = [pi/7,pi/6,pi/5,pi/4] + " rad";
+        d3.ValueChangedFcn = @(src, event) amp_change(src, event);
+
         % Dropdown box for wind speed selection
-        drop_y4 = drop_y2 - (unit_height + unit_spacing);
+        drop_y4 = drop_y3 - (unit_height + unit_spacing);
         d4 = uidropdown(option_panel);
         d4.Position = [10 drop_y4 180 unit_height];
         d4.Items = obj.sel_bird.speeds + " m/s";
@@ -107,7 +119,14 @@ methods
         d6.Items = ["Effective AoA", "Effective Wind", "Added Mass Lift"];
         d6.ValueChangedFcn = @(src, event) plot_type_change(src, event, plot_panel);
 
-        button3_y = drop_y6 - (unit_height + unit_spacing);
+        % Dropdown box for plot type selection
+        drop_y7 = drop_y6 - (unit_height + unit_spacing);
+        d7 = uidropdown(option_panel);
+        d7.Position = [10 drop_y7 180 unit_height];
+        d7.Items = ["Mean", "Amplitude"];
+        d7.ValueChangedFcn = @(src, event) plot_stat_change(src, event, plot_panel);
+
+        button3_y = drop_y7 - (unit_height + unit_spacing);
         b4 = uibutton(option_panel,"state");
         b4.Text = "St Scaling";
         b4.Position = [20 button3_y 160 unit_height];
@@ -164,6 +183,11 @@ methods
             obj.sel_angle = str2double(extractBefore(src.Value, " deg"));
         end
 
+        % update amplitude variable with new value selected by user
+        function amp_change(src, ~)
+            obj.sel_amp = str2double(extractBefore(src.Value, " rad"));
+        end
+
         % update speed variable with new value selected by user
         function speed_change(src, ~)
             speed = str2double(extractBefore(src.Value, " m/s"));
@@ -171,7 +195,7 @@ methods
         end
     
         function addToList(~, ~, plot_panel, lbox)
-            case_name = obj.sel_bird.name + "/" + obj.sel_speed + " m/s " + obj.sel_angle + " deg";
+            case_name = obj.sel_bird.name + "/" + obj.sel_speed + " m/s " + obj.sel_angle + " deg " + obj.sel_amp + " rad";
 
             if (sum(strcmp(string(lbox.Items), case_name)) == 0)
                 lbox.Items = [lbox.Items, case_name];
@@ -210,6 +234,11 @@ methods
             obj.update_plot(plot_panel);
         end
 
+        function plot_stat_change(src, ~, plot_panel)
+            obj.plot_stat = convertCharsToStrings(src.Value);
+            obj.update_plot(plot_panel);
+        end
+
         function log_scaling(src, ~, plot_panel)
             if (src.Value)
                 obj.logScale = true;
@@ -235,7 +264,7 @@ methods
 end
 
 methods(Static, Access = private)
-    function [flapper_name, sel_angle, sel_speed] = parseSelection(sel)
+    function [flapper_name, sel_angle, sel_speed, sel_amp] = parseSelection(sel)
         flapper_name = string(extractBefore(sel, "/"));
         dir_name = string(extractAfter(sel, "/"));
 
@@ -245,6 +274,8 @@ methods(Static, Access = private)
                 sel_angle = str2double(dir_parts(k-1));
             elseif (contains(dir_parts(k), "m/s"))
                 sel_speed = str2double(dir_parts(k-1));
+            elseif (contains(dir_parts(k), "rad"))
+                sel_amp = str2double(dir_parts(k-1));
             end
         end
     end
@@ -312,22 +343,36 @@ methods (Access = private)
             x_label = "Wingbeat Frequency (Hz)";
         end
 
-        if (obj.plot_id == "Effective AoA")
-            y_label = "Effective AoA (deg)";
-            sub_title = "Effective AoA";
-        elseif (obj.plot_id == "Effective Wind")
-            y_label = "Effective Wind Speed u_{eff} / U_{\infty}";
-            sub_title = "Effective Wind Speed";
-        elseif (obj.plot_id == "Added Mass Lift")
-            y_label = "Added Mass Lift Coefficient";
-            sub_title = "Added Mass Lift";
+        if (obj.plot_stat == "Mean")
+            if (obj.plot_id == "Effective AoA")
+                y_label = "Time-averaged Mean Spanwise Effective AoA (deg)";
+                sub_title = "Time-averaged Mean Spanwise Effective AoA";
+            elseif (obj.plot_id == "Effective Wind")
+                y_label = "Time-averaged Mean Spanwise Effective Wind Speed u_{eff} / U_{\infty}";
+                sub_title = "Time-averaged Mean Spanwise Effective Wind Speed";
+            elseif (obj.plot_id == "Added Mass Lift")
+                y_label = "Time-averaged Mean Spanwise Added Mass Lift Coefficient";
+                sub_title = "Time-averaged Mean Spanwise Added Mass Lift";
+            end
+        elseif (obj.plot_stat == "Amplitude")
+            if (obj.plot_id == "Effective AoA")
+                y_label = "Amplitude of Mean Spanwise Effective AoA (deg)";
+                sub_title = "Amplitude of Mean Spanwise Effective AoA";
+            elseif (obj.plot_id == "Effective Wind")
+                y_label = "Amplitude of Mean Spanwise Effective Wind Speed u_{eff} / U_{\infty}";
+                sub_title = "Amplitude of Mean Spanwise Effective Wind Speed";
+            elseif (obj.plot_id == "Added Mass Lift")
+                y_label = "Amplitude of Mean Spanwise Added Mass Lift Coefficient";
+                sub_title = "Amplitude of Mean Spanwise Added Mass Lift";
+            end
         end
 
         if (~isempty(obj.selection))
         uniq_speeds = [];
         uniq_angles = [];
+        uniq_amps = [];
         for j = 1:length(obj.selection)
-            [flapper_name, cur_angle, cur_speed] = compareKinematicsFreqUI.parseSelection(obj.selection(j));
+            [flapper_name, cur_angle, cur_speed, cur_amp] = compareKinematicsFreqUI.parseSelection(obj.selection(j));
 
             if (sum(uniq_speeds == cur_speed) == 0)
                 uniq_speeds = [uniq_speeds cur_speed];
@@ -335,6 +380,10 @@ methods (Access = private)
             if (sum(strcmp(uniq_angles, cur_angle)) == 0)
                 uniq_angles = [uniq_angles cur_angle];
             end
+            if (sum(strcmp(uniq_amps, cur_amp)) == 0)
+                uniq_amps = [uniq_amps cur_amp];
+            end
+            % NOT USING uniq_amps FOR COLORS YET...
         end
 
         abbr_sel = compareKinematicsFreqUI.get_abbr_names(obj.selection);
@@ -355,19 +404,21 @@ methods (Access = private)
         y_vals_tot = [];
         ind_tot = [];
         for i = 1:length(obj.selection)
-            [flapper_name, cur_angle, cur_speed] = compareKinematicsFreqUI.parseSelection(obj.selection(i));
+            [flapper_name, cur_angle, cur_speed, cur_amp] = compareKinematicsFreqUI.parseSelection(obj.selection(i));
 
             [center_to_LE, chord, COM_span, wing_length, arm_length] = getWingMeasurements(flapper_name);
 
             mean_eff_AoA = zeros(size(freq_vals));
+            amp_eff_AoA = zeros(size(freq_vals));
             mean_u_rel = zeros(size(freq_vals));
-            added_mass_lift = zeros(size(freq_vals));
+            amp_u_rel = zeros(size(freq_vals));
+            mean_added_mass_lift = zeros(size(freq_vals));
+            amp_added_mass_lift = zeros(size(freq_vals));
             for j = 1:length(freq_vals)
                 cur_freq = freq_vals(j);
 
                 % if ~(obj.plot_id == "Added Mass Lift")
-                amp = -1;
-                [time, ang_disp, ang_vel, ang_acc] = get_kinematics(obj.data_path, cur_freq, amp);
+                [time, ang_disp, ang_vel, ang_acc] = get_kinematics(obj.data_path, cur_freq, cur_amp);
                 
                 full_length = wing_length + arm_length;
                 r = arm_length:0.001:full_length;
@@ -379,12 +430,22 @@ methods (Access = private)
                 lin_acc = (deg2rad(ang_acc) .* cosd(ang_disp)) * r;
                 
                 [eff_AoA, u_rel] = get_eff_wind(time, lin_vel, cur_angle, cur_speed);
-                mean_eff_AoA(j) = mean(eff_AoA, 'all');
-                mean_u_rel(j) = mean(u_rel, 'all');
+
+                % % temp test code DELETE!!!!!!!!!!!!!!!!!!!!!!!!!
+                % eff_AoA = eff_AoA .* r.^2;
+
+                eff_AoA_span_mean = mean(eff_AoA, 2);
+                u_rel_span_mean = mean(u_rel, 2);
+
+                mean_eff_AoA(j) = mean(eff_AoA_span_mean);
+                mean_u_rel(j) = mean(u_rel_span_mean);
+                amp_eff_AoA(j) = abs(max(eff_AoA_span_mean) - min(eff_AoA_span_mean));
+                amp_u_rel(j) = abs(max(u_rel_span_mean) - min(u_rel_span_mean));
 
                 [added_mass_force_vec] = get_added_mass(ang_disp, lin_acc, wing_length, chord, cur_angle);
                 lift = added_mass_force_vec(:,2);
-                added_mass_lift(j) = mean(lift);
+                mean_added_mass_lift(j) = mean(lift);
+                amp_added_mass_lift(j) = abs(max(lift) - min(lift));
 
                 % mean_eff_AoA(j) = max(eff_AoA, [], 'all');
                 % mean_u_rel(j) = max(u_rel, [], 'all');
@@ -464,16 +525,26 @@ methods (Access = private)
 
             if (obj.st)
                 for k = 1:length(freq_vals)
-                    x_var(k) = freqToSt(flapper_name, freq_vals(k), cur_speed, obj.data_path, -1);
+                    x_var(k) = freqToSt(flapper_name, freq_vals(k), cur_speed, obj.data_path, cur_amp);
                 end
             end
 
-            if (obj.plot_id == "Effective AoA")
-                y_var = mean_eff_AoA;
-            elseif (obj.plot_id == "Effective Wind")
-                y_var = mean_u_rel;
-            elseif (obj.plot_id == "Added Mass Lift")
-                y_var = added_mass_lift;
+            if (obj.plot_stat == "Mean")
+                if (obj.plot_id == "Effective AoA")
+                    y_var = mean_eff_AoA;
+                elseif (obj.plot_id == "Effective Wind")
+                    y_var = mean_u_rel;
+                elseif (obj.plot_id == "Added Mass Lift")
+                    y_var = mean_added_mass_lift;
+                end
+            elseif (obj.plot_stat == "Amplitude")
+                if (obj.plot_id == "Effective AoA")
+                    y_var = amp_eff_AoA;
+                elseif (obj.plot_id == "Effective Wind")
+                    y_var = amp_u_rel;
+                elseif (obj.plot_id == "Added Mass Lift")
+                    y_var = amp_added_mass_lift;
+                end
             end
 
             x_vals_tot = [x_vals_tot x_var];
