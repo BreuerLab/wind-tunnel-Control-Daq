@@ -24,10 +24,10 @@ close all force
 % b.dynamic_plotting();
 
 % Sets up UI for comparing stability slope
-% monitor_num = 2;
-% data_path = "F:\Final Force Data";
-% c = compareStabilityUI(monitor_num, data_path);
-% c.dynamic_plotting();
+monitor_num = 2;
+data_path = "F:\Final Force Data";
+c = compareStabilityUI(monitor_num, data_path);
+c.dynamic_plotting();
 % 
 % monitor_num = 2;
 % data_path = "F:\Final Force Data/";
@@ -44,10 +44,10 @@ close all force
 % f = compareKinematicsFreqUI(monitor_num, data_path);
 % f.dynamic_plotting();
 
-monitor_num = 2;
-data_path = "F:\Final Force Data/";
-f = compareKinematicsSlopesFreqUI(monitor_num, data_path);
-f.dynamic_plotting();
+% monitor_num = 2;
+% data_path = "F:\Final Force Data/";
+% f = compareKinematicsSlopesFreqUI(monitor_num, data_path);
+% f.dynamic_plotting();
 
 % Set up basic UI as demo for this kind of tool
 % z = basicUI(2);

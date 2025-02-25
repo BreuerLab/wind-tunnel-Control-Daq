@@ -41,7 +41,7 @@ methods
         obj.saveFig = false;
 
         obj.plot_id = "Angular Displacement";
-        obj.span_pos = "Tip";
+        obj.span_pos = "Root";
     end
 
     function dynamic_plotting(obj)
@@ -111,12 +111,21 @@ methods
         d6.Position = [10 drop_y6 180 unit_height];
         d6.Items = ["Angular Displacement", "Angular Velocity", "Angular Acceleration",...
                     "Linear Displacement", "Linear Velocity", "Linear Acceleration",...
-                    "Effective AoA", "Effective Wind"];
+                    "Effective AoA", "Effective Wind", "Second Moment AoA"];
         d6.ValueChangedFcn = @(src, event) plot_type_change(src, event, plot_panel);
 
         % Dropdown box for spanwise position selection
         drop_y7 = drop_y6 - (unit_height + unit_spacing);
         d7 = uidropdown(option_panel);
+        d7.Position = [10 drop_y7 180 unit_height];
+        d7.Items = ["Root", "Tip", "Mean"];
+        d7.ValueChangedFcn = @(src, event) span_pos_change(src, event, plot_panel);
+
+        % Dropdown box for spanwise position selection
+        check_y1 = drop_y7 - (unit_height + unit_spacing);
+        c1 = uicheckbox(option_panel);
+        c1.Value = 1;
+        c1.Text = "Root";
         d7.Position = [10 drop_y7 180 unit_height];
         d7.Items = ["Root", "Tip", "Mean"];
         d7.ValueChangedFcn = @(src, event) span_pos_change(src, event, plot_panel);
@@ -347,7 +356,7 @@ methods (Access = private)
 
             [center_to_LE, chord, COM_span, wing_length, arm_length] = getWingMeasurements(flapper_name);
 
-            amp = -1;
+            amp = pi/6;
             [time, ang_disp, ang_vel, ang_acc] = get_kinematics(obj.data_path, cur_freq, amp);
             
             full_length = wing_length + arm_length;
@@ -399,6 +408,10 @@ methods (Access = private)
                 y_var = u_rel;
                 y_label = "Effective Wind Speed (m/s)";
                 sub_title = "Effective Wind Speed";
+            elseif (obj.plot_id == "Second Moment AoA")
+                y_var = eff_AoA .* r.^2;
+                y_label = "Second Moment AoA (m^2 * deg)";
+                sub_title = "Second Moment of Effective AoA";
             end
 
             if (contains(obj.plot_id, "Angular"))
@@ -407,21 +420,19 @@ methods (Access = private)
                 p.DisplayName = abbr_sel(i);
             else
                 if (obj.span_pos == "Root")
-
+                    y_var_sel = y_var(:,51);
+                    r_leg = " Near Wing Root";
                 elseif (obj.span_pos == "Tip")
-
+                    y_var_sel = y_var(:,251);
+                    r_leg = " Wing Tip";
                 elseif (obj.span_pos == "Mean")
-                r_ind = 51;
-                root_point = false;
-                if (root_point)
-                pl = plot(ax, x_var, y_var(:,51));
-                pl.LineWidth = 2;
-                pl.DisplayName = abbr_sel(i) + " Near Wing Root";
+                    y_var_sel = mean(y_var,2);
+                    r_leg = " Spanwise Mean";
                 end
 
-                ph = plot(ax, x_var, y_var(:,251));
+                ph = plot(ax, x_var, y_var_sel);
                 ph.LineWidth = 2;
-                ph.DisplayName = abbr_sel(i) + " Wing Tip";
+                ph.DisplayName = abbr_sel(i) + r_leg;
             end
 
         end

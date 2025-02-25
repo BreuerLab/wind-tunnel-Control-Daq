@@ -392,7 +392,6 @@ methods (Access = private)
                 for k = 1:length(AoA_vals)
                 cur_angle = AoA_vals(k);
 
-                % if ~(obj.plot_id == "Added Mass Lift")
                 [time, ang_disp, ang_vel, ang_acc] = get_kinematics(obj.data_path, cur_freq, cur_amp);
                 
                 full_length = wing_length + arm_length;
@@ -413,10 +412,10 @@ methods (Access = private)
                 eff_AoA_span_mean_r = mean(eff_AoA .* r, 2);
                 eff_AoA_span_mean_r2 = mean(eff_AoA .* r.^2, 2);
 
-                mean_eff_AoA(j,k) = mean(eff_AoA_span_mean.* (cos(ang_disp)));
-                mean_u_rel(j,k) = mean(u_rel_span_mean);
-                mean_eff_AoA_sin(j,k) = mean(eff_AoA_span_mean_r.*sin(2*pi*cur_freq*time).*sin(cur_angle).* (cos(ang_disp)));
-                mean_eff_AoA_sin2(j,k) = mean(eff_AoA_span_mean_r2.*(sin(2*pi*cur_freq*time)).^2 .* (cos(ang_disp)));
+                mean_eff_AoA(k) = mean(eff_AoA_span_mean.* (cos(ang_disp)));
+                mean_u_rel(k) = mean(u_rel_span_mean);
+                mean_eff_AoA_sin(k) = mean(eff_AoA_span_mean_r.*sin(2*pi*cur_freq*time).*sin(cur_angle).* (cos(ang_disp)));
+                mean_eff_AoA_sin2(k) = mean(eff_AoA_span_mean_r2.*(sin(2*pi*cur_freq*time)).^2 .* (cos(ang_disp)));
 
                 % Not equivalent since cos changes eff_AoA before this
                 % point
@@ -432,15 +431,15 @@ methods (Access = private)
                 end
 
                 x = [ones(size(AoA_vals')), AoA_vals'];
-                y = mean_eff_AoA(j,:)';
+                y = mean_eff_AoA';
                 b = x\y;
                 slopes(j) = b(2);
 
-                y = mean_eff_AoA_sin(j,:)';
+                y = mean_eff_AoA_sin';
                 b = x\y;
                 slopes_sin(j) = b(2);
 
-                y = mean_eff_AoA_sin2(j,:)';
+                y = mean_eff_AoA_sin2';
                 b = x\y;
                 slopes_sin2(j) = b(2);
             end

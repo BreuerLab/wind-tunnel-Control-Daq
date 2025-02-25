@@ -31,7 +31,7 @@ function St = freqToSt(flapper, wing_freq, wind_speed, path, amp)
     % St = 4*pi^2*((wing_freq * amp) / wind_speed)^1.8 * (0.43 / 25.3)*cos(0.43*amp) + ((wing_freq * amp) / wind_speed)^(0.1) * 0.64*cos(0.55*amp);
     % St = ((wing_freq * amp) / wind_speed)^2.2 * cos(0.43*amp);
     St = ((wing_freq * amp_ang) / wind_speed);
-    % St = wing_freq*cos(4*amp_ang);
+    % St = wing_freq*sin(57.32*amp_ang - 5.461);
     St = round(St,3,"significant");
 
     % reduced freq: (wing_freq * 0.1) / wind_speed;

@@ -18,8 +18,10 @@ properties
     % booleans
     st;
     saveFig;
+    root;
+    mean_span;
+    tip;
 
-    span_pos;
     plot_id;
 end
 
@@ -39,9 +41,11 @@ methods
 
         obj.st = false;
         obj.saveFig = false;
+        obj.root = false;
+        obj.mean_span = true;
+        obj.tip = false;
 
         obj.plot_id = "Angular Displacement";
-        obj.span_pos = "Root";
     end
 
     function dynamic_plotting(obj)
@@ -115,14 +119,28 @@ methods
         d6.ValueChangedFcn = @(src, event) plot_type_change(src, event, plot_panel);
 
         % Dropdown box for spanwise position selection
-        drop_y7 = drop_y6 - (unit_height + unit_spacing);
-        d7 = uidropdown(option_panel);
-        d7.Position = [10 drop_y7 180 unit_height];
-        d7.Items = ["Root", "Tip", "Mean"];
-        d7.ValueChangedFcn = @(src, event) span_pos_change(src, event, plot_panel);
+        check_y1 = drop_y6 - (unit_height + unit_spacing);
+        c1 = uicheckbox(option_panel);
+        c1.Position = [10 check_y1 180 unit_height];
+        c1.Value = 0;
+        c1.Text = "Root";
+        c1.ValueChangedFcn = @(src, event) root_change(src, event, plot_panel);
 
+        check_y2 = check_y1 - (unit_height + unit_spacing);
+        c2 = uicheckbox(option_panel);
+        c2.Position = [10 check_y2 180 unit_height];
+        c2.Value = 1;
+        c2.Text = "Mean";
+        c2.ValueChangedFcn = @(src, event) mean_span_change(src, event, plot_panel);
 
-        button3_y = drop_y7 - (unit_height + unit_spacing);
+        check_y3 = check_y2 - (unit_height + unit_spacing);
+        c3 = uicheckbox(option_panel);
+        c3.Position = [10 check_y3 180 unit_height];
+        c3.Value = 0;
+        c3.Text = "Tip";
+        c3.ValueChangedFcn = @(src, event) tip_change(src, event, plot_panel);
+
+        button3_y = check_y3 - (unit_height + unit_spacing);
         b4 = uibutton(option_panel,"state");
         b4.Text = "St Scaling";
         b4.Position = [20 button3_y 160 unit_height];
@@ -229,8 +247,18 @@ methods
             obj.update_plot(plot_panel);
         end
 
-        function span_pos_change(src, ~, plot_panel)
-            obj.span_pos = convertCharsToStrings(src.Value);
+        function root_change(src, ~, plot_panel)
+            obj.root = src.Value;
+            obj.update_plot(plot_panel);
+        end
+
+        function mean_span_change(src, ~, plot_panel)
+            obj.mean_span = src.Value;
+            obj.update_plot(plot_panel);
+        end
+
+        function tip_change(src, ~, plot_panel)
+            obj.tip = src.Value;
             obj.update_plot(plot_panel);
         end
 
@@ -410,20 +438,32 @@ methods (Access = private)
                 p.LineWidth = 2;
                 p.DisplayName = abbr_sel(i);
             else
-                if (obj.span_pos == "Root")
+                if (obj.root)
                     y_var_sel = y_var(:,51);
                     r_leg = " Near Wing Root";
-                elseif (obj.span_pos == "Tip")
-                    y_var_sel = y_var(:,251);
-                    r_leg = " Wing Tip";
-                elseif (obj.span_pos == "Mean")
-                    y_var_sel = mean(y_var,2);
-                    r_leg = " Spanwise Mean";
+
+                    ph = plot(ax, x_var, y_var_sel);
+                    ph.LineWidth = 2;
+                    ph.DisplayName = abbr_sel(i) + r_leg;
                 end
 
-                ph = plot(ax, x_var, y_var_sel);
-                ph.LineWidth = 2;
-                ph.DisplayName = abbr_sel(i) + r_leg;
+                if (obj.mean_span)
+                    y_var_sel = y_var(:,251);
+                    r_leg = " Wing Tip";
+
+                    ph = plot(ax, x_var, y_var_sel);
+                    ph.LineWidth = 2;
+                    ph.DisplayName = abbr_sel(i) + r_leg;
+                end
+
+                if (obj.tip)
+                    y_var_sel = mean(y_var,2);
+                    r_leg = " Spanwise Mean";
+
+                    ph = plot(ax, x_var, y_var_sel);
+                    ph.LineWidth = 2;
+                    ph.DisplayName = abbr_sel(i) + r_leg;
+                end
             end
 
         end

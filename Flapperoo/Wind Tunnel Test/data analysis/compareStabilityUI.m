@@ -908,6 +908,8 @@ methods (Access = private)
                     path = obj.data_path + "/plot data/" + cur_bird.name;
                     [lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha] = getGlideSlopes(path, cur_bird, cur_struct_match.dir_name, obj.range);
                 end
+                disp("Lift Slope: " + lift_slope)
+                disp("Pitch Slope: " + pitch_slope)
 
                 for j = 1:length(amplitude_list)
                 amp = amplitude_list(j);
@@ -1018,7 +1020,7 @@ methods (Access = private)
         % Plot data after getting it all %% ----------------- %%
 
         if ~obj.logScale
-            show_data = false;
+            show_data = true;
             if show_data
 
             e = errorbar(ax, x_vals, y_vals, err_vals, '.');
