@@ -19,12 +19,13 @@ function [lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha] = getGlide
         cur_wind_speed = sscanf(dir_parts(end), '%g', 1);
         parsed_name = erase(parsed_name, cur_wind_speed + "m.s._");
 
-        if (parsed_name == dir_name)
+        if (parsed_name == dir_name && ismember(cur_wind_speed,speeds))
             matches(speeds == cur_wind_speed) = baseFileName;
             count = count + 1;
         end
     end
     if count > 4
+        disp(matches)
         error("Woah, found " + count + " (too many) matching files")
     end
 

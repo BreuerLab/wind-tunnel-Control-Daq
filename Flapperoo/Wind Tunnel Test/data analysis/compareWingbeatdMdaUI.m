@@ -3,7 +3,7 @@
 % functionality. The property was update in obj.update_plot but
 % not in the callback function. I guess I always thought it was
 % pass by reference, but default is to pass a copy
-classdef compareWingbeatUI < handle
+classdef compareWingbeatdMdaUI < handle
 properties
     mon_num; % 1 or 2, monitor to display plot on
 
@@ -52,7 +52,7 @@ properties
     sel_type;
     sel_freq;
     sel_speed;
-    sel_angle;
+    range;
 
     % Curves currently displayed on plot
     plot_curves;
@@ -61,7 +61,7 @@ end
 methods
     % Constructor Function
     % Defines constants and default values for parameters
-    function obj = compareWingbeatUI(mon_num, data_path)
+    function obj = compareWingbeatdMdaUI(mon_num, data_path)
         obj.mon_num = mon_num;
         obj.data_path = data_path;
 
@@ -91,7 +91,7 @@ methods
         obj.sel_type = nameToType(obj.sel_bird.name, obj.sel_bird.types(1));
         obj.sel_freq = obj.sel_bird.freqs(1);
         obj.sel_speed = obj.sel_bird.speeds(1);
-        obj.sel_angle = obj.sel_bird.angles(1);
+        obj.range = [-16 16];
 
         obj.plot_curves = [];
 
@@ -138,15 +138,8 @@ methods
         d3.Items = obj.sel_bird.freqs(obj.sel_bird.freqs ~= "0 Hz");
         d3.ValueChangedFcn = @(src, event) freq_change(src, event);
 
-        % Dropdown box for angle of attack selection
-        drop_y4 = drop_y3 - (unit_height + unit_spacing);
-        d4 = uidropdown(option_panel);
-        d4.Position = [10 drop_y4 180 unit_height];
-        d4.Items = obj.sel_bird.angles + " deg";
-        d4.ValueChangedFcn = @(src, event) angle_change(src, event);
-
         % Dropdown box for wind speed selection
-        drop_y5 = drop_y4 - (unit_height + unit_spacing);
+        drop_y5 = drop_y3 - (unit_height + unit_spacing);
         d5 = uidropdown(option_panel);
         d5.Position = [10 drop_y5 180 unit_height];
         d5.Items = obj.sel_bird.speeds + " m/s";
@@ -284,58 +277,30 @@ methods
         addStyle(d10,s)
         d10.ValueChangedFcn = @(src, event) filt_change(src, event, plot_panel);
 
-        button6_y = drop_y10 - (unit_height + unit_spacing);
-        b7 = uibutton(option_panel,"state");
-        b7.Text = "Spectrum";
-        b7.Position = [20 button6_y 160 unit_height];
-        b7.BackgroundColor = [1 1 1];
-        b7.ValueChangedFcn = @(src, event) spectrum_change(src, event, plot_panel, d3);
-
-         % Button to add entry defined by selected type,
-        % frequency, angle, and speed to list of plotted cases
-        button7_y = button6_y - (unit_height + unit_spacing);
-        b8 = uibutton(option_panel, "state");
-        b8.Position = [15 button7_y 80 unit_height];
-        b8.BackgroundColor = [1 1 1];
-        b8.Text = "f_w scale";
-        b8.Interpreter = 'tex';
-        b8.ValueChangedFcn = @(src, event) freq_scale_change(src, event, plot_panel);
-
-        % Button to remove entry defined by selected type,
-        % frequency, angle, and speed from list of plotted cases
-        b9 = uibutton(option_panel, "state");
-        b9.Position = [105 button7_y 80 unit_height];
-        b9.BackgroundColor = [1 1 1];
-        b9.Text = "Log scale";
-        b9.Interpreter = 'tex';
-        b9.ValueChangedFcn = @(src, event) log_scale_change(src, event, plot_panel);
-
         % ------------------------------------------------------
         % -------Buttons built up from bottom of screen---------
         % ------------------------------------------------------
 
-        button8_y = unit_spacing;
-        field_y = button8_y + (unit_height + unit_spacing);
-        label_y = field_y + unit_height - unit_spacing;
-
-        fnl = uilabel(option_panel);
-        fnl.Position = [65 label_y 80 unit_height];
-        fnl.Text = "File Name";
-
-        ef = uieditfield(option_panel);
-        ef.Position = [15 field_y 160 unit_height];
-        ef.Placeholder = "test";
+        AoA_y = 0.05*screen_height;
+        s = uislider(option_panel,"range");
+        s.Position = [10 AoA_y 180 3];
+        s.Limits = obj.range;
+        s.Value = obj.range;
+        s.MajorTicks = [-16 -12 -8 -4 0 4 8 12 16];
+        s.MinorTicks = [-14.5 -13 -11:1:-9 -7.5:0.5:-4.5 -3.5:0.5:-0.5 0.5:0.5:3.5 4.5:0.5:7.5 9:1:11 13 14.5];
+        s.ValueChangedFcn = @(src, event) AoA_change(src, event, plot_panel);
 
         % Button to export data on plot to .mat file
+        button10_y = AoA_y + (unit_height + unit_spacing);
         b10 = uibutton(option_panel);
-        b10.Position = [15 button8_y 160 unit_height];
+        b10.Position = [20 button10_y 160 unit_height];
         b10.Text = "Export Data";
         b10.ButtonPushedFcn = @(src, event) exportData(src, event, ef);
 
-        button9_y = label_y + (unit_height + unit_spacing);
+        button11_y = button10_y + (unit_height + unit_spacing);
         b11 = uibutton(option_panel);
         b11.Text = "Save Fig";
-        b11.Position = [20 button9_y 160 unit_height];
+        b11.Position = [20 button11_y 160 unit_height];
         b11.BackgroundColor = [1 1 1];
         b11.ButtonPushedFcn = @(src, event) save_figure(src, event, plot_panel);
 
@@ -432,10 +397,10 @@ methods
                 St = sscanf(extractAfter(obj.sel_freq, "St: "), '%g', 1);
                 abbr_freqs = str2double(extractBefore(obj.sel_bird.freqs(1:end-2), " Hz")); % remove v2 trials
                 sel_freq = stToFreq(obj.sel_bird.name, St, obj.sel_speed, abbr_freqs);
-                case_name = obj.sel_bird.name + "/" + obj.sel_type + " " + obj.sel_speed + " m/s " + sel_freq + " Hz " + obj.sel_angle + " deg";
+                case_name = obj.sel_bird.name + "/" + obj.sel_type + " " + obj.sel_speed + " m/s " + sel_freq + " Hz ";
                 % disp_case_name = obj.sel_type + " " + obj.sel_speed + " m/s " + obj.sel_freq + " " + obj.sel_angle + " deg";
             else
-                case_name = obj.sel_bird.name + "/" + obj.sel_type + " " + obj.sel_speed + " m/s " + obj.sel_freq + " " + obj.sel_angle + " deg";
+                case_name = obj.sel_bird.name + "/" + obj.sel_type + " " + obj.sel_speed + " m/s " + obj.sel_freq + " ";
                 % disp_case_name = case_name;
             end
 
@@ -455,11 +420,11 @@ methods
             % OLD CODE 10/07/2024 - CODE USED TO DISPLAY ST IN
             % LBOX, RESULTED IN PROBLEMS WHEN CAME TO DELETE
             % if (obj.norm)
-            %     [cur_type, cur_speed, cur_freq, cur_angle] = compareWingbeatUI.parseCases(case_name);
+            %     [cur_type, cur_speed, cur_freq, cur_angle] = compareWingbeatdMdaUI.parseCases(case_name);
             %     % Extract first number after 'St: '
             %     St = sscanf(extractAfter(cur_freq, "St: "), '%g', 1);
             %     abbr_freqs = str2double(extractBefore(obj.freqs(1:end-2), " Hz")); % remove v2 trials
-            %     sel_freq = compareWingbeatUI.stToFreq(St, cur_speed, abbr_freqs);
+            %     sel_freq = compareWingbeatdMdaUI.stToFreq(St, cur_speed, abbr_freqs);
             %     case_name = cur_type + " " + cur_speed + " m/s " + sel_freq + " Hz " + cur_angle + " deg";
             % end
 
@@ -572,44 +537,6 @@ methods
             obj.update_plot(plot_panel);
         end
 
-        function spectrum_change(src, ~, plot_panel, d2)
-            if (src.Value)
-                obj.spectrum = true;
-                src.BackgroundColor = [0.3010 0.7450 0.9330];
-                d2.Items = obj.sel_bird.freqs;
-            else
-                obj.spectrum = false;
-                src.BackgroundColor = [1 1 1];
-                d2.Items = obj.sel_bird.freqs(obj.sel_bird.freqs ~= "0 Hz");
-            end
-
-            obj.update_plot(plot_panel);
-        end
-
-        function freq_scale_change(src, ~, plot_panel)
-            if (src.Value)
-                obj.freq_scale = true;
-                src.BackgroundColor = [0.3010 0.7450 0.9330];              
-            else
-                obj.freq_scale = false;
-                src.BackgroundColor = [1 1 1];
-            end
-
-            obj.update_plot(plot_panel);
-        end
-
-        function log_scale_change(src, ~, plot_panel)
-            if (src.Value)
-                obj.log_scale = true;
-                src.BackgroundColor = [0.3010 0.7450 0.9330];              
-            else
-                obj.log_scale = false;
-                src.BackgroundColor = [1 1 1];
-            end
-
-            obj.update_plot(plot_panel);
-        end
-
         function exportData(~, ~, ef)
             filename = [ef.Value '.mat'];
             curves = obj.plot_curves;
@@ -639,7 +566,7 @@ methods(Static, Access = private)
         end
     end
 
-    function [sel_type, sel_speed, sel_freq, sel_angle] = parseCases(case_name)
+    function [sel_type, sel_speed, sel_freq] = parseCases(case_name)
         flapper_name = string(extractBefore(case_name, "/"));
         case_name = string(extractAfter(case_name, "/"));
 
@@ -647,19 +574,15 @@ methods(Static, Access = private)
         case_parts = strtrim(split(case_name));
         sel_type = "";
         sel_freq = -1;
-        sel_angle = -1;
         sel_speed = -1;
         for j=1:length(case_parts)
-            if (contains(case_parts(j), "deg"))
-                sel_angle = str2double(case_parts(j-1));
-                end_ind = j-2;
-            elseif (contains(case_parts(j), "m/s"))
+            if (contains(case_parts(j), "m/s"))
                 sel_speed = str2double(case_parts(j-1));
                 sel_type = strjoin(case_parts(1:j-2)); % speed is first thing after type
                 start_ind = j+1;
             end
         end
-        sel_freq = strjoin(case_parts(start_ind:end_ind));
+        sel_freq = strjoin(case_parts(start_ind:end));
     end
 
     function [uniq_types, uniq_speeds, uniq_freqs] = getUniqParams(selected_cases, bird, sub_bool)
@@ -669,7 +592,7 @@ methods(Static, Access = private)
         for i = 1:length(selected_cases)
             case_name = selected_cases(i);
             % Parse relevant trial information from case name 
-            [sel_type, sel_speed, sel_freq, sel_angle] = compareWingbeatUI.parseCases(case_name);
+            [sel_type, sel_speed, sel_freq] = compareWingbeatdMdaUI.parseCases(case_name);
 
             if (sum(strcmp(uniq_types, sel_type)) == 0)
                 uniq_types = [uniq_types sel_type];
@@ -682,7 +605,7 @@ methods(Static, Access = private)
             end
 
             if (sub_bool)
-                sub_type = compareWingbeatUI.getSubType(sel_type, bird);
+                sub_type = compareWingbeatdMdaUI.getSubType(sel_type, bird);
                 if (sum(strcmp(uniq_types, sub_type)) == 0)
                     uniq_types = [uniq_types sub_type];
                 end
@@ -931,7 +854,7 @@ methods(Static, Access = private)
 
         % Get spectrum from this data
         frame_rate = 9000; % Hz
-        [f, power, num_windows, f_min] = compareWingbeatUI.freq_spectrum(force_data, frame_rate);
+        [f, power, num_windows, f_min] = compareWingbeatdMdaUI.freq_spectrum(force_data, frame_rate);
     end
 
     % results is a 6 x N_frames matrix
@@ -950,7 +873,7 @@ methods(Static, Access = private)
         power = 10*log10(pxx);
     end
 
-    function [x_label, y_labels] = get_labels(x_norm, y_norm, spectrum, freq_scale)
+    function [x_label, y_labels] = get_labels(x_norm, y_norm)
         % Variables for plotting later
         if (x_norm)
             x_label = "Wingbeat Period (t/T)";
@@ -959,21 +882,11 @@ methods(Static, Access = private)
         end
 
         if (y_norm)
-            y_label_F = "Cycle Average Force Coefficient";
-            y_label_M = "Cycle Average Moment Coefficient";
+            y_label_F = "Cycle Average Force Coefficient Slope";
+            y_label_M = "Cycle Average Moment Coefficient Slope";
         else
-            y_label_F = "Cycle Average Force (N)";
-            y_label_M = "Cycle Average Moment (N*m)";
-        end
-
-        if (spectrum)
-            if freq_scale
-                x_label = "Wingbeat Normalized Frequency (Hz)";
-            else
-                x_label = "Frequency (Hz)";
-            end
-            y_label_F = "Power/Frequency (dB/Hz)";
-            y_label_M = "Power/Frequency (dB/Hz)";
+            y_label_F = "Cycle Average Force Slope (N)";
+            y_label_M = "Cycle Average Moment Slope (N*m)";
         end
 
         y_labels = [y_label_F, y_label_F, y_label_F, y_label_M, y_label_M, y_label_M];
@@ -1017,6 +930,112 @@ methods(Static, Access = private)
         end
     end
 
+    function [frames, forces_angles, time, forces_angles_mod] = ...
+            get_force_angles(data_path, processed_data_files,...
+            cur_bird, sel_type, sel_speed, sel_freq,...
+            lim_AoA_sel, sub_bool, norm_bool, shift_bool, filt_num)
+    
+    if (sub_bool)
+        sub_type = compareWingbeatdMdaUI.getSubType(sel_type, cur_bird);
+    end
+
+    AR = cur_bird.AR;
+    [center_to_LE, ~, ~, ~, ~] = getWingMeasurements(cur_bird.name);
+    
+    thinAirfoil = false;
+    if thinAirfoil
+        lift_slope = ((2*pi) / (1 + 2/AR));
+        pitch_slope = -lift_slope / 4;
+    else
+        % Find slopes for all wind speeds and average
+        path = data_path + "plot data/" + cur_bird.name;
+        range = [-16, 16];
+        dir_name = compareWingbeatdMdaUI.getDataFolder(cur_bird.name, sel_type, sel_speed, norm_bool);
+        [lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha] ...
+            = getGlideSlopesFromData(path, cur_bird, dir_name, range);
+    end
+    disp("Lift Slope: " + lift_slope)
+    disp("Pitch Slope: " + pitch_slope)
+    
+    amp = -1;
+    
+    sel_angle = 0;
+    % Find exact filename matching first case
+    [data_filename, data_folder] = ...
+        compareWingbeatdMdaUI.findMatchFile(sel_type, sel_speed, sel_freq, sel_angle, cur_bird.freqs, processed_data_files);
+    
+    % Load data from file
+    [frames, cycle_avg_forces, cycle_std_forces, ...
+        cycle_min_forces, cycle_max_forces, cycle_rmse_forces, norm_factors] ...
+    = compareWingbeatdMdaUI.load_data(data_folder, data_filename, filt_num, shift_bool, center_to_LE, sel_angle, norm_bool);
+    
+    forces_angles = zeros(length(lim_AoA_sel),6,length(frames));
+    for j = 1:length(lim_AoA_sel)
+    sel_angle = lim_AoA_sel(j);
+    
+    % Find exact filename matching this case
+    [data_filename, data_folder] = ...
+        compareWingbeatdMdaUI.findMatchFile(sel_type, sel_speed, sel_freq, sel_angle, cur_bird.freqs, processed_data_files);
+    
+    % Get forces from quasi-steady model
+    [time, inertial_force, added_mass_force, aero_force] = ...
+        getModel(data_path, cur_bird.name, sel_freq, sel_angle, sel_speed, ...
+        lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, amp);
+    
+    % Load data from file
+    [frames, cycle_avg_forces, cycle_std_forces, ...
+        cycle_min_forces, cycle_max_forces, cycle_rmse_forces, norm_factors] ...
+    = compareWingbeatdMdaUI.load_data(data_folder, data_filename, filt_num, shift_bool, center_to_LE, sel_angle, norm_bool);
+    
+    % Use dynamic pressure force to scale modeled data
+    if (norm_bool)
+        inertial_force = [inertial_force(:,1) / norm_factors(1),...
+                inertial_force(:,2) / norm_factors(1),...
+                inertial_force(:,3) / norm_factors(2)];
+    
+        added_mass_force = [added_mass_force(:,1) / norm_factors(1),...
+                added_mass_force(:,2) / norm_factors(1),...
+                added_mass_force(:,3) / norm_factors(2)];
+    else
+        aero_force = [aero_force(:,1) * norm_factors(1),...
+                aero_force(:,2) * norm_factors(1),...
+                aero_force(:,3) * norm_factors(2)];
+    end
+    total_drag = aero_force(:,1) + inertial_force(:,1) + added_mass_force(:,1);
+    total_lift = aero_force(:,2) + inertial_force(:,2) + added_mass_force(:,2);
+    total_moment = aero_force(:,3) + inertial_force(:,3) + added_mass_force(:,3);
+    total_force = [total_drag, total_lift, total_moment];
+    
+    if (sub_bool)
+    % Find exact filename matching this case
+    try
+    [sub_filename, sub_folder] = compareWingbeatdMdaUI.findMatchFile(sub_type, sel_speed, sel_freq, sel_angle, cur_bird.freqs, processed_data_files);
+    catch ME
+    error("Are you sure that data exists?")
+    end
+    
+    disp("Subtracting from: " + sub_folder + "  /  " + sub_filename)
+    
+    % Load data from file
+    [sub_frames, sub_cycle_avg_forces, sub_cycle_std_forces, ...
+        sub_cycle_min_forces, sub_cycle_max_forces, sub_cycle_rmse_forces, sub_norm_factors] ...
+    = compareWingbeatdMdaUI.load_data(sub_folder, sub_filename, filt_num, shift_bool, center_to_LE, sel_angle, norm_bool);
+    
+    cycle_avg_forces = cycle_avg_forces - sub_cycle_avg_forces;
+    cycle_std_forces = cycle_std_forces + sub_cycle_std_forces;
+    end
+    
+    forces_angles(j,:,:) = cycle_avg_forces;
+    % How should the following be modified by
+    % subtraction?
+    % cycle_min_forces = cycle_min_forces;
+    % cycle_max_forces = cycle_max_forces;
+    % cycle_rmse_forces = cycle_rmse_forces;
+    end
+    forces_angles_mod = zeros(size(forces_angles));
+
+    end
+
 end
 
 %% --------------------------------------------------------------
@@ -1028,12 +1047,12 @@ methods (Access = private)
     function update_plot(obj, plot_panel)
         delete(plot_panel.Children)
 
-        [x_label, y_labels] = compareWingbeatUI.get_labels(obj.norm_period, obj.norm, obj.spectrum, obj.freq_scale);
+        [x_label, y_labels] = compareWingbeatdMdaUI.get_labels(obj.norm_period, obj.norm);
         titles = obj.axes_labels(2:7);
 
         if (~isempty(obj.selection))
         % Parse selected cases
-        [uniq_types, uniq_speeds, uniq_freqs] = compareWingbeatUI.getUniqParams(obj.selection, obj.sel_bird, obj.sub);
+        [uniq_types, uniq_speeds, uniq_freqs] = compareWingbeatdMdaUI.getUniqParams(obj.selection, obj.sel_bird, obj.sub);
         
         % Get all type folders in the speed folders
         type_dir_names = [];
@@ -1067,7 +1086,7 @@ methods (Access = private)
         processed_data_files = [];
         for i = 1:length(paths)
             processed_data_path = paths(i);
-            processed_data_files = [processed_data_files; compareWingbeatUI.getFiles(processed_data_path, '*.mat')];
+            processed_data_files = [processed_data_files; compareWingbeatdMdaUI.getFiles(processed_data_path, '*.mat')];
         end
 
         colors = getColors(length(uniq_types), length(uniq_speeds), length(uniq_freqs), length(obj.selection));
@@ -1090,7 +1109,7 @@ methods (Access = private)
         end
 
         if (length(obj.selection) > 1)
-            [abbr_sel] = compareWingbeatUI.get_abbr_names(obj.selection);
+            [abbr_sel] = compareWingbeatdMdaUI.get_abbr_names(obj.selection);
         end
     
         % -----------------------------------------------------
@@ -1114,138 +1133,48 @@ methods (Access = private)
             last_freq = 0;
             last_speed = 0;
             for i = 1:length(obj.selection)
-            
-            [sel_type, sel_speed, sel_freq, sel_angle] = compareWingbeatUI.parseCases(obj.selection(i));
-            wing_freq = str2double(extractBefore(sel_freq, " Hz"));
-            if (obj.sub)
-                sub_type = compareWingbeatUI.getSubType(sel_type, obj.sel_bird);
-            end
 
+            [cur_type, cur_speed, cur_freq] = compareWingbeatdMdaUI.parseCases(obj.selection(i));
+            wing_freq = str2double(extractBefore(cur_freq, " Hz"));
+            
             flapper_name = string(extractBefore(obj.selection(i), "/"));
             cur_bird = getBirdFromName(flapper_name, obj.Flapperoo, obj.MetaBird);
             
-            % Get color for this case name
-            sels = [sel_type, sel_speed];
-            original_color = colors(find(uniq_freqs == sel_freq), find(common_var == sels(I(2)))); % hex
-            lighter_color = compareWingbeatUI.getLightColor(original_color); % RGB
+            lim_AoA_sel = cur_bird.angles(cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2));
 
+            % Get color for this case name
+            sels = [cur_type, cur_speed];
+            original_color = colors(find(uniq_freqs == cur_freq), find(common_var == sels(I(2)))); % hex
+            lighter_color = compareWingbeatdMdaUI.getLightColor(original_color); % RGB
+            
             % Using what all case names have in common, come up
             % with an abbreviated name
-            case_name = sel_type + " " + sel_speed + " m/s " + sel_freq + " " + sel_angle + " deg";
+            case_name = cur_type + " " + cur_speed + " m/s " + cur_freq + " ";
             if (exist("abbr_sel", "var"))
-                abbr_name = compareWingbeatUI.getAbbrName(case_name, abbr_sel);
+                abbr_name = compareWingbeatdMdaUI.getAbbrName(case_name, abbr_sel);
             else
                 abbr_name = case_name;
             end
 
-            % Find exact filename matching this case
-            [data_filename, data_folder] = compareWingbeatUI.findMatchFile(sel_type, sel_speed, sel_freq, sel_angle, cur_bird.freqs, processed_data_files);
-        
-            if (obj.spectrum)
-            [time_data, force_data, f, power, norm_factors] ...
-            = compareWingbeatUI.load_spectrum_data(data_folder, data_filename, obj.filt_num, obj.norm);
+            [frames, forces_angles, time, forces_angles_mod] = ...
+                compareWingbeatdMdaUI.get_force_angles(obj.data_path, processed_data_files,...
+                cur_bird, cur_type, cur_speed, cur_freq,...
+                lim_AoA_sel, obj.sub, obj.norm, obj.pitch_shift, obj.filt_num);
 
-            if (obj.freq_scale)
-                f = f / wing_freq;
+            slopes = zeros(6,length(frames));
+            SE_slopes = zeros(6,length(frames));
+            for m = 1:6
+            for k = 1:length(forces_angles(1,1,:))
+                forces_vec = forces_angles(:,m,k);
+                x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
+                y = forces_vec;
+                b = x\y;
+                model = x*b;
+                % Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
+                SE_slopes(m,k) = (sum((y - model).^2) / (sum((lim_AoA_sel - mean(lim_AoA_sel)).^2)*(length(lim_AoA_sel) - 2)) ).^(1/2);
+                % x_int = - b(1) / b(2);
+                slopes(m,k) = b(2);
             end
-
-            for idx = 1:6
-                ax = tiles(idx);
-
-                hold(ax, 'on');
-                line = plot(ax, f, power(:,idx));
-                if (obj.log_scale)
-                    set(ax, 'XScale', 'log');
-                end
-                if (obj.freq_scale)
-                    xlim(ax, [0 20])
-                else
-                    xlim(ax, [0 100])
-                end
-                line.DisplayName = abbr_name;
-                line.Color = original_color;
-                line.LineWidth = 2;
-            end
-
-            else
-
-            AR = cur_bird.AR;
-
-            thinAirfoil = false;
-            if thinAirfoil
-                lift_slope = ((2*pi) / (1 + 2/AR));
-                pitch_slope = -lift_slope / 4;
-            else
-                % Find slopes for all wind speeds and average
-                path = obj.data_path + "plot data/" + cur_bird.name;
-                range = [-16, 16];
-                dir_name = compareWingbeatUI.getDataFolder(cur_bird.name, sel_type, sel_speed, obj.norm);
-                [lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha] ...
-                    = getGlideSlopes(path, cur_bird, dir_name, range);
-            end
-            disp("Lift Slope: " + lift_slope)
-            disp("Pitch Slope: " + pitch_slope)
-
-            amp = -1;
-
-            % Get forces from quasi-steady model
-            [time, inertial_force, added_mass_force, aero_force] = ...
-                getModel(obj.data_path, cur_bird.name, sel_freq, sel_angle, sel_speed, ...
-                lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, amp);
-
-            [center_to_LE, ~, ~, ~, ~] = getWingMeasurements(cur_bird.name);
-
-            % Load data from file
-            [frames, cycle_avg_forces, cycle_std_forces, ...
-                cycle_min_forces, cycle_max_forces, cycle_rmse_forces, norm_factors] ...
-            = compareWingbeatUI.load_data(data_folder, data_filename, obj.filt_num, obj.pitch_shift, center_to_LE, sel_angle, obj.norm);
-
-            % Use dynamic pressure force to scale modeled data
-            if (obj.norm)
-                inertial_force = [inertial_force(:,1) / norm_factors(1),...
-                        inertial_force(:,2) / norm_factors(1),...
-                        inertial_force(:,3) / norm_factors(2)];
-
-                added_mass_force = [added_mass_force(:,1) / norm_factors(1),...
-                        added_mass_force(:,2) / norm_factors(1),...
-                        added_mass_force(:,3) / norm_factors(2)];
-            else
-                aero_force = [aero_force(:,1) * norm_factors(1),...
-                        aero_force(:,2) * norm_factors(1),...
-                        aero_force(:,3) * norm_factors(2)];
-            end
-            total_drag = aero_force(:,1) + inertial_force(:,1) + added_mass_force(:,1);
-            total_lift = aero_force(:,2) + inertial_force(:,2) + added_mass_force(:,2);
-            total_moment = aero_force(:,3) + inertial_force(:,3) + added_mass_force(:,3);
-            total_force = [total_drag, total_lift, total_moment];
-
-            if (obj.sub)
-            % Find exact filename matching this case
-            try
-            [sub_filename, sub_folder] = compareWingbeatUI.findMatchFile(sub_type, sel_speed, sel_freq, sel_angle, cur_bird.freqs, processed_data_files);
-            catch ME
-            error("Are you sure that data exists?")
-            end
-
-            disp("Subtracting from: " + sub_folder + "  /  " + sub_filename)
-
-            [center_to_LE, ~, ~, ~, ~] = getWingMeasurements(cur_bird.name);
-
-            % Load data from file
-            [sub_frames, sub_cycle_avg_forces, sub_cycle_std_forces, ...
-                sub_cycle_min_forces, sub_cycle_max_forces, sub_cycle_rmse_forces, sub_norm_factors] ...
-            = compareWingbeatUI.load_data(sub_folder, sub_filename, obj.filt_num, obj.pitch_shift, center_to_LE, sel_angle, obj.norm);
-
-            cycle_avg_forces = cycle_avg_forces - sub_cycle_avg_forces;
-            cycle_std_forces = cycle_std_forces + sub_cycle_std_forces;
-
-            
-
-            % How should the following be modified by
-            % subtraction?
-            % cycle_min_forces = cycle_min_forces;
-            % cycle_max_forces = cycle_max_forces;
-            % cycle_rmse_forces = cycle_rmse_forces;
             end
 
             if (~obj.norm_period)
@@ -1253,8 +1182,8 @@ methods (Access = private)
                 frames = (frames / wing_freq);
             end
 
-            upper_results = cycle_avg_forces + cycle_std_forces;
-            lower_results = cycle_avg_forces - cycle_std_forces;
+            upper_results = slopes + SE_slopes;
+            lower_results = slopes - SE_slopes;
 
             for idx = 1:6
                 ax = tiles(idx);
@@ -1265,22 +1194,21 @@ methods (Access = private)
                 p = fill(ax, xconf, yconf, lighter_color);
                 p.HandleVisibility = 'off';
                 p.EdgeColor = 'none';
-                data_l = plot(ax, frames, cycle_avg_forces(idx, :));
+                data_l = plot(ax, frames, slopes(idx, :));
                 data_l.DisplayName = abbr_name;
                 data_l.Color = original_color;
                 data_l.LineWidth = 2;
 
-                if (last_freq ~= wing_freq || last_speed ~= sel_speed)
-                obj.plot_model(idx, ax, original_color, time, inertial_force, added_mass_force, aero_force, total_force, abbr_name);
-                if (idx == 5)
-                    last_freq = wing_freq;
-                    last_speed = sel_speed;
-                end
-                end
+                % if (last_freq ~= wing_freq || last_speed ~= cur_speed)
+                % obj.plot_model(idx, ax, original_color, time, inertial_force, added_mass_force, aero_force, total_force, abbr_name);
+                % if (idx == 5)
+                %     last_freq = wing_freq;
+                %     last_speed = cur_speed;
+                % end
+                % end
 
                 % plot_wingbeat_patch();
                 hold(ax, 'off');
-            end
             end
             end
 
@@ -1294,173 +1222,73 @@ methods (Access = private)
             last_freq = 0;
             last_speed = 0;
             for i = 1:length(obj.selection)
-            
-            [sel_type, sel_speed, sel_freq, sel_angle] = compareWingbeatUI.parseCases(obj.selection(i));
-            wing_freq = str2double(extractBefore(sel_freq, " Hz"));
+
+            [cur_type, cur_speed, cur_freq] = compareWingbeatdMdaUI.parseCases(obj.selection(i));
+            wing_freq = str2double(extractBefore(cur_freq, " Hz"));
             if (obj.sub)
-                sub_type = compareWingbeatUI.getSubType(sel_type, cur_bird);
+                sub_type = compareWingbeatdMdaUI.getSubType(cur_type, obj.sel_bird);
             end
+            
+            flapper_name = string(extractBefore(obj.selection(i), "/"));
+            cur_bird = getBirdFromName(flapper_name, obj.Flapperoo, obj.MetaBird);
+            
+            lim_AoA_sel = cur_bird.angles(cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2));
 
             % Get color for this case name
-            sels = [sel_type, sel_speed];
-            original_color = colors(find(uniq_freqs == sel_freq), find(common_var == sels(I(2)))); % hex
-            lighter_color = compareWingbeatUI.getLightColor(original_color); % RGB
-
+            sels = [cur_type, cur_speed];
+            original_color = colors(find(uniq_freqs == cur_freq), find(common_var == sels(I(2)))); % hex
+            lighter_color = compareWingbeatdMdaUI.getLightColor(original_color); % RGB
+            
             % Using what all case names have in common, come up
             % with an abbreviated name
-            case_name = sel_type + " " + sel_speed + " m/s " + sel_freq + " " + sel_angle + " deg";
+            case_name = cur_type + " " + cur_speed + " m/s " + cur_freq + " ";
             if (exist("abbr_sel", "var"))
-                abbr_name = compareWingbeatUI.getAbbrName(case_name, abbr_sel);
+                abbr_name = compareWingbeatdMdaUI.getAbbrName(case_name, abbr_sel);
             else
                 abbr_name = case_name;
             end
 
-            % Find exact filename matching this case
-            [data_filename, data_folder]...
-                = compareWingbeatUI.findMatchFile(sel_type, sel_speed, sel_freq, sel_angle, cur_bird.freqs, processed_data_files);
-        
-            if (obj.sub)
-                % Find exact filename matching this case
-                try
-                [sub_filename, sub_folder]...
-                    = compareWingbeatUI.findMatchFile(sub_type, sel_speed, sel_freq, sel_angle, cur_bird.freqs, processed_data_files);
-                catch ME
-                    error("Are you sure that data exists?")
-                end
+            [frames, forces_angles, time, forces_angles_mod] = ...
+                compareWingbeatdMdaUI.get_force_angles(obj.data_path, processed_data_files,...
+                cur_bird, cur_type, cur_speed, cur_freq,...
+                lim_AoA_sel, obj.sub, obj.norm, obj.pitch_shift, obj.filt_num);
+
+            slopes = zeros(size(frames));
+            SE_slopes = zeros(size(frames));
+            for k = 1:length(forces_angles(1,1,:))
+                pitch_mom = forces_angles(:,idx,k);
+                x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
+                y = pitch_mom;
+                b = x\y;
+                model = x*b;
+                % Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
+                SE_slopes(k) = (sum((y - model).^2) / (sum((lim_AoA_sel - mean(lim_AoA_sel)).^2)*(length(lim_AoA_sel) - 2)) ).^(1/2);
+                % x_int = - b(1) / b(2);
+                slopes(k) = b(2);
             end
-
-            if (obj.spectrum)
-            [time_data, force_data, f, power, norm_factors] ...
-            = compareWingbeatUI.load_spectrum_data(data_folder, data_filename, obj.filt_num, obj.norm);
-
-            if (obj.sub)
-                [sub_time, sub_force, sub_f, sub_power, ~]...
-                    = compareWingbeatUI.load_spectrum_data(sub_folder, sub_filename, obj.filt_num, obj.norm);
-
-                disp("Subtracting spectrum from: " + sub_folder + "  /  " + sub_filename)
-                if (f == sub_f)
-                    power = power - sub_power;
-                else
-                    error("Frequencies don't match!")
-                end
-            end
-
-            hold(ax, 'on');
-            if (obj.freq_scale)
-                f = f / wing_freq;
-            end
-            line = plot(ax, f, power(:,idx));
-            if (obj.log_scale)
-                set(ax, 'XScale', 'log');
-            end
-            if (obj.freq_scale)
-                xlim(ax, [0 20])
-            else
-                xlim(ax, [0 100])
-            end
-            line.DisplayName = abbr_name;
-            line.Color = original_color;
-            line.LineWidth = 2;
-
-            else
-
-            AR = cur_bird.AR;
-
-            thinAirfoil = false;
-            if thinAirfoil
-                lift_slope = ((2*pi) / (1 + 2/AR));
-                pitch_slope = -lift_slope / 4;
-            else
-                % Find slopes for all wind speeds and average
-                path = obj.data_path + "plot data/" + cur_bird.name;
-                range = [-16, 16];
-                dir_name = compareWingbeatUI.getDataFolder(cur_bird.name, sel_type, sel_speed, obj.norm);
-                [lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha] ...
-                    = getGlideSlopes(path, cur_bird, dir_name, range);
-            end
-            disp("Lift Slope: " + lift_slope)
-            disp("Pitch Slope: " + pitch_slope)
-
-            amp = -1;
-
-            % Get forces from quasi-steady model
-            [time, inertial_force, added_mass_force, aero_force] = ...
-                getModel(obj.data_path, cur_bird.name, sel_freq, sel_angle, sel_speed,...
-                lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, amp);
-
-            [center_to_LE, ~, ~, ~, ~] = getWingMeasurements(cur_bird.name);
-
-            % Load data from file
-            [frames, cycle_avg_forces, cycle_std_forces, ...
-                cycle_min_forces, cycle_max_forces, cycle_rmse_forces, norm_factors] ...
-            = compareWingbeatUI.load_data(data_folder, data_filename, obj.filt_num, obj.pitch_shift, center_to_LE, sel_angle, obj.norm);
-
-            if (obj.norm)
-                inertial_force = [inertial_force(:,1) / norm_factors(1),...
-                        inertial_force(:,2) / norm_factors(1),...
-                        inertial_force(:,3) / norm_factors(2)];
-
-                added_mass_force = [added_mass_force(:,1) / norm_factors(1),...
-                        added_mass_force(:,2) / norm_factors(1),...
-                        added_mass_force(:,3) / norm_factors(2)];
-            else
-                aero_force = [aero_force(:,1) * norm_factors(1),...
-                        aero_force(:,2) * norm_factors(1),...
-                        aero_force(:,3) * norm_factors(2)];
-            end
-
-            total_drag = aero_force(:,1) + inertial_force(:,1) + added_mass_force(:,1);
-            total_lift = aero_force(:,2) + inertial_force(:,2) + added_mass_force(:,2);
-            total_moment = aero_force(:,3) + inertial_force(:,3) + added_mass_force(:,3);
-            total_force = [total_drag, total_lift, total_moment];
-
-            % just for lift case. Wanted to better understand
-            % when inertia is dominating over aerodynamics
-            phase_ratio = max(aero_force(:,2)) / max(inertial_force(:,2) + added_mass_force(:,2));
-            disp("----------------------------------------------------------------------------")
-            disp("Aerodynamics are " + phase_ratio + " times the sum of inertia and added mass")
-            disp("----------------------------------------------------------------------------")
-
-            if (obj.sub)
-            disp("Subtracting from: " + sub_folder + "  /  " + sub_filename)
-
-            [center_to_LE, ~, ~, ~, ~] = getWingMeasurements(cur_bird.name);
-
-            % Load data from file
-            [sub_frames, sub_cycle_avg_forces, sub_cycle_std_forces, ...
-                sub_cycle_min_forces, sub_cycle_max_forces, sub_cycle_rmse_forces, sub_norm_factors] ...
-            = compareWingbeatUI.load_data(sub_folder, sub_filename, obj.filt_num, obj.pitch_shift, center_to_LE, sel_angle, obj.norm);
-
-            cycle_avg_forces = cycle_avg_forces - sub_cycle_avg_forces;
-            cycle_std_forces = cycle_std_forces + sub_cycle_std_forces;
-
-            % How should the following be modified by
-            % subtraction?
-            % cycle_min_forces = cycle_min_forces;
-            % cycle_max_forces = cycle_max_forces;
-            % cycle_rmse_forces = cycle_rmse_forces;
-            end
-
-            %=============================================
-            % ----------test freq scaling of peaks--------
-            %=============================================
-            % cycle_avg_forces = cycle_avg_forces / wing_freq^2;
 
             if (~obj.norm_period)
                 % Scale x-axis back to time domain
                 frames = (frames / wing_freq);
             end
 
-            upper_results = cycle_avg_forces + cycle_std_forces;
-            lower_results = cycle_avg_forces - cycle_std_forces;
+            upper_results = slopes + SE_slopes;
+            lower_results = slopes - SE_slopes;
 
+            % % just for lift case. Wanted to better understand
+            % % when inertia is dominating over aerodynamics
+            % phase_ratio = max(aero_force(:,2)) / max(inertial_force(:,2) + added_mass_force(:,2));
+            % disp("----------------------------------------------------------------------------")
+            % disp("Aerodynamics are " + phase_ratio + " times the sum of inertia and added mass")
+            % disp("----------------------------------------------------------------------------")
+        
             hold(ax, 'on');
             xconf = [frames, frames(end:-1:1)];         
-            yconf = [upper_results(idx, :), lower_results(idx, end:-1:1)];
+            yconf = [upper_results, lower_results(end:-1:1)];
             p = fill(ax, xconf, yconf, lighter_color);
             p.HandleVisibility = 'off';      
             p.EdgeColor = 'none';
-            line = plot(ax, frames, cycle_avg_forces(idx, :));
+            line = plot(ax, frames, slopes);
             line.DisplayName = abbr_name;
             line.Color = original_color;
             line.LineWidth = 2;
@@ -1471,13 +1299,12 @@ methods (Access = private)
             struct_name = "v" + abbr_name_chars(~isspace(abbr_name_chars));
             % obj.plot_curves.(struct_name) = [frames; cycle_avg_forces(idx, :)];
 
-            if (last_freq ~= wing_freq || last_speed ~= sel_speed)
-            obj.plot_model(idx, ax, original_color, time, inertial_force, added_mass_force, aero_force, total_force, abbr_name);
-            last_freq = wing_freq;
-            last_speed = sel_speed;
-            end
+            % if (last_freq ~= wing_freq || last_speed ~= cur_speed)
+            % obj.plot_model(idx, ax, original_color, time, inertial_force, added_mass_force, aero_force, total_force, abbr_name);
+            % last_freq = wing_freq;
+            % last_speed = cur_speed;
+            % end
             hold(ax, 'off');
-            end
 
             end
 

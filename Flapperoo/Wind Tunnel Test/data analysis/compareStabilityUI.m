@@ -29,6 +29,7 @@ properties
     saveFig;
     logScale;
     zeroSlope;
+    constSM;
 
     x_var;
     y_var;
@@ -58,6 +59,7 @@ methods
         obj.saveFig = false;
         obj.logScale = false;
         obj.zeroSlope = false;
+        obj.constSM = false;
 
         obj.x_var = 1;
         obj.y_var = 1;
@@ -230,6 +232,13 @@ methods
         b13.BackgroundColor = [1 1 1];
         b13.ValueChangedFcn = @(src, event) zero_slope(src, event, plot_panel);
 
+        button12_y = button11_y + (unit_height + unit_spacing);
+        b14 = uibutton(option_panel,"state");
+        b14.Text = "Constant SM"; % static margin
+        b14.Position = [20 button12_y 160 unit_height];
+        b14.BackgroundColor = [1 1 1];
+        b14.ValueChangedFcn = @(src, event) constant_SM(src, event, plot_panel);
+
         obj.update_plot(plot_panel);
 
         %-----------------------------------------------------%
@@ -285,7 +294,7 @@ methods
         end
     
         function addToList(~, ~, plot_panel, lbox)
-            sel_name = compareStabilityUI.typeToSel(obj.sel_bird.name, obj.sel_type);
+            sel_name = typeToSel(obj.sel_bird.name, obj.sel_type);
             speed = obj.sel_speed + "m.s";
             folder = sel_name + " " + speed;
             case_name = obj.sel_bird.name + "/" + strrep(folder, " ", "_");
@@ -454,6 +463,18 @@ methods
 
             obj.update_plot(plot_panel);
         end
+
+        function constant_SM(src, ~, plot_panel)
+            if (src.Value)
+                obj.constSM = true;
+                src.BackgroundColor = [0.3010 0.7450 0.9330];
+            else
+                obj.constSM = false;
+                src.BackgroundColor = [1 1 1];
+            end
+
+            obj.update_plot(plot_panel);
+        end
         %-----------------------------------------------------%
         %-----------------------------------------------------%
         
@@ -461,35 +482,6 @@ methods
 end
 
 methods(Static, Access = private)
-
-    function sel = typeToSel(flapper, type)
-        if (flapper == "Flapperoo")
-            if (type == "blue wings")
-                sel = "Full Wings";
-            elseif (type == "tail blue wings")
-                sel = "Tail Wings";
-            elseif (type == "blue wings half body")
-                sel = "Half Wings";
-            elseif (type == "no wings")
-                sel = "Full Body";
-            elseif (type == "tail no wings")
-                sel = "Tail Body";
-            elseif (type == "half body no wings")
-                sel = "Half Body";
-            elseif (type == "inertial wings")
-                sel = "Full Inertial";
-            else
-                sel = type;
-            end
-        elseif (flapper == "MetaBird")
-            if (type == "full body short tail low")
-                sel = "Tail Low Wings";
-            end
-        else
-            sel = type;
-        end
-    end
-
     function [sub_title, abbr_sel] = get_abbr_names(sel)
         sub_title = "";
         abbr_sel = "";
@@ -631,6 +623,8 @@ methods (Access = private)
         elseif (obj.y_var == 4)
             y_label = "Moment at Neutral Position";
         end
+        
+        show_data = true;
 
         if (~isempty(obj.selection))
         unique_dir = [];
@@ -807,6 +801,7 @@ methods (Access = private)
             err_slopes = [];
             NP_positions = [];
             NP_moms = [];
+            [init_NP_pos, ~, ~] = findNP(lim_avg_forces(:,:,1), lim_AoA_sel);
             for k = 1:length(wing_freqs)
                 idx = 5; % pitch moment
                 x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
@@ -824,15 +819,13 @@ methods (Access = private)
                     slope = slope - glide_slope;
                 end
 
-                slopes = [slopes slope];
-                err_slopes = [err_slopes SE_slope];
-                x_intercepts = [x_intercepts x_int];
-
                 [center_to_LE, chord, ~, ~, ~] = getWingMeasurements(cur_bird.name);
 
-                if (obj.y_var == 3 || obj.y_var == 4)
+                if (obj.y_var == 3 || obj.y_var == 4 || obj.constSM)
                     [NP_pos, NP_pos_err, NP_mom] = findNP(lim_avg_forces(:,:,k), lim_AoA_sel);
+                end
 
+                if (obj.y_var == 3 || obj.y_var == 4)
                     if (obj.norm)
                         NP_mom = NP_mom / norm_factors(2);
                     end
@@ -840,6 +833,24 @@ methods (Access = private)
                     NP_positions = [NP_positions NP_pos_chord];
                     NP_moms = [NP_moms NP_mom];
                 end
+
+                if (obj.constSM)
+                    shift_distance = (NP_pos - init_NP_pos);
+                    [mod_avg_data] = shiftPitchMom(squeeze(lim_avg_forces(:,:,k)), shift_distance, lim_AoA_sel);
+                    idx = 5; % pitch moment
+                    x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
+                    y = mod_avg_data(idx,:)';
+                    b = x\y;
+                    model = x*b;
+                    % Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
+                    SE_slope = (sum((y - model).^2) / (sum((lim_AoA_sel - mean(lim_AoA_sel)).^2)*(length(lim_AoA_sel) - 2)) ).^(1/2);
+                    x_int = - b(1) / b(2);
+                    slope = b(2);
+                end
+
+                slopes = [slopes slope];
+                err_slopes = [err_slopes SE_slope];
+                x_intercepts = [x_intercepts x_int];
 
                 if (obj.x_var == 2 || obj.x_var == 3)
                     [distance_vals_chord, static_margin, slopes_pos, x_ints] = ...
@@ -889,8 +900,10 @@ methods (Access = private)
             if (obj.aero_model)
                 if (obj.amplitudes)
                     amplitude_list = [pi/12, pi/6, pi/4, pi/3];
+                    show_data = false;
                 else
                     amplitude_list = -1;
+                    % amplitude_list = pi/6;
                 end
 
                 mod_slopes = zeros(length(amplitude_list), length(wing_freqs));
@@ -1006,6 +1019,8 @@ methods (Access = private)
                 y_vals_mod = mod_NP_moms;
             end
 
+            % mod_diff_vals = abs(y_vals - y_vals_mod);
+            % disp("Average disagreement between data and model: " + mean(mod_diff_vals));
             x_vals_tot = [x_vals_tot x_vals];
             y_vals_tot = [y_vals_tot y_vals];
             err_vals_tot = [err_vals_tot err_vals];
@@ -1020,7 +1035,6 @@ methods (Access = private)
         % Plot data after getting it all %% ----------------- %%
 
         if ~obj.logScale
-            show_data = true;
             if show_data
 
             e = errorbar(ax, x_vals, y_vals, err_vals, '.');
@@ -1032,7 +1046,7 @@ methods (Access = private)
             x_var_mod = x_vals(2:end);
             y_var_mod = y_vals(2:end);
 
-            test_fit = fit(x_var_mod', y_var_mod', 'power2')
+            test_fit = fit(x_var_mod', y_var_mod', 'power2');
             y_mod = test_fit.a * x_var_mod.^(test_fit.b) + test_fit.c;
             end
             % fit power law
@@ -1088,6 +1102,21 @@ methods (Access = private)
             end
 
 
+        end
+
+        plot_fit = false;
+        if (plot_fit)
+            bad_ind = [];
+            for n = 1:length(x_vals_tot)
+                if (x_vals_tot(n) == 0)
+                   bad_ind = [bad_ind n]; 
+                end
+            end
+            x_vals_tot(bad_ind) = [];
+            y_vals_tot(bad_ind) = [];
+            test_fit = fit(x_vals_tot', y_vals_tot', 'power2')
+            y_mod = test_fit.a * sort(x_vals_tot).^(test_fit.b) + test_fit.c;
+            plot(ax, sort(x_vals_tot), y_mod)
         end
 
         if (obj.logScale)

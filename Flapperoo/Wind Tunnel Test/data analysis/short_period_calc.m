@@ -31,10 +31,11 @@ L = 0.35/2; % half length of prolate spheroid (meters) --> body length
 I = (1/5)*m*(r^2 + L^2);
 
 k = 2*10^(-3); % dM / da, for half wings was between -0.5 and -4 * 10^(-3)
+k = linspace(0.5, 4e-3, 20);
 
-w_n = (k / I)^(1/2);
+w_n = (k / I).^(1/2);
 
-T = (2*pi) / w_n;
+T = (2*pi) ./ w_n;
 
 %% MetaBird
 % 11 cm long 2 cm wide, weighs 9.5 grams
