@@ -919,7 +919,7 @@ methods (Access = private)
                 else
                     % Find slopes for all wind speeds and average
                     path = obj.data_path + "/plot data/" + cur_bird.name;
-                    [lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha] = getGlideSlopes(path, cur_bird, cur_struct_match.dir_name, obj.range);
+                    [lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha] = getGlideSlopesFromData(path, cur_bird, cur_struct_match.dir_name, obj.range);
                 end
                 disp("Lift Slope: " + lift_slope)
                 disp("Pitch Slope: " + pitch_slope)

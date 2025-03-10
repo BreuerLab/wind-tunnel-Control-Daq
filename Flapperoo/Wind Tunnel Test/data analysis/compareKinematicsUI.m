@@ -14,6 +14,7 @@ properties
     sel_angle;
     sel_freq;
     sel_speed;
+    sel_amp;
 
     % booleans
     st;
@@ -38,6 +39,7 @@ methods
         obj.sel_freq = obj.sel_bird.freqs(1);
         obj.sel_speed = obj.sel_bird.speeds(1);
         obj.sel_angle = obj.sel_bird.angles(1);
+        obj.sel_amp = pi/7;
 
         obj.st = false;
         obj.saveFig = false;
@@ -84,12 +86,20 @@ methods
         d4.Items = obj.sel_bird.speeds + " m/s";
         d4.ValueChangedFcn = @(src, event) speed_change(src, event);
 
+        % Dropdown box for amplitude selection
+        drop_y5 = drop_y4 - (unit_height + unit_spacing);
+        d5 = uidropdown(option_panel);
+        d5.Position = [10 drop_y5 180 30];
+        d5.Items = [-1,pi/7,pi/6,pi/5,pi/4] + " rad";
+        d5.Value = d5.Items(2);
+        d5.ValueChangedFcn = @(src, event) amp_change(src, event);
+
         % FIX THIS LINE
         d1.ValueChangedFcn = @(src, event) flapper_change(src, event, d2, d3);
 
         % Button to add entry defined by selected type,
         % frequency, angle, and speed to list of plotted cases
-        button2_y = drop_y4 - (unit_height + unit_spacing);
+        button2_y = drop_y5 - (unit_height + unit_spacing);
         b2 = uibutton(option_panel);
         b2.Position = [15 button2_y 80 unit_height];
         b2.Text = "Add entry";
@@ -201,8 +211,13 @@ methods
             obj.sel_speed = speed;
         end
     
+        % update amplitude variable with new value selected by user
+        function amp_change(src, ~)
+            obj.sel_amp = str2double(extractBefore(src.Value, " rad"));
+        end
+
         function addToList(~, ~, plot_panel, lbox)
-            case_name = obj.sel_bird.name + "/" + obj.sel_speed + " m/s " + obj.sel_freq + " " + obj.sel_angle + " deg";
+            case_name = obj.sel_bird.name + "/" + obj.sel_speed + " m/s " + obj.sel_freq + " " + obj.sel_angle + " deg " + obj.sel_amp + " rad";
 
             if (sum(strcmp(string(lbox.Items), case_name)) == 0)
                 lbox.Items = [lbox.Items, case_name];
@@ -269,7 +284,7 @@ methods
 end
 
 methods(Static, Access = private)
-    function [flapper_name, sel_angle, sel_speed, sel_freq] = parseSelection(sel)
+    function [flapper_name, sel_angle, sel_speed, sel_freq, sel_amp] = parseSelection(sel)
         flapper_name = string(extractBefore(sel, "/"));
         dir_name = string(extractAfter(sel, "/"));
 
@@ -281,6 +296,8 @@ methods(Static, Access = private)
                 sel_speed = str2double(dir_parts(k-1));
             elseif (contains(dir_parts(k), "Hz"))
                 sel_freq = str2double(dir_parts(k-1));
+            elseif (contains(dir_parts(k), "rad"))
+                sel_amp = str2double(dir_parts(k-1));
             end
         end
     end
@@ -346,7 +363,7 @@ methods (Access = private)
         uniq_speeds = [];
         uniq_freqs = [];
         for j = 1:length(obj.selection)
-            [flapper_name, cur_angle, cur_speed, cur_freq] = compareKinematicsUI.parseSelection(obj.selection(j));
+            [flapper_name, cur_angle, cur_speed, cur_freq, cur_amp] = compareKinematicsUI.parseSelection(obj.selection(j));
 
             if (sum(uniq_speeds == cur_speed) == 0)
                 uniq_speeds = [uniq_speeds cur_speed];
@@ -371,12 +388,11 @@ methods (Access = private)
         hold(ax, 'on');
 
         for i = 1:length(obj.selection)
-            [flapper_name, cur_angle, cur_speed, cur_freq] = compareKinematicsUI.parseSelection(obj.selection(i));
+            [flapper_name, cur_angle, cur_speed, cur_freq, cur_amp] = compareKinematicsUI.parseSelection(obj.selection(i));
 
             [center_to_LE, chord, COM_span, wing_length, arm_length] = getWingMeasurements(flapper_name);
 
-            amp = pi/6;
-            [time, ang_disp, ang_vel, ang_acc] = get_kinematics(obj.data_path, cur_freq, amp);
+            [time, ang_disp, ang_vel, ang_acc] = get_kinematics(obj.data_path, cur_freq, cur_amp);
             
             full_length = wing_length + arm_length;
             r = arm_length:0.001:full_length;
@@ -448,8 +464,8 @@ methods (Access = private)
                 end
 
                 if (obj.mean_span)
-                    y_var_sel = y_var(:,251);
-                    r_leg = " Wing Tip";
+                    y_var_sel = mean(y_var,2);
+                    r_leg = " Spanwise Mean";
 
                     ph = plot(ax, x_var, y_var_sel);
                     ph.LineWidth = 2;
@@ -457,8 +473,8 @@ methods (Access = private)
                 end
 
                 if (obj.tip)
-                    y_var_sel = mean(y_var,2);
-                    r_leg = " Spanwise Mean";
+                    y_var_sel = y_var(:,251);
+                    r_leg = " Wing Tip";
 
                     ph = plot(ax, x_var, y_var_sel);
                     ph.LineWidth = 2;

@@ -1017,6 +1017,91 @@ methods(Static, Access = private)
         end
     end
 
+    function [frames, forces_angles, time, forces_angles_mod] = ...
+            get_forces(data_folder, data_filename, data_path, processed_data_files,...
+            cur_bird, sel_type, sel_speed, sel_freq,...
+            lim_AoA_sel, sub_bool, norm_bool, shift_bool, filt_num)
+        AR = cur_bird.AR;
+
+        thinAirfoil = false;
+        if thinAirfoil
+            lift_slope = ((2*pi) / (1 + 2/AR));
+            pitch_slope = -lift_slope / 4;
+        else
+            % Find slopes for all wind speeds and average
+            path = data_path + "plot data/" + cur_bird.name;
+            range = [-16, 16];
+            dir_name = compareWingbeatUI.getDataFolder(cur_bird.name, sel_type, sel_speed, norm_bool);
+            [lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha] ...
+                = getGlideSlopesFromData(path, cur_bird, dir_name, range);
+        end
+        disp("Lift Slope: " + lift_slope)
+        disp("Pitch Slope: " + pitch_slope)
+
+        amp = -1;
+
+        % Get forces from quasi-steady model
+        [time, inertial_force, added_mass_force, aero_force] = ...
+            getModel(data_path, cur_bird.name, sel_freq, sel_angle, sel_speed, ...
+            lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, amp);
+
+        [center_to_LE, ~, ~, ~, ~] = getWingMeasurements(cur_bird.name);
+
+        % Load data from file
+        [frames, cycle_avg_forces, cycle_std_forces, ...
+            cycle_min_forces, cycle_max_forces, cycle_rmse_forces, norm_factors] ...
+        = compareWingbeatUI.load_data(data_folder, data_filename, filt_num, shift_bool, center_to_LE, sel_angle, norm_bool);
+
+        % Use dynamic pressure force to scale modeled data
+        if (norm_bool)
+            inertial_force = [inertial_force(:,1) / norm_factors(1),...
+                    inertial_force(:,2) / norm_factors(1),...
+                    inertial_force(:,3) / norm_factors(2)];
+
+            added_mass_force = [added_mass_force(:,1) / norm_factors(1),...
+                    added_mass_force(:,2) / norm_factors(1),...
+                    added_mass_force(:,3) / norm_factors(2)];
+        else
+            aero_force = [aero_force(:,1) * norm_factors(1),...
+                    aero_force(:,2) * norm_factors(1),...
+                    aero_force(:,3) * norm_factors(2)];
+        end
+        total_drag = aero_force(:,1) + inertial_force(:,1) + added_mass_force(:,1);
+        total_lift = aero_force(:,2) + inertial_force(:,2) + added_mass_force(:,2);
+        total_moment = aero_force(:,3) + inertial_force(:,3) + added_mass_force(:,3);
+        total_force = [total_drag, total_lift, total_moment];
+
+        if (sub_bool)
+        % Find exact filename matching this case
+        try
+        [sub_filename, sub_folder] = compareWingbeatUI.findMatchFile(sub_type, sel_speed, sel_freq, sel_angle, cur_bird.freqs, processed_data_files);
+        catch ME
+        error("Are you sure that data exists?")
+        end
+
+        disp("Subtracting from: " + sub_folder + "  /  " + sub_filename)
+
+        [center_to_LE, ~, ~, ~, ~] = getWingMeasurements(cur_bird.name);
+
+        % Load data from file
+        [sub_frames, sub_cycle_avg_forces, sub_cycle_std_forces, ...
+            sub_cycle_min_forces, sub_cycle_max_forces, sub_cycle_rmse_forces, sub_norm_factors] ...
+        = compareWingbeatUI.load_data(sub_folder, sub_filename, filt_num, shift_bool, center_to_LE, sel_angle, norm_bool);
+
+        cycle_avg_forces = cycle_avg_forces - sub_cycle_avg_forces;
+        cycle_std_forces = cycle_std_forces + sub_cycle_std_forces;
+
+        % How should the following be modified by
+        % subtraction?
+        % cycle_min_forces = cycle_min_forces;
+        % cycle_max_forces = cycle_max_forces;
+        % cycle_rmse_forces = cycle_rmse_forces;
+        end
+
+        upper_results = cycle_avg_forces + cycle_std_forces;
+        lower_results = cycle_avg_forces - cycle_std_forces;
+    end
+
 end
 
 %% --------------------------------------------------------------
@@ -1169,92 +1254,12 @@ methods (Access = private)
 
             else
 
-            AR = cur_bird.AR;
-
-            thinAirfoil = false;
-            if thinAirfoil
-                lift_slope = ((2*pi) / (1 + 2/AR));
-                pitch_slope = -lift_slope / 4;
-            else
-                % Find slopes for all wind speeds and average
-                path = obj.data_path + "plot data/" + cur_bird.name;
-                range = [-16, 16];
-                dir_name = compareWingbeatUI.getDataFolder(cur_bird.name, sel_type, sel_speed, obj.norm);
-                [lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha] ...
-                    = getGlideSlopes(path, cur_bird, dir_name, range);
-            end
-            disp("Lift Slope: " + lift_slope)
-            disp("Pitch Slope: " + pitch_slope)
-
-            amp = -1;
-
-            % Get forces from quasi-steady model
-            [time, inertial_force, added_mass_force, aero_force] = ...
-                getModel(obj.data_path, cur_bird.name, sel_freq, sel_angle, sel_speed, ...
-                lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, amp);
-
-            [center_to_LE, ~, ~, ~, ~] = getWingMeasurements(cur_bird.name);
-
-            % Load data from file
-            [frames, cycle_avg_forces, cycle_std_forces, ...
-                cycle_min_forces, cycle_max_forces, cycle_rmse_forces, norm_factors] ...
-            = compareWingbeatUI.load_data(data_folder, data_filename, obj.filt_num, obj.pitch_shift, center_to_LE, sel_angle, obj.norm);
-
-            % Use dynamic pressure force to scale modeled data
-            if (obj.norm)
-                inertial_force = [inertial_force(:,1) / norm_factors(1),...
-                        inertial_force(:,2) / norm_factors(1),...
-                        inertial_force(:,3) / norm_factors(2)];
-
-                added_mass_force = [added_mass_force(:,1) / norm_factors(1),...
-                        added_mass_force(:,2) / norm_factors(1),...
-                        added_mass_force(:,3) / norm_factors(2)];
-            else
-                aero_force = [aero_force(:,1) * norm_factors(1),...
-                        aero_force(:,2) * norm_factors(1),...
-                        aero_force(:,3) * norm_factors(2)];
-            end
-            total_drag = aero_force(:,1) + inertial_force(:,1) + added_mass_force(:,1);
-            total_lift = aero_force(:,2) + inertial_force(:,2) + added_mass_force(:,2);
-            total_moment = aero_force(:,3) + inertial_force(:,3) + added_mass_force(:,3);
-            total_force = [total_drag, total_lift, total_moment];
-
-            if (obj.sub)
-            % Find exact filename matching this case
-            try
-            [sub_filename, sub_folder] = compareWingbeatUI.findMatchFile(sub_type, sel_speed, sel_freq, sel_angle, cur_bird.freqs, processed_data_files);
-            catch ME
-            error("Are you sure that data exists?")
-            end
-
-            disp("Subtracting from: " + sub_folder + "  /  " + sub_filename)
-
-            [center_to_LE, ~, ~, ~, ~] = getWingMeasurements(cur_bird.name);
-
-            % Load data from file
-            [sub_frames, sub_cycle_avg_forces, sub_cycle_std_forces, ...
-                sub_cycle_min_forces, sub_cycle_max_forces, sub_cycle_rmse_forces, sub_norm_factors] ...
-            = compareWingbeatUI.load_data(sub_folder, sub_filename, obj.filt_num, obj.pitch_shift, center_to_LE, sel_angle, obj.norm);
-
-            cycle_avg_forces = cycle_avg_forces - sub_cycle_avg_forces;
-            cycle_std_forces = cycle_std_forces + sub_cycle_std_forces;
-
-            
-
-            % How should the following be modified by
-            % subtraction?
-            % cycle_min_forces = cycle_min_forces;
-            % cycle_max_forces = cycle_max_forces;
-            % cycle_rmse_forces = cycle_rmse_forces;
-            end
+            get_forces
 
             if (~obj.norm_period)
                 % Scale x-axis back to time domain
                 frames = (frames / wing_freq);
             end
-
-            upper_results = cycle_avg_forces + cycle_std_forces;
-            lower_results = cycle_avg_forces - cycle_std_forces;
 
             for idx = 1:6
                 ax = tiles(idx);

@@ -11,11 +11,11 @@ function [C_L, C_D, C_N, C_M] ...
         % removed 2* in front for 2 wings, this factor of 2 is in numerator
         % and denominator of area term so it drops out
         % *********************************
-        % C_L_r = lift_slope*deg2rad(eff_AoA - zero_lift_alpha) .* (u_rel / wind_speed_sel).^2 .* cosd(ang_disp);
-        % C_M_r = pitch_slope*deg2rad(eff_AoA - zero_pitch_alpha) .* (u_rel / wind_speed_sel).^2 .* cosd(ang_disp);
+        C_L_r = lift_slope*deg2rad(eff_AoA - zero_lift_alpha) .* (u_rel / wind_speed_sel).^2 .* cosd(ang_disp);
+        C_M_r = pitch_slope*deg2rad(eff_AoA - zero_pitch_alpha) .* (u_rel / wind_speed_sel).^2 .* cosd(ang_disp);
         % *********************************
-        C_L_r = lift_slope*deg2rad(eff_AoA - zero_lift_alpha) .* (u_rel / wind_speed_sel).^2;
-        C_M_r = pitch_slope*deg2rad(eff_AoA - zero_pitch_alpha) .* (u_rel / wind_speed_sel).^2;
+        % C_L_r = lift_slope*deg2rad(eff_AoA - zero_lift_alpha) .* (u_rel / wind_speed_sel).^2;
+        % C_M_r = pitch_slope*deg2rad(eff_AoA - zero_pitch_alpha) .* (u_rel / wind_speed_sel).^2;
         % C_L_r = 3*sin(2*deg2rad(eff_AoA - zero_lift_alpha)) .* (u_rel / wind_speed_sel).^2 .* cosd(ang_disp);
         % C_M_r = -0.7081*sin(2*deg2rad(eff_AoA - zero_pitch_alpha)) .* (u_rel / wind_speed_sel).^2 .* cosd(ang_disp);
         % C_L_r = 3*sin(1.591*deg2rad(eff_AoA - zero_lift_alpha) + 3.083) .* (u_rel / wind_speed_sel).^2 .* cosd(ang_disp);

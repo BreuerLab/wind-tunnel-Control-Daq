@@ -968,8 +968,14 @@ methods(Static, Access = private)
     [frames, cycle_avg_forces, cycle_std_forces, ...
         cycle_min_forces, cycle_max_forces, cycle_rmse_forces, norm_factors] ...
     = compareWingbeatdMdaUI.load_data(data_folder, data_filename, filt_num, shift_bool, center_to_LE, sel_angle, norm_bool);
+
+    % Get forces from quasi-steady model
+    [time, ~, ~, ~] = ...
+        getModel(data_path, cur_bird.name, sel_freq, sel_angle, sel_speed, ...
+        lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, amp);
     
-    forces_angles = zeros(length(lim_AoA_sel),6,length(frames));
+    forces_angles = zeros(length(lim_AoA_sel), 6, length(frames));
+    forces_angles_mod = zeros(4, length(lim_AoA_sel), 6, length(time));
     for j = 1:length(lim_AoA_sel)
     sel_angle = lim_AoA_sel(j);
     
@@ -1005,7 +1011,7 @@ methods(Static, Access = private)
     total_lift = aero_force(:,2) + inertial_force(:,2) + added_mass_force(:,2);
     total_moment = aero_force(:,3) + inertial_force(:,3) + added_mass_force(:,3);
     total_force = [total_drag, total_lift, total_moment];
-    
+
     if (sub_bool)
     % Find exact filename matching this case
     try
@@ -1026,13 +1032,17 @@ methods(Static, Access = private)
     end
     
     forces_angles(j,:,:) = cycle_avg_forces;
+    empty_arr = NaN(size(aero_force(:,1)));
+    forces_angles_mod(1,j,:,:) = [inertial_force(:,1), empty_arr, inertial_force(:,2), empty_arr, inertial_force(:,3), empty_arr]';
+    forces_angles_mod(2,j,:,:) = [added_mass_force(:,1), empty_arr, added_mass_force(:,2), empty_arr, added_mass_force(:,3), empty_arr]';
+    forces_angles_mod(3,j,:,:) = [aero_force(:,1), empty_arr, aero_force(:,2), empty_arr, aero_force(:,3), empty_arr]';
+    forces_angles_mod(4,j,:,:) = [total_force(:,1), empty_arr, total_force(:,2), empty_arr, total_force(:,3), empty_arr]';
     % How should the following be modified by
     % subtraction?
     % cycle_min_forces = cycle_min_forces;
     % cycle_max_forces = cycle_max_forces;
     % cycle_rmse_forces = cycle_rmse_forces;
     end
-    forces_angles_mod = zeros(size(forces_angles));
 
     end
 
@@ -1256,9 +1266,8 @@ methods (Access = private)
             slopes = zeros(size(frames));
             SE_slopes = zeros(size(frames));
             for k = 1:length(forces_angles(1,1,:))
-                pitch_mom = forces_angles(:,idx,k);
                 x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
-                y = pitch_mom;
+                y = forces_angles(:,idx,k);
                 b = x\y;
                 model = x*b;
                 % Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
@@ -1267,9 +1276,25 @@ methods (Access = private)
                 slopes(k) = b(2);
             end
 
+            slopes_mod = zeros(4, length(time));
+            for k = 1:length(forces_angles_mod(1,1,1,:))
+                for m = 1:4
+                x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
+                y = forces_angles_mod(m,:,idx,k)';
+                b = x\y;
+                model = x*b;
+                % Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
+                % SE_slopes(k) = (sum((y - model).^2) / (sum((lim_AoA_sel - mean(lim_AoA_sel)).^2)*(length(lim_AoA_sel) - 2)) ).^(1/2);
+                % x_int = - b(1) / b(2);
+                slopes_mod(m,k) = b(2);
+                end
+            end
+
             if (~obj.norm_period)
                 % Scale x-axis back to time domain
                 frames = (frames / wing_freq);
+            else
+                time = time / max(time);
             end
 
             upper_results = slopes + SE_slopes;
@@ -1299,11 +1324,16 @@ methods (Access = private)
             struct_name = "v" + abbr_name_chars(~isspace(abbr_name_chars));
             % obj.plot_curves.(struct_name) = [frames; cycle_avg_forces(idx, :)];
 
-            % if (last_freq ~= wing_freq || last_speed ~= cur_speed)
-            % obj.plot_model(idx, ax, original_color, time, inertial_force, added_mass_force, aero_force, total_force, abbr_name);
-            % last_freq = wing_freq;
-            % last_speed = cur_speed;
-            % end
+            if (last_freq ~= wing_freq || last_speed ~= cur_speed)
+            % hold(ax, 'on');
+            % line = plot(ax, time, slopes_mod);
+            % line.DisplayName = abbr_name + " Model";
+            % line.Color = original_color;
+            % line.LineWidth = 2;
+            obj.plot_model(idx, ax, original_color, time, slopes_mod, abbr_name);
+            last_freq = wing_freq;
+            last_speed = cur_speed;
+            end
             hold(ax, 'off');
 
             end
@@ -1333,14 +1363,14 @@ methods (Access = private)
         end
     end
 
-    function plot_model(obj, idx, ax, original_color, time, inertial_force, added_mass_force, aero_force, total_force, abbr_name)
+    function plot_model(obj, idx, ax, original_color, time, slopes, abbr_name)
         % (1/2)*(x - 1) + 1 is the formula needed to convert
         % 1, 3, 5 to 1, 2, 3
-        mod_idx = (1/2)*(idx - 1) + 1;
+        % mod_idx = (1/2)*(idx - 1) + 1;
 
-        if (floor(mod_idx) == mod_idx)
+        % if (floor(mod_idx) == mod_idx)
         if (obj.mod_inertial)
-        inertial_l = plot(ax, time / max(time), inertial_force(:,mod_idx));
+        inertial_l = plot(ax, time, slopes(1,:));
         inertial_l.Marker = "*";
         inertial_l.LineWidth = 2;
         inertial_l.Color = original_color;
@@ -1351,7 +1381,7 @@ methods (Access = private)
         end
         end
         if (obj.mod_added_mass)
-        added_mass_l = plot(ax,time / max(time), added_mass_force(:,mod_idx));
+        added_mass_l = plot(ax, time, slopes(2,:));
         added_mass_l.Marker = "o";
         added_mass_l.LineWidth = 2;
         added_mass_l.Color = original_color;
@@ -1362,7 +1392,7 @@ methods (Access = private)
         end
         end
         if (obj.mod_aero)
-        aero_l = plot(ax, time / max(time), aero_force(:,mod_idx));
+        aero_l = plot(ax, time, slopes(3,:));
         aero_l.Marker = "x";
         aero_l.LineWidth = 2;
         aero_l.Color = original_color;
@@ -1373,7 +1403,7 @@ methods (Access = private)
         end
         end
         if (obj.mod_total)
-        total_l = plot(ax, time / max(time), total_force(:,mod_idx));
+        total_l = plot(ax, time, slopes(4,:));
         total_l.LineStyle = "--";
         total_l.LineWidth = 2;
         total_l.Color = original_color;
@@ -1383,7 +1413,7 @@ methods (Access = private)
             total_l.DisplayName = "Total Model";
         end
         end
-        end
+        % end
 
     end
 end
