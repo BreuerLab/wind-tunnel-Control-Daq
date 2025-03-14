@@ -32,15 +32,17 @@ function St = freqToSt(flapper, wing_freq, wind_speed, path, amp)
     % St = ((wing_freq * amp) / wind_speed)^2.2 * cos(0.43*amp);
     % St = ((wing_freq * amp_ang) / wind_speed) * besselj(0,amp_ang);
     % St = ((wing_freq * amp) / wind_speed)^2 * besselj(0,amp) / amp;
-    St = ((wing_freq * amp) / wind_speed)^2;
-    St = (1.5708*besselj(0,amp) + (St/amp)*(3.77213*besselj(1,amp) + 0.419126*besselj(1,3*amp)));
+    % ----------------------------------------
+    % St = ((wing_freq * amp) / wind_speed)^2;
+    % St = (1.5708*besselj(0,amp) + (St/amp)*(3.77213*besselj(1,amp) + 0.419126*besselj(1,3*amp)));
+    % ----------------------------------------
     % St = ((wing_freq * amp) / wind_speed)^2;
     % St = 1.5708*besselj(0,amp) + (2.51475*St*besselj(1,amp)) / amp;
     % St = 1.5708*besselj(0,amp) + (2.51475*St*besselj(1,amp)) / amp ...
     %     + 4*pi*St*(-0.100059 + 0.0125074*amp^2 + 0.0750442*besselj(0,2*amp) +...
     %     ((-0.175103 + 0.0500294*amp^2)*besselj(1,2*amp)) / amp);
     % ******************************************
-    % St = ((wing_freq * amp_ang) / wind_speed);
+    St = ((wing_freq * amp_ang) / wind_speed);
     % ******************************************
     % St = wing_freq*sin(57.32*amp_ang - 5.461);
     % St = round(St,3,"significant");

@@ -30,6 +30,7 @@ properties
     logScale;
     zeroSlope;
     constSM;
+    u_eff;
 
     x_var;
     y_var;
@@ -60,6 +61,7 @@ methods
         obj.logScale = false;
         obj.zeroSlope = false;
         obj.constSM = false;
+        obj.u_eff = false;
 
         obj.x_var = 1;
         obj.y_var = 1;
@@ -238,6 +240,13 @@ methods
         b14.Position = [20 button12_y 160 unit_height];
         b14.BackgroundColor = [1 1 1];
         b14.ValueChangedFcn = @(src, event) constant_SM(src, event, plot_panel);
+
+        button13_y = button12_y + (unit_height + unit_spacing);
+        b15 = uibutton(option_panel,"state");
+        b15.Text = "Effective Speed Norm"; % static margin
+        b15.Position = [20 button13_y 160 unit_height];
+        b15.BackgroundColor = [1 1 1];
+        b15.ValueChangedFcn = @(src, event) u_eff_scale(src, event, plot_panel);
 
         obj.update_plot(plot_panel);
 
@@ -475,6 +484,18 @@ methods
 
             obj.update_plot(plot_panel);
         end
+
+        function u_eff_scale(src, ~, plot_panel)
+            if (src.Value)
+                obj.u_eff = true;
+                src.BackgroundColor = [0.3010 0.7450 0.9330];
+            else
+                obj.u_eff = false;
+                src.BackgroundColor = [1 1 1];
+            end
+
+            obj.update_plot(plot_panel);
+        end
         %-----------------------------------------------------%
         %-----------------------------------------------------%
         
@@ -681,7 +702,7 @@ methods (Access = private)
 
             if (obj.st)
                 minSt = 0;
-                maxSt = 0.5;
+                maxSt = 0.9;
                 zmap = linspace(minSt, maxSt, length(cmap));
                 clim(ax, [minSt, maxSt])
                 cb = colorbar(ax);
@@ -803,6 +824,27 @@ methods (Access = private)
             NP_moms = [];
             [init_NP_pos, ~, ~] = findNP(lim_avg_forces(:,:,1), lim_AoA_sel);
             for k = 1:length(wing_freqs)
+                if (obj.u_eff)
+                    amp = -1;
+                    [time, ang_disp, ang_vel, ang_acc] = get_kinematics(obj.data_path, wing_freqs(k), amp);
+            
+                    [center_to_LE, chord, COM_span, ...
+                        wing_length, arm_length] = getWingMeasurements(cur_bird.name);
+                    
+                    full_length = wing_length + arm_length;
+                    r = arm_length:0.001:full_length;
+                    % lin_vel = deg2rad(ang_vel) * r;
+                    lin_vel = (deg2rad(ang_vel) .* cosd(ang_disp)) * r;
+                
+                    for m = 1:length(lim_AoA_sel)
+                        AoA = lim_AoA_sel(m);
+                        
+                        [eff_AoA, u_rel] = get_eff_wind(time, lin_vel, AoA, wind_speed);
+                        u_rel_avg = mean(u_rel,"all");
+                        lim_avg_forces(:,m,k) = lim_avg_forces(:,m,k) * (wind_speed / u_rel_avg)^2;
+                    end
+                end
+
                 idx = 5; % pitch moment
                 x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
                 y = lim_avg_forces(idx,:,k)';
@@ -871,7 +913,7 @@ methods (Access = private)
                     end
 
                     if (obj.st)
-                    St = freqToSt(cur_bird.name, wing_freqs(k), wind_speed, obj.data_path, -1, len);
+                    St = freqToSt(cur_bird.name, wing_freqs(k), wind_speed, obj.data_path, -1);
                     line_color = interp1(zmap, cmap, St);
                     % slopes_pos = slopes_pos / (wing_freqs(k));
                     else
@@ -935,6 +977,26 @@ methods (Access = private)
                 zero_pitch_alpha = 0;
                 aero_force = get_model(cur_bird.name, obj.data_path, lim_AoA_sel, wing_freq, wind_speed,...
                     lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, amp);
+
+                if (obj.u_eff)
+                    [time, ang_disp, ang_vel, ang_acc] = get_kinematics(obj.data_path, wing_freq, amp);
+            
+                    [center_to_LE, chord, COM_span, ...
+                        wing_length, arm_length] = getWingMeasurements(cur_bird.name);
+                    
+                    full_length = wing_length + arm_length;
+                    r = arm_length:0.001:full_length;
+                    % lin_vel = deg2rad(ang_vel) * r;
+                    lin_vel = (deg2rad(ang_vel) .* cosd(ang_disp)) * r;
+                
+                    for m = 1:length(lim_AoA_sel)
+                        AoA = lim_AoA_sel(m);
+                        
+                        [eff_AoA, u_rel] = get_eff_wind(time, lin_vel, AoA, wind_speed);
+                        u_rel_avg = mean(u_rel,"all");
+                        aero_force(:,m) = aero_force(:,m) * (wind_speed / u_rel_avg)^2;
+                    end
+                end
 
                 idx = 5; % pitch moment
                 x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];

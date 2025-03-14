@@ -1017,91 +1017,6 @@ methods(Static, Access = private)
         end
     end
 
-    function [frames, forces_angles, time, forces_angles_mod] = ...
-            get_forces(data_folder, data_filename, data_path, processed_data_files,...
-            cur_bird, sel_type, sel_speed, sel_freq,...
-            lim_AoA_sel, sub_bool, norm_bool, shift_bool, filt_num)
-        AR = cur_bird.AR;
-
-        thinAirfoil = false;
-        if thinAirfoil
-            lift_slope = ((2*pi) / (1 + 2/AR));
-            pitch_slope = -lift_slope / 4;
-        else
-            % Find slopes for all wind speeds and average
-            path = data_path + "plot data/" + cur_bird.name;
-            range = [-16, 16];
-            dir_name = compareWingbeatUI.getDataFolder(cur_bird.name, sel_type, sel_speed, norm_bool);
-            [lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha] ...
-                = getGlideSlopesFromData(path, cur_bird, dir_name, range);
-        end
-        disp("Lift Slope: " + lift_slope)
-        disp("Pitch Slope: " + pitch_slope)
-
-        amp = -1;
-
-        % Get forces from quasi-steady model
-        [time, inertial_force, added_mass_force, aero_force] = ...
-            getModel(data_path, cur_bird.name, sel_freq, sel_angle, sel_speed, ...
-            lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, amp);
-
-        [center_to_LE, ~, ~, ~, ~] = getWingMeasurements(cur_bird.name);
-
-        % Load data from file
-        [frames, cycle_avg_forces, cycle_std_forces, ...
-            cycle_min_forces, cycle_max_forces, cycle_rmse_forces, norm_factors] ...
-        = compareWingbeatUI.load_data(data_folder, data_filename, filt_num, shift_bool, center_to_LE, sel_angle, norm_bool);
-
-        % Use dynamic pressure force to scale modeled data
-        if (norm_bool)
-            inertial_force = [inertial_force(:,1) / norm_factors(1),...
-                    inertial_force(:,2) / norm_factors(1),...
-                    inertial_force(:,3) / norm_factors(2)];
-
-            added_mass_force = [added_mass_force(:,1) / norm_factors(1),...
-                    added_mass_force(:,2) / norm_factors(1),...
-                    added_mass_force(:,3) / norm_factors(2)];
-        else
-            aero_force = [aero_force(:,1) * norm_factors(1),...
-                    aero_force(:,2) * norm_factors(1),...
-                    aero_force(:,3) * norm_factors(2)];
-        end
-        total_drag = aero_force(:,1) + inertial_force(:,1) + added_mass_force(:,1);
-        total_lift = aero_force(:,2) + inertial_force(:,2) + added_mass_force(:,2);
-        total_moment = aero_force(:,3) + inertial_force(:,3) + added_mass_force(:,3);
-        total_force = [total_drag, total_lift, total_moment];
-
-        if (sub_bool)
-        % Find exact filename matching this case
-        try
-        [sub_filename, sub_folder] = compareWingbeatUI.findMatchFile(sub_type, sel_speed, sel_freq, sel_angle, cur_bird.freqs, processed_data_files);
-        catch ME
-        error("Are you sure that data exists?")
-        end
-
-        disp("Subtracting from: " + sub_folder + "  /  " + sub_filename)
-
-        [center_to_LE, ~, ~, ~, ~] = getWingMeasurements(cur_bird.name);
-
-        % Load data from file
-        [sub_frames, sub_cycle_avg_forces, sub_cycle_std_forces, ...
-            sub_cycle_min_forces, sub_cycle_max_forces, sub_cycle_rmse_forces, sub_norm_factors] ...
-        = compareWingbeatUI.load_data(sub_folder, sub_filename, filt_num, shift_bool, center_to_LE, sel_angle, norm_bool);
-
-        cycle_avg_forces = cycle_avg_forces - sub_cycle_avg_forces;
-        cycle_std_forces = cycle_std_forces + sub_cycle_std_forces;
-
-        % How should the following be modified by
-        % subtraction?
-        % cycle_min_forces = cycle_min_forces;
-        % cycle_max_forces = cycle_max_forces;
-        % cycle_rmse_forces = cycle_rmse_forces;
-        end
-
-        upper_results = cycle_avg_forces + cycle_std_forces;
-        lower_results = cycle_avg_forces - cycle_std_forces;
-    end
-
 end
 
 %% --------------------------------------------------------------
@@ -1200,23 +1115,23 @@ methods (Access = private)
             last_speed = 0;
             for i = 1:length(obj.selection)
             
-            [sel_type, sel_speed, sel_freq, sel_angle] = compareWingbeatUI.parseCases(obj.selection(i));
-            wing_freq = str2double(extractBefore(sel_freq, " Hz"));
+            [cur_type, cur_speed, cur_freq, cur_angle] = compareWingbeatUI.parseCases(obj.selection(i));
+            wing_freq = str2double(extractBefore(cur_freq, " Hz"));
             if (obj.sub)
-                sub_type = compareWingbeatUI.getSubType(sel_type, obj.sel_bird);
+                sub_type = compareWingbeatUI.getSubType(cur_type, obj.sel_bird);
             end
 
             flapper_name = string(extractBefore(obj.selection(i), "/"));
             cur_bird = getBirdFromName(flapper_name, obj.Flapperoo, obj.MetaBird);
             
             % Get color for this case name
-            sels = [sel_type, sel_speed];
-            original_color = colors(find(uniq_freqs == sel_freq), find(common_var == sels(I(2)))); % hex
+            sels = [cur_type, cur_speed];
+            original_color = colors(find(uniq_freqs == cur_freq), find(common_var == sels(I(2)))); % hex
             lighter_color = compareWingbeatUI.getLightColor(original_color); % RGB
 
             % Using what all case names have in common, come up
             % with an abbreviated name
-            case_name = sel_type + " " + sel_speed + " m/s " + sel_freq + " " + sel_angle + " deg";
+            case_name = cur_type + " " + cur_speed + " m/s " + cur_freq + " " + cur_angle + " deg";
             if (exist("abbr_sel", "var"))
                 abbr_name = compareWingbeatUI.getAbbrName(case_name, abbr_sel);
             else
@@ -1224,7 +1139,7 @@ methods (Access = private)
             end
 
             % Find exact filename matching this case
-            [data_filename, data_folder] = compareWingbeatUI.findMatchFile(sel_type, sel_speed, sel_freq, sel_angle, cur_bird.freqs, processed_data_files);
+            [data_filename, data_folder] = compareWingbeatUI.findMatchFile(cur_type, cur_speed, cur_freq, cur_angle, cur_bird.freqs, processed_data_files);
         
             if (obj.spectrum)
             [time_data, force_data, f, power, norm_factors] ...
@@ -1254,7 +1169,10 @@ methods (Access = private)
 
             else
 
-            get_forces
+            [frames, cycle_avg_forces, upper_results, lower_results,...
+              time, inertial_force, added_mass_force, aero_force, total_force] = ...
+            obj.get_forces(data_folder, data_filename, processed_data_files,...
+            cur_bird, cur_type, cur_speed, cur_freq, cur_angle);
 
             if (~obj.norm_period)
                 % Scale x-axis back to time domain
@@ -1275,11 +1193,11 @@ methods (Access = private)
                 data_l.Color = original_color;
                 data_l.LineWidth = 2;
 
-                if (last_freq ~= wing_freq || last_speed ~= sel_speed)
+                if (last_freq ~= wing_freq || last_speed ~= cur_speed)
                 obj.plot_model(idx, ax, original_color, time, inertial_force, added_mass_force, aero_force, total_force, abbr_name);
                 if (idx == 5)
                     last_freq = wing_freq;
-                    last_speed = sel_speed;
+                    last_speed = cur_speed;
                 end
                 end
 
@@ -1302,9 +1220,6 @@ methods (Access = private)
             
             [sel_type, sel_speed, sel_freq, sel_angle] = compareWingbeatUI.parseCases(obj.selection(i));
             wing_freq = str2double(extractBefore(sel_freq, " Hz"));
-            if (obj.sub)
-                sub_type = compareWingbeatUI.getSubType(sel_type, cur_bird);
-            end
 
             % Get color for this case name
             sels = [sel_type, sel_speed];
@@ -1509,6 +1424,92 @@ methods (Access = private)
             savefig(fignew,filename);
             delete(fignew);
         end
+    end
+
+    function [frames, cycle_avg_forces, upper_results, lower_results,...
+              time, inertial_force, added_mass_force, aero_force, total_force] = ...
+            get_forces(obj, data_folder, data_filename, processed_data_files,...
+            cur_bird, sel_type, sel_speed, sel_freq, sel_angle)
+        AR = cur_bird.AR;
+        if (obj.sub)
+            sub_type = compareWingbeatUI.getSubType(sel_type, cur_bird);
+        end
+
+        thinAirfoil = false;
+        if thinAirfoil
+            lift_slope = ((2*pi) / (1 + 2/AR));
+            pitch_slope = -lift_slope / 4;
+        else
+            % Find slopes for all wind speeds and average
+            path = obj.data_path + "plot data/" + cur_bird.name;
+            range = [-16, 16];
+            dir_name = compareWingbeatUI.getDataFolder(cur_bird.name, sel_type, sel_speed, obj.norm);
+            [lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha] ...
+                = getGlideSlopesFromData(path, cur_bird, dir_name, range);
+        end
+        disp("Lift Slope: " + lift_slope)
+        disp("Pitch Slope: " + pitch_slope)
+
+        amp = -1;
+
+        % Get forces from quasi-steady model
+        [time, inertial_force, added_mass_force, aero_force] = ...
+            getModel(obj.data_path, cur_bird.name, sel_freq, sel_angle, sel_speed, ...
+            lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, amp);
+
+        [center_to_LE, ~, ~, ~, ~] = getWingMeasurements(cur_bird.name);
+
+        % Load data from file
+        [frames, cycle_avg_forces, cycle_std_forces, ...
+            cycle_min_forces, cycle_max_forces, cycle_rmse_forces, norm_factors] ...
+        = compareWingbeatUI.load_data(data_folder, data_filename, obj.filt_num, obj.pitch_shift, center_to_LE, sel_angle, obj.norm);
+
+        % Use dynamic pressure force to scale modeled data
+        if (obj.norm)
+            inertial_force = [inertial_force(:,1) / norm_factors(1),...
+                    inertial_force(:,2) / norm_factors(1),...
+                    inertial_force(:,3) / norm_factors(2)];
+
+            added_mass_force = [added_mass_force(:,1) / norm_factors(1),...
+                    added_mass_force(:,2) / norm_factors(1),...
+                    added_mass_force(:,3) / norm_factors(2)];
+        else
+            aero_force = [aero_force(:,1) * norm_factors(1),...
+                    aero_force(:,2) * norm_factors(1),...
+                    aero_force(:,3) * norm_factors(2)];
+        end
+        total_drag = aero_force(:,1) + inertial_force(:,1) + added_mass_force(:,1);
+        total_lift = aero_force(:,2) + inertial_force(:,2) + added_mass_force(:,2);
+        total_moment = aero_force(:,3) + inertial_force(:,3) + added_mass_force(:,3);
+        total_force = [total_drag, total_lift, total_moment];
+
+        if (obj.sub)
+        % Find exact filename matching this case
+        try
+        [sub_filename, sub_folder] = compareWingbeatUI.findMatchFile(sub_type, sel_speed, sel_freq, sel_angle, cur_bird.freqs, processed_data_files);
+        catch ME
+        error("Are you sure that subtraction data exists?")
+        end
+
+        disp("Subtracting from: " + sub_folder + "  /  " + sub_filename)
+
+        % Load data from file
+        [sub_frames, sub_cycle_avg_forces, sub_cycle_std_forces, ...
+            sub_cycle_min_forces, sub_cycle_max_forces, sub_cycle_rmse_forces, sub_norm_factors] ...
+        = compareWingbeatUI.load_data(sub_folder, sub_filename, obj.filt_num, obj.pitch_shift, center_to_LE, sel_angle, obj.norm);
+
+        cycle_avg_forces = cycle_avg_forces - sub_cycle_avg_forces;
+        cycle_std_forces = cycle_std_forces + sub_cycle_std_forces;
+
+        % How should the following be modified by
+        % subtraction?
+        % cycle_min_forces = cycle_min_forces;
+        % cycle_max_forces = cycle_max_forces;
+        % cycle_rmse_forces = cycle_rmse_forces;
+        end
+
+        upper_results = cycle_avg_forces + cycle_std_forces;
+        lower_results = cycle_avg_forces - cycle_std_forces;
     end
 
     function plot_model(obj, idx, ax, original_color, time, inertial_force, added_mass_force, aero_force, total_force, abbr_name)

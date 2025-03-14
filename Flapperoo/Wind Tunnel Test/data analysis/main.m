@@ -18,16 +18,16 @@ close all force
 % a.dynamic_plotting();
 
 % Sets up UI for comparing data over phase averaged wingbeat
-% monitor_num = 1;
+% monitor_num = 2;
 % data_path = "F:\Final Force Data/";
 % b = compareWingbeatUI(monitor_num, data_path);
 % b.dynamic_plotting();
 
 % Sets up UI for comparing stiffness data over phase averaged wingbeat
-% monitor_num = 2;
-% data_path = "F:\Final Force Data/";
-% b = compareWingbeatdMdaUI(monitor_num, data_path);
-% b.dynamic_plotting();
+monitor_num = 2;
+data_path = "F:\Final Force Data/";
+b = compareWingbeatdMdaUI(monitor_num, data_path);
+b.dynamic_plotting();
 
 % Sets up UI for comparing stability slope
 % monitor_num = 2;
@@ -35,10 +35,10 @@ close all force
 % c = compareStabilityUI(monitor_num, data_path);
 % c.dynamic_plotting();
 % 
-monitor_num = 2;
-data_path = "F:\Final Force Data/";
-d = compareKinematicsUI(monitor_num, data_path);
-d.dynamic_plotting();
+% monitor_num = 2;
+% data_path = "F:\Final Force Data/";
+% d = compareKinematicsUI(monitor_num, data_path);
+% d.dynamic_plotting();
 % 
 % monitor_num = 1;
 % data_path = "F:\Final Force Data/";

@@ -30,6 +30,7 @@ properties
     logScale;
     zeroSlope;
     constSM;
+    u_eff;
 
     x_var;
     y_var;
@@ -60,6 +61,7 @@ methods
         obj.logScale = false;
         obj.zeroSlope = false;
         obj.constSM = false;
+        obj.u_eff = false;
 
         obj.x_var = 1;
         obj.y_var = 1;
@@ -239,6 +241,13 @@ methods
         b14.BackgroundColor = [1 1 1];
         b14.ValueChangedFcn = @(src, event) constant_SM(src, event, plot_panel);
 
+        button13_y = button12_y + (unit_height + unit_spacing);
+        b15 = uibutton(option_panel,"state");
+        b15.Text = "Effective Speed Norm"; % static margin
+        b15.Position = [20 button13_y 160 unit_height];
+        b15.BackgroundColor = [1 1 1];
+        b15.ValueChangedFcn = @(src, event) u_eff_scale(src, event, plot_panel);
+
         obj.update_plot(plot_panel);
 
         %-----------------------------------------------------%
@@ -294,7 +303,7 @@ methods
         end
     
         function addToList(~, ~, plot_panel, lbox)
-            sel_name = compareStabilityUI.typeToSel(obj.sel_bird.name, obj.sel_type);
+            sel_name = typeToSel(obj.sel_bird.name, obj.sel_type);
             speed = obj.sel_speed + "m.s";
             folder = sel_name + " " + speed;
             case_name = obj.sel_bird.name + "/" + strrep(folder, " ", "_");
@@ -475,6 +484,18 @@ methods
 
             obj.update_plot(plot_panel);
         end
+
+        function u_eff_scale(src, ~, plot_panel)
+            if (src.Value)
+                obj.u_eff = true;
+                src.BackgroundColor = [0.3010 0.7450 0.9330];
+            else
+                obj.u_eff = false;
+                src.BackgroundColor = [1 1 1];
+            end
+
+            obj.update_plot(plot_panel);
+        end
         %-----------------------------------------------------%
         %-----------------------------------------------------%
         
@@ -482,35 +503,6 @@ methods
 end
 
 methods(Static, Access = private)
-
-    function sel = typeToSel(flapper, type)
-        if (flapper == "Flapperoo")
-            if (type == "blue wings")
-                sel = "Full Wings";
-            elseif (type == "tail blue wings")
-                sel = "Tail Wings";
-            elseif (type == "blue wings half body")
-                sel = "Half Wings";
-            elseif (type == "no wings")
-                sel = "Full Body";
-            elseif (type == "tail no wings")
-                sel = "Tail Body";
-            elseif (type == "half body no wings")
-                sel = "Half Body";
-            elseif (type == "inertial wings")
-                sel = "Full Inertial";
-            else
-                sel = type;
-            end
-        elseif (flapper == "MetaBird")
-            if (type == "full body short tail low")
-                sel = "Tail Low Wings";
-            end
-        else
-            sel = type;
-        end
-    end
-
     function [sub_title, abbr_sel] = get_abbr_names(sel)
         sub_title = "";
         abbr_sel = "";
@@ -824,6 +816,86 @@ methods (Access = private)
             x_int = - b(1) / b(2);
             glide_slope = b(2);
             
+            % Get Quasi-Steady Model Force
+            % Predictions
+            mod_slopes = [];
+            mod_x_intercepts = [];
+            mod_NPs = [];
+            mod_NP_moms = [];
+            mult_amp = false;
+            if (obj.aero_model)
+                if (obj.amplitudes)
+                    amplitude_list = [pi/12, pi/6, pi/4, pi/3];
+                    show_data = false;
+                else
+                    amplitude_list = -1;
+                    % amplitude_list = pi/6;
+                end
+
+                mod_slopes = zeros(length(amplitude_list), length(wing_freqs));
+                mod_x_intercepts = zeros(length(amplitude_list), length(wing_freqs));
+                mod_NPs = zeros(length(amplitude_list), length(wing_freqs));
+                mod_NP_moms = zeros(length(amplitude_list), length(wing_freqs));
+
+                AR = cur_bird.AR;
+
+                if obj.thinAirfoil
+                    lift_slope = ((2*pi) / (1 + 2/AR));
+                    pitch_slope = -lift_slope / 4;
+                else
+                    % Find slopes for all wind speeds and average
+                    path = obj.data_path + "/plot data/" + cur_bird.name;
+                    [lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha] = getGlideSlopesFromData(path, cur_bird, cur_struct_match.dir_name, obj.range);
+                end
+                disp("Lift Slope: " + lift_slope)
+                disp("Pitch Slope: " + pitch_slope)
+
+                for j = 1:length(amplitude_list)
+                amp = amplitude_list(j);
+
+                for k = 1:length(wing_freqs)
+                wing_freq = wing_freqs(k);
+
+                % temp code to block out x_int inclusion in model
+                zero_lift_alpha = 0;
+                zero_pitch_alpha = 0;
+                [aero_force, u_rel_AoA] = get_model(cur_bird.name, obj.data_path, lim_AoA_sel, wing_freq, wind_speed,...
+                    lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, amp);
+
+                idx = 5; % pitch moment
+                x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
+                y = aero_force(idx,:)';
+                b = x\y;
+                % model = x*b;
+                % Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
+                x_int = - b(1) / b(2);
+
+                mod_slopes(j,k) = b(2);
+                mod_x_intercepts(j,k) = x_int;
+
+                if (obj.x_var == 2 || obj.x_var == 3)
+                % To find NP, force needs to be non-normalized since
+                % shifting must be done with real dimensions
+                aero_force_dim = zeros(size(squeeze(aero_force)));
+                for m = 1:6
+                    if (m <= 3)
+                        aero_force_dim(m,:) = aero_force(m,:) * norm_factors(1);
+                    else
+                        aero_force_dim(m,:) = aero_force(m,:) * norm_factors(2);
+                    end
+                end
+
+                [NP_pos, NP_pos_err, NP_mom] = findNP(aero_force_dim, lim_AoA_sel);
+                % Nondimensionalize moment
+                NP_mom = NP_mom / norm_factors(2);
+
+                [NP_pos_LE, NP_pos_chord] = posToChord(NP_pos, center_to_LE, chord);
+                mod_NPs(j,k) = NP_pos_chord;
+                mod_NP_moms(j,k) = NP_mom;
+                end
+                end
+                end
+            end
             
             slopes = [];
             x_intercepts = [];
@@ -835,6 +907,25 @@ methods (Access = private)
                 idx = 5; % pitch moment
                 x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
                 y = lim_avg_forces(idx,:,k)';
+
+                [time, ang_disp, ang_vel, ang_acc] = get_kinematics(path, freq, amp);
+        
+                [center_to_LE, chord, COM_span, ...
+                    wing_length, arm_length] = getWingMeasurements(flapper);
+                
+                full_length = wing_length + arm_length;
+                r = arm_length:0.001:full_length;
+                % lin_vel = deg2rad(ang_vel) * r;
+                lin_vel = (deg2rad(ang_vel) .* cosd(ang_disp)) * r;
+            
+                for i = 1:length(lim_AoA_sel)
+                    AoA = lim_AoA_sel(i);
+                    
+                    [eff_AoA, u_rel] = get_eff_wind(time, lin_vel, AoA, wind_speed);
+                    u_rel_avg = mean(u_rel,[],"all");
+                    y = y * (wind_speed / u_rel_avg)^2;
+                end
+
                 b = x\y;
                 model = x*b;
                 % Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
@@ -916,87 +1007,6 @@ methods (Access = private)
                         ylim(ax, [-5 5])
                         xlim(ax, [min(x_vals) max(x_vals)])
                     end
-                end
-            end
-            
-            % Get Quasi-Steady Model Force
-            % Predictions
-            mod_slopes = [];
-            mod_x_intercepts = [];
-            mod_NPs = [];
-            mod_NP_moms = [];
-            mult_amp = false;
-            if (obj.aero_model)
-                if (obj.amplitudes)
-                    amplitude_list = [pi/12, pi/6, pi/4, pi/3];
-                    show_data = false;
-                else
-                    amplitude_list = -1;
-                    % amplitude_list = pi/6;
-                end
-
-                mod_slopes = zeros(length(amplitude_list), length(wing_freqs));
-                mod_x_intercepts = zeros(length(amplitude_list), length(wing_freqs));
-                mod_NPs = zeros(length(amplitude_list), length(wing_freqs));
-                mod_NP_moms = zeros(length(amplitude_list), length(wing_freqs));
-
-                AR = cur_bird.AR;
-
-                if obj.thinAirfoil
-                    lift_slope = ((2*pi) / (1 + 2/AR));
-                    pitch_slope = -lift_slope / 4;
-                else
-                    % Find slopes for all wind speeds and average
-                    path = obj.data_path + "/plot data/" + cur_bird.name;
-                    [lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha] = getGlideSlopes(path, cur_bird, cur_struct_match.dir_name, obj.range);
-                end
-                disp("Lift Slope: " + lift_slope)
-                disp("Pitch Slope: " + pitch_slope)
-
-                for j = 1:length(amplitude_list)
-                amp = amplitude_list(j);
-
-                for k = 1:length(wing_freqs)
-                wing_freq = wing_freqs(k);
-
-                % temp code to block out x_int inclusion in model
-                zero_lift_alpha = 0;
-                zero_pitch_alpha = 0;
-                aero_force = get_model(cur_bird.name, obj.data_path, lim_AoA_sel, wing_freq, wind_speed,...
-                    lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, amp);
-
-                idx = 5; % pitch moment
-                x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
-                y = aero_force(idx,:)';
-                b = x\y;
-                % model = x*b;
-                % Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
-                x_int = - b(1) / b(2);
-
-                mod_slopes(j,k) = b(2);
-                mod_x_intercepts(j,k) = x_int;
-
-                if (obj.x_var == 2 || obj.x_var == 3)
-                % To find NP, force needs to be non-normalized since
-                % shifting must be done with real dimensions
-                aero_force_dim = zeros(size(squeeze(aero_force)));
-                for m = 1:6
-                    if (m <= 3)
-                        aero_force_dim(m,:) = aero_force(m,:) * norm_factors(1);
-                    else
-                        aero_force_dim(m,:) = aero_force(m,:) * norm_factors(2);
-                    end
-                end
-
-                [NP_pos, NP_pos_err, NP_mom] = findNP(aero_force_dim, lim_AoA_sel);
-                % Nondimensionalize moment
-                NP_mom = NP_mom / norm_factors(2);
-
-                [NP_pos_LE, NP_pos_chord] = posToChord(NP_pos, center_to_LE, chord);
-                mod_NPs(j,k) = NP_pos_chord;
-                mod_NP_moms(j,k) = NP_mom;
-                end
-                end
                 end
             end
 
@@ -1133,7 +1143,20 @@ methods (Access = private)
 
         end
 
-        test_fit = fit(x_vals_tot(2:end)', y_vals_tot(2:end)', 'power2')
+        plot_fit = false;
+        if (plot_fit)
+            bad_ind = [];
+            for n = 1:length(x_vals_tot)
+                if (x_vals_tot(n) == 0)
+                   bad_ind = [bad_ind n]; 
+                end
+            end
+            x_vals_tot(bad_ind) = [];
+            y_vals_tot(bad_ind) = [];
+            test_fit = fit(x_vals_tot', y_vals_tot', 'power2')
+            y_mod = test_fit.a * sort(x_vals_tot).^(test_fit.b) + test_fit.c;
+            plot(ax, sort(x_vals_tot), y_mod)
+        end
 
         if (obj.logScale)
             y_vals_tot = -y_vals_tot; % can't do log of a negative num
