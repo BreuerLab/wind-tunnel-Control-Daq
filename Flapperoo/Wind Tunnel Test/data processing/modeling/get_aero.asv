@@ -50,11 +50,10 @@ function [C_L, C_D, C_N, C_M] ...
     % C_N = sum(C_N_r,2) * (dr / wing_length);
     % C_M = sum(C_M_r,2) * (dr / wing_length);
 
-    % Integrating across wing
-    C_L = trapz(dr, C_L_r, 2) / wing_length;
-    C_D = trapz(dr, C_D_r, 2) / wing_length;
-    C_N = trapz(dr, C_N_r, 2) / wing_length;
-    C_M = trapz(dr, C_M_r, 2) / wing_length;
+    C_L = cumtrapz(C_L_r,dr,2) / wing_length;
+    C_D = cumtrapz(C_D_r,2) / wing_length;
+    C_N = cumtrapz(C_N_r,2) * (dr / wing_length);
+    C_M = cumtrapz(C_M_r,2) * (dr / wing_length);
 
     % Spanwise location of COM
     % COP_span = sum(C_L_r .* r, 2) ./ sum(C_L_r, 2);
