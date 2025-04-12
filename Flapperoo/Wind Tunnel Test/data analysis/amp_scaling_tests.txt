@@ -1,19 +1,4 @@
-function St = freqToSt(flapper, wing_freq, wind_speed, path, amp)
-    [~, ~, ~, wing_length, arm_length] = getWingMeasurements(flapper);
-    
-    [time, ang_disp, ang_vel, ~] = get_kinematics(path, wing_freq, amp);
-    angle_up = max(ang_disp);
-    angle_down = min(ang_disp);
-
-    full_length = wing_length + arm_length; % meters, distance from wingtip to axis of rotation
-    amplitude = 2 * full_length * (abs(sind(angle_up)) + abs(sind(angle_down)));
-    % m, vertical distance traversed by wings during a full stroke, a
-    % single wingbeat consists of two strokes: upstroke & downstroke
-
-    St = (wing_freq * amp) / wind_speed;
-    St = 0.25*besselj(0,amp) + (St^2 / amp)*(0.600353*besselj(1,amp) + 0.0667059*besselj(1,3*amp));
-
-    % temporary test for amp scaling
+ % temporary test for amp scaling
     len = mean(cosd(ang_disp));
     % tried multiplying by this, dividing, multiplying by amp*len
     % dividing seemed pretty good but that doesn't make sense
@@ -109,5 +94,3 @@ function St = freqToSt(flapper, wing_freq, wind_speed, path, amp)
     % mean_w = max(abs(u_rel),[],"all"); % max positive tip effective velocity
     % St = (mean_w) / wind_speed;
     % St = round(St,3,"significant");
-
-end

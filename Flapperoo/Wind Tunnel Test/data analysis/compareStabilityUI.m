@@ -200,7 +200,7 @@ methods
         drop_y4 = AoA_y + (unit_height + unit_spacing);
         d4 = uidropdown(option_panel);
         d4.Position = [50 drop_y4 145 unit_height];
-        d4.Items = ["Stability Slope", "Equilibrium Angle", "Neutral Position (NP)", "Moment at NP"];
+        d4.Items = ["Stability Slope", "Equilibrium Angle", "Neutral Position (NP)", "Moment at NP", "COP"];
         d4.ValueChangedFcn = @(src, event) y_var_change(src, event, plot_panel);
 
         y_txt = uicontrol(option_panel, 'Position', [5 drop_y4 40 unit_height], 'String', 'y_var:');
@@ -420,7 +420,7 @@ methods
         end
 
         function y_var_change(src, ~, plot_panel)
-            options = ["Stability Slope", "Equilibrium Angle", "Neutral Position (NP)", "Moment at NP"];
+            options = ["Stability Slope", "Equilibrium Angle", "Neutral Position (NP)", "Moment at NP", "COP"];
             obj.y_var = find(options == src.Value);
 
             obj.update_plot(plot_panel);
@@ -643,6 +643,8 @@ methods (Access = private)
             y_label = "Neutral Position (% chord)";
         elseif (obj.y_var == 4)
             y_label = "Moment at Neutral Position";
+        elseif (obj.y_var == 5)
+            y_label = "Center of Pressure";
         end
         
         show_data = true;
@@ -822,6 +824,7 @@ methods (Access = private)
             err_slopes = [];
             NP_positions = [];
             NP_moms = [];
+            COPs = [];
             [init_NP_pos, ~, ~] = findNP(lim_avg_forces(:,:,1), lim_AoA_sel);
             for k = 1:length(wing_freqs)
                 if (obj.u_eff)
@@ -854,6 +857,9 @@ methods (Access = private)
                 SE_slope = (sum((y - model).^2) / (sum((lim_AoA_sel - mean(lim_AoA_sel)).^2)*(length(lim_AoA_sel) - 2)) ).^(1/2);
                 x_int = - b(1) / b(2);
                 slope = b(2);
+
+                [COP] = getCOP(squeeze(lim_avg_forces(:,:,k)), lim_AoA_sel);
+                COPs = [COPs mean(COP)];
 
                 % zero slope with glide slope so different body types can
                 % be better compared
@@ -938,6 +944,7 @@ methods (Access = private)
             mod_x_intercepts = [];
             mod_NPs = [];
             mod_NP_moms = [];
+            mod_COPs = [];
             mult_amp = false;
             if (obj.aero_model)
                 if (obj.amplitudes)
@@ -945,13 +952,14 @@ methods (Access = private)
                     show_data = false;
                 else
                     amplitude_list = -1;
-                    % amplitude_list = pi/6;
+                    % amplitude_list = pi/6;mod_COPs
                 end
 
                 mod_slopes = zeros(length(amplitude_list), length(wing_freqs));
                 mod_x_intercepts = zeros(length(amplitude_list), length(wing_freqs));
                 mod_NPs = zeros(length(amplitude_list), length(wing_freqs));
                 mod_NP_moms = zeros(length(amplitude_list), length(wing_freqs));
+                mod_COPs = zeros(length(amplitude_list), length(wing_freqs));
 
                 AR = cur_bird.AR;
 
@@ -975,8 +983,9 @@ methods (Access = private)
                 % temp code to block out x_int inclusion in model
                 zero_lift_alpha = 0;
                 zero_pitch_alpha = 0;
-                aero_force = get_model(cur_bird.name, obj.data_path, lim_AoA_sel, wing_freq, wind_speed,...
+                [aero_force, COP] = get_model(cur_bird.name, obj.data_path, lim_AoA_sel, wing_freq, wind_speed,...
                     lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, amp);
+                mod_COPs(j,k) = mean(COP);
 
                 if (obj.u_eff)
                     [time, ang_disp, ang_vel, ang_acc] = get_kinematics(obj.data_path, wing_freq, amp);
@@ -1079,6 +1088,10 @@ methods (Access = private)
                 y_vals = NP_moms;
                 err_vals = zeros(1,length(NP_moms));
                 y_vals_mod = mod_NP_moms;
+            elseif (obj.y_var == 5)
+                y_vals = COPs;
+                err_vals = zeros(1, length(COPs));
+                y_vals_mod = mod_COPs;
             end
 
             % mod_diff_vals = abs(y_vals - y_vals_mod);
@@ -1135,14 +1148,15 @@ methods (Access = private)
             % frequency or wind speed have changed
             if (obj.norm && obj.aero_model)
                 marker_list = ["o", "square", "^", "v"];
+                % temp_colors is greens used for amplitude plot
                 temp_colors(:,1) = ["#bae4b3";"#74c476";"#31a354";...
                        "#006d2c"];
 
                 if (obj.amplitudes)
                 for j = 1:length(amplitude_list)
                     s = scatter(ax, x_vals_mod(j,:), y_vals_mod(j,:), 40);
-                    % s.MarkerEdgeColor = colors(s_ind, t_ind);
-                    s.MarkerEdgeColor = temp_colors(j);
+                    s.MarkerEdgeColor = colors(s_ind, t_ind);
+                    % s.MarkerEdgeColor = temp_colors(j);
                     s.LineWidth = 2; % char(176) for degree symbol
                     s.DisplayName = wind_speed + " m/s, A = " + rad2deg(amplitude_list(j)) + "°"; % + ", Model: " + abbr_sel(i);
                     s.Marker = marker_list(j); % + "\textbf{^{\circ}}"

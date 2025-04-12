@@ -1,0 +1,116 @@
+function calc_nat_freq(L, R, chord, amp, freq_list, speed, I, ax1, ax2, name, color, norm)
+data_path = "F:\Final Force Data";
+AoA_list = [-16:1.5:-13 -12:1:-9 -8:0.5:8 9:1:12 13:1.5:16];
+lift_slope = 3.9913; % rad, from glide data of flapperoo
+pitch_slope = -1.7367; % rad, from glide data of flapperoo
+zero_lift_alpha = 0;
+zero_pitch_alpha = 0;
+span = 2*R;
+AR = span / chord;
+
+C_L_vals = zeros(1, length(AoA_list));
+C_D_vals = zeros(1, length(AoA_list));
+C_N_vals = zeros(1, length(AoA_list));
+C_M_vals = zeros(1, length(AoA_list));
+aero_force = zeros(6, length(AoA_list));
+
+freq_list_mod = [0.1:0.1:freq_list(1) freq_list(2:end)];
+start_idx = find(freq_list_mod == freq_list(1));
+nat_freq_list = zeros(size(freq_list));
+for j = 1:length(freq_list_mod)
+freq = freq_list_mod(j);
+
+[time, ang_disp, ang_vel, ang_acc] = get_kinematics(data_path, freq, amp);
+
+dr = 0.001;
+r = (R - L):dr:R;
+lin_vel = (deg2rad(ang_vel) .* cosd(ang_disp)) * r;
+
+for i = 1:length(AoA_list)
+    AoA = AoA_list(i);
+    
+    [eff_AoA, u_rel] = get_eff_wind(time, lin_vel, AoA, speed);
+    
+    [C_L, C_D, C_N, C_M] = get_aero(ang_disp, eff_AoA, u_rel, speed, L, dr,...
+        lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR);
+
+    if (freq ~= 0)
+        C_L_vals(i) = trapz(time, C_L) / max(time);
+        C_D_vals(i) = trapz(time, C_D) / max(time);
+        C_N_vals(i) = trapz(time, C_N) / max(time);
+        C_M_vals(i) = trapz(time, C_M) / max(time);
+    else
+        C_L_vals(i) = C_L;
+        C_D_vals(i) = C_D;
+        C_N_vals(i) = C_N;
+        C_M_vals(i) = C_M;
+    end
+end
+
+aero_force(1,:) = C_D_vals;
+aero_force(3,:) = C_L_vals;
+aero_force(5,:) = C_M_vals;
+
+total_area = span * chord;
+density = 1.2; % kg / m^3
+if (speed == 0)
+    norm_F_factor = (0.5 * density * total_area * (((amp*2)*freq))^2);
+else
+    norm_F_factor = (0.5 * density * total_area * speed^2);
+end
+norm_M_factor = norm_F_factor * chord;
+
+aero_force_dim = zeros(size(squeeze(aero_force)));
+for m = 1:6
+    if (m <= 3)
+        aero_force_dim(m,:) = aero_force(m,:) * norm_F_factor;
+    else
+        aero_force_dim(m,:) = aero_force(m,:) * norm_M_factor;
+    end
+end
+
+idx = 5; % pitch moment
+x = [ones(size(AoA_list')), AoA_list'];
+y = aero_force_dim(idx,:)';
+b = x\y;
+% model = x*b;
+% Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
+x_int = - b(1) / b(2);
+
+slope = b(2);
+
+nat_freq = sqrt(-slope / I) / (2*pi);
+nat_freq_list(j) = nat_freq;
+end
+
+if norm
+    x_var_mod = freq_list_mod(1:start_idx) / speed;
+    x_var = freq_list_mod(start_idx:end) / speed;
+else
+    x_var_mod = freq_list_mod(1:start_idx);
+    x_var = freq_list_mod(start_idx:end);
+end
+
+p1_mod = plot(ax1, x_var_mod, nat_freq_list(1:start_idx));
+p1_mod.HandleVisibility = "off";
+p1_mod.LineWidth = 2;
+p1_mod.LineStyle = ":";
+p1_mod.Color = color;
+
+p1 = plot(ax1, x_var, nat_freq_list(start_idx:end));
+p1.DisplayName = name;
+p1.LineWidth = 2;
+p1.Color = color;
+
+p2_mod = plot(ax2, x_var_mod, freq_list_mod(1:start_idx) ./ nat_freq_list(1:start_idx));
+p2_mod.HandleVisibility = "off";
+p2_mod.LineWidth = 2;
+p2_mod.LineStyle = ":";
+p2_mod.Color = color;
+
+p2 = plot(ax2, x_var, freq_list_mod(start_idx:end) ./ nat_freq_list(start_idx:end));
+p2.DisplayName = name;
+p2.LineWidth = 2;
+p2.Color = color;
+
+end

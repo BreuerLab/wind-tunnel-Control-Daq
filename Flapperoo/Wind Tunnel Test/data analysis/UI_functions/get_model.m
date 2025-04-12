@@ -1,4 +1,4 @@
-function aero_force = get_model(flapper, path, AoA_list, freq, speed, lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, amp)
+function [aero_force, COP] = get_model(flapper, path, AoA_list, freq, speed, lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, amp)
     C_L_vals = zeros(1, length(AoA_list));
     C_D_vals = zeros(1, length(AoA_list));
     C_N_vals = zeros(1, length(AoA_list));
@@ -54,4 +54,5 @@ function aero_force = get_model(flapper, path, AoA_list, freq, speed, lift_slope
     aero_force(1,:) = C_D_vals;
     aero_force(3,:) = C_L_vals;
     aero_force(5,:) = C_M_vals;
+    COP = C_M_vals ./ C_N_vals;
 end
