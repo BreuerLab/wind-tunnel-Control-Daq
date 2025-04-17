@@ -844,6 +844,7 @@ methods (Access = private)
                         
                         [eff_AoA, u_rel] = get_eff_wind(time, lin_vel, AoA, wind_speed);
                         u_rel_avg = mean(u_rel,"all");
+    
                         lim_avg_forces(:,m,k) = lim_avg_forces(:,m,k) * (wind_speed / u_rel_avg)^2;
                     end
                 end
@@ -1155,8 +1156,8 @@ methods (Access = private)
                 if (obj.amplitudes)
                 for j = 1:length(amplitude_list)
                     s = scatter(ax, x_vals_mod(j,:), y_vals_mod(j,:), 40);
-                    s.MarkerEdgeColor = colors(s_ind, t_ind);
-                    % s.MarkerEdgeColor = temp_colors(j);
+                    % s.MarkerEdgeColor = colors(s_ind, t_ind);
+                    s.MarkerEdgeColor = temp_colors(j);
                     s.LineWidth = 2; % char(176) for degree symbol
                     s.DisplayName = wind_speed + " m/s, A = " + rad2deg(amplitude_list(j)) + "°"; % + ", Model: " + abbr_sel(i);
                     s.Marker = marker_list(j); % + "\textbf{^{\circ}}"

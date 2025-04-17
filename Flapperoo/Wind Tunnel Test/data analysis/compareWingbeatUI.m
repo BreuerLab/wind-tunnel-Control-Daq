@@ -38,6 +38,7 @@ properties
     mod_inertial;
     mod_added_mass;
     mod_aero;
+    mod_vibe;
     mod_total;
 
     % ------- Available parameters user can select from -------
@@ -81,6 +82,7 @@ methods
         obj.mod_inertial = false;
         obj.mod_added_mass = false;
         obj.mod_aero = false;
+        obj.mod_vibe = false;
         obj.mod_total = false;
 
         obj.Flapperoo = flapper("Flapperoo");
@@ -91,7 +93,7 @@ methods
         obj.sel_type = nameToType(obj.sel_bird.name, obj.sel_bird.types(1));
         obj.sel_freq = obj.sel_bird.freqs(1);
         obj.sel_speed = obj.sel_bird.speeds(1);
-        obj.sel_angle = obj.sel_bird.angles(1);
+        obj.sel_angle = 0;
 
         obj.plot_curves = [];
 
@@ -143,6 +145,7 @@ methods
         d4 = uidropdown(option_panel);
         d4.Position = [10 drop_y4 180 unit_height];
         d4.Items = obj.sel_bird.angles + " deg";
+        d4.Value = "0 deg";
         d4.ValueChangedFcn = @(src, event) angle_change(src, event);
 
         % Dropdown box for wind speed selection
@@ -243,7 +246,7 @@ methods
         b6.BackgroundColor = [0.3010 0.7450 0.9330];
         b6.ValueChangedFcn = @(src, event) pitch_shift_change(src, event, plot_panel);
 
-        model_panel_height = 0.16*screen_height;
+        model_panel_height = 0.14*screen_height;
         model_panel_y = button5_y - unit_spacing - model_panel_height;
         model_panel = uipanel(option_panel);
         model_panel.Title = "Model";
@@ -256,23 +259,29 @@ methods
         c1.Position = [30 check1_y 120 unit_height];
         c1.ValueChangedFcn = @(src, event) model_inertial_change(src, event, plot_panel);
 
-        check2_y = check1_y - (unit_height + unit_spacing);
+        check2_y = check1_y - 0.8*(unit_height);
         c2 = uicheckbox(model_panel);
         c2.Text = "Added Mass";
         c2.Position = [30 check2_y 120 unit_height];
         c2.ValueChangedFcn = @(src, event) model_added_mass_change(src, event, plot_panel);
 
-        check3_y = check2_y - (unit_height + unit_spacing);
+        check3_y = check2_y - 0.8*(unit_height);
         c3 = uicheckbox(model_panel);
         c3.Text = "Thin Airfoil";
         c3.Position = [30 check3_y 120 unit_height];
         c3.ValueChangedFcn = @(src, event) model_aero_change(src, event, plot_panel);
 
-        check4_y = check3_y - (unit_height + unit_spacing);
+        check4_y = check3_y - 0.8*(unit_height);
         c4 = uicheckbox(model_panel);
-        c4.Text = "Total";
+        c4.Text = "Vibration";
         c4.Position = [30 check4_y 120 unit_height];
-        c4.ValueChangedFcn = @(src, event) model_total_change(src, event, plot_panel);
+        c4.ValueChangedFcn = @(src, event) model_vibe_change(src, event, plot_panel);
+
+        check5_y = check4_y - 0.8*(unit_height);
+        c5 = uicheckbox(model_panel);
+        c5.Text = "Total";
+        c5.Position = [30 check5_y 120 unit_height];
+        c5.ValueChangedFcn = @(src, event) model_total_change(src, event, plot_panel);
 
         filt_types = ["Raw", "Filtered - F_c = 50 Hz", "Filtered - F_c = 10*w_f Hz"];
         drop_y10 = model_panel_y - (unit_height + unit_spacing);
@@ -368,7 +377,7 @@ methods
 
             obj.sel_type = nameToType(obj.sel_bird.name, obj.sel_bird.types(1));
             obj.sel_freq = obj.sel_bird.freqs(1);
-            obj.sel_angle = obj.sel_bird.angles(1);
+            obj.sel_angle = 0;
             obj.sel_speed = obj.sel_bird.speeds(1);
 
             % type_box.Value = obj.sel_bird.types(1);
@@ -546,6 +555,15 @@ methods
                 obj.mod_aero = true;
             else
                 obj.mod_aero = false;
+            end
+            obj.update_plot(plot_panel);
+        end
+
+        function model_vibe_change(src, ~, plot_panel)
+            if (src.Value)
+                obj.mod_vibe = true;
+            else
+                obj.mod_vibe = false;
             end
             obj.update_plot(plot_panel);
         end
@@ -1170,7 +1188,7 @@ methods (Access = private)
             else
 
             [frames, cycle_avg_forces, upper_results, lower_results,...
-              time, inertial_force, added_mass_force, aero_force, total_force] = ...
+              time, inertial_force, added_mass_force, aero_force, vibe_force, total_force] = ...
             obj.get_forces(data_folder, data_filename, processed_data_files,...
             cur_bird, cur_type, cur_speed, cur_freq, cur_angle);
 
@@ -1194,7 +1212,7 @@ methods (Access = private)
                 data_l.LineWidth = 2;
 
                 if (last_freq ~= wing_freq || last_speed ~= cur_speed)
-                obj.plot_model(idx, ax, original_color, time, inertial_force, added_mass_force, aero_force, total_force, abbr_name);
+                obj.plot_model(idx, ax, original_color, time, inertial_force, added_mass_force, aero_force, vibe_force, total_force, abbr_name);
                 if (idx == 5)
                     last_freq = wing_freq;
                     last_speed = cur_speed;
@@ -1220,6 +1238,9 @@ methods (Access = private)
             
             [sel_type, sel_speed, sel_freq, sel_angle] = compareWingbeatUI.parseCases(obj.selection(i));
             wing_freq = str2double(extractBefore(sel_freq, " Hz"));
+
+            flapper_name = string(extractBefore(obj.selection(i), "/"));
+            cur_bird = getBirdFromName(flapper_name, obj.Flapperoo, obj.MetaBird);
 
             % Get color for this case name
             sels = [sel_type, sel_speed];
@@ -1286,10 +1307,13 @@ methods (Access = private)
 
             AR = cur_bird.AR;
 
-            thinAirfoil = false;
+            thinAirfoil = true;
+            disp("THIN AIRFOIL IS: " + thinAirfoil)
             if thinAirfoil
                 lift_slope = ((2*pi) / (1 + 2/AR));
                 pitch_slope = -lift_slope / 4;
+                zero_lift_alpha = 0;
+                zero_pitch_alpha = 0;
             else
                 % Find slopes for all wind speeds and average
                 path = obj.data_path + "plot data/" + cur_bird.name;
@@ -1304,7 +1328,7 @@ methods (Access = private)
             amp = -1;
 
             % Get forces from quasi-steady model
-            [time, inertial_force, added_mass_force, aero_force] = ...
+            [time, inertial_force, added_mass_force, aero_force, vibe_force] = ...
                 getModel(obj.data_path, cur_bird.name, sel_freq, sel_angle, sel_speed,...
                 lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, amp);
 
@@ -1392,7 +1416,7 @@ methods (Access = private)
             % obj.plot_curves.(struct_name) = [frames; cycle_avg_forces(idx, :)];
 
             if (last_freq ~= wing_freq || last_speed ~= sel_speed)
-            obj.plot_model(idx, ax, original_color, time, inertial_force, added_mass_force, aero_force, total_force, abbr_name);
+            obj.plot_model(idx, ax, original_color, time, inertial_force, added_mass_force, aero_force, vibe_force, total_force, abbr_name);
             last_freq = wing_freq;
             last_speed = sel_speed;
             end
@@ -1427,7 +1451,7 @@ methods (Access = private)
     end
 
     function [frames, cycle_avg_forces, upper_results, lower_results,...
-              time, inertial_force, added_mass_force, aero_force, total_force] = ...
+              time, inertial_force, added_mass_force, aero_force, vibe_force, total_force] = ...
             get_forces(obj, data_folder, data_filename, processed_data_files,...
             cur_bird, sel_type, sel_speed, sel_freq, sel_angle)
         AR = cur_bird.AR;
@@ -1435,10 +1459,13 @@ methods (Access = private)
             sub_type = compareWingbeatUI.getSubType(sel_type, cur_bird);
         end
 
-        thinAirfoil = false;
+        thinAirfoil = true;
+        disp("THIN AIRFOIL IS: " + thinAirfoil)
         if thinAirfoil
             lift_slope = ((2*pi) / (1 + 2/AR));
             pitch_slope = -lift_slope / 4;
+            zero_lift_alpha = 0;
+            zero_pitch_alpha = 0;
         else
             % Find slopes for all wind speeds and average
             path = obj.data_path + "plot data/" + cur_bird.name;
@@ -1453,7 +1480,7 @@ methods (Access = private)
         amp = -1;
 
         % Get forces from quasi-steady model
-        [time, inertial_force, added_mass_force, aero_force] = ...
+        [time, inertial_force, added_mass_force, aero_force, vibe_force] = ...
             getModel(obj.data_path, cur_bird.name, sel_freq, sel_angle, sel_speed, ...
             lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, amp);
 
@@ -1473,15 +1500,67 @@ methods (Access = private)
             added_mass_force = [added_mass_force(:,1) / norm_factors(1),...
                     added_mass_force(:,2) / norm_factors(1),...
                     added_mass_force(:,3) / norm_factors(2)];
+
+            vibe_force = [vibe_force(:,1) / norm_factors(1),...
+                    vibe_force(:,2) / norm_factors(1),...
+                    vibe_force(:,3) / norm_factors(2)];
         else
             aero_force = [aero_force(:,1) * norm_factors(1),...
                     aero_force(:,2) * norm_factors(1),...
                     aero_force(:,3) * norm_factors(2)];
         end
+
+        convolution = false;
+        if (convolution)
+        % total_drag = aero_force(:,1) + inertial_force(:,1) + added_mass_force(:,1) + vibe_force(:,1);
+        % total_lift = aero_force(:,2) + inertial_force(:,2) + added_mass_force(:,2) + vibe_force(:,2);
+        % total_moment = aero_force(:,3) + inertial_force(:,3) + added_mass_force(:,3) + vibe_force(:,3);
+        % total_force = [total_drag, total_lift, total_moment];
+
         total_drag = aero_force(:,1) + inertial_force(:,1) + added_mass_force(:,1);
         total_lift = aero_force(:,2) + inertial_force(:,2) + added_mass_force(:,2);
         total_moment = aero_force(:,3) + inertial_force(:,3) + added_mass_force(:,3);
         total_force = [total_drag, total_lift, total_moment];
+
+
+        % total_force(1,:) = -1000;
+        % repeat time, theta_b arrays
+        dt = (time(2) - time(1));
+        time_long = 0:dt:3;
+        total_force_long = [total_force(1:end-1, :); total_force(1:end-1, :); total_force(1:end-1, :);...
+                    total_force(1:end-1, :); total_force(1:end-1, :); total_force(1:end-1, :);...
+                    total_force(1:end-1, :); total_force(1:end-1, :); total_force(1:end, :)]';
+        vibe_force_long = [vibe_force(1:end-1, :); vibe_force(1:end-1, :); vibe_force(1:end-1, :);...
+                    vibe_force(1:end-1, :); vibe_force(1:end-1, :); vibe_force(1:end-1, :);...
+                    vibe_force(1:end-1, :); vibe_force(1:end-1, :); vibe_force(1:end, :)]';
+
+        % Convolutional approach
+        for i = 1:3
+        theta = dt*conv(total_force_long(i,:), vibe_force_long(i,:));
+        theta = theta(1:(length(theta) - 1)/2 + 1)';
+
+        vibe_force(:,i) = theta(end-length(total_force)+1:end);
+        % below code has almost no effect on force
+        vibe_force(:,i) = vibe_force(:,i) + theta(end-length(total_force)+1:end);
+        end
+
+        % figure
+        % hold on
+        % plot(time_long, total_force_long(3,:), DisplayName="Total Force")
+        % plot(time_long, vibe_force_long(3,:), DisplayName="Vibe Force")
+        % plot(time_long, theta, DisplayName="Convolution")
+        % legend()
+
+        total_drag = aero_force(:,1) + inertial_force(:,1) + added_mass_force(:,1) + vibe_force(:,1);
+        total_lift = aero_force(:,2) + inertial_force(:,2) + added_mass_force(:,2) + vibe_force(:,2);
+        total_moment = aero_force(:,3) + inertial_force(:,3) + added_mass_force(:,3) + vibe_force(:,3);
+        total_force = [total_drag, total_lift, total_moment];
+        else
+        total_drag = aero_force(:,1) + inertial_force(:,1) + added_mass_force(:,1) + vibe_force(:,1);
+        total_lift = aero_force(:,2) + inertial_force(:,2) + added_mass_force(:,2) + vibe_force(:,2);
+        total_moment = aero_force(:,3) + inertial_force(:,3) + added_mass_force(:,3) + vibe_force(:,3);
+        total_force = [total_drag, total_lift, total_moment];
+        end
 
         if (obj.sub)
         % Find exact filename matching this case
@@ -1512,7 +1591,7 @@ methods (Access = private)
         lower_results = cycle_avg_forces - cycle_std_forces;
     end
 
-    function plot_model(obj, idx, ax, original_color, time, inertial_force, added_mass_force, aero_force, total_force, abbr_name)
+    function plot_model(obj, idx, ax, original_color, time, inertial_force, added_mass_force, aero_force, vibe_force, total_force, abbr_name)
         % (1/2)*(x - 1) + 1 is the formula needed to convert
         % 1, 3, 5 to 1, 2, 3
         mod_idx = (1/2)*(idx - 1) + 1;
@@ -1549,6 +1628,17 @@ methods (Access = private)
             aero_l.DisplayName = abbr_name + " - Thin Airfoil";
         else
             aero_l.DisplayName = "Thin Airfoil";
+        end
+        end
+        if (obj.mod_vibe)
+        vibe_l = plot(ax,time / max(time), vibe_force(:,mod_idx));
+        vibe_l.Marker = "o";
+        vibe_l.LineWidth = 2;
+        vibe_l.Color = original_color;
+        if (length(obj.selection) > 1)
+            vibe_l.DisplayName = abbr_name + " - Vibration";
+        else
+            vibe_l.DisplayName = "Vibration";
         end
         end
         if (obj.mod_total)

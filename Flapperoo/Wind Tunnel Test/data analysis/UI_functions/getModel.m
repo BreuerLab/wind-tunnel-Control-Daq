@@ -5,7 +5,7 @@
 % Outputs:
 % All are 1 x n arrays where n represents many points over a
 % wingbeat period
-function [time, inertial_force, added_mass_force, aero_force] = ...
+function [time, inertial_force, added_mass_force, aero_force, vibe_force] = ...
     getModel(path, flapper, sel_freq, AoA, wind_speed, lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, amp)
 
     wing_freq = str2double(extractBefore(sel_freq, " Hz"));
@@ -16,7 +16,8 @@ function [time, inertial_force, added_mass_force, aero_force] = ...
         wing_length, arm_length] = getWingMeasurements(flapper);
 
     full_length = wing_length + arm_length;
-    r = arm_length:0.001:full_length;
+    dr = 0.001;
+    r = arm_length:dr:full_length;
     lin_vel = deg2rad(ang_vel) * r;
     lin_acc = deg2rad(ang_acc) * r;
     
@@ -24,9 +25,27 @@ function [time, inertial_force, added_mass_force, aero_force] = ...
 
     [inertial_force] = get_inertial(ang_disp, ang_acc, r, COM_span, chord, AoA);
     
-    [C_L, C_D, C_N, C_M] = get_aero(ang_disp, eff_AoA, u_rel, wind_speed, wing_length,...
+    [C_L, C_D, C_N, C_M] = get_aero(ang_disp, eff_AoA, u_rel, wind_speed, wing_length, dr,...
         lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR);
     aero_force = [C_D, C_L, C_M];
 
     [added_mass_force] = get_added_mass(ang_disp, lin_acc, wing_length, chord, AoA);
+
+    % added bit here to get impulse force
+    I = 0.007; % amplitude of curve
+    phi = pi/2; % phase shift of curve
+    z = 0.13803;
+    w_n = 112.2551;
+    w_d = 111.1004;
+    % I = I * (16/9); % should this somehow be a function of freq
+    vibe_force = (exp(-z*w_n*time) .* sin(w_d*time + phi)) / (I*w_d);
+
+    % assume inertial force acts at center of wings
+    shift_distance = -chord/2;
+
+    drag_force = vibe_force * sind(AoA);
+    lift_force = vibe_force * cosd(AoA);
+    pitch_moment = vibe_force * shift_distance;
+
+    vibe_force = [drag_force, lift_force, pitch_moment];
 end
