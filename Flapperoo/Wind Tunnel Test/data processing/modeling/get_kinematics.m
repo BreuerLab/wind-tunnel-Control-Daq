@@ -42,10 +42,17 @@ j = 1;
 while (round(time_vel(j),3) < round(time_vel(1) + 1/freq,3))
     j = j + 1;
 end
-time_cycle = time_vel(1:j);
+time_cycle_old = time_vel(1:j);
 ang_disp_cycle = displacement(1:j);
 ang_vel_cycle = velocity(1:j);
 ang_acc_cycle = acc(1:j);
+
+N = 300;
+time_cycle = linspace(min(time_cycle_old), max(time_cycle_old), N);
+time_cycle = time_cycle';
+ang_disp_cycle = interp1(time_cycle_old, ang_disp_cycle, time_cycle);
+ang_vel_cycle = interp1(time_cycle_old, ang_vel_cycle, time_cycle);
+ang_acc_cycle = interp1(time_cycle_old, ang_acc_cycle, time_cycle);
 
 % flip first portion of ang vel data which should be negative
 % k = 1;
@@ -61,7 +68,7 @@ ang_acc_cycle = acc(1:j);
 %     ang_vel_cycle(m) = - ang_vel_cycle(m);
 % end
 else
-    time_cycle = 0:0.01:1;
+    time_cycle = 0:0.001:1;
     time_cycle = time_cycle' / freq;
 
     ang_disp_cycle = amp.*cos(2*pi*freq.*time_cycle);

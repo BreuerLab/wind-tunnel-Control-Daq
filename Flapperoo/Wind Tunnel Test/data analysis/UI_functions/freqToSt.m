@@ -6,7 +6,7 @@ function St = freqToSt(flapper, wing_freq, wind_speed, path, amp)
     angle_down = min(ang_disp);
 
     full_length = wing_length + arm_length; % meters, distance from wingtip to axis of rotation
-    amplitude = 2 * full_length * (abs(sind(angle_up)) + abs(sind(angle_down)));
+    amplitude = full_length * (abs(sind(angle_up)) + abs(sind(angle_down)));
     % m, vertical distance traversed by wings during a full stroke, a
     % single wingbeat consists of two strokes: upstroke & downstroke
 

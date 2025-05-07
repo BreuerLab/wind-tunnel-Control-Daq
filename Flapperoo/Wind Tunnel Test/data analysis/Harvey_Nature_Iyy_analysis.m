@@ -10,7 +10,7 @@ gen_data = readtable(filepath + filename);
 species_short = gen_data.species;
 species_common = gen_data.species_fullname;
 wingspans = gen_data.wing_span_cm;
-x_loc_wing = gen_data.x_loc_humeral_insert;
+y_loc_wing = gen_data.y_loc_humeral_insert;
 % missing chord, wingbeat frequency, wind speed, wingbeat amplitude
 % could sorta get chord from wing_s in individual files
 % just going to assume amplitude of 30 degrees
@@ -20,11 +20,13 @@ theFiles = dir(filePattern);
 
 pitch_inertias = zeros(size(theFiles));
 wing_areas = zeros(size(theFiles));
+COM_x_vals = zeros(size(theFiles));
 for i = 1:length(theFiles)
     baseFileName = convertCharsToStrings(theFiles(i).name);
     data = readtable(filepath + baseFileName);
     pitch_inertias(i) = max(data.full_Iyy);
     wing_areas(i) = max(data.wing_S);
+    COM_x_vals(i) = -max(data.full_CGx);
     % SHOULD I USE MEAN INSTEAD OF MAX
 end
 
@@ -99,14 +101,15 @@ pigeon_idx = 16;
 disp(species_common(pigeon_idx))
 I = pitch_inertias(pigeon_idx); % kg * m^2, units assumed since max(pitch_inertias) comparable to ibis
 R = wingspans(pigeon_idx) / 2; % meters
-L = R - x_loc_wing(pigeon_idx); % meters
+L = R - y_loc_wing(pigeon_idx); % meters
 chord = wing_areas(pigeon_idx) / wingspans(pigeon_idx);
+COM_x = COM_x_vals(pigeon_idx);
 disp(wingspans(pigeon_idx) / chord) % this AR seems too high
 
 freq_list = 5.2:0.1:6.2;
 cur_bird_idx = 1;
 
-calc_nat_freq(L, R, chord, amp, freq_list, speed, I, ax1, ax2, bird_name, colors(cur_bird_idx,:), norm)
+calc_nat_freq(L, R, chord, amp, freq_list, speed, I, COM_x, ax1, ax2, bird_name, colors(cur_bird_idx,:), norm)
 
 plot_I(cur_bird_idx) = I;
 plot_R(cur_bird_idx) = R;
@@ -123,14 +126,15 @@ flicker_idx = 14;
 disp(species_common(flicker_idx))
 I = pitch_inertias(flicker_idx); % kg * m^2
 R = wingspans(flicker_idx) / 2; % meters
-L = R - x_loc_wing(flicker_idx); % meters
+L = R - y_loc_wing(flicker_idx); % meters
 chord = wing_areas(flicker_idx) / wingspans(flicker_idx);
+COM_x = COM_x_vals(flicker_idx);
 disp(wingspans(flicker_idx) / chord) % this AR seems too high
 
 freq_list = 8.4:0.1:10;
 cur_bird_idx = 2;
 
-calc_nat_freq(L, R, chord, amp, freq_list, speed, I, ax1, ax2, bird_name, colors(cur_bird_idx,:), norm)
+calc_nat_freq(L, R, chord, amp, freq_list, speed, I, COM_x, ax1, ax2, bird_name, colors(cur_bird_idx,:), norm)
 
 plot_I(cur_bird_idx) = I;
 plot_R(cur_bird_idx) = R;
@@ -148,14 +152,15 @@ heron_idx = 8;
 disp(species_common(heron_idx))
 I = pitch_inertias(heron_idx); % kg * m^2
 R = wingspans(heron_idx) / 2; % meters
-L = R - x_loc_wing(heron_idx); % meters
+L = R - y_loc_wing(heron_idx); % meters
 chord = wing_areas(heron_idx) / wingspans(heron_idx);
+COM_x = COM_x_vals(heron_idx);
 disp(wingspans(heron_idx) / chord) % this AR seems too high
 
 freq_list = 2.4:0.1:2.7;
 cur_bird_idx = 3;
 
-calc_nat_freq(L, R, chord, amp, freq_list, speed, I, ax1, ax2, bird_name, colors(cur_bird_idx,:), norm)
+calc_nat_freq(L, R, chord, amp, freq_list, speed, I, COM_x, ax1, ax2, bird_name, colors(cur_bird_idx,:), norm)
 
 plot_I(cur_bird_idx) = I;
 plot_R(cur_bird_idx) = R;
@@ -178,11 +183,13 @@ amp = deg2rad(42); % wingbeat amplitude
 freq = 4; % wingbeat frequency, Hz
 speed = 16.5; % m/s, from equilibrium flight condition
 
+% MISSING COM!! They seem to make it up in paper, default value of 5 cm
+
 freq_list = 3.5:0.1:freq;
 cur_bird_idx = 4;
 
-calc_nat_freq(L, R, chord, amp, freq_list, speed, I, ax1, ax2, bird_name, colors(cur_bird_idx,:), norm)
+% calc_nat_freq(L, R, chord, amp, freq_list, speed, I, ax1, ax2, bird_name, colors(cur_bird_idx,:), norm)
 
-plot_I(cur_bird_idx) = I;
-plot_R(cur_bird_idx) = R;
-plot_L(cur_bird_idx) = L;
+% plot_I(cur_bird_idx) = I;
+% plot_R(cur_bird_idx) = R;
+% plot_L(cur_bird_idx) = L;

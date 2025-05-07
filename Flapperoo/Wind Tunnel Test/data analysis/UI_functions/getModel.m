@@ -5,7 +5,7 @@
 % Outputs:
 % All are 1 x n arrays where n represents many points over a
 % wingbeat period
-function [time, inertial_force, added_mass_force, aero_force, vibe_force] = ...
+function [time, inertial_force, added_mass_force, aero_force, impulse_force] = ...
     getModel(path, flapper, sel_freq, AoA, wind_speed, lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, amp)
 
     wing_freq = str2double(extractBefore(sel_freq, " Hz"));
@@ -14,6 +14,12 @@ function [time, inertial_force, added_mass_force, aero_force, vibe_force] = ...
 
     [center_to_LE, chord, COM_span, ...
         wing_length, arm_length] = getWingMeasurements(flapper);
+
+    % load(path + "Vibes/theta_response.mat")
+    % 
+    % % No this is getting the response following a 100g drop which is not
+    % % what I want
+    % ang_disp_vibe = interp1(t, response, time);
 
     full_length = wing_length + arm_length;
     dr = 0.001;
@@ -31,21 +37,30 @@ function [time, inertial_force, added_mass_force, aero_force, vibe_force] = ...
 
     [added_mass_force] = get_added_mass(ang_disp, lin_acc, wing_length, chord, AoA);
 
-    % added bit here to get impulse force
-    I = 0.007; % amplitude of curve
-    phi = pi/2; % phase shift of curve
-    z = 0.13803;
-    w_n = 112.2551;
-    w_d = 111.1004;
-    % I = I * (16/9); % should this somehow be a function of freq
-    vibe_force = (exp(-z*w_n*time) .* sin(w_d*time + phi)) / (I*w_d);
+    % % added bit here to get impulse force
+    % I = 0.007; % amplitude of curve
+    % phi = pi/2; % phase shift of curve
+    % z = 0.13803;
+    % w_n = 112.2551;
+    % w_d = 111.1004;
+    % % I = I * (16/9); % should this somehow be a function of freq
+    % impulse_force = (exp(-z*w_n*time) .* sin(w_d*time + phi)) / (I*w_d);
+
+    % impulse should be an impulse instead of the system response to
+    % an impulse
+    A = 10;
+    impulse_force = zeros(size(time));
+    impulse_force(1) = A;
+
+    % A = 0.01;
+    % impulse_force = A*ones(size(time));
 
     % assume inertial force acts at center of wings
     shift_distance = -chord/2;
 
-    drag_force = vibe_force * sind(AoA);
-    lift_force = vibe_force * cosd(AoA);
-    pitch_moment = vibe_force * shift_distance;
+    drag_force = impulse_force * sind(AoA);
+    lift_force = impulse_force * cosd(AoA);
+    pitch_moment = impulse_force * shift_distance;
 
-    vibe_force = [drag_force, lift_force, pitch_moment];
+    impulse_force = [drag_force, lift_force, pitch_moment];
 end

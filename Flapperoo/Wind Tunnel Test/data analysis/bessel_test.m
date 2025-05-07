@@ -44,8 +44,10 @@ legend
 
 figure
 hold on
-p1 = plot(z, b1_term_2 ./ b0, DisplayName="J_0");
+p1 = plot(rad2deg(z), b1_term_2 ./ b0, DisplayName="(9J_1(A) + J_1(3A)) / (A J_0(A))");
 p1.LineWidth = 2;
-legend
+xlabel("Wingbeat Amplitude A (deg)")
+set(gca, FontSize=14)
+legend()
 
 disp(mean(b1_term ./ b0))

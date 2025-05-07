@@ -1,8 +1,10 @@
-function calc_nat_freq(L, R, chord, amp, freq_list, speed, I, ax1, ax2, name, color, norm)
+function calc_nat_freq(L, R, chord, amp, freq_list, speed, I, COM_x, ax1, ax2, name, color, norm)
 data_path = "F:\Final Force Data";
 AoA_list = [-16:1.5:-13 -12:1:-9 -8:0.5:8 9:1:12 13:1.5:16];
 lift_slope = 3.9913; % rad, from glide data of flapperoo
 pitch_slope = -1.7367; % rad, from glide data of flapperoo
+% lift_slope = 2*pi;
+% pitch_slopes = -lift_slope / 4;
 zero_lift_alpha = 0;
 zero_pitch_alpha = 0;
 span = 2*R;
@@ -69,6 +71,25 @@ for m = 1:6
     end
 end
 
+% -------------------------------------------------------------
+% -------Shift pitch moment to be considered about COM---------
+% -------------------------------------------------------------
+drag_force = aero_force_dim(1,:);
+lift_force = aero_force_dim(3,:);
+pitch_moment = aero_force_dim(5,:);
+
+normal_force = zeros(size(drag_force));
+for i = 1:length(AoA_list)
+    AoA = AoA_list(i);
+    normal_force(i) = lift_force(i)*cosd(AoA) + drag_force(i)*sind(AoA);
+end
+
+% Shift pitch moment
+pitch_moment_shift = pitch_moment + normal_force * COM_x;
+aero_force_dim(5,:) = pitch_moment_shift;
+% -------------------------------------------------------------
+% -------------------------------------------------------------
+
 idx = 5; % pitch moment
 x = [ones(size(AoA_list')), AoA_list'];
 y = aero_force_dim(idx,:)';
@@ -78,6 +99,10 @@ b = x\y;
 x_int = - b(1) / b(2);
 
 slope = b(2);
+
+if slope > 0
+    error("Unstable bird! Slope: " + slope)
+end
 
 nat_freq = sqrt(-slope / I) / (2*pi);
 nat_freq_list(j) = nat_freq;

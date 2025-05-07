@@ -1,11 +1,20 @@
 path = "C:\Users\rgissler\Downloads\";
 
+% fig1_name = "temp.fig";
+% fig2_name = "temp2.fig";
+% fig1_name = "scaling_data.fig";
+% fig2_name = "scaling_simp_mod.fig";
+fig1_name = "scaling_data_freq.fig";
+fig2_name = "scaling_simp_mod_freq.fig";
+fig1_name = "temp_eff.fig";
+fig2_name = "temp_regular.fig";
+
 % Load the first figure
-fig1 = openfig(path + "temp.fig", 'invisible');  % load without displaying
+fig1 = openfig(path + fig1_name, 'invisible');  % load without displaying
 ax1 = findall(fig1, 'type', 'axes');         % find axes in figure1
 
 % Load the second figure
-fig2 = openfig(path + "temp2.fig", 'invisible');
+fig2 = openfig(path + fig2_name, 'invisible');
 ax2 = findall(fig2, 'type', 'axes');
 
 % Create a new figure to combine plots
@@ -17,9 +26,17 @@ new_colors = ["#252525", "#636363", "#969696", "#cccccc"];
 new_colors = flip(new_colors);
 color_index = 1;
 
+ax_new_color = ax1;
+ax_old = ax2;
+
+% Copy objects from the second figure
+for i = 1:length(ax_old)
+    copyobj(allchild(ax_old(i)), combined_ax);
+end
+
 % Copy objects from the first figure
-for i = 1:length(ax1)
-    children = allchild(ax1(i));
+for i = 1:length(ax_new_color)
+    children = allchild(ax_new_color(i));
     % copyobj(allchild(ax1(i)), combined_ax);
 
     % Reverse order (MATLAB draws in reverse order typically)
@@ -36,21 +53,16 @@ for i = 1:length(ax1)
     end
 end
 
-% Copy objects from the second figure
-for i = 1:length(ax2)
-    copyobj(allchild(ax2(i)), combined_ax);
-end
-
 % Copy labels and title from ax1(1) (or any desired axis)
-xlabel(combined_ax, ax1(1).XLabel.String);
-ylabel(combined_ax, ax1(1).YLabel.String);
-title(combined_ax, ax1(1).Title.String);
+xlabel(combined_ax, ax_new_color(1).XLabel.String);
+ylabel(combined_ax, ax_new_color(1).YLabel.String);
+title(combined_ax, ax_new_color(1).Title.String);
 
 % Match font sizes
-combined_ax.FontSize = ax1(1).FontSize;
+combined_ax.FontSize = ax_new_color(1).FontSize;
 
 % Match grid settings
-if strcmp(ax1(1).XGrid, 'on')
+if strcmp(ax_new_color(1).XGrid, 'on')
     grid(combined_ax, 'on');
 else
     grid(combined_ax, 'off');

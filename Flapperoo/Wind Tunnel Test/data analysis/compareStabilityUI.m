@@ -728,6 +728,7 @@ methods (Access = private)
         err_vals_tot = [];
         s_ind_tot = [];
         t_ind_tot = [];
+        percent_err_tot = [];
 
         for i = 1:length(obj.selection)
             for j = 1:length(struct_matches)
@@ -878,6 +879,9 @@ methods (Access = private)
                     if (obj.norm)
                         NP_mom = NP_mom / norm_factors(2);
                     end
+                    % NP_pos_chord = (NP_pos / chord) * 100;
+                    % Assuming lim_avg_forces fed into findNP was from LE
+                    % Otherwise need, shift pitch moment to be off
                     [NP_pos_LE, NP_pos_chord] = posToChord(NP_pos, center_to_LE, chord);
                     NP_positions = [NP_positions NP_pos_chord];
                     NP_moms = [NP_moms NP_mom];
@@ -938,6 +942,39 @@ methods (Access = private)
                     end
                 end
             end
+
+            % ------------------------------------------------
+            % -----Normalize by values from 3 m/s trials------
+            % ------------------------------------------------
+            % if i == 1
+            %     slopes_init = slopes;
+            % end
+            % slopes = slopes ./ slopes_init(1:length(slopes));
+            % 
+            % if i == 1
+            %     slopes_init_scaling = wind_speed^2 + (wing_freqs.^2)/3;
+            % end
+            % % Prediction from simple scaling
+            % slopes_scaling = wind_speed^2 + (wing_freqs.^2)/3;
+            % slopes_scaling = slopes_scaling ./ slopes_init_scaling(1:length(slopes));
+            
+            % ------------------------------------------------
+            % -----Normalize by values from 3 m/s trials------
+            % ------------------------------------------------
+            % slopes = slopes / slopes(1);
+            % 
+            % slopes_scaling = wind_speed^2 + (wing_freqs.^2)/3;
+            % slopes_scaling = slopes_scaling / slopes_scaling(1);
+
+            % ------------------------------------------------
+            % if (i ~= 1)
+            % percent_err = (abs(slopes - slopes_scaling) ./ slopes) * 100;
+            % percent_err_tot = [percent_err_tot percent_err];
+            % end
+
+            % percent_err = (abs(slopes(2:end) - slopes_scaling(2:end)) ./ slopes(2:end)) * 100;
+            % percent_err_tot = [percent_err_tot percent_err];
+            % ------------------------------------------------
             
             % Get Quasi-Steady Model Force
             % Predictions
@@ -1163,10 +1200,30 @@ methods (Access = private)
                     s.Marker = marker_list(j); % + "\textbf{^{\circ}}"
                 end
                 else
+                    % s = plot(ax, x_vals_mod, y_vals_mod);
+                    % s.Color = colors(s_ind, t_ind);
+                    % s.LineWidth = 2;
+                    % s.DisplayName = "Model: " + abbr_sel(i);
+
                     s = scatter(ax, x_vals_mod, y_vals_mod, 40);
                     s.MarkerEdgeColor = colors(s_ind, t_ind);
                     s.LineWidth = 2;
+                    % s.HandleVisibility = "off";
                     s.DisplayName = "Model: " + abbr_sel(i);
+
+                    if i == 1
+                        % Data slopes are in pitch / deg. These slopes are
+                        % pitch / rad so we multiply by pi / 180
+                        St_fine = linspace(min(x_vals_mod), max(x_vals_mod), 100);
+                        test_mod = (pi/180) * pitch_slope * (1 + 3*(St_fine.^2));
+                        A_val = deg2rad(30);
+                        test_mod = test_mod * besselj(0,A_val);
+                        % test_mod = (pi/180) * pitch_slope * (besselj(0,A_val) + 0.5*(St_fine.^2)*((9*besselj(1,A_val) + besselj(1, 3*A_val)) / (A_val)));
+                        l_s = plot(ax, St_fine, test_mod);
+                        l_s.DisplayName = "Reduced Model";
+                        l_s.Color = "black";
+                        l_s.LineStyle = "--";
+                    end
 
                     % x_var_mod = x_vals_mod(2:end);
                     % y_var_mod = y_vals_mod(2:end);
@@ -1180,6 +1237,8 @@ methods (Access = private)
 
 
         end
+
+        disp("Freq Scaling % error: " + mean(percent_err_tot))
 
         plot_fit = false;
         if (plot_fit)
