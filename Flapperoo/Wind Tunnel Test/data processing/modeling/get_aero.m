@@ -1,6 +1,6 @@
-function [C_L, C_D, C_N, C_M] ...
+function [C_L, C_D, C_N, C_M, COP_span] ...
     = get_aero(ang_disp, eff_AoA, u_rel, wind_speed_sel, wing_length, dr, ...
-    lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR)
+    lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, r)
     
     % used to see what happens if eff AoA is removed from model
     % eff_AoA = AoA*ones(size(eff_AoA));
@@ -57,5 +57,5 @@ function [C_L, C_D, C_N, C_M] ...
     C_M = trapz(dr, C_M_r, 2) / wing_length;
 
     % Spanwise location of COM
-    % COP_span = sum(C_L_r .* r, 2) ./ sum(C_L_r, 2);
+    COP_span = sum(C_L_r .* r, 2) ./ sum(C_L_r, 2);
 end

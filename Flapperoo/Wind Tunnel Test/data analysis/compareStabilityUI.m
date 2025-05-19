@@ -990,14 +990,17 @@ methods (Access = private)
                     show_data = false;
                 else
                     amplitude_list = -1;
-                    % amplitude_list = pi/6;mod_COPs
+                    % amplitude_list = pi/6; % appears to have no big diff
+                    % amplitude_list = 40*(pi/180);
                 end
+                wing_freqs_fine = [0:0.005:0.02 linspace(0.1, max(wing_freqs), 15)];
+                % wing_freqs_fine = wing_freqs;
 
-                mod_slopes = zeros(length(amplitude_list), length(wing_freqs));
-                mod_x_intercepts = zeros(length(amplitude_list), length(wing_freqs));
-                mod_NPs = zeros(length(amplitude_list), length(wing_freqs));
-                mod_NP_moms = zeros(length(amplitude_list), length(wing_freqs));
-                mod_COPs = zeros(length(amplitude_list), length(wing_freqs));
+                mod_slopes = zeros(length(amplitude_list), length(wing_freqs_fine));
+                mod_x_intercepts = zeros(length(amplitude_list), length(wing_freqs_fine));
+                mod_NPs = zeros(length(amplitude_list), length(wing_freqs_fine));
+                mod_NP_moms = zeros(length(amplitude_list), length(wing_freqs_fine));
+                mod_COPs = zeros(length(amplitude_list), length(wing_freqs_fine));
 
                 AR = cur_bird.AR;
 
@@ -1015,8 +1018,8 @@ methods (Access = private)
                 for j = 1:length(amplitude_list)
                 amp = amplitude_list(j);
 
-                for k = 1:length(wing_freqs)
-                wing_freq = wing_freqs(k);
+                for k = 1:length(wing_freqs_fine)
+                wing_freq = wing_freqs_fine(k);
 
                 % temp code to block out x_int inclusion in model
                 zero_lift_alpha = 0;
@@ -1083,16 +1086,16 @@ methods (Access = private)
             if (obj.x_var == 1)
 
             if (obj.st)
-                x_vals = zeros(1,length(wing_freqs));
+                x_vals = zeros(1, length(wing_freqs));
                 for k = 1:length(wing_freqs)
                     x_vals(k) = freqToSt(cur_bird.name, wing_freqs(k), wind_speed, obj.data_path, -1);
                 end
 
                 if (obj.aero_model)
-                x_vals_mod = zeros(length(amplitude_list),length(wing_freqs));
+                x_vals_mod = zeros(length(amplitude_list), length(wing_freqs_fine));
                 for j = 1:length(amplitude_list)
-                    for k = 1:length(wing_freqs)
-                        x_vals_mod(j,k) = freqToSt(cur_bird.name, wing_freqs(k), wind_speed, obj.data_path, amplitude_list(j));
+                    for k = 1:length(wing_freqs_fine)
+                        x_vals_mod(j,k) = freqToSt(cur_bird.name, wing_freqs_fine(k), wind_speed, obj.data_path, amplitude_list(j));
                     end
                 end
                 end
@@ -1100,9 +1103,9 @@ methods (Access = private)
                 x_vals = wing_freqs;
                 
                 if (obj.aero_model)
-                x_vals_mod = zeros(length(amplitude_list),length(wing_freqs));
+                x_vals_mod = zeros(length(amplitude_list), length(wing_freqs_fine));
                 for j = 1:length(amplitude_list)
-                    for k = 1:length(wing_freqs)
+                    for k = 1:length(wing_freqs_fine)
                         x_vals_mod(j,k) = x_vals(k);
                         % x_vals_mod(j,k) = amplitude_list(j);
                     end
@@ -1200,29 +1203,37 @@ methods (Access = private)
                     s.Marker = marker_list(j); % + "\textbf{^{\circ}}"
                 end
                 else
-                    % s = plot(ax, x_vals_mod, y_vals_mod);
-                    % s.Color = colors(s_ind, t_ind);
+                    % Plot model as line rather than scatter
+                    % Only plot 3 m/s as this is the longest line
+                    if (wind_speed == 3)
+                        l_f = plot(ax, x_vals_mod, y_vals_mod);
+                        l_f.LineWidth = 2;
+                        l_f.DisplayName = "QSBE Model";
+                        l_f.Color = "black";
+                        l_f.LineStyle = "-";
+                    end
+
+                    % s = scatter(ax, x_vals_mod, y_vals_mod, 40);
+                    % s.MarkerEdgeColor = colors(s_ind, t_ind);
                     % s.LineWidth = 2;
+                    % % s.HandleVisibility = "off";
                     % s.DisplayName = "Model: " + abbr_sel(i);
 
-                    s = scatter(ax, x_vals_mod, y_vals_mod, 40);
-                    s.MarkerEdgeColor = colors(s_ind, t_ind);
-                    s.LineWidth = 2;
-                    % s.HandleVisibility = "off";
-                    s.DisplayName = "Model: " + abbr_sel(i);
-
-                    if i == 1
+                    % Only plot 3 m/s as this is the longest line
+                    if (wind_speed == 3)
                         % Data slopes are in pitch / deg. These slopes are
                         % pitch / rad so we multiply by pi / 180
-                        St_fine = linspace(min(x_vals_mod), max(x_vals_mod), 100);
-                        test_mod = (pi/180) * pitch_slope * (1 + 3*(St_fine.^2));
                         A_val = deg2rad(30);
-                        test_mod = test_mod * besselj(0,A_val);
+                        St_fine = linspace(min(x_vals_mod), max(x_vals_mod), 100);
+                        test_mod = besselj(0,A_val) * (pi/180) * pitch_slope * (1 + 3*(St_fine.^2));
+                        % test_mod = -0.028 * (1 + 3*(St_fine.^2));
+                        % disp(besselj(0,A_val) * (pi/180) * pitch_slope + " * (1 + 3St^2)")
                         % test_mod = (pi/180) * pitch_slope * (besselj(0,A_val) + 0.5*(St_fine.^2)*((9*besselj(1,A_val) + besselj(1, 3*A_val)) / (A_val)));
                         l_s = plot(ax, St_fine, test_mod);
-                        l_s.DisplayName = "Reduced Model";
+                        l_s.DisplayName = "Linearized QSBE Model";
                         l_s.Color = "black";
                         l_s.LineStyle = "--";
+                        l_s.LineWidth = 2;
                     end
 
                     % x_var_mod = x_vals_mod(2:end);
@@ -1371,14 +1382,33 @@ methods (Access = private)
             end
 
         else
-            if (~ x_vals_mod_tot == 0)
+            % Power law fit for experimental data
+            bad_ind = [];
+            for n = 1:length(x_vals_tot)
+                if (x_vals_tot(n) == 0)
+                   bad_ind = [bad_ind n]; 
+                   % x_vals_tot(n) = 0.000001;
+                end
+            end
+            x_vals_tot(bad_ind) = [];
+            y_vals_tot(bad_ind) = [];
+
+            % [x_mod_sort, sortIndices] = sort(x_vals_mod_tot);
+            % y_mod_sort = y_vals_mod_tot(sortIndices);
+            experiment_fit = fit(x_vals_tot', y_vals_tot', 'power2')
+            % y_mod = test_fit.a * x_var_mod.^(test_fit.b) + test_fit.c;
+
+            % Power law fit for model data
+            if (~isequal(x_vals_mod_tot, zeros(size(x_vals_mod_tot))))
             % Power law for amplitude plot, only necessary for mult amp
-            x_vals_mod_tot = reshape(x_vals_mod_tot(:,2:end), [], 1);
-            y_vals_mod_tot = reshape(y_vals_mod_tot(:,2:end), [], 1);
+            % x_vals_mod_tot = reshape(x_vals_mod_tot(:,2:end), [], 1);
+            % y_vals_mod_tot = reshape(y_vals_mod_tot(:,2:end), [], 1);
 
             bad_ind = [];
             for n = 1:length(x_vals_mod_tot)
-                if (x_vals_mod_tot(n) < 0.01 || y_vals_mod_tot(n) == 0)
+                if (x_vals_mod_tot(n) == 0)
+                    %  < 0.01 || y_vals_mod_tot(n) == 0
+                    % x_vals_mod_tot(n) = 0.000001;
                    bad_ind = [bad_ind n]; 
                 end
             end
@@ -1387,7 +1417,7 @@ methods (Access = private)
 
             % [x_mod_sort, sortIndices] = sort(x_vals_mod_tot);
             % y_mod_sort = y_vals_mod_tot(sortIndices);
-            test_fit = fit(x_vals_mod_tot, y_vals_mod_tot, 'power2')
+            model_fit = fit(x_vals_mod_tot', y_vals_mod_tot', 'power2')
             % y_mod = test_fit.a * x_var_mod.^(test_fit.b) + test_fit.c;
             end
         end
