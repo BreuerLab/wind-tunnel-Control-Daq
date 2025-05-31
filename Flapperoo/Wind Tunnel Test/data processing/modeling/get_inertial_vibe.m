@@ -16,7 +16,7 @@ function [inertial_force_vec, theta, dot_theta, ddot_theta] = get_inertial_vibe(
     M_AM = L_AM .* COP_span_AM .* cosd(ang_disp);
     M_QSBE = L_QSBE .* COP_span .* cosd(ang_disp);
     M_a = M_AM + M_QSBE;
-    A = wing_freq * (1/10);
+    A = wing_freq * (1/50);
     impulse_force = zeros(size(time));
     % impulse_force(1) = A;
     M_t = c * deg2rad(ang_vel) + k * deg2rad(ang_disp) + M_a + impulse_force;
@@ -76,4 +76,43 @@ function [inertial_force_vec, theta, dot_theta, ddot_theta] = get_inertial_vibe(
 
     inertial_force_vec = [drag_force, lift_force, pitch_moment];
 
+        % PLOTTING INPUT FORCING added mass and quasi-steady blade element
+    % figure
+    % hold on
+    % plot(time, M_AM, DisplayName="Added Mass", LineWidth=2)
+    % plot(time, M_QSBE, DisplayName="Quasi-Steady", LineWidth=2)
+    % legend()
+    % xlabel("Time (sec)")
+    % ylabel("Moment (N*m)")
+    % set(gca,'fontsize', 14) 
+
+    % % PLOTTING INPUT FORCING M_T
+    % figure
+    % hold on
+    % plot(time, M_t, DisplayName="M_t", LineWidth=2)
+    % plot(time, M_a, DisplayName="M_a", LineWidth=2)
+    % % plot(time, reconstruct_M_t, DisplayName="Reconstructed M_t", LineWidth=2)
+    % legend()
+    % xlabel("Time (sec)")
+    % ylabel("Moment (N*m)")
+    % set(gca,'fontsize', 14) 
+    % 
+    % % PLOTTING FFT
+    % figure
+    % plot(freqs, abs(A_p),"LineWidth",3)
+    % xlim([0 30])
+    % title("Spectrum for M_t")
+    % xlabel("f (Hz)")
+    % ylabel("|fft(X)|")
+    % set(gca,'fontsize', 14) 
+    % % 
+    % % PLOTTING THETA
+    % figure
+    % hold on
+    % plot(time, ang_disp, DisplayName="\theta_b", LineWidth=2)
+    % plot(time, rad2deg(theta), DisplayName="\theta", LineWidth=2)
+    % legend()
+    % xlabel("Time (sec)")
+    % ylabel("Angle (deg)")
+    % set(gca,'fontsize', 14)
 end

@@ -1,5 +1,10 @@
 function [distance_vals_chord, static_margin, slopes, x_ints] = findCOMrange(avg_results, AoA_sel, center_to_LE, chord, norm_bool, norm_factors)
 
+    % ------------------------------------------------------------------
+    % function assumes you are starting out with data measured at the
+    % load cell rather than the leading edge (LE)
+    % SO TURN OFF SHIFT PITCH
+    % ------------------------------------------------------------------
     plot_bool = false;
     
     % increment to shift position where moments are considered

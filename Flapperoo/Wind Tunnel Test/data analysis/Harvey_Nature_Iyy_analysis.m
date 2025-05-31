@@ -27,6 +27,7 @@ for i = 1:length(theFiles)
     pitch_inertias(i) = max(data.full_Iyy);
     wing_areas(i) = max(data.wing_S);
     COM_x_vals(i) = -max(data.full_CGx);
+    % origin is at the humeral head
     % SHOULD I USE MEAN INSTEAD OF MAX
 end
 
@@ -102,7 +103,7 @@ disp(species_common(pigeon_idx))
 I = pitch_inertias(pigeon_idx); % kg * m^2, units assumed since max(pitch_inertias) comparable to ibis
 R = wingspans(pigeon_idx) / 2; % meters
 L = R - y_loc_wing(pigeon_idx); % meters
-chord = wing_areas(pigeon_idx) / wingspans(pigeon_idx);
+chord = wing_areas(pigeon_idx) / R;
 COM_x = COM_x_vals(pigeon_idx);
 disp(wingspans(pigeon_idx) / chord) % this AR seems too high
 

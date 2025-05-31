@@ -644,7 +644,7 @@ methods (Access = private)
         elseif (obj.y_var == 4)
             y_label = "Moment at Neutral Position";
         elseif (obj.y_var == 5)
-            y_label = "Center of Pressure";
+            y_label = "Center of Pressure (% chord)";
         end
         
         show_data = true;
@@ -704,7 +704,7 @@ methods (Access = private)
 
             if (obj.st)
                 minSt = 0;
-                maxSt = 0.9;
+                maxSt = 0.55;
                 zmap = linspace(minSt, maxSt, length(cmap));
                 clim(ax, [minSt, maxSt])
                 cb = colorbar(ax);
@@ -763,7 +763,7 @@ methods (Access = private)
             % Load associated norm_factors file, used for COM
             % plot where normalization can only be done after
             % shifting pitch moment
-            if (obj.x_var ~= 1 || obj.y_var == 3 || obj.y_var == 4)
+            if (obj.x_var ~= 1 || obj.y_var == 3 || obj.y_var == 4 || obj.y_var == 5)
             norm_factors_path = obj.data_path + "/plot data/" + cur_bird.name + "/norm_factors/";
             norm_factors_filename = compareStabilityUI.get_norm_factors_name(norm_factors_path, cur_struct_match.dir_name);
 
@@ -860,7 +860,16 @@ methods (Access = private)
                 x_int = - b(1) / b(2);
                 slope = b(2);
 
+                [center_to_LE, chord, ~, ~, ~] = getWingMeasurements(cur_bird.name);
+
                 [COP] = getCOP(squeeze(lim_avg_forces(:,:,k)), lim_AoA_sel);
+
+                % try removing stuff around zero angle of attack where COP
+                % is singular as normal force goes to zero
+                COP = COP(lim_AoA_sel > 2 | lim_AoA_sel < -2);
+
+                % convert COP to chord
+                COP = (COP / chord) * 100;
                 COPs = [COPs mean(COP)];
 
                 % zero slope with glide slope so different body types can
@@ -868,8 +877,6 @@ methods (Access = private)
                 if (obj.zeroSlope)
                     slope = slope - glide_slope;
                 end
-
-                [center_to_LE, chord, ~, ~, ~] = getWingMeasurements(cur_bird.name);
 
                 if (obj.y_var == 3 || obj.y_var == 4 || obj.constSM)
                     [NP_pos, NP_pos_err, NP_mom] = findNP(lim_avg_forces(:,:,k), lim_AoA_sel);
@@ -935,6 +942,18 @@ methods (Access = private)
                     line.LineWidth = 2;
                     line.HandleVisibility = 'off';
                     line.Color = line_color;
+
+                    % % For making dots showing M about LE only
+                    % [M,I] = min(abs(x_vals));
+                    % scatter(ax, x_vals(I), y_vals(I), 50, line_color, "filled")
+                    % xlim(ax, [min(x_vals) max(x_vals)])
+                    % ylim(ax, [-0.2, 0.3])
+                    
+                    if obj.x_var == 2
+                        xlim(ax, [min(x_vals) max(x_vals)])
+                    elseif (obj.x_var == 3)
+                        xlim(ax, [-50 50])
+                    end
                     
                     if (obj.y_var == 2 && obj.x_var ~= 1)
                         ylim(ax, [-5 5])
@@ -1219,18 +1238,26 @@ methods (Access = private)
                     % % s.HandleVisibility = "off";
                     % s.DisplayName = "Model: " + abbr_sel(i);
 
+                    reducedMod = true;
                     % Only plot 3 m/s as this is the longest line
-                    if (wind_speed == 3)
+                    if (wind_speed == 3 && reducedMod)
                         % Data slopes are in pitch / deg. These slopes are
                         % pitch / rad so we multiply by pi / 180
                         A_val = deg2rad(30);
                         St_fine = linspace(min(x_vals_mod), max(x_vals_mod), 100);
                         test_mod = besselj(0,A_val) * (pi/180) * pitch_slope * (1 + 3*(St_fine.^2));
+                        if obj.u_eff
+                            % tried this scaling first, didn't appear to work
+                            % test_mod = test_mod * (wind_speed / u_rel_avg)^2;
+                            regularized_0F1 = hypergeom([], 2, -A_val^2) / gamma(2);
+                            ueffNorm = (3 + ((pi/2)^2)*(St_fine.^2)*(1 + regularized_0F1))/3;
+                            test_mod = test_mod ./ ueffNorm;
+                        end
                         % test_mod = -0.028 * (1 + 3*(St_fine.^2));
                         % disp(besselj(0,A_val) * (pi/180) * pitch_slope + " * (1 + 3St^2)")
                         % test_mod = (pi/180) * pitch_slope * (besselj(0,A_val) + 0.5*(St_fine.^2)*((9*besselj(1,A_val) + besselj(1, 3*A_val)) / (A_val)));
                         l_s = plot(ax, St_fine, test_mod);
-                        l_s.DisplayName = "Linearized QSBE Model";
+                        l_s.DisplayName = "Reduced QSBE Model";
                         l_s.Color = "black";
                         l_s.LineStyle = "--";
                         l_s.LineWidth = 2;
@@ -1395,7 +1422,9 @@ methods (Access = private)
 
             % [x_mod_sort, sortIndices] = sort(x_vals_mod_tot);
             % y_mod_sort = y_vals_mod_tot(sortIndices);
-            experiment_fit = fit(x_vals_tot', y_vals_tot', 'power2')
+            if (obj.x_var == 1 && obj.y_var == 1)
+                experiment_fit = fit(x_vals_tot', y_vals_tot', 'power2')
+            end
             % y_mod = test_fit.a * x_var_mod.^(test_fit.b) + test_fit.c;
 
             % Power law fit for model data

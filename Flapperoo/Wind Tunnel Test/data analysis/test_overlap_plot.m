@@ -4,10 +4,14 @@ path = "C:\Users\rgissler\Downloads\";
 % fig2_name = "temp2.fig";
 % fig1_name = "scaling_data.fig";
 % fig2_name = "scaling_simp_mod.fig";
-fig1_name = "scaling_data_freq.fig";
-fig2_name = "scaling_simp_mod_freq.fig";
-fig1_name = "temp_eff.fig";
-fig2_name = "temp_regular.fig";
+% fig1_name = "scaling_data_freq.fig";
+% fig2_name = "scaling_simp_mod_freq.fig";
+% fig1_name = "temp_eff.fig";
+% fig2_name = "temp_regular.fig";
+% fig2_name = "slopes.fig";
+% fig1_name = "u_eff_slopes.fig";
+fig1_name = "temp1.fig";
+fig2_name = "temp2.fig";
 
 % Load the first figure
 fig1 = openfig(path + fig1_name, 'invisible');  % load without displaying
@@ -29,11 +33,6 @@ color_index = 1;
 ax_new_color = ax1;
 ax_old = ax2;
 
-% Copy objects from the second figure
-for i = 1:length(ax_old)
-    copyobj(allchild(ax_old(i)), combined_ax);
-end
-
 % Copy objects from the first figure
 for i = 1:length(ax_new_color)
     children = allchild(ax_new_color(i));
@@ -46,11 +45,16 @@ for i = 1:length(ax_new_color)
     obj = copyobj(children(j), combined_ax);
     
     % Only recolor if it's a line or something with a Color property
-    if isprop(obj, 'Color')
+    if (isprop(obj, 'Color') && isa(obj, 'matlab.graphics.chart.primitive.ErrorBar'))
         obj.Color = new_colors(color_index);
         color_index = color_index + 1;
     end
     end
+end
+
+% Copy objects from the second figure
+for i = 1:length(ax_old)
+    copyobj(allchild(ax_old(i)), combined_ax);
 end
 
 % Copy labels and title from ax1(1) (or any desired axis)

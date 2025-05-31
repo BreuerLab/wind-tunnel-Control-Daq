@@ -22,8 +22,8 @@ function [aero_force, COP] = get_model(flapper, path, AoA_list, freq, speed, lif
         
         [eff_AoA, u_rel] = get_eff_wind(time, lin_vel, AoA, speed);
         
-        [C_L, C_D, C_N, C_M] = get_aero(ang_disp, eff_AoA, u_rel, speed, wing_length, dr,...
-            lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR);
+        [C_L, C_D, C_N, C_M, COP_span] = get_aero(ang_disp, eff_AoA, u_rel, speed, wing_length, dr,...
+            lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, r);
 
         % if ~(AoA == 0) 
         %     C_L = C_L / abs(sind(AoA));

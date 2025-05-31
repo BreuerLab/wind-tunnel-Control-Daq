@@ -1728,60 +1728,73 @@ methods (Access = private)
         % 1, 3, 5 to 1, 2, 3
         mod_idx = (1/2)*(idx - 1) + 1;
 
+        mult_colors = ["#3BD9A5","#D9CD3B","#9E312C";...
+                  "#333268","#2C3331","#4BEA59";...
+                  "#845A4F","#84804F","#673BD9";...
+                  "#D95A3B","#645099","#4F8473"];
+
         if (floor(mod_idx) == mod_idx)
         if (obj.mod_inertial)
         inertial_l = plot(ax, time / max(time), inertial_force(:,mod_idx));
-        inertial_l.Marker = "*";
-        inertial_l.LineWidth = 2;
-        inertial_l.Color = original_color;
+        % inertial_l.Marker = "*";
+        inertial_l.LineStyle = ":";
+        inertial_l.LineWidth = 1;
         if (length(obj.selection) > 1)
             inertial_l.DisplayName = abbr_name + " - Inertial";
+            inertial_l.Color = original_color;
         else
             inertial_l.DisplayName = "Inertial";
+            inertial_l.Color = mult_colors(1);
         end
         end
         if (obj.mod_added_mass)
         added_mass_l = plot(ax,time / max(time), added_mass_force(:,mod_idx));
-        added_mass_l.Marker = "o";
-        added_mass_l.LineWidth = 2;
-        added_mass_l.Color = original_color;
+        % added_mass_l.Marker = "o";
+        added_mass_l.LineStyle = "-.";
+        added_mass_l.LineWidth = 1;
         if (length(obj.selection) > 1)
             added_mass_l.DisplayName = abbr_name + " - Added Mass";
+            added_mass_l.Color = original_color;
         else
             added_mass_l.DisplayName = "Added Mass";
+            added_mass_l.Color = mult_colors(2);
         end
         end
         if (obj.mod_aero)
         aero_l = plot(ax, time / max(time), aero_force(:,mod_idx));
-        aero_l.Marker = "x";
-        aero_l.LineWidth = 2;
-        aero_l.Color = original_color;
+        % aero_l.Marker = "x";
+        aero_l.LineStyle = "--";
+        aero_l.LineWidth = 1;
         if (length(obj.selection) > 1)
-            aero_l.DisplayName = abbr_name + " - Thin Airfoil";
+            aero_l.DisplayName = abbr_name + " - QSBE";
+            aero_l.Color = original_color;
         else
-            aero_l.DisplayName = "Thin Airfoil";
+            aero_l.DisplayName = "QSBE";
+            aero_l.Color = mult_colors(3);
         end
         end
         if (obj.mod_vibe)
         vibe_l = plot(ax,time / max(time), vibe_force(:,mod_idx));
         vibe_l.Marker = "o";
         vibe_l.LineWidth = 2;
-        vibe_l.Color = original_color;
         if (length(obj.selection) > 1)
             vibe_l.DisplayName = abbr_name + " - Vibration";
+            vibe_l.Color = original_color;
         else
             vibe_l.DisplayName = "Vibration";
+            vibe_l.Color = mult_colors(4);
         end
         end
         if (obj.mod_total)
         total_l = plot(ax, time / max(time), total_force(:,mod_idx));
-        total_l.LineStyle = "--";
+        total_l.LineStyle = "-";
         total_l.LineWidth = 2;
-        total_l.Color = original_color;
         if (length(obj.selection) > 1)
             total_l.DisplayName = abbr_name + " - Total Model";
+            total_l.Color = original_color;
         else
             total_l.DisplayName = "Total Model";
+            total_l.Color = 'black';
         end
         end
         end

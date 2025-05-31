@@ -34,7 +34,7 @@ for i = 1:length(AoA_list)
     [eff_AoA, u_rel] = get_eff_wind(time, lin_vel, AoA, speed);
     
     [C_L, C_D, C_N, C_M] = get_aero(ang_disp, eff_AoA, u_rel, speed, L, dr,...
-        lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR);
+        lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, r);
 
     if (freq ~= 0)
         C_L_vals(i) = trapz(time, C_L) / max(time);
@@ -83,6 +83,9 @@ for i = 1:length(AoA_list)
     AoA = AoA_list(i);
     normal_force(i) = lift_force(i)*cosd(AoA) + drag_force(i)*sind(AoA);
 end
+
+% % Recalculate pitch moment at LE if NP was shifted further rearward
+% pitch_moment = pitch_moment - normal_force * AC_x;
 
 % Shift pitch moment
 pitch_moment_shift = pitch_moment + normal_force * COM_x;

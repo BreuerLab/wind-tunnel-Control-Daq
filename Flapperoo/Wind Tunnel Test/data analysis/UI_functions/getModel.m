@@ -35,18 +35,12 @@ function [time, inertial_force, added_mass_force, aero_force] = ...
         lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, r);
     aero_force = [C_D, C_L, C_M];
 
-    [added_mass_force, COP_span_AM] = get_added_mass(ang_disp, ang_acc, wing_length, chord, AoA, dr, r);
+    [added_mass_force, COP_span_AM] = get_added_mass(ang_disp, ang_vel, ang_acc, wing_length, chord, AoA, dr, r);
 
-    % Use dynamic pressure force to scale modeled data
-    if (norm_bool)
-        added_mass_force = [added_mass_force(:,1) / norm_factors(1),...
-                added_mass_force(:,2) / norm_factors(1),...
-                added_mass_force(:,3) / norm_factors(2)];
-    else
-        aero_force = [aero_force(:,1) * norm_factors(1),...
-                aero_force(:,2) * norm_factors(1),...
-                aero_force(:,3) * norm_factors(2)];
-    end
+    % dimensional value needed for get_inertial_vibe
+    aero_force = [aero_force(:,1) * norm_factors(1),...
+            aero_force(:,2) * norm_factors(1),...
+            aero_force(:,3) * norm_factors(2)];
 
     % Should only be used in non-normalized mode since moments are
     % calculated using real distances?
@@ -57,9 +51,16 @@ function [time, inertial_force, added_mass_force, aero_force] = ...
 
      if (norm_bool)
         inertial_force = [inertial_force(:,1) / norm_factors(1),...
-                inertial_force(:,2) / norm_factors(1),...
-                inertial_force(:,3) / norm_factors(2)];
+                        inertial_force(:,2) / norm_factors(1),...
+                        inertial_force(:,3) / norm_factors(2)];
+        added_mass_force = [added_mass_force(:,1) / norm_factors(1),...
+                        added_mass_force(:,2) / norm_factors(1),...
+                        added_mass_force(:,3) / norm_factors(2)];
+        aero_force = [aero_force(:,1) / norm_factors(1),...
+                    aero_force(:,2) / norm_factors(1),...
+                    aero_force(:,3) / norm_factors(2)];
      end
+
 
     % for i = 1:5
     %      % Recalculate aerodynamics considering bending
@@ -89,57 +90,6 @@ function [time, inertial_force, added_mass_force, aero_force] = ...
     %         get_inertial_vibe(time, ang_disp, ang_vel, flapper, AoA, wing_freq, L_AM, L_QSBE, COP_span_AM, COP_span);
     % end
 
-    % Recalculate aerodynamics considering bending
-    % lin_vel = dot_theta * r;
-    % [eff_AoA, u_rel] = get_eff_wind(time, lin_vel, AoA, wind_speed);
-    % 
-    % [C_L, C_D, C_N, C_M, COP_span] = get_aero(rad2deg(theta), eff_AoA, u_rel, wind_speed, wing_length, dr,...
-    % lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, r);
-    % aero_force = [C_D, C_L, C_M];
-    % 
-    % [added_mass_force, COP_span_AM] = get_added_mass(rad2deg(theta), rad2deg(ddot_theta), wing_length, chord, AoA, dr, r);
-
-    % [inertial_force] = get_inertial(ang_disp, ang_acc, r, COM_span, chord, AoA);
-
-    % PLOTTING INPUT FORCING added mass and quasi-steady blade element
-    % figure
-    % hold on
-    % plot(time, M_AM, DisplayName="Added Mass", LineWidth=2)
-    % plot(time, M_QSBE, DisplayName="Quasi-Steady", LineWidth=2)
-    % legend()
-    % xlabel("Time (sec)")
-    % ylabel("Moment (N*m)")
-    % set(gca,'fontsize', 14) 
-
-    % PLOTTING INPUT FORCING M_T
-    % figure
-    % hold on
-    % plot(time, M_t, DisplayName="M_t", LineWidth=2)
-    % plot(time, M_a, DisplayName="M_a", LineWidth=2)
-    % % plot(time, reconstruct_M_t, DisplayName="Reconstructed M_t", LineWidth=2)
-    % legend()
-    % xlabel("Time (sec)")
-    % ylabel("Moment (N*m)")
-    % set(gca,'fontsize', 14) 
-    % 
-    % % PLOTTING FFT
-    % figure
-    % plot(freqs, abs(A_p),"LineWidth",3)
-    % xlim([0 30])
-    % title("Spectrum for M_t")
-    % xlabel("f (Hz)")
-    % ylabel("|fft(X)|")
-    % set(gca,'fontsize', 14) 
-    % % 
-    % % PLOTTING THETA
-    % figure
-    % hold on
-    % plot(time, ang_disp, DisplayName="\theta_b", LineWidth=2)
-    % plot(time, rad2deg(theta), DisplayName="\theta", LineWidth=2)
-    % legend()
-    % xlabel("Time (sec)")
-    % ylabel("Angle (deg)")
-    % set(gca,'fontsize', 14)
     % 
     % % PLOTTING Angular velocity and angular acceleration from THETA
     % figure
@@ -161,7 +111,7 @@ function [time, inertial_force, added_mass_force, aero_force] = ...
     % % ylabel("Angle (deg)")
     % set(gca,'fontsize', 14) 
     % 
-    % % PLOTTING LIFT
+    % PLOTTING LIFT
     % figure
     % hold on
     % plot(time, inertial_up_force, LineWidth=2)

@@ -1317,9 +1317,9 @@ methods (Access = private)
     lin_vel = (deg2rad(ang_vel) .* cosd(ang_disp)) * r;
 
     % Get forces from quasi-steady model
-    [time, ~, ~, ~, ~] = ...
+    [time, ~, ~, ~] = ...
         getModel(data_path, cur_bird.name, sel_freq, sel_angle, sel_speed, ...
-        lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, amp);
+        lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, amp, norm_factors, obj.norm);
     
     forces_angles = zeros(length(lim_AoA_sel), 6, length(frames));
     forces_angles_mod = zeros(4, length(lim_AoA_sel), 6, length(time));
@@ -1333,9 +1333,9 @@ methods (Access = private)
         compareWingbeatdMdaUI.findMatchFile(sel_type, sel_speed, sel_freq, sel_angle, cur_bird.freqs, processed_data_files);
     
     % Get forces from quasi-steady model
-    [time, inertial_force, added_mass_force, aero_force, vibe_force] = ...
+    [time, inertial_force, added_mass_force, aero_force] = ...
         getModel(data_path, cur_bird.name, sel_freq, sel_angle, sel_speed, ...
-        lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, amp);
+        lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, amp, norm_factors, obj.norm);
     
     % Load data from file
     [frames, cycle_avg_forces, cycle_std_forces, ...
