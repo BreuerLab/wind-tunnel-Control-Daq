@@ -1,0 +1,5 @@
+ST; 'Stop program and and motion for all motors
+MO; 'Turns off all motors
+CB 1; 'Clear digital output 1 indicating motion complete
+
+EN; 'End program
