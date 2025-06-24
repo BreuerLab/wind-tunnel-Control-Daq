@@ -13,7 +13,7 @@ span = 2*R;
 AR = span / chord;
 % End result of calculation is that birds are unstable, can't even find a
 % natural frequency associated with typical flight
-% I could make up a pitch slope to imagine the contribution of a tail.
+% I could make a
 
 C_L_vals = zeros(1, length(AoA_list));
 C_D_vals = zeros(1, length(AoA_list));

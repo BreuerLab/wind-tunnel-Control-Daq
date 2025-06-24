@@ -4,9 +4,9 @@
 function [NP_pos, NP_pos_err, NP_mom] = findNP(avg_results, AoA_sel)
     plot_bool = false;
     % increment to shift position where moments are considered
-    diff_shift = 0.00001;
+    diff_shift = 10^(-6);
     % cutoff threshold for what's considered zero slope
-    slope_margin = 0.00001;
+    slope_margin = 10^(-6);
 
     % initial regression to check which direction to shift in
     pitch_moment = avg_results(5,:);

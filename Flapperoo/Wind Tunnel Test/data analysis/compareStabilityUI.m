@@ -548,7 +548,8 @@ methods(Static, Access = private)
             
             dir_parts = split(dir_name, '_');
             type = strjoin(dir_parts(1:end-1)) + " ";
-            wind_speed = dir_parts(end) + " ";
+            % wind_speed = dir_parts(end) + " ";
+            wind_speed = regexp(dir_parts(end), '\d+', 'match') + " m/s ";
 
             if (num_uniq_flappers == 1)
                 flapper_name = "";
@@ -631,9 +632,11 @@ methods (Access = private)
 
         if (obj.y_var == 1)
             if (obj.norm)
-                y_label = "Normalized Pitch Stability Slope";
+                % y_label = "Normalized Pitch Stability Slope";
+                y_label = "Dimensionless Pitch Stiffness";
             else
-                y_label = "Pitch Stability Slope";
+                % y_label = "Pitch Stability Slope";
+                y_label = "Pitch Stiffness (Nm)";
             end
         elseif (obj.y_var == 2)
             y_label = "Equilibrium Angle (deg)";
@@ -819,21 +822,22 @@ methods (Access = private)
             x_int = - b(1) / b(2);
             glide_slope = b(2);
             
-            
+            [center_to_LE, chord, COM_span, ...
+                        wing_length, arm_length] = getWingMeasurements(cur_bird.name);
+
             slopes = [];
             x_intercepts = [];
             err_slopes = [];
             NP_positions = [];
+            NP_pos_errs = [];
             NP_moms = [];
             COPs = [];
+            COP_SDs = [];
             [init_NP_pos, ~, ~] = findNP(lim_avg_forces(:,:,1), lim_AoA_sel);
             for k = 1:length(wing_freqs)
                 if (obj.u_eff)
                     amp = -1;
                     [time, ang_disp, ang_vel, ang_acc] = get_kinematics(obj.data_path, wing_freqs(k), amp);
-            
-                    [center_to_LE, chord, COM_span, ...
-                        wing_length, arm_length] = getWingMeasurements(cur_bird.name);
                     
                     full_length = wing_length + arm_length;
                     r = arm_length:0.001:full_length;
@@ -862,7 +866,7 @@ methods (Access = private)
 
                 [center_to_LE, chord, ~, ~, ~] = getWingMeasurements(cur_bird.name);
 
-                [COP] = getCOP(squeeze(lim_avg_forces(:,:,k)), lim_AoA_sel);
+                [COP] = getCOP(squeeze(lim_avg_forces(:,:,k)), lim_AoA_sel, center_to_LE, chord);
 
                 % try removing stuff around zero angle of attack where COP
                 % is singular as normal force goes to zero
@@ -871,6 +875,7 @@ methods (Access = private)
                 % convert COP to chord
                 COP = (COP / chord) * 100;
                 COPs = [COPs mean(COP)];
+                COP_SDs = [COP_SDs std(COP)];
 
                 % zero slope with glide slope so different body types can
                 % be better compared
@@ -892,6 +897,7 @@ methods (Access = private)
                     [NP_pos_LE, NP_pos_chord] = posToChord(NP_pos, center_to_LE, chord);
                     NP_positions = [NP_positions NP_pos_chord];
                     NP_moms = [NP_moms NP_mom];
+                    NP_pos_errs = [NP_pos_errs NP_pos_err];
                 end
 
                 if (obj.constSM)
@@ -1142,7 +1148,8 @@ methods (Access = private)
                 y_vals_mod = mod_x_intercepts;
             elseif (obj.y_var == 3)
                 y_vals = NP_positions;
-                err_vals = zeros(1,length(NP_positions));
+                % err_vals = NP_pos_errs * 10^4;
+                err_vals = zeros(size(NP_pos_errs));
                 y_vals_mod = mod_NPs;
             elseif (obj.y_var == 4)
                 y_vals = NP_moms;
@@ -1150,7 +1157,8 @@ methods (Access = private)
                 y_vals_mod = mod_NP_moms;
             elseif (obj.y_var == 5)
                 y_vals = COPs;
-                err_vals = zeros(1, length(COPs));
+                % err_vals = COP_SDs; % higher than magnitude of values
+                err_vals = zeros(size(COP_SDs));
                 y_vals_mod = mod_COPs;
             end
 
@@ -1214,13 +1222,20 @@ methods (Access = private)
 
                 if (obj.amplitudes)
                 for j = 1:length(amplitude_list)
-                    s = scatter(ax, x_vals_mod(j,:), y_vals_mod(j,:), 40);
-                    % s.MarkerEdgeColor = colors(s_ind, t_ind);
-                    s.MarkerEdgeColor = temp_colors(j);
-                    s.LineWidth = 2; % char(176) for degree symbol
-                    s.DisplayName = wind_speed + " m/s, A = " + rad2deg(amplitude_list(j)) + "°"; % + ", Model: " + abbr_sel(i);
-                    s.Marker = marker_list(j); % + "\textbf{^{\circ}}"
+                    % s = scatter(ax, x_vals_mod(j,:), y_vals_mod(j,:), 40);
+                    % % s.MarkerEdgeColor = colors(s_ind, t_ind);
+                    % s.MarkerEdgeColor = temp_colors(j);
+                    % s.LineWidth = 2; % char(176) for degree symbol
+                    % s.DisplayName = wind_speed + " m/s, \theta_m = " + rad2deg(amplitude_list(j)) + "°"; % + ", Model: " + abbr_sel(i);
+                    % s.Marker = marker_list(j); % + "\textbf{^{\circ}}"
+
+                    l_f = plot(ax, x_vals_mod(j,:), y_vals_mod(j,:));
+                    l_f.LineWidth = 2;
+                    l_f.DisplayName = "\theta_m = " + rad2deg(amplitude_list(j)) + "°";
+                    l_f.Color = temp_colors(j);
+                    l_f.LineStyle = "-";
                 end
+
                 else
                     % Plot model as line rather than scatter
                     % Only plot 3 m/s as this is the longest line
@@ -1238,13 +1253,15 @@ methods (Access = private)
                     % % s.HandleVisibility = "off";
                     % s.DisplayName = "Model: " + abbr_sel(i);
 
-                    reducedMod = true;
+                    reducedMod = false;
                     % Only plot 3 m/s as this is the longest line
                     if (wind_speed == 3 && reducedMod)
                         % Data slopes are in pitch / deg. These slopes are
                         % pitch / rad so we multiply by pi / 180
                         A_val = deg2rad(30);
                         St_fine = linspace(min(x_vals_mod), max(x_vals_mod), 100);
+                        % Super reduced version of model - this is too
+                        % reduced, lose amplitude variation
                         test_mod = besselj(0,A_val) * (pi/180) * pitch_slope * (1 + 3*(St_fine.^2));
                         if obj.u_eff
                             % tried this scaling first, didn't appear to work
@@ -1379,7 +1396,7 @@ methods (Access = private)
                     % s.MarkerEdgeColor = colors(s_ind, t_ind);
                     s.MarkerEdgeColor = temp_colors(j);
                     s.LineWidth = 2; % char(176) for degree symbol
-                    s.DisplayName = "A = " + rad2deg(amplitude_list(j)); % + ", Model: " + abbr_sel(i);
+                    s.DisplayName = "\theta_m = " + rad2deg(amplitude_list(j)); % + ", Model: " + abbr_sel(i);
                     s.Marker = marker_list(j); % + "\textbf{^{\circ}}"
                 end
                 else

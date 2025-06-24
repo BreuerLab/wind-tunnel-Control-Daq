@@ -47,6 +47,12 @@ function [lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha] = getGlide
    
         lift_force = lim_avg_forces(3,:,freq_ind);
         pitch_force = lim_avg_forces(5,:,freq_ind);
+
+        % TEMPORARY 06/09/2025
+        % shift_distance = -0.0684;
+        % temp_lim_avg_forces = shiftPitchMom(squeeze(lim_avg_forces(:,:,freq_ind)), shift_distance, rad2deg(lim_AoA_sel));
+        % pitch_force = temp_lim_avg_forces(5,:);
+        
     
         x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
         y = lift_force';
@@ -69,6 +75,11 @@ function [lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha] = getGlide
         pitch_slopes(i) = cur_pitch_slope;
         zero_lift_alphas(i) = zero_l_alpha;
         zero_pitch_alphas(i) = zero_p_alpha;
+
+        % TEMPORARY 06/09/2025
+        % disp("Basic Shift")
+        % cur_pitch_slope + shift_distance * cur_lift_slope
+        % disp(" ")
     end
 
     lift_slope = mean(lift_slopes);

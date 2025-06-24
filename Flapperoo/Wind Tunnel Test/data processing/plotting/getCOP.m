@@ -1,6 +1,6 @@
 % Assumptions: mean_results has dimensions so that the COP is
 % defined in meters
-function [COP] = getCOP(avg_data, AoA_sel)
+function [COP] = getCOP(avg_data, AoA_sel, center_to_LE, chord)
     drag_force = avg_data(1,:);
     lift_force = avg_data(3,:);
     pitch_moment = avg_data(5,:);
@@ -14,6 +14,9 @@ function [COP] = getCOP(avg_data, AoA_sel)
     % Calculate COP
     COP = pitch_moment ./ normal_force;
     % % COP position (in meters) relative to load cell center
+
+    COP = posToChord(-COP, center_to_LE, chord);
+
     % COP = - pitch_moment ./ normal_force;
     % [COP_LE, COP_chord] = posToChord(COP);
 end

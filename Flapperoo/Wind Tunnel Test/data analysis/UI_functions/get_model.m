@@ -14,8 +14,8 @@ function [aero_force, COP] = get_model(flapper, path, AoA_list, freq, speed, lif
     full_length = wing_length + arm_length;
     dr = 0.001;
     r = arm_length:dr:full_length;
-    % lin_vel = deg2rad(ang_vel) * r;
-    lin_vel = (deg2rad(ang_vel) .* cosd(ang_disp)) * r;
+    lin_vel = deg2rad(ang_vel) * r; % Put this back in place 06/19/25
+    % lin_vel = (deg2rad(ang_vel) .* cosd(ang_disp)) * r;
 
     for i = 1:length(AoA_list)
         AoA = AoA_list(i);

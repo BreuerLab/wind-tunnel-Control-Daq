@@ -396,12 +396,13 @@ methods (Access = private)
             
             full_length = wing_length + arm_length;
             r = arm_length:0.001:full_length;
-            % lin_disp = deg2rad(ang_disp) * r;
-            % lin_vel = deg2rad(ang_vel) * r;
-            % lin_acc = deg2rad(ang_acc) * r;
-            lin_disp = cosd(ang_disp) * r;
-            lin_vel = (deg2rad(ang_vel) .* cosd(ang_disp)) * r;
-            lin_acc = (deg2rad(ang_acc) .* cosd(ang_disp)) * r;
+            lin_disp = deg2rad(ang_disp) * r;
+            lin_vel = deg2rad(ang_vel) * r;
+            lin_acc = deg2rad(ang_acc) * r;
+            % commented these out on 06/20/2025
+            % lin_disp = cosd(ang_disp) * r;
+            % lin_vel = (deg2rad(ang_vel) .* cosd(ang_disp)) * r;
+            % lin_acc = (deg2rad(ang_acc) .* cosd(ang_disp)) * r;
             
             [eff_AoA, u_rel] = get_eff_wind(time, lin_vel, cur_angle, cur_speed);
 
