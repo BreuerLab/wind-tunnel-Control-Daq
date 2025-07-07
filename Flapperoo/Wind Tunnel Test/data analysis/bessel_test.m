@@ -23,7 +23,7 @@ p1.LineWidth = 2;
 p2 = plot(rad2deg(z), b1_term, DisplayName="A(9J_1(A) + J_1(3A))");
 p2.LineWidth = 2;
 xlabel("Wingbeat Amplitude A (deg)")
-set(gca, FontSize=14)
+set(gca, FontSize=18)
 legend(Location="northwest")
 
 figure
@@ -33,7 +33,7 @@ p1.LineWidth = 2;
 p2 = plot(rad2deg(z), b1_term_2, DisplayName="(9J_1(A) + J_1(3A))/A");
 p2.LineWidth = 2;
 xlabel("Wingbeat Amplitude A (deg)")
-set(gca, FontSize=14)
+set(gca, FontSize=18)
 legend(Location="northeast")
 
 figure
@@ -47,7 +47,7 @@ hold on
 p1 = plot(rad2deg(z), b1_term_2 ./ b0, DisplayName="(9J_1(A) + J_1(3A)) / (A J_0(A))");
 p1.LineWidth = 2;
 xlabel("Wingbeat Amplitude A (deg)")
-set(gca, FontSize=14)
+set(gca, FontSize=18)
 legend()
 
 disp(mean(b1_term ./ b0))
@@ -84,7 +84,7 @@ for i = 1:length(f_U)
     ylabel("Strouhal Number")
     p.LineWidth = 2;
     ax = gca;
-    set(ax, FontSize=16)
+    set(ax, FontSize=18)
     
     cmap = colormap(ax, map);
     minSt = 0;
@@ -103,7 +103,8 @@ hold on
 
 for i = 1:length(f_U)
     St = 2*R*z * f_U(i);
-    Fl = besselj(0, z) + (pi^2 / 18) * (St.^2 ./ (z*R^2)) * (l^2 - 3*l*R + 3*R^2) .* (9*besselj(1, z) + besselj(1, 3*z));
+    % Fl = besselj(0, z) + (pi^2 / 18) * (St.^2 ./ (z*R^2)) * (l^2 - 3*l*R + 3*R^2) .* (9*besselj(1, z) + besselj(1, 3*z));
+    Fl = besselj(0, z) + (2/3) * pi^2 * (St.^2 ./ (z*R^2)) * (l^2 - 3*l*R + 3*R^2) .* (besselj(1, z));
 
 % St = (wing_freq * amp) / wind_speed;
 % St = 0.25*besselj(0,amp) + (St^2 / amp)*(0.600353*besselj(1,amp) + 0.0667059*besselj(1,3*amp));
@@ -113,7 +114,8 @@ for i = 1:length(f_U)
     ylabel("Flapping Number")
     p.LineWidth = 2;
     ax = gca;
-    set(ax, FontSize=16)
+    set(ax, FontSize=18)
+    grid(ax, 'on');
     
     cmap = colormap(ax, map);
     minSt = 0;

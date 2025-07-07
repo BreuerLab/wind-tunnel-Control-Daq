@@ -45,7 +45,7 @@ c.dynamic_plotting();
 % e = compareKinematicsAoAUI(monitor_num, data_path);
 % e.dynamic_plotting();
 % 
-% monitor_num = 2;
+% monitor_num = 1;
 % data_path = "F:\Final Force Data/";
 % f = compareKinematicsFreqUI(monitor_num, data_path);
 % f.dynamic_plotting();

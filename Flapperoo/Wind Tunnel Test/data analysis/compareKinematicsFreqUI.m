@@ -420,14 +420,19 @@ methods (Access = private)
                 % if ~(obj.plot_id == "Added Mass Lift")
                 [time, ang_disp, ang_vel, ang_acc] = get_kinematics(obj.data_path, cur_freq, cur_amp);
                 
+                % full_length = wing_length + arm_length;
+                % r = arm_length:0.001:full_length;
+                % % removed the +0.2 from full_length+0.2
+                % % linear displacements taken only in the vertical
+                % % direction, excluding left-right motion
+                % lin_disp = cosd(ang_disp) * r;
+                % lin_vel = (deg2rad(ang_vel) .* cosd(ang_disp)) * r;
+                % lin_acc = (deg2rad(ang_acc) .* cosd(ang_disp)) * r;
+
                 full_length = wing_length + arm_length;
-                r = arm_length:0.001:full_length;
-                % removed the +0.2 from full_length+0.2
-                % linear displacements taken only in the vertical
-                % direction, excluding left-right motion
-                lin_disp = cosd(ang_disp) * r;
-                lin_vel = (deg2rad(ang_vel) .* cosd(ang_disp)) * r;
-                lin_acc = (deg2rad(ang_acc) .* cosd(ang_disp)) * r;
+                dr = 0.001;
+                r = arm_length:dr:full_length;
+                lin_vel = deg2rad(ang_vel) * r; % Put this back in place 06/19/25
                 
                 [eff_AoA, u_rel] = get_eff_wind(time, lin_vel, cur_angle, cur_speed);
 
@@ -442,7 +447,7 @@ methods (Access = private)
                 amp_eff_AoA(j) = abs(max(eff_AoA_span_mean) - min(eff_AoA_span_mean));
                 amp_u_rel(j) = abs(max(u_rel_span_mean) - min(u_rel_span_mean));
 
-                [added_mass_force_vec] = get_added_mass(ang_disp, lin_acc, wing_length, chord, cur_angle);
+                [added_mass_force_vec, COP_span_AM] = get_added_mass(ang_disp, ang_vel, ang_acc, wing_length, chord, cur_angle, dr, r);
                 lift = added_mass_force_vec(:,2);
                 mean_added_mass_lift(j) = mean(lift);
                 amp_added_mass_lift(j) = abs(max(lift) - min(lift));
