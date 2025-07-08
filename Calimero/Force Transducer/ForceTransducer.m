@@ -220,37 +220,37 @@ end
 function [offsets] = get_force_offsets(obj, case_name, tare_duration)
     % Get the offsets for current trial, including current and voltage channels.
     
-    % Démarrer la session DAQ pour tare_duration secondes
+    % Start the DAQ session for tare_duration seconds
     start(obj.daq, "Duration", tare_duration);
     
-    % Lire les données
+    % Read the data
     [bias_timetable, ~] = read(obj.daq, seconds(tare_duration));
     bias_table = timetable2table(bias_timetable);
     
-    % Extraire colonnes 2 à 10 (6 forces + courant + tension + position)
+    % Extract columns 2 to 9 (6 forces + current + voltage + position)
     bias_array = table2array(bias_table(:, 2:9));
     
-    % Préallouer tableau offset 2x8 (moyenne et std pour chaque canal)
+    % Preallocate 2x8 offset matrix (mean and std for each channel)
     offsets = zeros(2, 8);
 
     for i = 1:8
-        offsets(1, i) = mean(bias_array(:, i));  % moyenne (offset)
-        offsets(2, i) = std(bias_array(:, i));   % écart type (bruit)
+        offsets(1, i) = mean(bias_array(:, i));  % mean (offset)
+        offsets(2, i) = std(bias_array(:, i));   % std (noise)
     end
     
-    % Sauvegarder les offsets dans un fichier csv
+    % Save offsets to CSV file
     trial_name = strjoin([case_name, "offsets", datestr(now, "mmddyy")], "_");
     trial_file_name = "data\offsets data\" + trial_name + ".csv";
     writematrix(offsets, trial_file_name);
 
-    % Ajouter l'heure dans le fichier
+    % Add timestamp to file
     fileID = fopen(trial_file_name, 'a');
     fprintf(fileID, '%s\n', string(datetime));
     fclose(fileID);
 
     pause(1);
 
-    % Arrêter et vider le buffer DAQ
+    % Stop and flush DAQ buffer
     stop(obj.daq);
     flush(obj.daq);
 end
@@ -285,27 +285,26 @@ function [results] = measure_force(obj, case_name, session_duration, offsets)
     raw_data_table_times = raw_data_table(:, 1); % timestamps
     raw_data_table_volt_vals = raw_data_table(:, 2:9); % voltage inputs (6 channels)
 
-    % === Lecture des données ===
     raw_times = seconds(table2array(raw_data_table_times));
     raw_volt_vals = table2array(raw_data_table_volt_vals);
     
-    % Appliquer offset et calibration sur les 6 canaux principaux
+    % Apply offset and calibration to force channels
     volt_vals = raw_volt_vals(:, 1:6) - offsets(1, 1:6);
     force_vals = obj.cal_matrix * volt_vals';
     force_vals = force_vals';
     
-    % Ajouter les 2 colonnes supplémentaires "non calibrées" (brutes), avec offsets
-    % Extraction des colonnes brutes (DAQ) pour tension et courant
+    % Add 2 additional "uncalibrated" (raw) columns, with offsets
+    % Extract raw columns (DAQ) for voltage and current
     volt_daq = raw_volt_vals(:, 8);  % tension mesurée DAQ [-5,5] V
     %curr_daq = raw_volt_vals(:, 7);  % courant mesuré DAQ [-5,5] V
     
-    % % Conversion en signal ESP32 [0,3.3] V
+    % Conversion to ESP32 signal [0,3.3] V
     volt_esp = (volt_daq - offsets(1,8));
-    % % Conversion en valeur numérique 0-255
+    % Conversion to 0-255 numeric value
     volt_esp_255 = volt_esp * (255 / 3.3);
-    % % Conversion en grandeur réelle
+    % Conversion to actual value
     volt_reel = volt_esp_255 * (5000 / 255);  % tension réelle 0-12 V
-    % % Appliquer offset si besoin
+    % Apply offset correction if needed
     volt_reel_offset_corr = volt_reel;
     % % Combiner tout dans les résultats
     results = [raw_times, force_vals];
