@@ -333,7 +333,8 @@ end
 % **********************Plotting Measurements********************* %
 % **************************************************************** %
 % This function provides preliminary force data in the form of a 2 x 3
-% grid plot.
+% grid plot. The data has not been filtered, but if triggers are being
+% used the data will also be plotted as trimmed by the trigger signal.
 function plot_results(obj, results, case_name, drift)
     close all
     titles = ["F_x","F_y","F_z","M_x","M_y","M_z","Power","Position"];
