@@ -41,77 +41,21 @@
 % Author: Ronan Gissler
 % Breuer Lab 2023
 
-classdef ForceTransducer
+classdef Calimero
 properties
-    voltage; % 5 or 10 volts
-    cal_matrix; % matrix with calibration values (volts -> force)
+    forceVoltage; % 5 or 10 volts
     daq; % National Instruments Data Acquistion Object
 end
 
 methods(Static)
 
-% **************************************************************** %
-% *****************Obtaining a Calibration Matrix***************** %
-% **************************************************************** %
-% This function parses an ATI .cal calibration file into a matrix in
-% Matlab that can be worked with more easily.
-% Inputs: calibration_filepath - The path to a .cal file
-% Returns: cal_mat - A matlab matrix
-function cal_mat = obtain_cal(calibration_filepath)
-
-    % Preallocate space for calibration matrix
-    cal_mat = zeros(6,6);
-
-    file_id = fopen(calibration_filepath);
-    
-    % Get first line from file
-    tline = convertCharsToStrings(fgetl(file_id));
-    
-    % Counter for each measurement axis (6 total: Fx, Fy, Fz, Mx, My, Mz)
-    axis_count = 1;
-    
-    % Loop through each line until reaching the end of the file
-    while isstring(tline)
-        
-        % Lines with "UserAxis Name" have the calibration values
-        if contains(tline, "UserAxis Name")
-            split_line = split(tline);
-            
-            % Counter for each calibration value (six values for each axis)
-            value_count = 1;
-            
-            for i = 1:length(split_line)
-                % Check if phrase is numeric
-                [num, status] = str2num(split_line(i));
-                if status
-                    % add that calibration value to matrix
-                    cal_mat(axis_count, value_count) = num;
-                    
-                    % move on to the next value
-                    value_count = value_count + 1;
-                end
-            end
-            
-            % move on to the next measurement axis
-            axis_count = axis_count + 1;
-        end
-        
-        % get next line
-        tline = convertCharsToStrings(fgetl(file_id));
-    end
-    
-    fclose(file_id);
-
-end
-
 % Builds DAQ object, adds channels, and sets appropriate channel
 % voltages
-% Inputs: obj - An instance of the force transducer class
-%         voltage - Voltage rating for all channels
+% Inputs: forceVoltage - Voltage rating for all channels
 %         rate - Data sampling rate for DAQ
 % Returns: this_DAQ - A fully constructed DAQ object
-function this_DAQ = setup_DAQ(voltage, rate)
-    % Create DAq session and set its aquisition rate (Hz).
+function this_DAQ = setup_DAQ(forceVoltage, rate)
+    % Create DAQ session and set its aquisition rate (Hz).
     this_DAQ = daq("ni");
     this_DAQ.Rate = rate;
     daq_ID = "Dev4";
@@ -119,27 +63,30 @@ function this_DAQ = setup_DAQ(voltage, rate)
     % command window to see what devices are currently connected to
     % your computer
 
-    % Add the input channels.
+    % -------------- Add the input channels --------------
+    % 6 force channels: Fx, Fy, Fz, Mx, My, Mz
     ch0 = this_DAQ.addinput(daq_ID, 0, "Voltage");
     ch1 = this_DAQ.addinput(daq_ID, 1, "Voltage");
     ch2 = this_DAQ.addinput(daq_ID, 2, "Voltage");
     ch3 = this_DAQ.addinput(daq_ID, 3, "Voltage");
     ch4 = this_DAQ.addinput(daq_ID, 4, "Voltage");
     ch5 = this_DAQ.addinput(daq_ID, 5, "Voltage");
-    
-    % Set the voltage range of the channels
-    ch0.Range = [-voltage, voltage];
-    ch1.Range = [-voltage, voltage];
-    ch2.Range = [-voltage, voltage];
-    ch3.Range = [-voltage, voltage];
-    ch4.Range = [-voltage, voltage];
-    ch5.Range = [-voltage, voltage];
 
-    ch7 = this_DAQ.addinput(daq_ID, 20, "Voltage");
+    % channel for encoder measurement
     ch6 = this_DAQ.addinput(daq_ID, 21, "Voltage");
-    ch6.Range = [-10, 10];
-    ch7.Range = [-10, 10];
-   
+
+    % channel for voltage measurement
+    ch7 = this_DAQ.addinput(daq_ID, 20, "Voltage");
+    
+    % --------- Set the voltage range of the channels ---------
+    ch0.Range = [-forceVoltage, forceVoltage];
+    ch1.Range = [-forceVoltage, forceVoltage];
+    ch2.Range = [-forceVoltage, forceVoltage];
+    ch3.Range = [-forceVoltage, forceVoltage];
+    ch4.Range = [-forceVoltage, forceVoltage];
+    ch5.Range = [-forceVoltage, forceVoltage];
+    ch6.Range = [-5, 5];
+    ch7.Range = [-5, 5];
 end
 
 end
@@ -147,17 +94,14 @@ end
 methods
 
 %% Constructor for Force Transducer Class
-function obj = ForceTransducer(rate, voltage, calibration_filepath)
-    if (voltage == 5 || voltage == 10)
-        obj.voltage = voltage;
+function obj = Calimero(rate, forceVoltage, calibration_filepath)
+    if (forceVoltage == 5 || forceVoltage == 10)
+        obj.forceVoltage = forceVoltage;
     else
         error("Invalid DAQ voltage for force transducer")
     end
 
-    % produce a calibration matrix and assign to this object
-    obj.cal_matrix = ForceTransducer.obtain_cal(calibration_filepath);
-
-    obj.daq = ForceTransducer.setup_DAQ(voltage, rate);
+    obj.daq = Calimero.setup_DAQ(voltage, rate);
 end
 
 %% Destructor for Force Transducer Class
@@ -253,26 +197,9 @@ function [results] = measure_force(obj, case_name, session_duration, offsets)
     raw_times = seconds(table2array(raw_data_table_times));
     raw_volt_vals = table2array(raw_data_table_volt_vals);
     
-    % Apply offset and calibration to force channels
-    volt_vals = raw_volt_vals(:, 1:6) - offsets(1, 1:6);
-    force_vals = obj.cal_matrix * volt_vals';
-    force_vals = force_vals';
-    
-    % Add 2 additional "uncalibrated" (raw) columns, with offsets
-    % Extract raw columns (DAQ) for voltage and current
+    force_vals = volt_to_force(raw_volt_vals, offsets, calibration_filepath);
+
     volt_daq = raw_volt_vals(:, 8);  % tension mesurée DAQ [-5,5] V
-    %curr_daq = raw_volt_vals(:, 7);  % courant mesuré DAQ [-5,5] V
-    
-    % Conversion to ESP32 signal [0,3.3] V
-    volt_esp = (volt_daq - offsets(1,8));
-    % Conversion to 0-255 numeric value
-    volt_esp_255 = volt_esp * (255 / 3.3);
-    % Conversion to actual value
-    volt_reel = volt_esp_255 * (5000 / 255);  % tension réelle 0-12 V
-    % Apply offset correction if needed
-    volt_reel_offset_corr = volt_reel;
-    % Combine everything into results
-    results = [raw_times, force_vals];
     
     % === Convert encoder signal to analog ===
     analog_voltage = raw_volt_vals(:, 7)- offsets(1,7);  % [0 - 3.3 V]
@@ -313,22 +240,6 @@ function [results] = measure_force(obj, case_name, session_duration, offsets)
     flush(obj.daq);
 end
 
-% Inputs:
-% theta - n x 1, motor angle in radians
-% Outputs:
-% Z - n x 1, wingtip vertical position in mm
-function Z = get_wingtip_motion(theta)
-    % Geometric parameters (adjust for your setup)
-    r = 9.6;  % radius of cam (in mm)
-    d = 20;   % horizontal distance between rotation center and slide axis (in mm)
-    L = 200;  % total arm/slide length (in mm)
-    
-    % Compute vertical Z position (arm/slide projection) (of wingtip?)
-    num = r * sin(theta);
-    den = sqrt((r * cos(theta) - d).^2 + (r * sin(theta)).^2);
-    Z = L * (num ./ den);  % position in mm (or consistent units)
-end
-
 % **************************************************************** %
 % **********************Plotting Measurements********************* %
 % **************************************************************** %
@@ -355,7 +266,6 @@ function plot_results(obj, results, case_name, drift)
 
     % Open a new figure.
     f = figure;
-    % f.Position = [1940 600 1150 750];
     tcl = tiledlayout(2,5);
     
     raw_time = results(:, 1);
@@ -569,11 +479,11 @@ function plot_results(obj, results, case_name, drift)
 
 
     % Recover voltage and current
-    tension = data(start_idx:end, 8);        % in V
+    voltage = data(start_idx:end, 8);        % in V
     courant_mA = data(start_idx:end, 9);     % in mA
-    courant = courant_mA / 1000;             % conversion to A
+    current = courant_mA / 1000;             % conversion to A
 
-    puissance = tension .* courant;          % in W
+    power = voltage .* current;          % in W
 
     % Recover angle
     P_per_angle = cell(length(angle_bins), 1);
@@ -582,7 +492,7 @@ function plot_results(obj, results, case_name, drift)
     for i = 1:length(position_deg)
         idx = floor(mod(position_deg(i), angle_per_turn)) + 1;
         idx = min(idx, length(P_per_angle));
-        P_per_angle{idx}(end+1) = puissance(i);
+        P_per_angle{idx}(end+1) = power(i);
     end
 
     for k = 1:length(angle_bins)

@@ -9,7 +9,7 @@ clc
 % Author: Alex Waultre
 % Date: 07/1/2025
 
-addpath 'Calibration Files/Mini40'
+addpath(genpath("."))
 
 % Experiment Parameters
 rate = 10000; % measurement rate of NI DAQ, in Hz
@@ -28,7 +28,7 @@ force_limit = 810; % Newton
 torque_limit = 19; % Newton*meters
 
 % Make force transducer object
-FT_obj = ForceTransducer(rate, voltage, calibration_filepath, 0);
+FT_obj = ForceTransducer(rate, voltage, calibration_filepath);
 
 % Get the offsets before experiment
 offsets_before = FT_obj.get_force_offsets(case_name + "_before", offset_duration);
