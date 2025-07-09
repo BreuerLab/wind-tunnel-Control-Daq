@@ -134,7 +134,7 @@ function [offsets] = get_force_offsets(obj, case_name, tare_duration)
     start(obj.daq, "Duration", tare_duration);
     
     % Read the data
-    bias_timetable = read(obj.daq, seconds(tare_duration));
+    [bias_timetable, ~] = read(obj.daq, seconds(tare_duration));
     bias_table = timetable2table(bias_timetable);
     
     % Extract columns 2 to 9 (6 forces + current + voltage + position)
@@ -148,7 +148,11 @@ function [offsets] = get_force_offsets(obj, case_name, tare_duration)
         offsets(2, i) = std(bias_array(:, i));   % std (noise)
     end
     
-    % Save data to .mat file with timestamp
+    % Save offsets to CSV file
+    trial_name = strjoin([case_name, "offsets", datestr(now, "mmddyy")], "_");
+    trial_file_name = "data\offsets data\" + trial_name + ".csv";
+    writematrix(offsets, trial_file_name);
+
     currentDateTime = datetime('now', 'Format', 'yyyy_MM_dd_HH_mm_ss');
     currentDateTimeStr = char(currentDateTime);
     trial_name = strjoin([case_name, "offsets", currentDateTimeStr], "_");
@@ -180,7 +184,7 @@ end
 % My, and Mz.
 
 % Note: This function also writes "results" to a .csv file
-function [results] = measure_force(obj, case_name, session_duration)
+function [results] = measure_force(obj, case_name, session_duration, offsets)
     % Start the DAQ session.
     start(obj.daq, "Duration", session_duration);
 
@@ -196,7 +200,7 @@ function [results] = measure_force(obj, case_name, session_duration)
     
     results = [raw_times raw_volt_vals];
     
-    % Save data to .mat file with timestamp
+    % Save data to file with timestamp
     currentDateTime = datetime('now', 'Format', 'yyyy_MM_dd_HH_mm_ss');
     currentDateTimeStr = char(currentDateTime);
     trial_name = strjoin([case_name, "experiment", currentDateTimeStr], "_");

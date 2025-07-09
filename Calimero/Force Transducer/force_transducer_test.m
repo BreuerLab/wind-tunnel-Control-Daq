@@ -43,7 +43,9 @@ uiconfirm(fig,message,title,'CloseFcn',@(h,e) close(fig));
 uiwait(fig);
 
 % Measure data during experiment
-results = FT_obj.measure_force(case_name, session_duration, offsets_before);
+results = FT_obj.measure_force(case_name, session_duration);
+% offsets_before
+
 
 % Get the offset after experiment
 offsets_after = FT_obj.get_force_offsets(case_name + "_after", offset_duration);
