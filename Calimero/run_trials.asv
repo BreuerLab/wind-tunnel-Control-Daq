@@ -24,10 +24,7 @@ flapper_obj = Calimero(rate, voltage);
 % Get calibration matrix from calibration file
 cal_matrix = obtain_cal(calibration_filepath);
 
-% Ensure motor is commanded to stop when the run_trial function completes
-% (either on its own or termination by user)
-% NEED TO UPDATE THIS FUNCTION TO COMMAND ESP32 APPROPRIATELY
-cleanup = onCleanup(@()myCleanupFun(f));
+%
 
 j = 1;
 while (j <= length(AoA_vals))
