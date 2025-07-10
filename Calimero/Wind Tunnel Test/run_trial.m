@@ -26,7 +26,7 @@ function run_trial(flapper_obj, case_name, offset_duration, session_duration, es
     checkLimits(results);
     
     % Translate data from raw values into meaningful values
-    [time, force, voltAdj, theta, Z] = process_data(results, offsets, cal_matrix);
+    [time, force, voltAdj, curAdj, theta, Z] = process_data(results, offsets, cal_matrix);
     
     % Get offset data after flapping at this angle and windspeed
     offsets_after = flapper_obj.get_force_offsets(case_name + "_after", offset_duration);
@@ -50,5 +50,5 @@ function run_trial(flapper_obj, case_name, offset_duration, session_duration, es
     fc = 100;  % cutoff frequency in Hz for filter
     
     % Display preliminary data
-    raw_plot(time, force, voltAdj, theta, case_name, drift, rate, fc);
+    raw_plot(time, force, voltAdj, curAdj, theta, case_name, drift, rate, fc);
 end

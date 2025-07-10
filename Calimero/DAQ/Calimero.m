@@ -72,11 +72,14 @@ function this_DAQ = setup_DAQ(forceVoltage, rate)
     ch4 = this_DAQ.addinput(daq_ID, 4, "Voltage");
     ch5 = this_DAQ.addinput(daq_ID, 5, "Voltage");
 
-    % channel for encoder measurement
-    ch6 = this_DAQ.addinput(daq_ID, 21, "Voltage");
-
     % channel for voltage measurement
-    ch7 = this_DAQ.addinput(daq_ID, 20, "Voltage");
+    ch6 = this_DAQ.addinput(daq_ID, 20, "Voltage");
+
+    % channel for current measurement
+    ch7 = this_DAQ.addinput(daq_ID, 19, "Voltage");
+
+    % channel for encoder measurement
+    ch8 = this_DAQ.addinput(daq_ID, 21, "Voltage");
     
     % --------- Set the voltage range of the channels ---------
     ch0.Range = [-forceVoltage, forceVoltage];
@@ -86,7 +89,8 @@ function this_DAQ = setup_DAQ(forceVoltage, rate)
     ch4.Range = [-forceVoltage, forceVoltage];
     ch5.Range = [-forceVoltage, forceVoltage];
     ch6.Range = [-5, 5];
-    ch7.Range = [-5, 5];
+    ch7.Range = [-1, 1]; % voltage range anticipated for current is 0 - 0.2
+    ch8.Range = [-5, 5];
 end
 
 end
@@ -137,13 +141,14 @@ function [offsets] = get_force_offsets(obj, case_name, tare_duration)
     bias_timetable = read(obj.daq, seconds(tare_duration));
     bias_table = timetable2table(bias_timetable);
     
-    % Extract columns 2 to 9 (6 forces + current + voltage + position)
-    bias_array = table2array(bias_table(:, 2:9));
+    % Extract columns (6 forces + current + voltage + position)
+    bias_array = table2array(bias_table(:, 2:end));
     
-    % Preallocate 2x8 offset matrix (mean and std for each channel)
-    offsets = zeros(2, 8);
+    % Preallocate offset matrix (mean and std for each channel)
+    num_channels = min(size(bias_array));
+    offsets = zeros(2, num_channels);
 
-    for i = 1:8
+    for i = 1:num_channels
         offsets(1, i) = mean(bias_array(:, i));  % mean (offset)
         offsets(2, i) = std(bias_array(:, i));   % std (noise)
     end
@@ -189,7 +194,7 @@ function [results] = measure_force(obj, case_name, session_duration)
     raw_data_table = timetable2table(raw_data);
 
     raw_data_table_times = raw_data_table(:, 1); % timestamps
-    raw_data_table_volt_vals = raw_data_table(:, 2:9); % voltage inputs (8 channels)
+    raw_data_table_volt_vals = raw_data_table(:, 2:end); % voltage inputs (9 channels)
 
     raw_times = seconds(table2array(raw_data_table_times));
     raw_volt_vals = table2array(raw_data_table_volt_vals);
