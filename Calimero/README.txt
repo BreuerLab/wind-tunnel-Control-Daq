@@ -6,3 +6,10 @@ MPS
 VFD
 *Files for controlling Variable Frequency Drive, used to control wind tunnel
 fan motor*
+
+DAQ
+*Files for collecting data from the National Instruments Data Acquisiton
+Device (NI DAQ)*
+
+ESP32
+*Files for controlling the ESP32 Arduino-based microcontroller*

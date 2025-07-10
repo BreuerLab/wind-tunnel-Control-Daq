@@ -1,52 +1,32 @@
-clear
-close all
+% Select your parameters below and then run this file to begin the
+% experiment.
+%
+% Note: The wind tunnel control GUI should be open and active.
+% Additionally you should place it in the top right corner of the
+% screen as that is the portion of the screen the code will screenshot
+% at the end of each trial.
+% 
+% Ronan Gissler June 2023
+
+clc;
+clear;
+close all;
 
 addpath(genpath("."))
 
-% Experiment Parameters
-rate = 10000; % measurement rate of NI DAQ, in Hz
-offset_duration = 2; % in seconds
-session_duration = 120; % in seconds
-case_name = "force_transducer_test";
-calibration_filepath = "FT52906.cal"; 
-voltage = 10; % 5 or 10 volts
+% -----------------------------------------------------------------------
+% ----------Parameters to Adjust for Your Specific Experiment------------
+% -----------------------------------------------------------------------
+AoA = [-16:2:16]; % angle of attack, set by MPS system
+% [-16:1.5:-12 -12:1:-8 -8:0.5:8 8:1:12 12:1.5:16]
+% freq = [0, 0.1, 2, 2.5, 3, 3.5, 3.75, 4, 4.5, 5]; % wingbeat frequency, set by motor RPM
+freq = [3.5, 4, 3.75, 2, 3, 0, 0.1, 2.5, 4.5, 5, 2, 4]; % freq2 = freq(randperm(length(freq)))
+measure_revs = 180; % number of wingbeats
 
-% Make Calimero data collection object
-flapper_obj = Calimero(rate, voltage);
+speed = 4; % wind tunnel air speed
+wing_type = "test"; % whatever name you'd like to use
+automatic = false; % run through trials automatically?
+debug = false; % testing on personal computer?
+load_cell = false; % running without loadcell attached
 
-% Get calibration matrix from calibration file
-cal_matrix = obtain_cal(calibration_filepath);
-
-% Get the offsets before experiment
-offsets_before = flapper_obj.get_force_offsets(case_name + "_before", offset_duration);
-offsets_before = offsets_before(1,:); % just taking means, no SDs
-
-fig = uifigure;
-fig.Position = [600 500 430 160];
-movegui(fig,'center')
-message = ["Offsets collected! Ready for experiment"];
-title = "Experiment Setup Reminder";
-uiconfirm(fig,message,title,'CloseFcn',@(h,e) close(fig));
-uiwait(fig);
-
-% Measure data during experiment
-results = flapper_obj.measure_force(case_name, session_duration);
-
-% Are we approaching limits of load cell?
-checkLimits(results);
-
-% Translate data from raw values into meaningful values
-[time, force, voltAdj, theta, Z] = process_data(results, offsets_before, cal_matrix);
-
-% Get the offset after experiment
-offsets_after = flapper_obj.get_force_offsets(case_name + "_after", offset_duration);
-offsets_after = offsets_after(1,:); % just taking means, no SDs
-
-drift = offsets_after - offsets_before; % over one trial
-% Convert drift from voltages into forces and moments
-drift = cal_matrix * drift';
-
-fc = 100;  % cutoff frequency in Hz for filter
-
-% Display preliminary data
-raw_plot(time, force, voltAdj, theta, case_name, drift, rate, fc);
+run_trials(AoA, freq, speed, wing_type, measure_revs, automatic, debug);
