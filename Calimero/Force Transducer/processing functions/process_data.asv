@@ -1,9 +1,0 @@
-function [time, force, volt_reel_offset_corr, position_vals_absolute, Z] = process_data(results)
-    force = volt_to_force(results(:,2:7), offsets, calibration_filepath);
-    theta = volt_to_angle(results(:,8), offsets(1,7));
-    voltAdj = voltM_to_voltA(results(:,9), offsets(1,8));
-
-    Z = get_wingtip_motion(theta);
-
-    results = [force volt_reel_offset_corr position_vals_absolute Z];
-end
