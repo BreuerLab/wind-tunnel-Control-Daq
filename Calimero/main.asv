@@ -46,7 +46,5 @@ drift = offsets_after - offsets_before; % over one trial
 % Convert drift from voltages into forces and moments
 drift = cal_matrix * drift';
 
-fc = 100;  % cutoff frequency in Hz for filter
-
 % Display preliminary data
-raw_plot(time, force, voltAdj, theta, case_name, drift, rate, fc);
+flapper_obj.plot_results(time, force, voltAdj, theta, case_name, drift);
