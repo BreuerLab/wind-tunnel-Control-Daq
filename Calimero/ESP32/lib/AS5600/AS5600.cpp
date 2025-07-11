@@ -336,8 +336,8 @@ uint8_t AS5600::getWatchDog()
 //  OUTPUT REGISTERS
 //
 /**
- * @brief Acquisition de l'angle ( RAW ANGLE register, unscaled and unmodified angle)
- * @return Retourne une valeur entre 0 et 4095 (en prenant en compte l'offset de la lib)
+ * @brief Angle acquisition ( RAW ANGLE register, unscaled and unmodified angle)
+ * @return Returns a value between 0 and 4095 (taking into account the lib offset)
  * @note The RAW ANGLE register contains the unscaled and unmodified angle.
  * */
 uint16_t AS5600::rawAngle()

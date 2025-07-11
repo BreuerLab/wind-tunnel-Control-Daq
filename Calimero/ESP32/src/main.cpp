@@ -29,9 +29,8 @@ int32_t initialAngle = 0;
 int32_t counter = 0;
 boolean initialize = true;
 
-// Ajout de cette variable globale :
+// Adding this global variable:
 bool phaseInitiale = true;
-
 
 int pwmValueAuto = 0;
 unsigned long lastUpdateTime = 0;
@@ -43,31 +42,39 @@ unsigned long previousTime = 0;
 // === Sensor INA3221 ===
 Adafruit_INA3221 ina3221;
 
-//seting the max and min values for the PWM
+// seting the max and min values for the PWM
 int pwmValue = 0;
 int pwmMin = 0;
-int pwmMax = 255; //PWM max values seting up to 255 (0-255)
+int pwmMax = 255; // PWM max values seting up to 255 (0-255)
 
 const int ticksPerOutputRevolution = 4096 * 9;  // 36864
 
 void setup() {
   Serial.begin(115200);  // High-speed serial communication
 
-  // Moteur
+  // -------------------------
+  // ------ Motor Setup ------
+  // -------------------------
   pinMode(IN1, OUTPUT);
   pinMode(IN2, OUTPUT);
+  // Set spin direction of motor
   digitalWrite(IN1, HIGH);
   digitalWrite(IN2, LOW);
+
   ledcSetup(PWM_CHANNEL, PWM_FREQ, PWM_RESOLUTION);
   ledcAttachPin(ENA, PWM_CHANNEL);
   ledcWrite(PWM_CHANNEL, pwmValue);
 
-    // Initialize I2C
+  // Initialize I2C
   as5600_I2C.begin(AS1_SDA_PIN, AS1_SCL_PIN, AS1_FREQU_I2C);
   as5600_1.begin();  // No need to specify SDA/SCL here
   as5600_I2C.setClock(AS1_FREQU_I2C); 
   delay(100);
 
+  // INCLUDE CHECK IF MAGNET DETECTED
+  if (as5600_1.detectMagnet()) {
+    Serial.println("Encoder magnet detected")
+  }
 
   // INA3221 setup
   if (!ina3221.begin(0x40, &as5600_I2C)) {
@@ -82,23 +89,23 @@ void setup() {
   previousTime = millis();   // Initialize time tracking
   previousAngle = 0;         // Initial angle value
 
-    // PHASE 1 : PWM à 0
+    // PHASE 1 : PWM at 0
   ledcWrite(PWM_CHANNEL, 0);
   delay(1000);
 
-  // PHASE 2 : PWM à ~50 pendant 1 seconde
+  // PHASE 2 : PWM at ~50 for 1 second
   ledcWrite(PWM_CHANNEL, 80);
   delay(500);
 
-  // PHASE 3 : PWM à 0 et attente d'une touche clavier
+  // PHASE 3 : PWM at 0 and waiting for a keyboard key
   ledcWrite(PWM_CHANNEL, 0);
-  Serial.println("Tourne le moteur à la main, puis appuie sur une touche dans le moniteur série pour continuer...");
+  Serial.println("Turn the motor by hand, then press a key in the serial monitor to continue...");
 
-  // Attend qu'un caractère soit reçu
+  // Wait for a character to be received
   while (Serial.available() == 0) {
-    delay(10); // évite de surcharger la CPU
+    delay(10); // avoids overloading the CPU
   }
-  Serial.read(); // lit et vide le buffer
+  Serial.read(); // reads and flushes the buffer
 
   
 
@@ -106,13 +113,13 @@ void setup() {
   as5600_1.setOffsetRAW(as5600_1.getAnglePos(true));
   as5600_1.setHysteresis(0);
 
-  // PHASE 5 : PWM à 100 pour démarrer normalement
+  // PHASE 5 : PWM at 100 to start normally
     // Read the current angle
   uint16_t angleRAW = as5600_1.getAnglePos(true);              
   uint8_t quadrant = as5600_1.getQuadrant(angleRAW);            
   int32_t totalAngle = as5600_1.getTotalAngle(quadrant, angleRAW);
 
-  Serial.println("=== Vérification des variables d'angle à l'initialisation ===");
+  Serial.println("=== Checking angle variables at initialization ===");
   Serial.print("angleRaw : ");
   Serial.println(angleRAW);
 
