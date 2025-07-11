@@ -114,7 +114,7 @@ void setup() {
   as5600_1.setHysteresis(0);
 
   // PHASE 5 : PWM at 100 to start normally
-    // Read the current angle
+  // Read the current angle
   uint16_t angleRAW = as5600_1.getAnglePos(true);              
   uint8_t quadrant = as5600_1.getQuadrant(angleRAW);            
   int32_t totalAngle = as5600_1.getTotalAngle(quadrant, angleRAW);
@@ -162,9 +162,9 @@ void loop() {
   int dacPowerOut = map((int)(voltage * current), 0, 5000, 0, 255);
 
   //dacPowerOut = constrain(dacPowerOut, 0, 255);
-  // === Contrôle clavier pour arrêter et redémarrer avec nouvelle PWM ===
-  static String inputString = "";   // Stocke l'entrée utilisateur
-  static bool moteurArrete = false;
+  // === Keyboard control for shutdown and restart with new PWM ===
+  static String inputString = "";   // Stores user input
+  static bool motorStopped = false;
   unsigned long currentTime = millis();
 
 
@@ -180,23 +180,23 @@ void loop() {
 
     if (c == '0') {
       ledcWrite(PWM_CHANNEL, 0);  // Arrêt moteur
-      moteurArrete = true;
+      motorStopped = true;
       inputString = "";           // Réinitialise la saisie
-      Serial.println("Moteur arrêté. Entrez une valeur PWM puis '.' pour redémarrer.");
+      Serial.println("Motor stopped. Enter a PWM value then '.' to restart.");
       started = false;
     }
-    else if (moteurArrete && isDigit(c)) {
+    else if (motorStopped && isDigit(c)) {
       inputString += c;  // Accumule les chiffres de la PWM souhaitée
       Serial.print("PWM cible: ");
       Serial.println(inputString);
     }
-    else if (moteurArrete && c == '.') {
+    else if (motorStopped && c == '.') {
       int newPWM = inputString.toInt();
       newPWM = constrain(newPWM, pwmMin, pwmMax);  // Sécurité
       ledcWrite(PWM_CHANNEL, newPWM);
-      pwmValue = newPWM;  // Met à jour le pwmValue global
-      moteurArrete = false;
-      Serial.print("Moteur redémarré avec PWM = ");
+      pwmValue = newPWM;  // Updates the global pwmValue
+      motorStopped = false;
+      Serial.print("Motor restarted with PWM = ");
       Serial.println(newPWM);
       inputString = "";
     }

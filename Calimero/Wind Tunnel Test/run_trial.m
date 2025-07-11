@@ -1,4 +1,4 @@
-function run_trial(flapper_obj, case_name, offset_duration, session_duration, estimate_params)
+function force = run_trial(flapper_obj, cal_matrix, case_name, offset_duration, offsets, estimate_params)
     % Get offset data before flapping at this angle and windspeed
     offsets_before = flapper_obj.get_force_offsets(case_name + "_before", offset_duration);
     offsets_before = offsets_before(1,:); % just taking means, no SDs
@@ -12,7 +12,7 @@ function run_trial(flapper_obj, case_name, offset_duration, session_duration, es
     
     % estimate recording length based on parameters
     % ----- NEED TO UPDATE THIS WITH VALUES --------
-    [distance, session_duration, trigger_pos] = estimate_duration(estimate_params{:});
+    session_duration = estimate_duration(estimate_params{:});
     
     % Collect experiment data during flapping
     disp("Experiment data collection has begun");

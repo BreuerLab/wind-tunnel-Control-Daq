@@ -27,7 +27,9 @@ measure_revs = 180; % number of wingbeats
 speed = 4; % wind tunnel air speed
 wing_type = "test"; % whatever name you'd like to use
 automatic = false; % run through trials automatically?
-load_cell = false; % running without loadcell attached
 debug = false; % testing on personal computer?
 
-run_trials(AoA, freq, speed, wing_type, measure_revs, automatic, load_cell, debug);
+run_experiment(AoA, freq, speed, wing_type, measure_revs, automatic, debug);
+
+% NEED A setFlapSpeed() FUNCTION
+% If you want to run just the flapper, call setFlapSpeed()

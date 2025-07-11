@@ -1,4 +1,4 @@
-function run_trials(AoA_vals, freq_vals, speed, wing_type, measure_revs, measure_revs_slow, automatic, load_cell, debug)
+function run_experiment(AoA_vals, freq_vals, speed, wing_type, measure_revs, automatic, debug)
 
 time_now = datetime;
 time_now.Format = 'yyyy-MM-dd HH-mm-ss';
@@ -7,14 +7,14 @@ diary("data\output logs\" + speed + "ms_" + string(time_now) + ".txt")
 % DAQ Parameters
 rate = 9000; % measurement rate of NI DAQ, in Hz
 offset_duration = 5; % in seconds
-session_duration = -1; % in seconds
 calibration_filepath = "../DAQ/Calibration Files/FT52907.cal"; 
-voltage = 5; % 5 or 10 volts
-
-case_name = "force_transducer_test";
+voltage = 5; % 5 or 10 volts for load cell
 
 % Remind user of setup procedure
 procedure_UI();
+
+% Make figure to keep track of average values vs. AoA
+[f, tiles] = compare_AoA_fig();
 
 diary off % IS THIS INITIAL DIARY NECESSARY, WHAT IS GETTING OUTPUT?
 
@@ -46,19 +46,23 @@ offsets = initial_tare(flapper_obj, offset_duration, wing_type, speed, AoA_vals(
 % ------------------------------------------------
 i = 1;
 while (i <= length(freq_vals))
-disp("Now running trial with " + freq_vals(i) + " Hz, at " + AoA_vals(j) + " deg AoA");
-dictate("Now running trial with " + freq_vals(i) + " Hz, at " + AoA_vals(j) + " deg AoA");
+msg = "Now running trial with " + freq_vals(i) + " Hz, at " + AoA_vals(j) + " deg AoA";
+disp(msg);
+dictate(msg);
 
 % Set case name and wingbeat frequency for this trial
 case_name = wing_type + "_" + speed + "m.s_" + AoA(j) + "deg_" + freq_vals(i) + "Hz";
-vel = freq_vals(i)*rev_ticks; % ticks / sec
 
-estimate_params = {rev_ticks acc vel measure_revs padding_revs wait_time hold_time};
+% wingbeat frequency is used to calculate session duration
+padding_revs = 4;
+estimate_params = {freq_vals(i), measure_revs, padding_revs, hold_time};
 
 % ----------------------------------------------------------
 % Collect data for single trial, turning flapper on and off
 % ----------------------------------------------------------
-run_trial(flapper_obj, case_name, offset_duration, session_duration, estimate_params);
+force = run_trial(flapper_obj, cal_matrix, case_name, offset_duration, offsets, estimate_params{:});
+
+process_and_plot(force, i, AoA(j), tiles, freq_vals);
 
 % -------------------------------------------------
 % -------- Move to next wingbeat frequency --------
@@ -84,7 +88,7 @@ end
 
 % Get final offset data
 offset_name = wing_type + "_" + speed + "m.s_" + AoA(j) + "deg_final";
-offsets_final = FT_obj.get_force_offsets(offset_name, offset_duration);
+flapper_obj.get_force_offsets(offset_name, offset_duration);
 disp("Final offset data at this AoA has been gathered");
 beep2;
 
@@ -95,7 +99,6 @@ end
 % -------------------------------------
 % -------- Experiment Complete --------
 % -------------------------------------
-% NEEDS UPDATING, SAVING PLOT THAT GETS UPDATED THROUGHOUT
 time_now = datetime;
 time_now.Format = 'yyyy-MM-dd HH-mm-ss';
 saveas(f,'data\plots\compareAoA_' + speed + "ms_" + string(time_now) + ".fig")
@@ -103,6 +106,6 @@ saveas(f,'data\plots\compareAoA_' + speed + "ms_" + string(time_now) + ".fig")
 if (~debug)
     % Clean up
     delete(cleanup);
-    delete(FT_obj);
+    delete(flapper_obj);
 end
 end
