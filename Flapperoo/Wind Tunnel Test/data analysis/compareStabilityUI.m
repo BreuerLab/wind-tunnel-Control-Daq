@@ -841,8 +841,8 @@ methods (Access = private)
                     
                     full_length = wing_length + arm_length;
                     r = arm_length:0.001:full_length;
-                    % lin_vel = deg2rad(ang_vel) * r;
-                    lin_vel = (deg2rad(ang_vel) .* cosd(ang_disp)) * r;
+                    lin_vel = deg2rad(ang_vel) * r;
+                    % lin_vel = (deg2rad(ang_vel) .* cosd(ang_disp)) * r;
                 
                     for m = 1:length(lim_AoA_sel)
                         AoA = lim_AoA_sel(m);
@@ -1018,6 +1018,7 @@ methods (Access = private)
                     % amplitude_list = pi/6; % appears to have no big diff
                     % amplitude_list = 40*(pi/180);
                 end
+                % higher resolution wingbeat frequency
                 wing_freqs_fine = [0:0.005:0.02 linspace(0.1, max(wing_freqs), 15)];
                 % wing_freqs_fine = wing_freqs;
 
@@ -1061,8 +1062,8 @@ methods (Access = private)
                     
                     full_length = wing_length + arm_length;
                     r = arm_length:0.001:full_length;
-                    % lin_vel = deg2rad(ang_vel) * r;
-                    lin_vel = (deg2rad(ang_vel) .* cosd(ang_disp)) * r;
+                    lin_vel = deg2rad(ang_vel) * r;
+                    % lin_vel = (deg2rad(ang_vel) .* cosd(ang_disp)) * r;
                 
                     for m = 1:length(lim_AoA_sel)
                         AoA = lim_AoA_sel(m);
@@ -1253,7 +1254,7 @@ methods (Access = private)
                     % % s.HandleVisibility = "off";
                     % s.DisplayName = "Model: " + abbr_sel(i);
 
-                    reducedMod = false;
+                    reducedMod = true;
                     % Only plot 3 m/s as this is the longest line
                     if (wind_speed == 3 && reducedMod)
                         % Data slopes are in pitch / deg. These slopes are
@@ -1262,12 +1263,22 @@ methods (Access = private)
                         St_fine = linspace(min(x_vals_mod), max(x_vals_mod), 100);
                         % Super reduced version of model - this is too
                         % reduced, lose amplitude variation
-                        test_mod = besselj(0,A_val) * (pi/180) * pitch_slope * (1 + 3*(St_fine.^2));
+                        % test_mod = besselj(0,A_val) * (pi/180) * pitch_slope * (1 + 3*(St_fine.^2)); % prior to July 2025
+                        
+                        test_mod =  (pi/180) * pitch_slope * (0.932627 + 3.94692 * St_fine.^2);
+                        % St = (2 * R * wing_freq * amp) / wind_speed;
                         if obj.u_eff
+                            % AoA = 0;
+                            % [eff_AoA, u_rel] = get_eff_wind(time, lin_vel, AoA, wind_speed);
+                            % u_rel_avg = mean(u_rel,"all");
+                            % test_mod = test_mod * (wind_speed / u_rel_avg)^2;
                             % tried this scaling first, didn't appear to work
                             % test_mod = test_mod * (wind_speed / u_rel_avg)^2;
-                            regularized_0F1 = hypergeom([], 2, -A_val^2) / gamma(2);
-                            ueffNorm = (3 + ((pi/2)^2)*(St_fine.^2)*(1 + regularized_0F1))/3;
+                            % regularized_0F1 = hypergeom([], 2, -A_val^2) / gamma(2);
+                            % ueffNorm = (3 + ((pi/2)^2)*(St_fine.^2)*(1 + regularized_0F1))/3;
+                            % ^old code prior to July 2025
+
+                            ueffNorm = 1 + 2.04266 * St_fine.^2;
                             test_mod = test_mod ./ ueffNorm;
                         end
                         % test_mod = -0.028 * (1 + 3*(St_fine.^2));

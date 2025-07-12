@@ -10,8 +10,10 @@ path = "C:\Users\rgissler\Downloads\";
 % fig2_name = "temp_regular.fig";
 % fig2_name = "slopes.fig";
 % fig1_name = "u_eff_slopes.fig";
-fig1_name = "temp1.fig";
-fig2_name = "temp2.fig";
+% fig1_name = "temp1.fig";
+% fig2_name = "temp2.fig";
+fig1_name = "slopes_effective.fig";
+fig2_name = "slopes_freestream.fig";
 
 % Load the first figure
 fig1 = openfig(path + fig1_name, 'invisible');  % load without displaying
