@@ -1,7 +1,5 @@
-function f = raw_force_plot(time, force, case_name, drift, rate, fc, titles, axes_labels)
-    % Open a new figure.
-    f = figure;
-    tcl = tiledlayout(2,3);
+function raw_force_plot(f, tiles, time, force, case_name, drift, rate, fc, titles)
+    figure(f);
    
     force_means = round(mean(force), 3);
     force_SDs = round(std(force), 3);
@@ -13,18 +11,18 @@ function f = raw_force_plot(time, force, case_name, drift, rate, fc, titles, axe
     
     % Plot forces and moments (6 plots)
     for k = 1:6
-        nexttile(tcl)
+        axes(tiles{k})
         hold on
-        plot(time, force(:, k), 'Color', [0.7 0.7 0.7], 'DisplayName', 'raw');  % raw force in gray
-        plot(time, filtered_force(:, k), 'b', 'DisplayName', 'filtered');       % filtered force in blue
+        plot(time, force(k, :), 'Color', [0.7 0.7 0.7], 'DisplayName', 'raw');  % raw force in gray
+        plot(time, filtered_force(k, :), 'b', 'DisplayName', 'filtered');       % filtered force in blue
     
         title([titles(k), " avg: " + force_means(k) + ...
                "    SD: " + force_SDs(k) + ...
                "    max: " + force_maxs(k) + ...
                "    min: " + force_mins(k)]);
-        xlabel(axes_labels(1));
-        ylabel(axes_labels(1 + ceil(k/3)));
-        legend;
+        % xlabel(axes_labels(1));
+        % ylabel(axes_labels(1 + ceil(k/3)));
+        % legend;
         hold off
     end
 

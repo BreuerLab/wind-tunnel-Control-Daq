@@ -3,7 +3,7 @@
 function wind_tunnel_save(case_name)
     time_now = datetime;
     time_now.Format = 'yyyy-MM-dd HH-mm-ss';
-    trial_name = strjoin(["data\wind tunnel data\", case_name, "wind_tunnel", string(time_now)], "_");
+    trial_name = strjoin(["data\wind tunnel data\" + case_name, "wind_tunnel", string(time_now)], "_");
     filepath = trial_name + ".mat";
     filepath_string = "'" + filepath + "'";
     evalin('base',"save(" + filepath_string + ", 'AFAM_Tunnel');");

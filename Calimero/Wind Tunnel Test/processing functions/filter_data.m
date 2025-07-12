@@ -15,6 +15,6 @@ function filtered_results = filter_data(results, frame_rate, fc)
     [b,a] = butter(num_axes, fc/(fs/2));
     filtered_results = zeros(size(results));
     for i = 1:num_axes
-        filtered_results(i, :) = filtfilt(b,a,results(i, :));
+        filtered_results(i,:) = filtfilt(b,a,results(i,:));
     end
 end

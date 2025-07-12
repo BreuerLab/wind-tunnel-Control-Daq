@@ -12,7 +12,7 @@ clc
 addpath(genpath("."))
 
 % Experiment Parameters
-rate = 10000; % measurement rate of NI DAQ, in Hz
+rate = 9000; % measurement rate of NI DAQ, in Hz
 offset_duration = 2; % in seconds
 session_duration = 120; % in seconds
 case_name = "force_transducer_test";

@@ -2,7 +2,7 @@ function [f, tiles] = compare_AoA_fig()
 
 % Setup figure for plotting cycle average values live
 f = figure;
-f.Position = [0 400 1080 700];
+f.Position = [-1084,-414,1090,800]; % bottom of vertical AFAM monitor
 tiledlayout(2,3);
 tiles = {nexttile, nexttile, nexttile, nexttile, nexttile, nexttile};
 titles = ["Drag", "Transverse Lift", "Lift", "Roll Moment", "Pitch Moment", "Yaw Moment"];

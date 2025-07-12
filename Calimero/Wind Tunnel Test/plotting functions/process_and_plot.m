@@ -15,8 +15,7 @@ function process_and_plot(force, cur_ind, AoA, tiles, wing_freq_sel)
     for k = 1:6
     axes(tiles{k})
 
-    hold on
-    
+    hold on    
     s = scatter(AoA, avg_force(k), 25, "filled");
     s.MarkerFaceColor = colors(cur_ind);
     s.MarkerEdgeColor = colors(cur_ind);

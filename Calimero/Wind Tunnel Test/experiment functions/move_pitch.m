@@ -1,4 +1,4 @@
-function move_pitch(AoA)
+function move_pitch(automatic, AoA)
     Pitch = Pitch_initialize;
     
     %----------------------------

@@ -12,7 +12,8 @@ clc;
 clear;
 close all;
 
-addpath(genpath("."))
+% restoredefaultpath
+addpath(genpath("../."))
 
 % -----------------------------------------------------------------------
 % ----------Parameters to Adjust for Your Specific Experiment------------
@@ -21,12 +22,13 @@ AoA = [-16:2:16]; % angle of attack, set by MPS system
 AoA = ladder_sort(AoA); % rearrange in nonascending ladder order
 % [-16:1.5:-12 -12:1:-8 -8:0.5:8 8:1:12 12:1.5:16]
 % freq = [0, 4, 6, 8, 10]; % wingbeat frequency, set by motor RPM
-freq = [6, 10, 0, 4, 8]; % freq2 = freq(randperm(length(freq)))
+% freq = [6, 10, 0, 4, 8]; % freq2 = freq(randperm(length(freq)))
+freq = [120, 180, 0, 90, 150]; % freq2 = freq(randperm(length(freq)))
 measure_revs = 180; % number of wingbeats
 
-speed = 4; % wind tunnel air speed
-wing_type = "test"; % whatever name you'd like to use
-automatic = false; % run through trials automatically?
+speed = 0; % wind tunnel air speed
+wing_type = "flexible"; % whatever name you'd like to use
+automatic = true; % run through trials automatically?
 debug = false; % testing on personal computer?
 
 run_experiment(AoA, freq, speed, wing_type, measure_revs, automatic, debug);

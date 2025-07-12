@@ -1,4 +1,4 @@
-function offsets = initial_tare(flapper_obj, wing_type, speed, AoA)
+function offsets = initial_tare(flapper_obj, offset_duration, wing_type, speed, AoA, automatic)
     %----------------------------
     % Turn off wind tunnel
     %----------------------------
@@ -15,7 +15,7 @@ function offsets = initial_tare(flapper_obj, wing_type, speed, AoA)
     %----------------------------
     % Move MPS to prescribed pitch angle
     %----------------------------
-    move_pitch(AoA);
+    move_pitch(automatic, AoA);
     
     % Get offset data before flapping at this angle with no wind
     offset_name = wing_type + "_" + speed + "m.s_" + AoA + "deg";
