@@ -34,8 +34,20 @@ function force = run_trial(flapper_obj, esp32, cal_matrix, case_name, offset_dur
     % --------COMMAND MOTOR TO STOP SPINNING AND RETURN TO GLIDING POSITION---
     writeline(esp32, 's');
     pause(0.5);
+
     writeline(esp32, 'z');
-    pause(5);
+    reachedZero = false;
+    while ~reachedZero
+        % Read incoming messages from ESP32
+        if esp32.NumBytesAvailable > 0
+            line = readline(esp32);
+            disp(line) % debugging
+            if contains(line, "ZERO")
+                reachedZero = true;
+            end
+        end
+    end
+    % pause(5);
 
     % Are we approaching limits of load cell?
     checkLimits(results);
@@ -43,6 +55,9 @@ function force = run_trial(flapper_obj, esp32, cal_matrix, case_name, offset_dur
     % Translate data from raw values into meaningful values
     [time, force, voltAdj, curAdj, theta, Z] = process_data(results, offsets, cal_matrix);
     
+    pause(1);
+
+    disp("Collecting final offset")
     % Get offset data after flapping at this angle and windspeed
     offsets_after = flapper_obj.get_force_offsets(case_name + "_after", offset_duration);
     offsets_after = offsets_after(1,:); % just taking means, no SDs
@@ -65,7 +80,10 @@ function force = run_trial(flapper_obj, esp32, cal_matrix, case_name, offset_dur
     try
         % clf([f1 f2 f3], 'reset')
         for k = 1:6
-            cla([tiles_1{k} tiles_2{k} tiles_3{k} tiles_4{k}])
+            cla([tiles_1{k} tiles_2{k}])
+        end
+        for k = 1:3
+            cla([tiles_3{k} tiles_4{k}])
         end
     catch
         % disp("No figures to clear")

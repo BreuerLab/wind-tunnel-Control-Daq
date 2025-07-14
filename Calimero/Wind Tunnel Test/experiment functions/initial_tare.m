@@ -23,7 +23,7 @@ function offsets = initial_tare(flapper_obj, offset_duration, wing_type, speed, 
     offsets = offsets(1,:); % just taking means, no SDs
     disp("Offset data at this AoA has been gathered");
     beep1;
-    pause(1)
+    pause(1.5)
     
     %----------------------------
     % Turn wind tunnel back on

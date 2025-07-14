@@ -12,7 +12,7 @@ function session_duration = estimate_duration(vel, measure_revs, padding_revs, h
         session_duration = hold_time;
     else
         num_revs = measure_revs + 2*padding_revs;
-        session_duration = round(num_revs / vel)*10;
+        session_duration = round((num_revs / vel)*10);
     end
     disp(num_revs ...
          + " revs will be recorded over a total session duration of " ...
