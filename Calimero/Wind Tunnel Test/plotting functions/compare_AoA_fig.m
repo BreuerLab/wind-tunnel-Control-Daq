@@ -1,8 +1,10 @@
-function [f, tiles] = compare_AoA_fig()
+function [f, tiles] = compare_AoA_fig(AFAM_bool)
 
 % Setup figure for plotting cycle average values live
 f = figure;
-f.Position = [-1084,-414,1090,800]; % bottom of vertical AFAM monitor
+if AFAM_bool
+    f.Position = [-1084,-414,1090,800]; % bottom of vertical AFAM monitor
+end
 tiledlayout(2,3);
 tiles = {nexttile, nexttile, nexttile, nexttile, nexttile, nexttile};
 titles = ["Drag", "Transverse Lift", "Lift", "Roll Moment", "Pitch Moment", "Yaw Moment"];
