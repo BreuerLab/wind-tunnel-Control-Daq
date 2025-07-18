@@ -9,30 +9,60 @@ clc
 % Author: Alex Waultre
 % Date: 07/1/2025
 
-addpath(genpath("."))
+addpath(genpath("../"))
 
-% Experiment Parameters
-rate = 9000; % measurement rate of NI DAQ, in Hz
-offset_duration = 2; % in seconds
-session_duration = 120; % in seconds
-case_name = "force_transducer_test";
-calibration_filepath = "FT52906.cal"; 
-voltage = 10; % 5 or 10 volts
+PWM = 80;
 
-% Parameters specifc to Gamma IP65 Force Transducer
-% force_limit = 1200; % Newton
-% torque_limit = 79; % Newton*meters
+% DAQ Parameters
+rate = 10000; % measurement rate of NI DAQ, in Hz
+offset_duration = 5; % in seconds
+calibration_filepath = "../DAQ/Calibration Files/Mini40/FT52907.cal"; 
+voltage = 5; % 5 or 10 volts for load cell
 
-% Parameters specifc to Mini40 IP65 Force Transducer
-force_limit = 810; % Newton
-torque_limit = 19; % Newton*meters
+% ESP Serial Communication
+% --- CONFIGURATION ---
+portName = "COM5";      % Change to your ESP32 port
+% portName = "COM32";      % Change to your ESP32 port
+baudRate = 115200;
+timeoutSeconds = 10;
+% --- Create serialport object ---
+esp32 = serialport(portName, baudRate, "Timeout", timeoutSeconds);
+configureTerminator(esp32, "LF");
+flush(esp32);
+disp("Connected to ESP32 on " + portName);
 
-% Make force transducer object
-FT_obj = ForceTransducer(rate, voltage, calibration_filepath);
+% --- AUTOMATIC SEQUENCE ---
+keepRunning = true;
+sentInitialZero = false;
+while keepRunning
+    % Read incoming messages from ESP32
+    if esp32.NumBytesAvailable > 0 &&keepRunning
+        line = readline(esp32);
+        disp("ESP32: " + line);
+        % Detect the message asking to press a key
+        if ~sentInitialZero && contains(line, "ESP32 SETUP")
+            pause(1);  % Optional delay before responding
+            writeline(esp32, '0');
+            disp(">> Sent automatic '0' to continue initialization.");
+            sentInitialZero = true;
+            keepRunning =false;
+        end
+    end
+end
+disp("ESP32 SETUP OK, ZERO POSITION SET");
+pause(1);
+
+% Make Calimero data collection object
+flapper_obj = Calimero(rate, voltage);
+
+% Get calibration matrix from calibration file
+cal_matrix = obtain_cal(calibration_filepath);
 
 % Get the offsets before experiment
-offsets_before = FT_obj.get_force_offsets(case_name + "_before", offset_duration);
+offsets_before = flapper_obj.get_force_offsets(case_name + "_before", offset_duration);
 offsets_before = offsets_before(1,:); % just taking means, no SDs
+disp("Initial offset data has been gathered");
+beep2;
 
 fig = uifigure;
 fig.Position = [600 500 430 160];
@@ -42,10 +72,49 @@ title = "Experiment Setup Reminder";
 uiconfirm(fig,message,title,'CloseFcn',@(h,e) close(fig));
 uiwait(fig);
 
-% Measure data during experiment
-results = FT_obj.measure_force(case_name, session_duration);
-% offsets_before
+if (PWM ~= 0)
+    writeline(esp32, strcat('s', num2str(PWM), '.'));
+end
 
+% estimate recording length based on parameters
+% ----- NEED TO UPDATE THIS WITH VALUES --------
+session_duration = estimate_duration(freq, measure_revs, padding_revs, hold_time);
+
+pause(2);
+
+% Collect experiment data during flapping
+disp("Experiment data collection has begun");
+results = flapper_obj.measure_force(case_name, session_duration);
+disp("Experiment data has been gathered");
+beep2;
+
+pause(2);
+
+% --------COMMAND MOTOR TO STOP SPINNING AND RETURN TO GLIDING POSITION---
+writeline(esp32, 's');
+pause(0.5);
+
+writeline(esp32, 'z');
+reachedZero = false;
+while ~reachedZero
+    % Read incoming messages from ESP32
+    if esp32.NumBytesAvailable > 0
+        line = readline(esp32);
+        disp(line) % debugging
+        if contains(line, "ZERO")
+            reachedZero = true;
+        end
+    end
+end
+% pause(5);
+
+% Are we approaching limits of load cell?
+checkLimits(results);
+
+% Translate data from raw values into meaningful values
+[time, force, voltAdj, curAdj, theta, Z] = process_data(results, offsets, cal_matrix);
+
+pause(1);
 
 % Get the offset after experiment
 offsets_after = FT_obj.get_force_offsets(case_name + "_after", offset_duration);
