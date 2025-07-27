@@ -6,14 +6,15 @@ clc
 % Begin by connecting the force transducer to the NI DAQ and the NI DAQ to
 % your personal computer.
 
-% Author: Alex Waultre
-% Date: 07/1/2025
+% --------Revision History-------------
+% Alex Waultre 07/1/2025
+% Ronan Gissler 07/20/2025 - Reduced form taking advantage of functions
+% Ronan Gissler 07/27/2025 - Replacing ESP32 with Galil
 
 addpath(genpath("../"))
 
 [f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4] = makeForceFigures();
 
-PWM = 80;
 case_name = "1k_PWM";
 measure_revs = 100;
 padding_revs = 4;
@@ -28,39 +29,6 @@ rate = 10000; % measurement rate of NI DAQ, in Hz
 offset_duration = 2; % in seconds
 calibration_filepath = "../DAQ/Calibration Files/Mini40/FT52907.cal"; 
 voltage = 5; % 5 or 10 volts for load cell
-
-% % ESP Serial Communication
-% % --- CONFIGURATION ---
-% portName = "COM5";      % Change to your ESP32 port
-% % portName = "COM32";      % Change to your ESP32 port
-% baudRate = 115200;
-% timeoutSeconds = 10;
-% % --- Create serialport object ---
-% esp32 = serialport(portName, baudRate, "Timeout", timeoutSeconds);
-% configureTerminator(esp32, "LF");
-% flush(esp32);
-% disp("Connected to ESP32 on " + portName);
-
-% % --- AUTOMATIC SEQUENCE ---
-% keepRunning = true;
-% sentInitialZero = false;
-% while keepRunning
-%     % Read incoming messages from ESP32
-%     if esp32.NumBytesAvailable > 0 &&keepRunning
-%         line = readline(esp32);
-%         disp("ESP32: " + line);
-%         % Detect the message asking to press a key
-%         if ~sentInitialZero && contains(line, "ESP32 SETUP")
-%             pause(1);  % Optional delay before responding
-%             writeline(esp32, '0');
-%             disp(">> Sent automatic '0' to continue initialization.");
-%             sentInitialZero = true;
-%             keepRunning =false;
-%         end
-%     end
-% end
-% disp("ESP32 SETUP OK, ZERO POSITION SET");
-% pause(1);
 
 % Make Calimero data collection object
 flapper_obj = Calimero(rate, voltage);
