@@ -58,7 +58,7 @@ function this_DAQ = setup_DAQ(forceVoltage, rate)
     % Create DAQ session and set its aquisition rate (Hz).
     this_DAQ = daq("ni");
     this_DAQ.Rate = rate;
-    daq_ID = "Dev1";
+    daq_ID = "Dev4";
     % Don't know your DAQ ID, type "daq.getDevices().ID" into the
     % command window to see what devices are currently connected to
     % your computer
@@ -73,7 +73,7 @@ function this_DAQ = setup_DAQ(forceVoltage, rate)
     ch5 = this_DAQ.addinput(daq_ID, 5, "Voltage");
 
     % channel for voltage measurement
-    ch6 = this_DAQ.addinput(daq_ID, 22, "Voltage");
+    ch6 = this_DAQ.addinput(daq_ID, 16, "Voltage");
 
     % channel for current measurement
     ch7 = this_DAQ.addinput(daq_ID, 20, "Voltage");
@@ -89,7 +89,7 @@ function this_DAQ = setup_DAQ(forceVoltage, rate)
     ch4.Range = [-forceVoltage, forceVoltage];
     ch5.Range = [-forceVoltage, forceVoltage];
     ch6.Range = [-5, 5];
-    ch7.Range = [-5, 5];
+    ch7.Range = [-1, 1];
     % ch7.Range = [-1, 1]; % voltage range anticipated for current is 0 - 0.2
     ch8.Range = [-5, 5];
 end

@@ -818,7 +818,9 @@ methods (Access = private)
             b = x\y;
             model = x*b;
             % Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
-            SE_slope = (sum((y - model).^2) / (sum((lim_AoA_sel - mean(lim_AoA_sel)).^2)*(length(lim_AoA_sel) - 2)) ).^(1/2);
+            SSE = sum((y - model).^2); % sum of squared residuals
+            Sxx = sum((lim_AoA_sel - mean(lim_AoA_sel)).^2);
+            SE_slope = (SSE / (Sxx*(length(lim_AoA_sel) - 2)) ).^(1/2);
             x_int = - b(1) / b(2);
             glide_slope = b(2);
             
@@ -860,7 +862,9 @@ methods (Access = private)
                 b = x\y;
                 model = x*b;
                 % Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
-                SE_slope = (sum((y - model).^2) / (sum((lim_AoA_sel - mean(lim_AoA_sel)).^2)*(length(lim_AoA_sel) - 2)) ).^(1/2);
+                SSE = sum((y - model).^2); % sum of squared residuals
+                Sxx = sum((lim_AoA_sel - mean(lim_AoA_sel)).^2);
+                SE_slope = (SSE / (Sxx*(length(lim_AoA_sel) - 2)) ).^(1/2);
                 x_int = - b(1) / b(2);
                 slope = b(2);
 
@@ -909,7 +913,9 @@ methods (Access = private)
                     b = x\y;
                     model = x*b;
                     % Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
-                    SE_slope = (sum((y - model).^2) / (sum((lim_AoA_sel - mean(lim_AoA_sel)).^2)*(length(lim_AoA_sel) - 2)) ).^(1/2);
+                    SSE = sum((y - model).^2); % sum of squared residuals
+                    Sxx = sum((lim_AoA_sel - mean(lim_AoA_sel)).^2);
+                    SE_slope = (SSE / (Sxx*(length(lim_AoA_sel) - 2)) ).^(1/2);
                     x_int = - b(1) / b(2);
                     slope = b(2);
                 end
@@ -1004,6 +1010,7 @@ methods (Access = private)
             % Get Quasi-Steady Model Force
             % Predictions
             mod_slopes = [];
+            mod_err_slopes = [];
             mod_x_intercepts = [];
             mod_NPs = [];
             mod_NP_moms = [];
@@ -1023,6 +1030,7 @@ methods (Access = private)
                 % wing_freqs_fine = wing_freqs;
 
                 mod_slopes = zeros(length(amplitude_list), length(wing_freqs_fine));
+                mod_err_slopes = zeros(length(amplitude_list), length(wing_freqs_fine));
                 mod_x_intercepts = zeros(length(amplitude_list), length(wing_freqs_fine));
                 mod_NPs = zeros(length(amplitude_list), length(wing_freqs_fine));
                 mod_NP_moms = zeros(length(amplitude_list), length(wing_freqs_fine));
@@ -1078,12 +1086,16 @@ methods (Access = private)
                 x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
                 y = aero_force(idx,:)';
                 b = x\y;
-                % model = x*b;
+                model = x*b;
                 % Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
                 x_int = - b(1) / b(2);
+                SSE = sum((y - model).^2); % sum of squared residuals
+                Sxx = sum((lim_AoA_sel - mean(lim_AoA_sel)).^2);
+                SE_slope = (SSE / (Sxx*(length(lim_AoA_sel) - 2)) ).^(1/2);
 
                 mod_slopes(j,k) = b(2);
                 mod_x_intercepts(j,k) = x_int;
+                mod_err_slopes(j,k) = SE_slope;
 
                 if (obj.x_var == 2 || obj.x_var == 3)
                 % To find NP, force needs to be non-normalized since
@@ -1131,10 +1143,8 @@ methods (Access = private)
                 if (obj.aero_model)
                 x_vals_mod = zeros(length(amplitude_list), length(wing_freqs_fine));
                 for j = 1:length(amplitude_list)
-                    for k = 1:length(wing_freqs_fine)
-                        x_vals_mod(j,k) = x_vals(k);
-                        % x_vals_mod(j,k) = amplitude_list(j);
-                    end
+                    x_vals_mod(j,k) = wing_freqs_fine;
+                    % x_vals_mod(j,k) = amplitude_list(j);
                 end
                 end
             end
@@ -1142,7 +1152,12 @@ methods (Access = private)
             if (obj.y_var == 1)
                 y_vals = slopes;
                 err_vals = err_slopes;
+                disp("PRINTING DATA ERR")
+                disp(err_slopes*(10^5))
                 y_vals_mod = mod_slopes;
+                err_vals_mod = mod_err_slopes;
+                disp("PRINTING MOD ERR")
+                disp(mod_err_slopes*(10^5))
             elseif (obj.y_var == 2)
                 y_vals = x_intercepts;
                 err_vals = zeros(1,length(x_intercepts));
@@ -1241,6 +1256,19 @@ methods (Access = private)
                     % Plot model as line rather than scatter
                     % Only plot 3 m/s as this is the longest line
                     if (wind_speed == 3)
+                        upper_results = y_vals_mod + err_vals_mod;
+                        lower_results = y_vals_mod - err_vals_mod;
+
+                        original_color = "#000000";
+                        lighter_color = getLightColor(original_color); % RGB
+                        
+                        xconf = [x_vals_mod, x_vals_mod(end:-1:1)];
+                        yconf = [upper_results, lower_results(end:-1:1)];
+
+                        p = fill(ax, xconf, yconf, lighter_color);
+                        p.HandleVisibility = 'off';
+                        p.EdgeColor = 'none';
+
                         l_f = plot(ax, x_vals_mod, y_vals_mod);
                         l_f.LineWidth = 2;
                         l_f.DisplayName = "QSBE Model";

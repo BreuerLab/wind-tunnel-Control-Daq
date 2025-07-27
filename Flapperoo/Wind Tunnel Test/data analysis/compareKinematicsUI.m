@@ -91,7 +91,7 @@ methods
         d5 = uidropdown(option_panel);
         d5.Position = [10 drop_y5 180 30];
         d5.Items = [-1,pi/7,pi/6,pi/5,pi/4] + " rad";
-        d5.Value = d5.Items(2);
+        d5.Value = d5.Items(1);
         d5.ValueChangedFcn = @(src, event) amp_change(src, event);
 
         % FIX THIS LINE

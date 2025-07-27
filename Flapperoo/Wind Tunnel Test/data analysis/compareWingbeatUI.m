@@ -879,19 +879,6 @@ methods(Static, Access = private)
         end
     end
 
-    function lighter_color = getLightColor(original_color)
-        original_color = hex2rgb(original_color);
-                
-        % Amount to lighten (0 = no change, 1 = completely white)
-        fade_amount = 0.7;  % Adjust this value to control how light you want the color
-        
-        % White color in RGB
-        white = [1, 1, 1];
-        
-        % Linearly interpolate between the original color and white
-        lighter_color = (1 - fade_amount) * original_color + fade_amount * white;
-    end
-
     function abbr_name = getAbbrName(case_name, abbr_sel)
         abbr_name = "";
         for k = 1:length(abbr_sel)
@@ -1208,7 +1195,7 @@ methods (Access = private)
             % Get color for this case name
             sels = [cur_type, cur_speed];
             original_color = colors(find(uniq_freqs == cur_freq), find(common_var == sels(I(2)))); % hex
-            lighter_color = compareWingbeatUI.getLightColor(original_color); % RGB
+            lighter_color = getLightColor(original_color); % RGB
 
             % Using what all case names have in common, come up
             % with an abbreviated name
@@ -1308,7 +1295,7 @@ methods (Access = private)
             % Get color for this case name
             sels = [cur_type, cur_speed];
             original_color = colors(find(uniq_freqs == cur_freq), find(common_var == sels(I(2)))); % hex
-            lighter_color = compareWingbeatUI.getLightColor(original_color); % RGB
+            lighter_color = getLightColor(original_color); % RGB
 
             % Using what all case names have in common, come up
             % with an abbreviated name
