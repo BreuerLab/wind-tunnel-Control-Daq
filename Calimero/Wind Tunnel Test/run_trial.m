@@ -1,21 +1,35 @@
-function force = run_trial(flapper_obj, esp32, cal_matrix, case_name, offset_duration,...
+function force = run_trial(flapper_obj, cal_matrix, case_name, offset_duration,...
     offsets, freq, measure_revs, padding_revs, hold_time,...
+    galil, dmc_motion_filename, dmc_stop_filename,...
     f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4)
+
+    % Find what OF value is required to achieve the wingbeat frequency
+    OF_init = 0.2; % min for mechanism appears to be 0.18 at 0.01 resolution
+    OF_cur = speedLoop(freq, OF_init, galil, dmc_motion_filename,...
+        dmc_stop_filename, flapper_obj, cal_matrix, case_name);
+
+    zeroWings(galil, dmc_motion_filename, dmc_stop_filename, flapper_obj, cal_matrix, case_name);
+
     % Get offset data before flapping at this angle and windspeed
     offsets_before = flapper_obj.get_force_offsets(case_name + "_before", offset_duration);
     offsets_before = offsets_before(1,:); % just taking means, no SDs
     disp("Initial offset data has been gathered");
     beep2;
-    
-    % -------SET FLAPPING SPEED WITH ENCODER-------------
-    % Wait until flapping speed is reached by controller
-    % include tic toc to see how long this takes and record that value in diary
-    % by printing it out
 
-    PWM = freq;
-    if (PWM ~= 0)
-        writeline(esp32, strcat('s', num2str(PWM), '.'));
+    if (vel ~= 0)
+        dmc = fileread(dmc_motion_filename);
+        dmc = string(dmc);
+
+        % Replace the place holders in the .dmc file with the values specified
+        % here. Other parameters can be changed directly in .dmc file.
+        dmc = strrep(dmc, "of_placeholder", num2str(OF_cur));
     end
+
+    % Load the program described by the .dmc file to the Galil device.
+    galil.programDownload(dmc);
+
+    % Command the galil to execute the program
+    galil.command("XQ");
     
     % estimate recording length based on parameters
     % ----- NEED TO UPDATE THIS WITH VALUES --------
@@ -32,28 +46,16 @@ function force = run_trial(flapper_obj, esp32, cal_matrix, case_name, offset_dur
     pause(2);
     
     % --------COMMAND MOTOR TO STOP SPINNING AND RETURN TO GLIDING POSITION---
-    writeline(esp32, 's');
-    pause(0.5);
-
-    writeline(esp32, 'z');
-    reachedZero = false;
-    while ~reachedZero
-        % Read incoming messages from ESP32
-        if esp32.NumBytesAvailable > 0
-            line = readline(esp32);
-            disp(line) % debugging
-            if contains(line, "ZERO")
-                reachedZero = true;
-            end
-        end
-    end
-    % pause(5);
+    dmc = fileread(dmc_stop_filename);
+    dmc = string(dmc);
+    galil.programDownload(dmc);
+    galil.command("XQ");
 
     % Are we approaching limits of load cell?
     checkLimits(results);
     
     % Translate data from raw values into meaningful values
-    [time, force, voltAdj, curAdj, theta, Z] = process_data(results, offsets, cal_matrix);
+    [time, force, voltAdj, curAdj, theta, ~] = process_data(results, offsets, cal_matrix);
     
     pause(1);
 

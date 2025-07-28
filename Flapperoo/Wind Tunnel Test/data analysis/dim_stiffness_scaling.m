@@ -224,7 +224,7 @@ clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean genFact
 n = "MetaBird";
 span = 0.33;
 R = span/2;
-amp = deg2rad(25); % wingbeat amplitude, really from -15 to 30 deg, but how would I treat that
+amp = deg2rad(25); % wingbeat amplitude, roughly +41 to -9 from high speed video at a slight angle
 freq = [5 11];
 speed = [3 6];
 
@@ -240,7 +240,7 @@ clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean genFact
 
 n = "Flapperoo";
 R = 0.313;
-amp = deg2rad(30); % wingbeat amplitude, really from -15 to 30 deg, but how would I treat that
+amp = deg2rad(30); % wingbeat amplitude
 freq = [2, 5];
 speed = [3, 6];
 
