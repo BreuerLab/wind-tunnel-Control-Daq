@@ -58,7 +58,7 @@ function this_DAQ = setup_DAQ(forceVoltage, rate)
     % Create DAQ session and set its aquisition rate (Hz).
     this_DAQ = daq("ni");
     this_DAQ.Rate = rate;
-    daq_ID = "Dev4";
+    daq_ID = "Dev1";
     % Don't know your DAQ ID, type "daq.getDevices().ID" into the
     % command window to see what devices are currently connected to
     % your computer

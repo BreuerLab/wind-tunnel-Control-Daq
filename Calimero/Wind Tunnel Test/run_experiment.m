@@ -19,7 +19,8 @@ dmc_stop_filename = "stop.dmc";
 procedure_UI();
 
 % Make figure to keep track of average values vs. AoA
-[f, tiles] = compare_AoA_fig();
+AFAM_bool = true;
+[f, tiles] = compare_AoA_fig(AFAM_bool);
 [f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4] = makeForceFigures();
 
 try
@@ -31,7 +32,7 @@ catch
     disp("Oops couldn't connect to Galil, trying again...")
     pause(2)
 
-    galil = galil_setup(addr);
+    galil = galil_setup(galil_address);
     % Ensure Galil stops motor when the run_trial function completes
     % (either on its own or termination by user)
     cleanup = onCleanup(@()myCleanupFun(galil, f));

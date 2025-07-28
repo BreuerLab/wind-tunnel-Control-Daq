@@ -3,10 +3,10 @@ function force = run_trial(flapper_obj, cal_matrix, case_name, offset_duration,.
     galil, dmc_motion_filename, dmc_stop_filename,...
     f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4)
 
-    % Find what OF value is required to achieve the wingbeat frequency
-    OF_init = 0.2; % min for mechanism appears to be 0.18 at 0.01 resolution
-    OF_cur = speedLoop(freq, OF_init, galil, dmc_motion_filename,...
-        dmc_stop_filename, flapper_obj, cal_matrix, case_name);
+    % % Find what OF value is required to achieve the wingbeat frequency
+    % OF_init = 0.25; % min for mechanism appears to be 0.18 at 0.01 resolution
+    % OF_cur = speedLoop(freq, OF_init, galil, dmc_motion_filename,...
+    %     dmc_stop_filename, flapper_obj, cal_matrix, case_name);
 
     zeroWings(galil, dmc_motion_filename, dmc_stop_filename, flapper_obj, cal_matrix, case_name);
 
@@ -16,7 +16,7 @@ function force = run_trial(flapper_obj, cal_matrix, case_name, offset_duration,.
     disp("Initial offset data has been gathered");
     beep2;
 
-    if (vel ~= 0)
+    if (freq ~= 0)
         dmc = fileread(dmc_motion_filename);
         dmc = string(dmc);
 
