@@ -12,8 +12,10 @@ function OF_cur = speedLoop(des_freq, OF_init, galil, dmc_motion_filename, dmc_s
         k = 0.01;
         OF_cur = OF_old + round(err*k,3);
         % max resolution on OF is 20/65536 = 0.000305
-        if Of_cur > 0.5
+        if abs(OF_cur) > 0.5
             error("OF cannot exceed 0.5");
+        elseif OF_cur < 0
+            error("OF cannot be less than zero");
         end
 
         cur_freq = checkSpeed(OF_init, galil, dmc_motion_filename, dmc_stop_filename,...

@@ -22,8 +22,7 @@ AoA = [-16:2:16]; % angle of attack, set by MPS system
 AoA = ladder_sort(AoA); % rearrange in nonascending ladder order
 % [-16:1.5:-12 -12:1:-8 -8:0.5:8 8:1:12 12:1.5:16]
 % freq = [0, 4, 6, 8, 10]; % wingbeat frequency, set by motor RPM
-% freq = [6, 10, 0, 4, 8]; % freq2 = freq(randperm(length(freq)))
-freq = [120, 180, 0, 90, 150]; % freq2 = freq(randperm(length(freq)))
+freq = [6, 10, 0, 4, 8]; % freq2 = freq(randperm(length(freq)))
 measure_revs = 180; % number of wingbeats
 
 speed = 4; % wind tunnel air speed
