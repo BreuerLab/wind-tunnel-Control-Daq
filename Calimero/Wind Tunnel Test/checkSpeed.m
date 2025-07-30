@@ -1,4 +1,4 @@
-function freq = checkSpeed(OF, galil, dmc_motion_filename, dmc_stop_filename, flapper_obj, cal_matrix, case_name)
+function [freq, distFromZero] = checkSpeed(OF, galil, dmc_motion_filename, dmc_stop_filename, flapper_obj, case_name, distFromZero)
     dmc = fileread(dmc_motion_filename);
     dmc = string(dmc);
 
@@ -32,9 +32,8 @@ function freq = checkSpeed(OF, galil, dmc_motion_filename, dmc_stop_filename, fl
     % Are we approaching limits of load cell?
     checkLimits(results);
     
-    offsets = zeros(1,9);
-    % Translate data from raw values into meaningful values
-    [time, ~, ~, ~, theta, ~] = process_data(results, offsets, cal_matrix);
+    theta = results(:,10);
+    [distFromZero] = countRev(theta, distFromZero);
     
     pause(1);
     

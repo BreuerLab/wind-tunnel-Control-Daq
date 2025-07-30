@@ -13,6 +13,11 @@ KPA=0;
 KDA=0;
 KIA=0;
  
+OFA=0.25;
+SHA;
+
+WT50; 'Allow DAQ to record some data before start
+
 'Output 100 mA, 0.25*0.4 = 0.1
 OFA=of_placeholder;
 SHA;

@@ -7,7 +7,7 @@ function theta = volt_to_angle(volt_daq, offset)
     % Linear scaling to [0, 2π]
     rad_per_turn = 2*pi;
     theta = (analog_voltage - Vmin) / (Vmax - Vmin) * rad_per_turn;
-    % Vmin and Vmax used since may not be 0 and 3.3V exactly,
+    % Vmin and Vmax used since may not be 0 and 5V exactly,
     % the assumption here is that Vmin corresponds to an angle of 0
 end
 

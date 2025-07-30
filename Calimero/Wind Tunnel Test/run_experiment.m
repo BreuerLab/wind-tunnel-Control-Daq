@@ -46,6 +46,8 @@ flapper_obj = Calimero(rate, voltage);
 % Get calibration matrix from calibration file
 cal_matrix = obtain_cal(calibration_filepath);
 
+distFromZero = 0;
+
 % ----------------------------------------
 % ---- Loop through pitch angles ---------
 % ----------------------------------------
@@ -77,10 +79,10 @@ hold_time = 10; % sec
 % ----------------------------------------------------------
 % Collect data for single trial, turning flapper on and off
 % ----------------------------------------------------------
-force = run_trial(flapper_obj, cal_matrix, case_name, offset_duration,...
+[force, distFromZero] = run_trial(flapper_obj, cal_matrix, case_name, offset_duration,...
     offsets, freq_vals(i), measure_revs, padding_revs, hold_time,...
     galil, dmc_motion_filename, dmc_stop_filename,...
-    f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4);
+    f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4, distFromZero);
 
 process_and_plot(force, i, AoA_vals(j), tiles, freq_vals);
 

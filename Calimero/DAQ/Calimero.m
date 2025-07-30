@@ -76,9 +76,11 @@ function this_DAQ = setup_DAQ(forceVoltage, rate)
     ch6 = this_DAQ.addinput(daq_ID, 16, "Voltage");
 
     % channel for current measurement
-    ch7 = this_DAQ.addinput(daq_ID, 20, "Voltage");
+    ch7 = this_DAQ.addinput(daq_ID, 7, "Voltage");
+    % ch7 = this_DAQ.addinput(daq_ID, 20, "Voltage");
 
     % channel for encoder measurement
+    % ch8 = this_DAQ.addinput(daq_ID, 7, "Voltage");
     ch8 = this_DAQ.addinput(daq_ID, 21, "Voltage");
     
     % --------- Set the voltage range of the channels ---------
@@ -136,7 +138,7 @@ function [offsets] = get_force_offsets(obj, case_name, tare_duration)
     % Get the offsets for current trial, including current and voltage channels.
 
     % Start the DAQ session for tare_duration seconds
-    start(obj.daq, "Duration", tare_duration);
+    % start(obj.daq, "Duration", tare_duration);
     
     % Read the data
     bias_timetable = read(obj.daq, seconds(tare_duration));
@@ -188,7 +190,7 @@ end
 % Note: This function also writes "results" to a .csv file
 function [results] = measure_force(obj, case_name, session_duration)
     % Start the DAQ session.
-    start(obj.daq, "Duration", session_duration);
+    % start(obj.daq, "Duration", session_duration);
 
     % Read the data
     raw_data = read(obj.daq, seconds(session_duration));
