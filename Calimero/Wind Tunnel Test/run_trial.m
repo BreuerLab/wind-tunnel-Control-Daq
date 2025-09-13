@@ -1,18 +1,9 @@
 function [force, distFromZero] = run_trial(flapper_obj, cal_matrix, case_name, offset_duration,...
-    offsets, freq, measure_revs, padding_revs, hold_time,...
+    offsets, ticksPerRev, freq, acc, measure_revs, padding_revs, hold_time, wait_time,...
     galil, dmc_motion_filename, dmc_stop_filename,...
     f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4, distFromZero)
 
-    if (freq ~= 0)
-        % Find what OF value is required to achieve the wingbeat frequency
-        OF_init = 0.25; % min for mechanism appears to be 0.18 at 0.01 resolution
-        [OF_cur, distFromZero] = speedLoop(freq, OF_init, galil, dmc_motion_filename,...
-            dmc_stop_filename, flapper_obj, case_name, distFromZero);
-    else
-        OF_cur = 0.25;
-    end
-
-    % distFromZero = zeroWings(galil, dmc_motion_filename, dmc_stop_filename, flapper_obj, case_name, distFromZero, freq, OF_cur);
+    [num_revs, session_duration] = estimate_duration(freq, acc, measure_revs, padding_revs, hold_time);
 
     % Get offset data before flapping at this angle and windspeed
     offsets_before = flapper_obj.get_force_offsets(case_name + "_before", offset_duration);
@@ -26,7 +17,11 @@ function [force, distFromZero] = run_trial(flapper_obj, cal_matrix, case_name, o
 
         % Replace the place holders in the .dmc file with the values specified
         % here. Other parameters can be changed directly in .dmc file.
-        dmc = strrep(dmc, "of_placeholder", num2str(OF_cur));
+        dmc = strrep(dmc, "ticks_TEMP", num2str(ticksPerRev));
+        dmc = strrep(dmc, "revs_TEMP", num2str(num_revs));
+        dmc = strrep(dmc, "speed_TEMP", num2str(speed));
+        dmc = strrep(dmc, "acc_TEMP", num2str(acc));
+        dmc = strrep(dmc, "waittime_TEMP", num2str(wait_time));
     
         % Load the program described by the .dmc file to the Galil device.
         galil.programDownload(dmc);
@@ -34,10 +29,6 @@ function [force, distFromZero] = run_trial(flapper_obj, cal_matrix, case_name, o
         % Command the galil to execute the program
         galil.command("XQ");
     end
-    
-    % estimate recording length based on parameters
-    % ----- NEED TO UPDATE THIS WITH VALUES --------
-    session_duration = estimate_duration(freq, measure_revs, padding_revs, hold_time);
     
     pause(1);
 
@@ -51,27 +42,12 @@ function [force, distFromZero] = run_trial(flapper_obj, cal_matrix, case_name, o
     beep2;
 
     pause(1);
-    
-    % --------COMMAND MOTOR TO STOP SPINNING AND RETURN TO GLIDING POSITION---
-    dmc = fileread(dmc_stop_filename);
-    dmc = string(dmc);
-    galil.programDownload(dmc);
-    galil.command("XQ");
 
     % Are we approaching limits of load cell?
     checkLimits(results);
-    
-    theta = results(:,10);
-    [distFromZero] = countRev(theta, distFromZero);
 
     % Translate data from raw values into meaningful values
     [time, force, voltAdj, curAdj, theta, ~] = process_data(results, offsets, cal_matrix);
-
-    if (freq ~= 0)
-        measuredFreq = getFreq(theta, flapper_obj.daq.Rate, session_duration);
-        disp("Finished flapping at " + measuredFreq + " Hz")
-        dictate("Finished flapping at " + measuredFreq + " Hz")
-    end
     
     pause(0.5);
 

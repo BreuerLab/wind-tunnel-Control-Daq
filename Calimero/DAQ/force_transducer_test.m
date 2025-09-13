@@ -41,11 +41,11 @@ flapper_obj = Calimero(rate, voltage);
 % Get calibration matrix from calibration file
 cal_matrix = obtain_cal(calibration_filepath);
 
+% estimate recording length based on parameters
+[num_revs, session_duration] = estimate_duration(speed, acc, measure_revs, padding_revs, hold_time);
+
 try
-    % Connect to the Galil device.
-    galil = actxserver("galil");
-    % Set the Galil's address.
-    galil.address = galil_IP_address;
+    galil = galil_setup(galil_IP_address);
     % Ensure Galil stops motor when the run_trial function completes
     % (either on its own or termination by user)
     cleanup = onCleanup(@()myCleanupFun(galil));
@@ -53,10 +53,7 @@ catch
     disp("Oops couldn't connect to Galil, trying again...")
     pause(2)
 
-    % Connect to the Galil device.
-    galil = actxserver("galil");
-    % Set the Galil's address.
-    galil.address = galil_IP_address;
+    galil = galil_setup(galil_IP_address);
     % Ensure Galil stops motor when the run_trial function completes
     % (either on its own or termination by user)
     cleanup = onCleanup(@()myCleanupFun(galil));
@@ -68,7 +65,7 @@ dmc = string(dmc);
 % Replace the place holders in the .dmc file with the values specified
 % here. Other parameters can be changed directly in .dmc file.
 dmc = strrep(dmc, "ticks_TEMP", num2str(ticksPerRev));
-dmc = strrep(dmc, "revs_TEMP", num2str(measure_revs));
+dmc = strrep(dmc, "revs_TEMP", num2str(num_revs));
 dmc = strrep(dmc, "speed_TEMP", num2str(speed));
 dmc = strrep(dmc, "acc_TEMP", num2str(acc));
 dmc = strrep(dmc, "waittime_TEMP", num2str(wait_time));
@@ -92,12 +89,6 @@ beep2;
 
 pause(1);
 
-% estimate recording length based on parameters
-% ----- NEED TO UPDATE THIS WITH VALUES --------
-session_duration = estimate_duration(speed, acc, measure_revs, padding_revs, hold_time);
-
-pause(2);
-
 % Command the galil to execute the program
 galil.command("XQ");
 
@@ -107,7 +98,7 @@ results = flapper_obj.measure_force(case_name, session_duration);
 disp("Experiment data has been gathered");
 beep2;
 
-pause(2);
+pause(1);
 
 % Are we approaching limits of load cell?
 checkLimits(results);

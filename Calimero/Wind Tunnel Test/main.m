@@ -20,20 +20,20 @@ addpath(genpath("../."))
 % -----------------------------------------------------------------------
 AoA = [-16:2:16]; % angle of attack, set by MPS system
 AoA = ladder_sort(AoA); % rearrange in nonascending ladder order
-AoA = AoA(9:end);
 % AoA = 0;
 % [-16:1.5:-12 -12:1:-8 -8:0.5:8 8:1:12 12:1.5:16]
 % freq = [0, 6, 8, 10]; % wingbeat frequency, set by motor RPM
 % freq = [7, 11, 0, 9]; % freq2 = freq(randperm(length(freq)))
 freq = [6, 10, 0, 8]; % freq2 = freq(randperm(length(freq)))
 measure_revs = 180; % number of wingbeats
+hold_time = 15; % seconds for glide trials
 
 speed = 4; % wind tunnel air speed
 wing_type = "flexible"; % whatever name you'd like to use
 automatic = true; % run through trials automatically?
 debug = false; % testing on personal computer?
 
-run_experiment(AoA, freq, speed, wing_type, measure_revs, automatic, debug);
+run_experiment(AoA, freq, speed, wing_type, measure_revs, hold_time, automatic, debug);
 
 % NEED A setFlapSpeed() FUNCTION
 % If you want to run just the flapper, call setFlapSpeed()

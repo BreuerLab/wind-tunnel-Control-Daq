@@ -1,19 +1,22 @@
-function run_experiment(AoA_vals, freq_vals, speed, wing_type, measure_revs, automatic, debug)
+function run_experiment(AoA_vals, freq_vals, speed, wing_type, measure_revs, hold_time, automatic, debug)
 
 time_now = datetime;
 time_now.Format = 'yyyy-MM-dd HH-mm-ss';
 diary("data\output logs\" + speed + "ms_" + string(time_now) + ".txt")
 
 % DAQ Parameters
-rate = 10000; % measurement rate of NI DAQ, in Hz
+rate = 12000; % measurement rate of NI DAQ, in Hz
 offset_duration = 5; % in seconds
 calibration_filepath = "../DAQ/Calibration Files/Mini40/FT52907.cal"; 
 voltage = 5; % 5 or 10 volts for load cell
 
 % Galil Parameters
 galil_address = "192.168.1.3";
-dmc_motion_filename = "start.dmc";
-dmc_stop_filename = "stop.dmc";
+dmc_motion_filename = "motion.dmc";
+ticksPerRev = 18432;
+acc = 3; % Hz^2
+padding_revs = 4;
+wait_time = 2000; % ms
 
 % Remind user of setup procedure
 procedure_UI();
@@ -46,8 +49,6 @@ flapper_obj = Calimero(rate, voltage);
 % Get calibration matrix from calibration file
 cal_matrix = obtain_cal(calibration_filepath);
 
-distFromZero = 0;
-
 % ----------------------------------------
 % ---- Loop through pitch angles ---------
 % ----------------------------------------
@@ -72,15 +73,11 @@ dictate(msg);
 % Set case name and wingbeat frequency for this trial
 case_name = wing_type + "_" + speed + "m.s_" + AoA_vals(j) + "deg_" + freq_vals(i) + "Hz";
 
-% wingbeat frequency is used to calculate session duration
-padding_revs = 4;
-hold_time = 10; % sec
-
 % ----------------------------------------------------------
 % Collect data for single trial, turning flapper on and off
 % ----------------------------------------------------------
 [force, distFromZero] = run_trial(flapper_obj, cal_matrix, case_name, offset_duration,...
-    offsets, freq_vals(i), measure_revs, padding_revs, hold_time,...
+    offsets, ticksPerRev, freq_vals(i), acc, measure_revs, padding_revs, hold_time, wait_time,...
     galil, dmc_motion_filename, dmc_stop_filename,...
     f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4, distFromZero);
 

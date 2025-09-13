@@ -1,0 +1,56 @@
+#SETUP
+ST                      ; 'Stop all motion
+MO                      ; 'Motor off
+CO 1;' Configures bank 2 as outputs on extended I/O
+
+AGA=0                   ; 'Amplifier gain (0-2), 0 -> 0.4 A/Phase
+BRA=1                   ; 'Brushed Motor
+AUA=0.5                 ; 'Chopper Mode
+SH A                    ; 'Servo here (turn on motor)
+DPA=0                   ; 'Define zero position
+CEA=0                   ; 'Configure encoder
+TM 1000                 ;
+
+PRA=ticks_TEMP*revs_TEMP      ;
+SPA=ticks_TEMP*speed_TEMP     ; 'Set desired speed in counts/sec (e.g. 5000)
+ACA=ticks_TEMP*acc_TEMP       ; 'Acceleration in counts/sec^2
+DCA=ticks_TEMP*acc_TEMP       ; 'Deceleration in counts/sec^2
+
+KPA=2                 ; 'Proportional gain
+KIA=0.05              ; 'Integral gain
+KDA=8                 ; 'Derivative gain
+ILA=-2                ; 'Integral limit 2V, only kicks in after motion
+
+WT waittime_TEMP;
+
+BG A; 'Begin motion
+
+DM TimeArr[4000],Torque[4000],DesPos[4000],ActPos[4000],ActVel[4000];
+
+RA TimeArr[],Torque[],DesPos[],ActPos[],ActVel[];
+
+RD TIME,_TTA,_RPA,_TPA,_TVA;
+RC 2
+
+NEXT = (ticks_TEMP/18);
+NEXT_REV = ticks_TEMP;
+
+#MAIN
+    POS = _TPA          ; 'read actual encoder position
+    IF (POS >= NEXT)    ; 'reached or passed threshold?
+        IF (POS >= NEXT_REV)
+        SB 17           ; 'set output bit
+        WT 4            ; 'wait 4 ms
+        CB 17           ; 'clear output bit
+        NEXT_REV = NEXT_REV + ticks_TEMP; 'schedule next trigger
+        NEXT = NEXT + (ticks_TEMP/18); 'schedule next trigger
+        ELSE
+        SB 17           ; 'set output bit
+        WT 2            ; 'wait 2 ms
+        CB 17           ; 'clear output bit
+        NEXT = NEXT + (ticks_TEMP/18); 'schedule next trigger
+        ENDIF
+    ENDIF
+JP #MAIN
+
+EN
