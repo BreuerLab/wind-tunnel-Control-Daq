@@ -9,8 +9,13 @@ function file_name = findFileMatchingCase(path, case_name)
         baseFileName = theFiles(k).name;
         [case_name_cur, ~, ~, ~, ~] = parse_filename(baseFileName);
         if strcmp(case_name,case_name_cur)
-            file_name = convertCharsToStrings(baseFileName);
-            break
+            if ~contains(path, "offsets")
+                file_name = convertCharsToStrings(baseFileName);
+                break
+            elseif contains(baseFileName, "before")
+                file_name = convertCharsToStrings(baseFileName);
+                break
+            end
         end
     end
 end

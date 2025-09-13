@@ -25,10 +25,11 @@ genFactorsMean = [];
 % Ducci 2021
 % Parameters for Ibis
 % Got variation of speed from Portugal Nature paper supplementary info
-n = "Ibis";
+n = "Ibis"
 span = 1.35; % wingspan, meters
 R = span/2;
 amp = deg2rad(42); % wingbeat amplitude
+R*amp
 freq = 4; % wingbeat frequency, Hz
 speed = [13 18]; % m/s, from equilibrium flight condition
 
@@ -44,10 +45,11 @@ clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean genFact
 
 % https://journals.biologists.com/jeb/article/204/15/2741/32794/Flight-kinematics-of-the-barn-swallow-Hirundo
 % Parameter for Swallow
-n = "Swallow";
+n = "Swallow"
 span = [0.32, 0.26]; % wingspan at midstroke at 4 m/s and 14 m/s, meters
 R = span/2;
 amp = deg2rad([70, 120] / 2);
+R.*amp
 freq = [7, 9];
 speed = [4, 14];
 
@@ -63,10 +65,11 @@ clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean genFact
 
 % https://journals.biologists.com/jeb/article/198/6/1259/6940/Neuromuscular-Control-and-Kinematics-of
 % Parameters for Starling
-n = "Starling";
+n = "Starling"
 span = 0.35; % wingspan at midstroke at 4 m/s, meters
 R = span/2;
 amp = deg2rad([95, 105]/2); % wingbeat amplitude
+R*amp
 freq = [13 16];
 speed = [8 18];
 
@@ -82,10 +85,11 @@ clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean genFact
 
 % https://journals.biologists.com/jeb/article/211/5/717/18121/Vortex-wake-and-flight-kinematics-of-a-swift-in
 % Parameters for Swift
-n = "Swift";
+n = "Swift"
 span = 0.38; % wingspan at midstroke at 4 m/s, meters
 R = span/2;
 amp = deg2rad([110 115] / 2); % wingbeat amplitude
+R.*amp
 freq = [8.2 9];
 speed = [8 9.2];
 
@@ -101,10 +105,11 @@ clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean genFact
 
 % https://journals.biologists.com/jeb/article/49/3/527/21322/Power-Requirements-for-Horizontal-Flight-in-the
 % Parameters for Pigeon, ignoring hovering case
-n = "Pigeon";
+n = "Pigeon"
 span = 0.6; % wingspan at midstroke at 4 m/s, meters
 R = span/2;
 amp = deg2rad([160 200] / 2); % wingbeat amplitude
+R.*amp
 freq = [5.2 6.3];
 speed = [8 18];
 
@@ -122,9 +127,10 @@ clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean genFact
 % In both cases amplitude is highly speed dependent and wingpsan as defined
 % by span ratio. Values estimated from table 2
 % Bats: M. velifer
-n = "M. velifer";
+n = "M. velifer"
 R = 0.127; % max half wingspan
 amp = deg2rad([63 87] / 2); % wingbeat amplitude at flight speeds between 5.5 and 7
+R.*amp
 freq = [8.6 9.6];
 speed = [4 8];
 
@@ -139,9 +145,10 @@ clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean genFact
 % -------------------------------------------------------------------
 
 % Bat: T. brasiliensis
-n = "T. brasiliensis";
+n = "T. brasiliensis"
 R = 0.142; % wingspan in meters
 amp = deg2rad([64 82] / 2); % wingbeat amplitude at flight speeds between 5.5 and 7
+R.*amp
 freq = [8.5 10.8];
 speed = [4 8];
 
@@ -199,10 +206,11 @@ clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean genFact
 % Cybird P1
 % "Experimental study on the flight dynamics of a bioinspired ornithopter:
 % Free flight testing and wind tunnel testing"
-n = "Cybird P1";
+n = "Cybird P1"
 span = 0.74;
 R = span/2;
 amp = deg2rad(55 / 2); % wingbeat amplitude, really from -15 to 30 deg, but how would I treat that
+R*amp
 freq = [5 11];
 speed = [7.25 10];
 
@@ -221,10 +229,11 @@ clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean genFact
 % -------------------------------------------------------------------
 
 % MetaBird
-n = "MetaBird";
+n = "MetaBird"
 span = 0.33;
 R = span/2;
 amp = deg2rad(25); % wingbeat amplitude, roughly +41 to -9 from high speed video at a slight angle
+R*amp
 freq = [5 11];
 speed = [3 6];
 
@@ -238,9 +247,10 @@ speed = [3 6];
 clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean genFactorsMin genFactorsMax genFactorsMean
 % -------------------------------------------------------------------
 
-n = "Flapperoo";
+n = "Flapperoo"
 R = 0.313;
 amp = deg2rad(30); % wingbeat amplitude
+R*amp
 freq = [2, 5];
 speed = [3, 6];
 

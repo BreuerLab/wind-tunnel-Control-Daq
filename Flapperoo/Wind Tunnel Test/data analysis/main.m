@@ -12,10 +12,10 @@ clear
 close all force
 
 % Sets up UI for comparing data over angles of attack
-monitor_num = 1;
-data_path = "F:\Final Force Data";
-a = compareAoAUI(monitor_num, data_path);
-a.dynamic_plotting();
+% monitor_num = 1;
+% data_path = "F:\Final Force Data";
+% a = compareAoAUI(monitor_num, data_path);
+% a.dynamic_plotting();
 
 % Sets up UI for comparing data over phase averaged wingbeat
 % monitor_num = 1;
@@ -30,15 +30,15 @@ a.dynamic_plotting();
 % b.dynamic_plotting();
 
 % Sets up UI for comparing stability slope
-monitor_num = 1;
-data_path = "F:\Final Force Data";
-c = compareStabilityUI(monitor_num, data_path);
-c.dynamic_plotting();
-% 
 % monitor_num = 1;
-% data_path = "F:\Final Force Data/";
-% d = compareKinematicsUI(monitor_num, data_path);
-% d.dynamic_plotting();
+% data_path = "F:\Final Force Data";
+% c = compareStabilityUI(monitor_num, data_path);
+% c.dynamic_plotting();
+% 
+monitor_num = 1;
+data_path = "F:\Final Force Data/";
+d = compareKinematicsUI(monitor_num, data_path);
+d.dynamic_plotting();
 % 
 % monitor_num = 1;
 % data_path = "F:\Final Force Data/";

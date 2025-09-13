@@ -16,10 +16,12 @@ calibration_filepath = "../../DAQ/Calibration Files/Mini40/FT52907.cal";
 cal_matrix = obtain_cal(calibration_filepath);
 
 wing_freq_sel = [0, 90, 120, 150, 180];
+wing_freq_sel = [0, 6, 8, 10];
 
 wind_speeds = [4];
 types = ["flexible"]; % needs to match folder name only
-data_path = "F:\Calimero Data\Calimero_07_12_to_07_14_Tests\";
+% data_path = "F:\Calimero Data\Calimero_07_12_to_07_14_Tests\";
+data_path = "F:\Calimero Data\Calimero_07_29_parsed\";
 % ADD PATH WHERE DATA SHOULD GET DUMPED
 
 for n = 1:length(wind_speeds)
@@ -71,10 +73,12 @@ s.send("Started processing files at: " + string(time_now))
 % Post the initial message
 [channelID, messageTs] = bot.makeBar();
 
+prev_value = 0;
 % Grab each file and process the data from that file, storing the results
 for k = 1 : length(exp_files)
     baseFileName = convertCharsToStrings(exp_files(k).name);
 
+    if ~contains(baseFileName, "speedCheck")
     disp("Reading from: ")
     disp(baseFileName)
 
@@ -94,11 +98,20 @@ for k = 1 : length(exp_files)
     cur_ind = find(wing_freq == wing_freq_sel);
 
     process_and_plot(force_data, cur_ind, AoA, tiles, wing_freq_sel)
+    end
 
     percent_complete = round((k / length(exp_files)) * 100, 2);
     disp(percent_complete + "% complete")
-            
-    bot.updateProgress(channelID, messageTs, percent_complete);
+
+    curr_value = percent_complete;
+
+    prev_floor = floor(prev_value / 5);
+    curr_floor = floor(curr_value / 5);
+    
+    if curr_floor > prev_floor
+        bot.updateProgress(channelID, messageTs, percent_complete);
+    end
+    prev_value = curr_value;
 end
 
 diary off

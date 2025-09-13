@@ -6,26 +6,31 @@ clc
 % Begin by connecting the force transducer to the NI DAQ and the NI DAQ to
 % your personal computer.
 
-% --------Revision History-------------
-% Alex Waultre 07/1/2025
-% Ronan Gissler 07/20/2025 - Reduced form taking advantage of functions
-% Ronan Gissler 07/27/2025 - Replacing ESP32 with Galil
+% Author: Ronan Gissler
+% Date: 09/12/2025
 
 addpath(genpath("../"))
 
 [f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4] = makeForceFigures();
 
-case_name = "1k_PWM";
-measure_revs = 100;
+case_name = "benchtop";
+
+galil_IP_address = "192.168.1.3";
+dmc_benchtop_filename = "benchtop_test.dmc";
+ticksPerRev = 18432;
+speed = 5; % Hz
+acc = 3; % Hz
+measure_revs = 60;
 padding_revs = 4;
 hold_time = 10; % sec
+wait_time = 2000; % ms
 
 time_now = datetime;
 time_now.Format = 'yyyy-MM-dd HH-mm-ss';
 case_name = case_name + string(time_now);
 
 % DAQ Parameters
-rate = 10000; % measurement rate of NI DAQ, in Hz
+rate = 12000; % measurement rate of NI DAQ, in Hz
 offset_duration = 2; % in seconds
 calibration_filepath = "../DAQ/Calibration Files/Mini40/FT52907.cal"; 
 voltage = 5; % 5 or 10 volts for load cell
@@ -35,6 +40,41 @@ flapper_obj = Calimero(rate, voltage);
 
 % Get calibration matrix from calibration file
 cal_matrix = obtain_cal(calibration_filepath);
+
+try
+    % Connect to the Galil device.
+    galil = actxserver("galil");
+    % Set the Galil's address.
+    galil.address = galil_IP_address;
+    % Ensure Galil stops motor when the run_trial function completes
+    % (either on its own or termination by user)
+    cleanup = onCleanup(@()myCleanupFun(galil));
+catch
+    disp("Oops couldn't connect to Galil, trying again...")
+    pause(2)
+
+    % Connect to the Galil device.
+    galil = actxserver("galil");
+    % Set the Galil's address.
+    galil.address = galil_IP_address;
+    % Ensure Galil stops motor when the run_trial function completes
+    % (either on its own or termination by user)
+    cleanup = onCleanup(@()myCleanupFun(galil));
+end
+
+dmc = fileread(dmc_benchtop_filename);
+dmc = string(dmc);
+
+% Replace the place holders in the .dmc file with the values specified
+% here. Other parameters can be changed directly in .dmc file.
+dmc = strrep(dmc, "ticks_TEMP", num2str(ticksPerRev));
+dmc = strrep(dmc, "revs_TEMP", num2str(measure_revs));
+dmc = strrep(dmc, "speed_TEMP", num2str(speed));
+dmc = strrep(dmc, "acc_TEMP", num2str(acc));
+dmc = strrep(dmc, "waittime_TEMP", num2str(wait_time));
+
+% Load the program described by the .dmc file to the Galil device.
+galil.programDownload(dmc);
 
 % Get the offsets before experiment
 offsets_before = flapper_obj.get_force_offsets(case_name + "_before", offset_duration);
@@ -52,16 +92,14 @@ beep2;
 
 pause(1);
 
-% if (PWM ~= 0)
-%     writeline(esp32, strcat('s', num2str(PWM), '.'));
-% % end
-% writeline(esp32, 'p');
-
 % estimate recording length based on parameters
 % ----- NEED TO UPDATE THIS WITH VALUES --------
-session_duration = estimate_duration(PWM, measure_revs, padding_revs, hold_time);
+session_duration = estimate_duration(speed, acc, measure_revs, padding_revs, hold_time);
 
 pause(2);
+
+% Command the galil to execute the program
+galil.command("XQ");
 
 % Collect experiment data during flapping
 disp("Experiment data collection has begun");
@@ -70,24 +108,6 @@ disp("Experiment data has been gathered");
 beep2;
 
 pause(2);
-
-% --------COMMAND MOTOR TO STOP SPINNING AND RETURN TO GLIDING POSITION---
-% writeline(esp32, 's');
-% pause(0.5);
-
-% writeline(esp32, 'z');
-% reachedZero = false;
-% while ~reachedZero
-%     % Read incoming messages from ESP32
-%     if esp32.NumBytesAvailable > 0
-%         line = readline(esp32);
-%         disp(line) % debugging
-%         if contains(line, "ZERO")
-%             reachedZero = true;
-%         end
-%     end
-% end
-% pause(5);
 
 % Are we approaching limits of load cell?
 checkLimits(results);
@@ -132,3 +152,7 @@ fc = 100;  % cutoff frequency in Hz for filter
 % Display preliminary data
 raw_plot(time, force, voltAdj, curAdj, theta, case_name, drift, flapper_obj.daq.Rate, fc,...
     f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4);
+
+galil_traj_plot(galil);
+
+clear cleanup

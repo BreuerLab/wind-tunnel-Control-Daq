@@ -10,10 +10,10 @@ addpath(genpath('.'))
 % -----------------------------------------------------------------
 % freq_speed_combos = [2, 4; 3, 6; 0, 4; 0, 6];
 
-wing_freq_sel = [0, 90, 120, 150, 180];
+wing_freq_sel = [0, 6, 8, 10];
 wind_speed_sel = [4];
 type_sel = ["flexible"];
-AoA_sel = [-16, -14, -12, -10, -8, -6, -4];
+AoA_sel = [-16:2:16];
 sub_strings = [];
 
 % make type list from type and subtraction types to add all
@@ -22,7 +22,7 @@ type_list = [type_sel sub_strings];
 type_list = strrep(type_list, ' ', '_');
 
 % set up Slack messenger
-data_path = "F:\Calimero Data\Calimero_07_12_to_07_14_Tests\";
+data_path = "F:\Calimero Data\Calimero_07_29_parsed\";
 s = slackMsg(data_path);
 bot = slackProgressBar(data_path);
 

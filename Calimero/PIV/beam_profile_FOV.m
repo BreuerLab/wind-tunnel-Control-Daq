@@ -1,0 +1,135 @@
+clear
+close all
+
+% Initial plot of single radial gaussian distribution
+% I0 = 1; % normalized units
+% bw = 4; % mm
+% r = linspace(-2*bw,2*bw,200);
+% I = I0 * exp((-2*r.^2) / bw^2);
+% 
+% figure
+% plot(r, I, LineWidth=2)
+% xlabel("Radial distance")
+% ylabel("Intensity")
+% set(gca, FontSize=14)
+
+% Plot heatmap for energy intensity in FOV
+clear
+
+I0 = 1; % normalized units
+bw = 4; % mm, reported as 1/4 inch (6.35 mm) but effective diameter 86.5% listed in test at 3.4 mm
+L = 500; % mm, vertical length of FOV
+W = 350; % mm, horizontal width of FOV
+wt_dim = 1200; % mm, wind tunnel is 1.2 x 1.2 m
+d = (wt_dim - L) / 2; % mm, vertical distance from focal point of cylindrical
+                    % lens to top of FOV
+% z = linspace(d,d+L,200);
+z = linspace(0,wt_dim,500);
+P = 10; % W, roughly
+
+fl = 3.91; % mm, a concave lens so this number is actually negative
+% fl = 5.79;
+theta = 2 * atan(bw / (2 * fl));
+int_grid = zeros(500,length(z));
+laser_grid = zeros(500,length(z));
+for i = 1:length(z)
+    cur_w = z(i) * tan(theta/2);
+    % r = linspace(-W/2,W/2,200);
+    r = linspace(-wt_dim/2  + W/2, wt_dim/2 + W/2,500);
+    % I0 = (2 * P) / (pi * (cur_w / 10)^2); % only true for cone
+    A = pi * (bw / 10) * ((cur_w / 2) / 10);
+    I0 = P / A;
+    I = I0 * exp((-2*r.^2) / cur_w^2);
+
+    % Store as a column
+    int_grid(i,:) = I(:);
+
+    [M, ind_left] = min(abs(r + cur_w/2));
+    [M, ind_right] = min(abs(r - cur_w/2));
+    laser_grid(i,ind_left) = 1;
+    laser_grid(i,ind_right) = 1;
+
+    % if (mod(i,50) == 0)
+    %     figure
+    %     plot(r, I, LineWidth=2)
+    %     xlabel("Radial distance")
+    %     ylabel("Intensity")
+    %     set(gca, FontSize=14)
+    % end
+end
+
+figure
+imagesc(r, z, laser_grid)
+n = 256;  % number of steps
+cmap = [linspace(1,0,n)', linspace(1,1,n)', linspace(1,0,n)'];  
+colormap(cmap);
+xlabel('Horizontal Position (mm)')
+ylabel('Vertical Position (mm)')
+set(gca, FontSize=14)
+set(gca,'YDir','reverse')
+xlim([-wt_dim/2 + W/2 wt_dim/2 + W/2])
+ylim([0 wt_dim])
+title('Border of Laser Beam')
+
+% Define the position of the rectangle: [x, y, width, height]
+pos = [-W/2 d W L];
+
+% Plot the rectangle
+rectangle('Position', pos, 'EdgeColor', 'k', 'LineWidth', 2)
+
+% --------------------------------------------------------------
+
+figure
+hold on
+imagesc(r, z, int_grid)
+cb = colorbar;
+clim([0 0.6])
+datacursormode on
+
+% Define the position of the rectangle: [x, y, width, height]
+pos = [-W/2 d W L];
+
+% Plot the rectangle
+rectangle('Position', pos, 'EdgeColor', 'k', 'LineWidth', 2)
+
+% Define the position of the rectangle: [x, y, width, height]
+pos = [-wt_dim/2 + W/2 0 wt_dim wt_dim];
+
+% Plot the rectangle
+rectangle('Position', pos, 'EdgeColor', 'k', 'LineWidth', 1)
+
+ylabel(cb,'W / cm^2','FontSize',16,'Rotation',270)
+xlabel('Horizontal Position (mm)')
+ylabel('Vertical Position (mm)')
+set(gca, FontSize=14)
+set(gca,'YDir','reverse')
+xlim([-wt_dim/2 + W/2 wt_dim/2 + W/2])
+ylim([0 wt_dim])
+title('Light Intensity in Wind Tunnel')
+
+mean_intensity = mean(int_grid(z > d & z < (d+L),r > -W/2 & r < W/2),"all");
+disp("The average intensity in the FOV is: " + mean_intensity + " W/cm^2")
+
+% --------------------------------------------------------------
+
+figure
+hold on
+imagesc(r(r > -W/2 & r < W/2), z(z > d & z < (d+L)), int_grid(z > d & z < (d+L),r > -W/2 & r < W/2))
+cb = colorbar;
+clim([0 0.6])
+datacursormode on
+
+% Define the position of the rectangle: [x, y, width, height]
+pos = [-W/2 d W L];
+
+% Plot the rectangle
+rectangle('Position', pos, 'EdgeColor', 'k', 'LineWidth', 2)
+
+ylabel(cb,'W / cm^2','FontSize',16,'Rotation',270)
+xlabel('Horizontal Position (mm)')
+ylabel('Vertical Position (mm)')
+set(gca, FontSize=14)
+set(gca,'YDir','reverse')
+xlim([-W/2 W/2])
+ylim([d d+L])
+title('Light Intensity in Field of View')

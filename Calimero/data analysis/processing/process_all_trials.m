@@ -5,12 +5,12 @@
 % (i.e. you must be in the process trial folder)
 clear
 close all
-addpath(genpath('../Wind Tunnel Test'))
+addpath(genpath('../../Wind Tunnel Test'))
 addpath(genpath('.'))
 
 wind_speeds = [4];
 types = ["flexible"]; % needs to match folder name only
-data_path = "F:\Calimero Data\Calimero_07_12_to_07_14_Tests\";
+data_path = "F:\Calimero Data\Calimero_07_29_parsed\";
 % ADD PATH WHERE DATA SHOULD GET DUMPED
 
 for n = 1:length(wind_speeds)
@@ -66,10 +66,12 @@ s.send("Started processing files at: " + string(time_now))
 for k = 1 : length(exp_files)
     baseFileName = convertCharsToStrings(exp_files(k).name);
 
+    if ~contains(baseFileName, "speedCheck")
     disp("Reading from: ")
     disp(baseFileName)
 
     process_trial(baseFileName, raw_data_path, offsets_path, processed_data_path, wind_tunnel_path);
+    end
 
     percent_complete = round((k / length(exp_files)) * 100, 2);
     disp(percent_complete + "% complete")
