@@ -30,7 +30,7 @@ load(offsets_path + offsets_file); % load in results var
 % Get raw data from file
 load(raw_data_path + file); % load in results var
 
-[time_data, force_data, voltAdj, curAdj, theta, Z] = process_data(results, offsets, cal_matrix);
+[time_data, force_data, voltAdj, curAdj, enc_pulse] = process_data(results, offsets, cal_matrix);
 
 % Trim off portion of data where wings are motionless or accelerating
 % NO LONGER TRIMMING DATA SINCE ONLY CAPTURED AFTER WINGS HAVE BEEN HELD AT
@@ -75,6 +75,11 @@ filename = case_name + " " + time_stamp + ".mat"; % file name for processed data
 saved_vars = {'time_data', 'force_data', 'results_lab',...
     'filtered_data','filtered_data_smoothest'...
     'filtered_norm_data', 'norm_factors', 'St', 'Re'};
+
+[wingbeat_forces, frames, wingbeat_avg_forces, wingbeat_SD_forces,...
+    wingbeat_rmse_forces, wingbeat_max_forces, wingbeat_min_forces, wingbeat_COP,...
+    cycle_avg_forces, upstroke_avg_forces, downstroke_avg_forces]...
+    = wingbeat_transformation(num_wingbeats, results_lab, enc_pulse, AoA);
 
 % If this is a flapping trial, analyze data over each wingbeat rather than
 % just in time

@@ -1,6 +1,6 @@
 function [force, distFromZero] = run_trial(flapper_obj, cal_matrix, case_name, offset_duration,...
     offsets, ticksPerRev, freq, acc, measure_revs, padding_revs, hold_time, wait_time,...
-    galil, dmc_motion_filename, dmc_stop_filename,...
+    galil, dmc_motion_filename,...
     f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4, distFromZero)
 
     [num_revs, session_duration] = estimate_duration(freq, acc, measure_revs, padding_revs, hold_time);
@@ -47,7 +47,7 @@ function [force, distFromZero] = run_trial(flapper_obj, cal_matrix, case_name, o
     checkLimits(results);
 
     % Translate data from raw values into meaningful values
-    [time, force, voltAdj, curAdj, theta, ~] = process_data(results, offsets, cal_matrix);
+    [time, force, voltAdj, curAdj, enc_pulse] = process_data(results, offsets, cal_matrix);
     
     pause(0.5);
 
@@ -86,6 +86,6 @@ function [force, distFromZero] = run_trial(flapper_obj, cal_matrix, case_name, o
 
     fc = 100;  % cutoff frequency in Hz for filter
     % Display preliminary data
-    raw_plot(time, force, voltAdj, curAdj, theta, case_name, drift, flapper_obj.daq.Rate, fc,...
+    raw_plot(time, force, voltAdj, curAdj, enc_pulse, case_name, drift, flapper_obj.daq.Rate, fc,...
         f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4);
 end

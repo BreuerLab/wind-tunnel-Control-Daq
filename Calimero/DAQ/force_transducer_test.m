@@ -104,7 +104,7 @@ pause(1);
 checkLimits(results);
 
 % Translate data from raw values into meaningful values
-[time, force, voltAdj, curAdj, theta, Z] = process_data(results, offsets_before, cal_matrix);
+[time, force, voltAdj, curAdj, enc_pulse] = process_data(results, offsets_before, cal_matrix);
 
 pause(1);
 
@@ -141,7 +141,7 @@ end
 
 fc = 100;  % cutoff frequency in Hz for filter
 % Display preliminary data
-raw_plot(time, force, voltAdj, curAdj, theta, case_name, drift, flapper_obj.daq.Rate, fc,...
+raw_plot(time, force, voltAdj, curAdj, enc_pulse, case_name, drift, flapper_obj.daq.Rate, fc,...
     f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4);
 
 galil_traj_plot(galil);
