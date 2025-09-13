@@ -13,18 +13,19 @@ addpath(genpath("../"))
 
 [f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4] = makeForceFigures();
 
-case_name = "benchtop";
+% case_name = wing_type + "_" + speed + "m.s_" + AoA_vals(j) + "deg_" + freq_vals(i) + "Hz";
 
 galil_IP_address = "192.168.1.3";
 dmc_benchtop_filename = "benchtop_test.dmc";
 ticksPerRev = 18432;
-speed = 5; % Hz
+freq = 5; % Hz
 acc = 3; % Hz
-measure_revs = 60;
+measure_revs = 180;
 padding_revs = 4;
-hold_time = 10; % sec
-wait_time = 2000; % ms
+hold_time = 15; % sec
+wait_time = 1000; % ms
 
+case_name = "benchtop_" + 0 + "m.s_" + 0 + "deg_" + freq + "Hz_";
 time_now = datetime;
 time_now.Format = 'yyyy-MM-dd HH-mm-ss';
 case_name = case_name + string(time_now);
@@ -42,7 +43,7 @@ flapper_obj = Calimero(rate, voltage);
 cal_matrix = obtain_cal(calibration_filepath);
 
 % estimate recording length based on parameters
-[num_revs, session_duration] = estimate_duration(speed, acc, measure_revs, padding_revs, hold_time);
+[num_revs, session_duration] = estimate_duration(freq, acc, measure_revs, padding_revs, hold_time, true);
 
 try
     galil = galil_setup(galil_IP_address);
@@ -66,7 +67,7 @@ dmc = string(dmc);
 % here. Other parameters can be changed directly in .dmc file.
 dmc = strrep(dmc, "ticks_TEMP", num2str(ticksPerRev));
 dmc = strrep(dmc, "revs_TEMP", num2str(num_revs));
-dmc = strrep(dmc, "speed_TEMP", num2str(speed));
+dmc = strrep(dmc, "speed_TEMP", num2str(freq));
 dmc = strrep(dmc, "acc_TEMP", num2str(acc));
 dmc = strrep(dmc, "waittime_TEMP", num2str(wait_time));
 

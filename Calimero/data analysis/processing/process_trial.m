@@ -17,7 +17,7 @@ function process_trial(file, raw_data_path, offsets_path, processed_data_path, w
 [case_name, time_stamp, type, wing_freq, AoA, wind_speed] = parse_filename(file);
 
 % NUM_WINGBEATS IS CURRENTLY NOT 180 EXACTLY SINCE JUST USING PWM
-[frame_rate, num_wingbeats] = get_sampling_info(wing_freq);
+[frame_rate, num_wingbeats, rec_wingbeats] = get_sampling_info(wing_freq);
 
 % Get force calibration file
 calibration_filepath = "../../DAQ/Calibration Files/Mini40/FT52907.cal"; 
@@ -30,11 +30,9 @@ load(offsets_path + offsets_file); % load in results var
 % Get raw data from file
 load(raw_data_path + file); % load in results var
 
-[time_data, force_data, voltAdj, curAdj, enc_pulse] = process_data(results, offsets, cal_matrix);
+trimmed_results = trim_data(results, rec_wingbeats, num_wingbeats, frame_rate);
 
-% Trim off portion of data where wings are motionless or accelerating
-% NO LONGER TRIMMING DATA SINCE ONLY CAPTURED AFTER WINGS HAVE BEEN HELD AT
-% CONSTANT PWM FOR A PERIOD
+[time_data, force_data, voltAdj, curAdj, enc_pulse] = process_data(trimmed_results, offsets, cal_matrix);
 
 % Rotate the data from the force transducer reference frame to the wind
 % tunnel reference frame (body frame to global frame)
@@ -43,12 +41,12 @@ results_lab = force_data;
 
 % Non-dimensionalize the data. Newtons to Force Coefficients and
 % Newton*meters to Moment Coefficients
-[norm_data, norm_factors, St, Re] = non_dimensionalize_data(wind_tunnel_path, results_lab, file);
+% [norm_data, norm_factors, St, Re] = non_dimensionalize_data(wind_tunnel_path, results_lab, file);
 
 % Smooth the data with a butterworth filter
 fc = 100; % cutoff frequency
 filtered_data = filter_data(results_lab, frame_rate, fc);
-filtered_norm_data = filter_data(norm_data, frame_rate, fc);
+% filtered_norm_data = filter_data(norm_data, frame_rate, fc);
 
 if (wing_freq > 1)
     fc = 10*wing_freq; % cutoff frequency
@@ -73,13 +71,67 @@ filtered_data_smoothest = filter_data(results_lab, frame_rate, fc);
 filename = case_name + " " + time_stamp + ".mat"; % file name for processed data
 
 saved_vars = {'time_data', 'force_data', 'results_lab',...
-    'filtered_data','filtered_data_smoothest'...
-    'filtered_norm_data', 'norm_factors', 'St', 'Re'};
+    'filtered_data','filtered_data_smoothest'};
+% saved_vars = {'time_data', 'force_data', 'results_lab',...
+%     'filtered_data','filtered_data_smoothest'...
+%     'filtered_norm_data', 'norm_factors', 'St', 'Re'};
 
 [wingbeat_forces, frames, wingbeat_avg_forces, wingbeat_SD_forces,...
     wingbeat_rmse_forces, wingbeat_max_forces, wingbeat_min_forces, wingbeat_COP,...
-    cycle_avg_forces, upstroke_avg_forces, downstroke_avg_forces]...
-    = wingbeat_transformation(num_wingbeats, results_lab, enc_pulse, AoA);
+    cycle_avg_forces]...
+    = wingbeat_transformation(num_wingbeats, filtered_data, enc_pulse, AoA, frame_rate);
+
+% ------------------------------------------------------------
+
+idx = 1;
+mean_results = wingbeat_avg_forces(idx,:);
+std_results = wingbeat_SD_forces(idx,:);
+lower_results = mean_results - std_results;
+upper_results = mean_results + std_results;
+
+original_color = "#7f2704"; % hex, some dark red
+lighter_color = getLightColor(original_color); % RGB
+
+xconf = [frames, frames(end:-1:1)];
+yconf = [upper_results, lower_results(end:-1:1)];
+
+figure
+ax = gca;
+hold on
+p = fill(ax, xconf, yconf, lighter_color);
+p.HandleVisibility = 'off';
+p.EdgeColor = 'none';
+
+l= plot(ax, frames, wingbeat_avg_forces(idx, :));
+l.Color = original_color;
+l.LineWidth = 2;
+title("Drag")
+
+% ---------------------------------------------------------
+
+idx = 3;
+mean_results = wingbeat_avg_forces(idx,:);
+std_results = wingbeat_SD_forces(idx,:);
+lower_results = mean_results - std_results;
+upper_results = mean_results + std_results;
+
+original_color = "#7f2704"; % hex, some dark red
+lighter_color = getLightColor(original_color); % RGB
+
+xconf = [frames, frames(end:-1:1)];
+yconf = [upper_results, lower_results(end:-1:1)];
+
+figure
+ax = gca;
+hold on
+p = fill(ax, xconf, yconf, lighter_color);
+p.HandleVisibility = 'off';
+p.EdgeColor = 'none';
+
+l= plot(ax, frames, wingbeat_avg_forces(idx, :));
+l.Color = original_color;
+l.LineWidth = 2;
+title("Lift")
 
 % If this is a flapping trial, analyze data over each wingbeat rather than
 % just in time

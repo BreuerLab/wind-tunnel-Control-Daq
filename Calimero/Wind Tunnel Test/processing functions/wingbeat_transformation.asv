@@ -28,7 +28,7 @@
 %                    wingbeat
 function [wingbeat_forces, frames, wingbeat_avg_forces, wingbeat_SD_forces,...
     wingbeat_rmse_forces, wingbeat_max_forces, wingbeat_min_forces, wingbeat_COP,...
-    cycle_avg_forces]...
+    cycle_avg_forces, upstroke_avg_forces, downstroke_avg_forces]...
     = wingbeat_transformation(num_wingbeats, forces, enc_pulse, AoA, rate)
 
 frames_per_beat = round(length(forces) / num_wingbeats);
@@ -47,7 +47,7 @@ for j = 1:num_wingbeats
         cur_wingbeat_resampled = resample(cur_wingbeat.', frames_per_beat, length(cur_wingbeat)).';
         wingbeat_forces(:,j,:) = cur_wingbeat_resampled;
     else
-        end_idx = long_rises_orig_idx(j+1);
+        end_idx = cur_idx + long_rises_orig_idx(j+1);
         cur_wingbeat = forces(:, cur_idx:end_idx);
         cur_wingbeat_resampled = resample(cur_wingbeat.', frames_per_beat, length(cur_wingbeat)).';
         wingbeat_forces(:,j,:) = cur_wingbeat_resampled;
@@ -59,15 +59,15 @@ for j = 1:num_wingbeats
     cur_idx = end_idx;
 end
 
-frames = linspace(0, 1, frames_per_beat);
+frames = linspace(0, 1, round(frames_per_beat));
 
-wingbeat_avg_forces = zeros(6, frames_per_beat);
-wingbeat_SD_forces = zeros(6, frames_per_beat);
-wingbeat_rmse_forces = zeros(6, frames_per_beat);
-wingbeat_max_forces = zeros(6, frames_per_beat);
-wingbeat_min_forces = zeros(6, frames_per_beat);
-wingbeat_COP = zeros(1, frames_per_beat);
-for k = 1:frames_per_beat
+wingbeat_avg_forces = zeros(6, round(frames_per_beat));
+wingbeat_SD_forces = zeros(6, round(frames_per_beat));
+wingbeat_rmse_forces = zeros(6, round(frames_per_beat));
+wingbeat_max_forces = zeros(6, round(frames_per_beat));
+wingbeat_min_forces = zeros(6, round(frames_per_beat));
+wingbeat_COP = zeros(1, round(frames_per_beat));
+for k = 1:round(frames_per_beat)
     for m = 1:6
         wingbeat_avg_forces(m,k) = mean(wingbeat_forces(m,:,k));
         wingbeat_SD_forces(m,k) = std(wingbeat_forces(m,:,k));
