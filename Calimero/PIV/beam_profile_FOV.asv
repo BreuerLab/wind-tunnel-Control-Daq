@@ -24,15 +24,14 @@ wt_dim = 1200; % mm, wind tunnel is 1.2 x 1.2 m
 d = (wt_dim - L) / 2; % mm, vertical distance from focal point of cylindrical
                     % lens to top of FOV
 % z = linspace(d,d+L,200);
-hor_num = 1000;
-vert_num = 1000;
-t = 2; % thickness of laser beam edge on plot (not physical)
-% fl = 3.91; % mm, a concave lens so this number is actually negative
-bfl = 15; % mm
-% bfl = 7.1; % mm
+hor_num = 10000;
+vert_num = 10000;
+fl = 3.91; % mm, a concave lens so this number is actually negative
+bfl = 5.2; % mm
 % back focal length (mechanical) different from effective focal length
 % (optical), "A mechanical measurement given as the distance between the
 % last surface of an optical lens to its image plane."
+% fl = 5.79;
 P = 10; % W, roughly
 FOV_pos = [-W/2 d + bfl W L];
 wind_tunnel_pos = [-wt_dim/2 + W/2 bfl wt_dim wt_dim];
@@ -61,14 +60,8 @@ for i = 1:length(z)
         [M, ind_left] = min(abs(r + cur_w/2));
         [M, ind_right] = min(abs(r - cur_w/2));
     end
-
-    try
-    laser_grid(i, ind_left-t:ind_left+t) = 1;
-    laser_grid(i, ind_right-t:ind_right+t) = 1;
-    catch
-    laser_grid(i, ind_left) = 1;
-    laser_grid(i, ind_right) = 1;
-    end
+    laser_grid(i,ind_left) = 1;
+    laser_grid(i,ind_right) = 1;
 
     % if (mod(i,50) == 0)
     %     figure
@@ -96,11 +89,17 @@ ylim([0 wt_dim])
 % ylim([-8 8])
 title('Border of Laser Beam')
 
-% FOV rectangle
-rectangle('Position', FOV_pos, 'EdgeColor', 'k', 'LineWidth', 2)
+% Define the position of the rectangle: [x, y, width, height]
+pos = [-W/2 d + bfl W L];
 
-% Wind tunnel rectangle
-rectangle('Position', wind_tunnel_pos, 'EdgeColor', 'k', 'LineWidth', 1)
+% Plot the rectangle
+rectangle('Position', pos, 'EdgeColor', 'k', 'LineWidth', 2)
+
+% Define the position of the rectangle: [x, y, width, height]
+pos = [-wt_dim/2 + W/2 bfl wt_dim wt_dim];
+
+% Plot the rectangle
+rectangle('Position', pos, 'EdgeColor', 'k', 'LineWidth', 1)
 
 % --------------------------------------------------------------
 
@@ -108,14 +107,20 @@ figure
 hold on
 imagesc(r, z, int_grid)
 cb = colorbar;
-clim([0 0.5])
+clim([0 0.6])
 datacursormode on
 
-% FOV rectangle
-rectangle('Position', FOV_pos, 'EdgeColor', 'k', 'LineWidth', 2)
+% Define the position of the rectangle: [x, y, width, height]
+pos = [-W/2 d W L];
 
-% Wind tunnel rectangle
-rectangle('Position', wind_tunnel_pos, 'EdgeColor', 'k', 'LineWidth', 1)
+% Plot the rectangle
+rectangle('Position', pos, 'EdgeColor', 'k', 'LineWidth', 2)
+
+% Define the position of the rectangle: [x, y, width, height]
+pos = [-wt_dim/2 + W/2 0 wt_dim wt_dim];
+
+% Plot the rectangle
+rectangle('Position', pos, 'EdgeColor', 'k', 'LineWidth', 1)
 
 ylabel(cb,'W / cm^2','FontSize',16,'Rotation',270)
 xlabel('Horizontal Position (mm)')
@@ -126,25 +131,23 @@ xlim([-wt_dim/2 + W/2 wt_dim/2 + W/2])
 ylim([0 wt_dim])
 title('Light Intensity in Wind Tunnel')
 
-disp("Back focal length: " + bfl + " mm")
-
-mean_intensity = mean(int_grid(z > d+bfl & z < (d+bfl+L),r > -W/2 & r < W/2),"all");
-disp("The average intensity in the FOV is: " + round(mean_intensity,3) + " W/cm^2")
-
-min_intensity = min(int_grid(z > d+bfl & z < (d+bfl+L),r > -W/2 & r < W/2),[],"all");
-disp("The minimum intensity in the FOV is: " + round(min_intensity,3) + " W/cm^2")
+mean_intensity = mean(int_grid(z > d & z < (d+L),r > -W/2 & r < W/2),"all");
+disp("The average intensity in the FOV is: " + mean_intensity + " W/cm^2")
 
 % --------------------------------------------------------------
 
 figure
 hold on
-imagesc(r(r > -W/2 & r < W/2), z(z > d+bfl & z < (d+bfl+L)), int_grid(z > d+bfl & z < (d+bfl+L),r > -W/2 & r < W/2))
+imagesc(r(r > -W/2 & r < W/2), z(z > d & z < (d+L)), int_grid(z > d & z < (d+L),r > -W/2 & r < W/2))
 cb = colorbar;
-clim([0 0.5])
+clim([0 0.6])
 datacursormode on
 
-% FOV rectangle
-rectangle('Position', FOV_pos, 'EdgeColor', 'k', 'LineWidth', 2)
+% Define the position of the rectangle: [x, y, width, height]
+pos = [-W/2 d W L];
+
+% Plot the rectangle
+rectangle('Position', pos, 'EdgeColor', 'k', 'LineWidth', 2)
 
 ylabel(cb,'W / cm^2','FontSize',16,'Rotation',270)
 xlabel('Horizontal Position (mm)')
@@ -152,5 +155,5 @@ ylabel('Vertical Position (mm)')
 set(gca, FontSize=14)
 set(gca,'YDir','reverse')
 xlim([-W/2 W/2])
-ylim([d+bfl d+bfl+L])
+ylim([d d+L])
 title('Light Intensity in Field of View')

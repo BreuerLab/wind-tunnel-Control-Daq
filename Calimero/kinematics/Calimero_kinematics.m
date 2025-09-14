@@ -36,17 +36,35 @@ hold on
 plot(time_F, phi_F, DisplayName="SolidWorks Forward", LineWidth=2)
 plot(time_R, phi_R, DisplayName="SolidWorks Reverse", LineWidth=2)
 plot(time_eqt, phi_eqt, DisplayName="Equation", LineWidth=2)
+xlim([0 1])
 legend()
 
+dt = time_eqt(2) - time_eqt(1);
+time_eqt_trimmed = time_eqt(time_eqt <= 1);
+
 sine_data = max(phi_eqt)*sin(2*pi*time_eqt);
+sine_data_trimmed = sine_data(time_eqt <= 1);
+sine_dot_data = gradient(sine_data_trimmed, dt);
 
 init_theta = 0;
 theta_F = linspace(init_theta, init_theta + numRevs*2*pi, numPts);
 phi_eqt_F = atand((r*sin(theta_F)) ./ (d + r*cos(theta_F)));
+phi_eqt_F_trimmed = phi_eqt_F(time_eqt <= 1);
+phi_eqt_F_dot = gradient(phi_eqt_F_trimmed, dt);
+zc_idx_F = find(phi_eqt_F_dot(1:end-1) .* phi_eqt_F_dot(2:end) < 0);
+% zc_dir_F = sign(phi_eqt_F_dot(zc_idx_F+1) - phi_eqt_F_dot(zc_idx_F));
+downstroke_count_F = zc_idx_F(2) - zc_idx_F(1);
+D_U_ratio_F = downstroke_count_F / (length(phi_eqt_F_dot) - downstroke_count_F);
 
 init_theta = pi;
 theta_R = linspace(init_theta, init_theta - numRevs*2*pi, numPts);
 phi_eqt_R = atand((r*sin(theta_R)) ./ (d + r*cos(theta_R)));
+phi_eqt_R_trimmed = phi_eqt_R(time_eqt <= 1);
+phi_eqt_R_dot = gradient(phi_eqt_R_trimmed, dt);
+zc_idx_R = find(phi_eqt_R_dot(1:end-1) .* phi_eqt_R_dot(2:end) < 0);
+% zc_dir_R = sign(phi_eqt_R_dot(zc_idx_R+1) - phi_eqt_R_dot(zc_idx_R));
+downstroke_count_R = zc_idx_R(2) - zc_idx_R(1);
+D_U_ratio_R = downstroke_count_R / (length(phi_eqt_R_dot) - downstroke_count_R);
 
 figure
 hold on
@@ -55,6 +73,16 @@ plot(time_eqt, phi_eqt_R, DisplayName="Actual - Reverse", LineWidth=2)
 plot(time_eqt, sine_data, DisplayName="Sinusoidal", LineWidth=2)
 xlabel("Time (sec)")
 ylabel("Wing Angle (deg)")
+xlim([0 1])
+legend()
+
+figure
+hold on
+plot(time_eqt_trimmed, phi_eqt_F_dot, DisplayName="Actual - Forward", LineWidth=2)
+plot(time_eqt_trimmed, phi_eqt_R_dot, DisplayName="Actual - Reverse", LineWidth=2)
+plot(time_eqt_trimmed, sine_dot_data, DisplayName="Sinusoidal", LineWidth=2)
+xlabel("Time (sec)")
+ylabel("Wing Angular Speed (deg/sec)")
 legend()
 
 % expr1 = (r*cot(sine_data)) / (d - r);
