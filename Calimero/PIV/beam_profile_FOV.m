@@ -17,7 +17,7 @@ close all
 clear
 
 I0 = 1; % normalized units
-bw = 4; % mm, reported as 1/4 inch (6.35 mm) but effective diameter 86.5% listed in test at 3.4 mm
+bw = 3.427; % mm, reported as 1/4 inch (6.35 mm) but effective diameter 86.5% listed in test at 3.4 mm
 L = 500; % mm, vertical length of FOV
 W = 350; % mm, horizontal width of FOV
 wt_dim = 1200; % mm, wind tunnel is 1.2 x 1.2 m
@@ -28,7 +28,7 @@ hor_num = 1000;
 vert_num = 1000;
 t = 2; % thickness of laser beam edge on plot (not physical)
 % fl = 3.91; % mm, a concave lens so this number is actually negative
-bfl = 15; % mm
+bfl = 7.1; % mm
 % bfl = 7.1; % mm
 % back focal length (mechanical) different from effective focal length
 % (optical), "A mechanical measurement given as the distance between the
