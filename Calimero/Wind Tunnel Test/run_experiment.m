@@ -76,10 +76,10 @@ case_name = wing_type + "_" + speed + "m.s_" + AoA_vals(j) + "deg_" + freq_vals(
 % ----------------------------------------------------------
 % Collect data for single trial, turning flapper on and off
 % ----------------------------------------------------------
-[force, distFromZero] = run_trial(flapper_obj, cal_matrix, case_name, offset_duration,...
+[force] = run_trial(flapper_obj, cal_matrix, case_name, offset_duration,...
     offsets, ticksPerRev, freq_vals(i), acc, measure_revs, padding_revs, hold_time, wait_time,...
     galil, dmc_motion_filename,...
-    f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4, distFromZero);
+    f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4);
 
 process_and_plot(force, i, AoA_vals(j), tiles, freq_vals);
 
@@ -120,7 +120,7 @@ end
 % -------------------------------------
 time_now = datetime;
 time_now.Format = 'yyyy-MM-dd HH-mm-ss';
-saveas(f,'data\plots\compareAoA_' + speed + "ms_" + string(time_now) + ".fig")
+saveas(f,'data\plots\compareAoA_' + speed + "ms_" + string(time_now) + ".png")
 
 if (~debug)
     % Clean up

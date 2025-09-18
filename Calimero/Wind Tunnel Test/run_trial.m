@@ -1,9 +1,9 @@
-function [force, distFromZero] = run_trial(flapper_obj, cal_matrix, case_name, offset_duration,...
+function [force] = run_trial(flapper_obj, cal_matrix, case_name, offset_duration,...
     offsets, ticksPerRev, freq, acc, measure_revs, padding_revs, hold_time, wait_time,...
     galil, dmc_motion_filename,...
-    f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4, distFromZero)
+    f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4)
 
-    [num_revs, session_duration] = estimate_duration(freq, acc, measure_revs, padding_revs, hold_time);
+    [num_revs, session_duration] = estimate_duration(freq, acc, measure_revs, padding_revs, hold_time, true);
 
     % Get offset data before flapping at this angle and windspeed
     offsets_before = flapper_obj.get_force_offsets(case_name + "_before", offset_duration);
@@ -19,7 +19,7 @@ function [force, distFromZero] = run_trial(flapper_obj, cal_matrix, case_name, o
         % here. Other parameters can be changed directly in .dmc file.
         dmc = strrep(dmc, "ticks_TEMP", num2str(ticksPerRev));
         dmc = strrep(dmc, "revs_TEMP", num2str(num_revs));
-        dmc = strrep(dmc, "speed_TEMP", num2str(speed));
+        dmc = strrep(dmc, "speed_TEMP", num2str(freq));
         dmc = strrep(dmc, "acc_TEMP", num2str(acc));
         dmc = strrep(dmc, "waittime_TEMP", num2str(wait_time));
     

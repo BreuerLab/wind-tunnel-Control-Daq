@@ -5,7 +5,7 @@ function offsets = initial_tare(flapper_obj, offset_duration, wing_type, speed, 
     if (speed ~= 0)
         if (automatic)
             VFD_stop; % stop wind tunnel motor
-            wait_speed_reached();
+            wait_speed_reached(0);
         else
             % Confirm user has stopped wind before recording offset for this AoA
             wind_on_off_UI("off");
@@ -31,7 +31,7 @@ function offsets = initial_tare(flapper_obj, offset_duration, wing_type, speed, 
     if (speed ~= 0)
         if (automatic)
             VFD_start; % start wind tunnel motor
-            wait_speed_reached();
+            wait_speed_reached(speed);
         else
             % Confirm user has resumed wind before recording data
             wind_on_off_UI("on");

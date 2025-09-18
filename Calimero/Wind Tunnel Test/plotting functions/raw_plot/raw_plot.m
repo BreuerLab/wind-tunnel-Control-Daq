@@ -14,9 +14,9 @@ function raw_plot(time, force, voltAdj, curAdj, enc_pulse, case_name, drift, rat
 
     %% Figure with force data: raw and filtered overlaid
 
-    raw_force_plot(f1, tiles_1, time, force, case_name, drift, rate, fc, titles);
+    raw_force_plot(f1, tiles_1, time, force, case_name, drift, rate, fc, titles, false);
 
-    saveas(f1,'data\plots\' + case_name + "_raw_force.fig")
+    saveas(f1,'data\plots\' + case_name + "_raw_force.png")
 
     % Same plot, but trimmed to only show a few wingbeat cycles between the
     % 2 and 4 second mark
@@ -24,7 +24,7 @@ function raw_plot(time, force, voltAdj, curAdj, enc_pulse, case_name, drift, rat
     trimmed_force = force(:,12*rate:14*rate);
     trimmed_time = time(12*rate:14*rate);
 
-    raw_force_plot(f2, tiles_2, trimmed_time, trimmed_force, case_name, drift, rate, fc, titles);
+    raw_force_plot(f2, tiles_2, trimmed_time, trimmed_force, case_name, drift, rate, fc, titles, true);
 
     %% Figure with voltage, current, and encoder data
 
@@ -32,7 +32,7 @@ function raw_plot(time, force, voltAdj, curAdj, enc_pulse, case_name, drift, rat
     extra_data = extra_data';
     raw_extra_plot(f3, tiles_3, time, extra_data, case_name, rate, fc, titles);
 
-    saveas(f3,'data\plots\' + case_name + "_raw_extra.fig")
+    saveas(f3,'data\plots\' + case_name + "_raw_extra.png")
 
     % Same plot, but trimmed to only show a few wingbeat cycles between the
     % 2 and 4 second mark
