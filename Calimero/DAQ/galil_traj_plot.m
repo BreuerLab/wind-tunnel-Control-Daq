@@ -113,8 +113,14 @@ legend(Location="best")
 set(findall(gca, 'Type', 'Line'), 'LineWidth', 2);
 set(gca, FontSize=14);
 
-trimmedVel = ActVel(startIdx:endIdx);
-trimmedTime = TimeArr(startIdx:endIdx);
+try
+    trimmedVel = ActVel(startIdx:endIdx);
+    trimmedTime = TimeArr(startIdx:endIdx);
+catch
+    disp("Trial too long, couldn't find end")
+    trimmedVel = ActVel(startIdx:end);
+    trimmedTime = TimeArr(startIdx:end);
+end
 
 disp("Velocity is " + mean(trimmedVel) + " +/- " + std(trimmedVel) + " (1 SD)")
 

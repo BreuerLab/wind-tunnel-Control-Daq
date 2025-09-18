@@ -15,12 +15,13 @@ addpath(genpath("../"))
 
 % case_name = wing_type + "_" + speed + "m.s_" + AoA_vals(j) + "deg_" + freq_vals(i) + "Hz";
 
+galil_plots = false;
 galil_IP_address = "192.168.1.3";
 dmc_benchtop_filename = "benchtop_test.dmc";
 ticksPerRev = 18432;
-freq = 5; % Hz
+freq = 8; % Hz
 acc = 3; % Hz
-measure_revs = 180;
+measure_revs = 60;
 padding_revs = 4;
 hold_time = 15; % sec
 wait_time = 1000; % ms
@@ -49,7 +50,7 @@ try
     galil = galil_setup(galil_IP_address);
     % Ensure Galil stops motor when the run_trial function completes
     % (either on its own or termination by user)
-    cleanup = onCleanup(@()myCleanupFun(galil));
+    cleanup = onCleanup(@()myCleanupFunB(galil));
 catch
     disp("Oops couldn't connect to Galil, trying again...")
     pause(2)
@@ -57,7 +58,7 @@ catch
     galil = galil_setup(galil_IP_address);
     % Ensure Galil stops motor when the run_trial function completes
     % (either on its own or termination by user)
-    cleanup = onCleanup(@()myCleanupFun(galil));
+    cleanup = onCleanup(@()myCleanupFunB(galil));
 end
 
 dmc = fileread(dmc_benchtop_filename);
@@ -145,6 +146,8 @@ fc = 100;  % cutoff frequency in Hz for filter
 raw_plot(time, force, voltAdj, curAdj, enc_pulse, case_name, drift, flapper_obj.daq.Rate, fc,...
     f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4);
 
+if (galil_plots)
 galil_traj_plot(galil);
+end
 
 clear cleanup
