@@ -23,7 +23,7 @@ type_list = strrep(type_list, ' ', '_');
 
 % set up Slack messenger
 data_path = "F:\Calimero Data\Calimero 09_19_2025\";
-plot_data_path = data_path + "plot data\Calimero\";
+plot_data_path = 
 s = slackMsg(data_path);
 bot = slackProgressBar(data_path);
 

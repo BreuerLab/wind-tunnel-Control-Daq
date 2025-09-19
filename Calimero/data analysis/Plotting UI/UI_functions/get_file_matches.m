@@ -1,4 +1,4 @@
-function struct_matches = get_file_matches(selection_list, norm_bool, shift_bool, drift_bool, sub_bool, Flapperoo, Calimero)
+function struct_matches = get_file_matches(selection_list, norm_bool, shift_bool, drift_bool, sub_bool, Calimero)
     struct_matches = [];
     
     for i = 1:length(selection_list)
@@ -11,7 +11,7 @@ function struct_matches = get_file_matches(selection_list, norm_bool, shift_bool
             dir_name = extractBefore(dir_name, "/");
         end
 
-        cur_bird = getBirdFromName(flapper_name, Flapperoo, Calimero);
+        cur_bird = getBirdFromName(flapper_name, Calimero);
 
         if (sub_bool)
                 dir_parts = split(dir_name, '_');

@@ -6,11 +6,11 @@
 clear
 close all
 addpath(genpath('../../Wind Tunnel Test'))
-addpath(genpath('.'))
+addpath(genpath('../'))
 
 wind_speeds = [4];
 types = ["flexible"]; % needs to match folder name only
-data_path = "F:\Calimero Data\Calimero_07_29_parsed\";
+data_path = "F:\Calimero Data\Calimero 09_19_2025\";
 % ADD PATH WHERE DATA SHOULD GET DUMPED
 
 for n = 1:length(wind_speeds)

@@ -1,7 +1,7 @@
 % returns drift since beginning of experiment
 % offsets now - offsets from before first freq with wind on
 function [drift] = get_drift(experiment_filename, offsets_files)
-    wing_freqs = [120, 180, 0, 90, 150];
+    wing_freqs = [10, 4, 8, 0, 2, 6]; 
     offsets_string = "_before_offsets_";
     calibration_filepath = "../../DAQ/Calibration Files/Mini40/FT52907.cal";
     cal_mat = obtain_cal(calibration_filepath);
@@ -54,7 +54,7 @@ function [drift] = get_drift(experiment_filename, offsets_files)
 
     disp("Current offsets: " + offsets_filename)
     offsets_cur = load([offsets_folder '/' offsets_filename]).offsets;
-    offsets_cur = offsets_cur(1,:)';
+    offsets_cur = offsets_cur(1,:);
 
     % Find offset associated with first trial at that angle
     for i = 1 : length(offsets_files)
@@ -108,10 +108,10 @@ function [drift] = get_drift(experiment_filename, offsets_files)
 
     disp("Original offsets: " + offsets_filename)
     offsets_first = load([offsets_folder '/' offsets_filename]).offsets;
-    offsets_first = offsets_first(1,:)';
+    offsets_first = offsets_first(1,:);
 
     drift_volt = offsets_cur - offsets_first;
     drift_volt = drift_volt(1:6); % dropping voltage, current, encoder data
-    drift_force = cal_mat * drift_volt;
-    drift = coordinate_transformation(drift_force, AoA);
+    drift_force = cal_mat * drift_volt';
+    drift = coordinate_transformation(drift_force, AoA_exp);
 end

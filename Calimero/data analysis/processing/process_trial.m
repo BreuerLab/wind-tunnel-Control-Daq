@@ -24,29 +24,34 @@ calibration_filepath = "../../DAQ/Calibration Files/Mini40/FT52907.cal";
 cal_matrix = obtain_cal(calibration_filepath);
 
 % find matching offsets file
-offsets_file = findFileMatchingCase(offsets_path, case_name);
+offsets_file = findInitialOffsetsFile(offsets_path, case_name);
 load(offsets_path + offsets_file); % load in results var
+offsets = offsets(1,:);
+disp("Matching offsets: " + offsets_file)
 
 % Get raw data from file
 load(raw_data_path + file); % load in results var
 
+if (wing_freq == 0)
+trimmed_results = results(frame_rate:end-frame_rate,:);
+else
 trimmed_results = trim_data(results, rec_wingbeats, num_wingbeats, frame_rate);
+end
 
 [time_data, force_data, voltAdj, curAdj, enc_pulse] = process_data(trimmed_results, offsets, cal_matrix);
 
 % Rotate the data from the force transducer reference frame to the wind
 % tunnel reference frame (body frame to global frame)
-results_lab = force_data;
-% results_lab = coordinate_transformation(force_data, AoA);
+results_lab = coordinate_transformation(force_data, AoA);
 
 % Non-dimensionalize the data. Newtons to Force Coefficients and
 % Newton*meters to Moment Coefficients
-% [norm_data, norm_factors, St, Re] = non_dimensionalize_data(wind_tunnel_path, results_lab, file);
+[norm_data, norm_factors, St, Re] = non_dimensionalize_data(wind_tunnel_path, results_lab, file);
 
 % Smooth the data with a butterworth filter
 fc = 100; % cutoff frequency
 filtered_data = filter_data(results_lab, frame_rate, fc);
-% filtered_norm_data = filter_data(norm_data, frame_rate, fc);
+filtered_norm_data = filter_data(norm_data, frame_rate, fc);
 
 if (wing_freq > 1)
     fc = 10*wing_freq; % cutoff frequency
@@ -71,119 +76,60 @@ filtered_data_smoothest = filter_data(results_lab, frame_rate, fc);
 filename = case_name + " " + time_stamp + ".mat"; % file name for processed data
 
 saved_vars = {'time_data', 'force_data', 'results_lab',...
-    'filtered_data','filtered_data_smoothest'};
-% saved_vars = {'time_data', 'force_data', 'results_lab',...
-%     'filtered_data','filtered_data_smoothest'...
-%     'filtered_norm_data', 'norm_factors', 'St', 'Re'};
+    'filtered_data','filtered_data_smoothest'...
+    'filtered_norm_data', 'norm_factors', 'St', 'Re'};
+
+% If this is a flapping trial, analyze data over each wingbeat rather than
+% just in time
+if (wing_freq > 0)
+[wingbeat_forces_raw, frames_raw, wingbeat_avg_forces_raw, wingbeat_SD_forces_raw,...
+    wingbeat_rmse_forces_raw, wingbeat_max_forces_raw, wingbeat_min_forces_raw, wingbeat_COP_raw,...
+    cycle_avg_forces_raw]...
+    = wingbeat_transformation(num_wingbeats, results_lab, enc_pulse, AoA, frame_rate);
 
 [wingbeat_forces, frames, wingbeat_avg_forces, wingbeat_SD_forces,...
     wingbeat_rmse_forces, wingbeat_max_forces, wingbeat_min_forces, wingbeat_COP,...
     cycle_avg_forces]...
     = wingbeat_transformation(num_wingbeats, filtered_data, enc_pulse, AoA, frame_rate);
 
-% ------------------------------------------------------------
+% [wingbeat_forces_smoother, frames_smoother, wingbeat_avg_forces_smoother, wingbeat_std_forces_smoother, ...
+%     wingbeat_rmse_forces_smoother, wingbeat_max_forces_smoother, wingbeat_min_forces_smoother, ...
+%     wingbeat_COP_smoother, cycle_avg_forces_smoother]...
+%     = wingbeat_transformation(num_wingbeats, filtered_data_smooth, AoA);
 
-idx = 1;
-mean_results = wingbeat_avg_forces(idx,:);
-std_results = wingbeat_SD_forces(idx,:);
-lower_results = mean_results - std_results;
-upper_results = mean_results + std_results;
+[wingbeat_forces_smoothest, frames_smoothest, wingbeat_avg_forces_smoothest, wingbeat_SD_forces_smoothest,...
+    wingbeat_rmse_forces_smoothest, wingbeat_max_forces_smoothest, wingbeat_min_forces_smoothest, wingbeat_COP_smoothest,...
+    cycle_avg_forces_smoothest]...
+    = wingbeat_transformation(num_wingbeats, filtered_data_smoothest, enc_pulse, AoA, frame_rate);
 
-original_color = "#7f2704"; % hex, some dark red
-lighter_color = getLightColor(original_color); % RGB
+raw_wing_vars = {'wingbeat_forces_raw', 'frames_raw',...
+    'wingbeat_avg_forces_raw', 'wingbeat_std_forces_raw',...
+    'wingbeat_rmse_forces_raw', 'wingbeat_max_forces_raw',...
+    'wingbeat_min_forces_raw', 'wingbeat_COP_raw', ...
+    'cycle_avg_forces_raw', 'upstroke_avg_forces_raw', 'downstroke_avg_forces'};
 
-xconf = [frames, frames(end:-1:1)];
-yconf = [upper_results, lower_results(end:-1:1)];
+filt_wing_vars = {'wingbeat_forces','frames',...
+    'wingbeat_avg_forces', 'wingbeat_std_forces',...
+    'wingbeat_rmse_forces', 'wingbeat_max_forces',...
+    'wingbeat_min_forces', 'wingbeat_COP', ...
+    'cycle_avg_forces', 'upstroke_avg_forces', 'downstroke_avg_forces'};
 
-figure
-ax = gca;
-hold on
-p = fill(ax, xconf, yconf, lighter_color);
-p.HandleVisibility = 'off';
-p.EdgeColor = 'none';
+% filt_smooth_wing_vars = {'wingbeat_forces_smoother', 'frames_smoother',...
+%     'wingbeat_avg_forces_smoother', 'wingbeat_std_forces_smoother',...
+%     'wingbeat_rmse_forces_smoother', 'wingbeat_max_forces_smoother',...
+%     'wingbeat_min_forces_smoother', 'wingbeat_COP_smoother', 'cycle_avg_forces_smoother'};
 
-l= plot(ax, frames, wingbeat_avg_forces(idx, :));
-l.Color = original_color;
-l.LineWidth = 2;
-title("Drag")
+filt_smoothest_wing_vars = {'wingbeat_forces_smoothest', 'frames_smoothest',...
+    'wingbeat_avg_forces_smoothest', 'wingbeat_std_forces_smoothest',...
+    'wingbeat_rmse_forces_smoothest', 'wingbeat_max_forces_smoothest',...
+    'wingbeat_min_forces_smoothest', 'wingbeat_COP_smoothest', ...
+    'cycle_avg_forces_smoothest', 'upstroke_avg_forces_smoothest', 'downstroke_avg_forces_smoothest'};
 
-% ---------------------------------------------------------
+vars = [saved_vars, raw_wing_vars, filt_wing_vars, filt_smoothest_wing_vars];
 
-idx = 3;
-mean_results = wingbeat_avg_forces(idx,:);
-std_results = wingbeat_SD_forces(idx,:);
-lower_results = mean_results - std_results;
-upper_results = mean_results + std_results;
-
-original_color = "#7f2704"; % hex, some dark red
-lighter_color = getLightColor(original_color); % RGB
-
-xconf = [frames, frames(end:-1:1)];
-yconf = [upper_results, lower_results(end:-1:1)];
-
-figure
-ax = gca;
-hold on
-p = fill(ax, xconf, yconf, lighter_color);
-p.HandleVisibility = 'off';
-p.EdgeColor = 'none';
-
-l= plot(ax, frames, wingbeat_avg_forces(idx, :));
-l.Color = original_color;
-l.LineWidth = 2;
-title("Lift")
-
-% If this is a flapping trial, analyze data over each wingbeat rather than
-% just in time
-% if (wing_freq > 0)
-% [wingbeat_forces_raw, frames_raw, wingbeat_avg_forces_raw, wingbeat_std_forces_raw, ...
-%     wingbeat_rmse_forces_raw, wingbeat_max_forces_raw, wingbeat_min_forces_raw, wingbeat_COP_raw, ...
-%     cycle_avg_forces_raw, upstroke_avg_forces_raw, downstroke_avg_forces_raw]...
-%     = wingbeat_transformation(num_wingbeats, results_lab, AoA);
-% 
-% [wingbeat_forces, frames, wingbeat_avg_forces, wingbeat_std_forces, ...
-%     wingbeat_rmse_forces, wingbeat_max_forces, wingbeat_min_forces, wingbeat_COP, ...
-%     cycle_avg_forces, upstroke_avg_forces, downstroke_avg_forces]...
-%     = wingbeat_transformation(num_wingbeats, filtered_data, AoA);
-% 
-% % [wingbeat_forces_smoother, frames_smoother, wingbeat_avg_forces_smoother, wingbeat_std_forces_smoother, ...
-% %     wingbeat_rmse_forces_smoother, wingbeat_max_forces_smoother, wingbeat_min_forces_smoother, ...
-% %     wingbeat_COP_smoother, cycle_avg_forces_smoother]...
-% %     = wingbeat_transformation(num_wingbeats, filtered_data_smooth, AoA);
-% 
-% [wingbeat_forces_smoothest, frames_smoothest, wingbeat_avg_forces_smoothest, wingbeat_std_forces_smoothest, ...
-%     wingbeat_rmse_forces_smoothest, wingbeat_max_forces_smoothest, wingbeat_min_forces_smoothest, ...
-%     wingbeat_COP_smoothest, cycle_avg_forces_smoothest, upstroke_avg_forces_smoothest, downstroke_avg_forces_smoothest]...
-%     = wingbeat_transformation(num_wingbeats, filtered_data_smoothest, AoA);
-% 
-% raw_wing_vars = {'wingbeat_forces_raw', 'frames_raw',...
-%     'wingbeat_avg_forces_raw', 'wingbeat_std_forces_raw',...
-%     'wingbeat_rmse_forces_raw', 'wingbeat_max_forces_raw',...
-%     'wingbeat_min_forces_raw', 'wingbeat_COP_raw', ...
-%     'cycle_avg_forces_raw', 'upstroke_avg_forces_raw', 'downstroke_avg_forces'};
-% 
-% filt_wing_vars = {'wingbeat_forces','frames',...
-%     'wingbeat_avg_forces', 'wingbeat_std_forces',...
-%     'wingbeat_rmse_forces', 'wingbeat_max_forces',...
-%     'wingbeat_min_forces', 'wingbeat_COP', ...
-%     'cycle_avg_forces', 'upstroke_avg_forces', 'downstroke_avg_forces'};
-% 
-% % filt_smooth_wing_vars = {'wingbeat_forces_smoother', 'frames_smoother',...
-% %     'wingbeat_avg_forces_smoother', 'wingbeat_std_forces_smoother',...
-% %     'wingbeat_rmse_forces_smoother', 'wingbeat_max_forces_smoother',...
-% %     'wingbeat_min_forces_smoother', 'wingbeat_COP_smoother', 'cycle_avg_forces_smoother'};
-% 
-% filt_smoothest_wing_vars = {'wingbeat_forces_smoothest', 'frames_smoothest',...
-%     'wingbeat_avg_forces_smoothest', 'wingbeat_std_forces_smoothest',...
-%     'wingbeat_rmse_forces_smoothest', 'wingbeat_max_forces_smoothest',...
-%     'wingbeat_min_forces_smoothest', 'wingbeat_COP_smoothest', ...
-%     'cycle_avg_forces_smoothest', 'upstroke_avg_forces_smoothest', 'downstroke_avg_forces_smoothest'};
-% 
-% vars = [saved_vars, raw_wing_vars, filt_wing_vars, filt_smoothest_wing_vars];
-% 
-% else
-%     vars = saved_vars;
-% end
+else
+    vars = saved_vars;
+end
 
 % TEMP UNTIL WINGBEAT PROCESSING FIXED
 vars = saved_vars;
@@ -195,5 +141,61 @@ save(processed_data_path + filename, vars{:})
 % 
 %     vars = [saved_vars 'cycle_avg_forces'];
 %     save(processed_data_path + filename, vars{:})
+% end
+
+% if (wing_freq > 0)
+% % ------------------------------------------------------------
+% 
+% idx = 1;
+% mean_results = wingbeat_avg_forces(idx,:);
+% std_results = wingbeat_SD_forces(idx,:);
+% lower_results = mean_results - std_results;
+% upper_results = mean_results + std_results;
+% 
+% original_color = "#7f2704"; % hex, some dark red
+% lighter_color = getLightColor(original_color); % RGB
+% 
+% xconf = [frames, frames(end:-1:1)];
+% yconf = [upper_results, lower_results(end:-1:1)];
+% 
+% figure
+% ax = gca;
+% hold on
+% p = fill(ax, xconf, yconf, lighter_color);
+% p.HandleVisibility = 'off';
+% p.EdgeColor = 'none';
+% 
+% l= plot(ax, frames, wingbeat_avg_forces(idx, :));
+% l.Color = original_color;
+% l.LineWidth = 2;
+% title("Drag")
+% 
+% % ---------------------------------------------------------
+% 
+% idx = 3;
+% mean_results = wingbeat_avg_forces(idx,:);
+% std_results = wingbeat_SD_forces(idx,:);
+% lower_results = mean_results - std_results;
+% upper_results = mean_results + std_results;
+% 
+% original_color = "#7f2704"; % hex, some dark red
+% lighter_color = getLightColor(original_color); % RGB
+% 
+% xconf = [frames, frames(end:-1:1)];
+% yconf = [upper_results, lower_results(end:-1:1)];
+% 
+% figure
+% ax = gca;
+% hold on
+% p = fill(ax, xconf, yconf, lighter_color);
+% p.HandleVisibility = 'off';
+% p.EdgeColor = 'none';
+% 
+% l= plot(ax, frames, wingbeat_avg_forces(idx, :));
+% l.Color = original_color;
+% l.LineWidth = 2;
+% title("Lift")
+% 
+% % ---------------------------------------------------------
 % end
 end

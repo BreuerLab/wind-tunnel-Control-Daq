@@ -64,26 +64,26 @@ if (nondimensional)
         if (isscalar(wing_freq_sel) && isscalar(wind_speed_sel) && isscalar(type_sel))
             names(wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type) = "";
             if (body_subtraction)
-                sub_title = [type2name(type) + " " + num2str(wind_speed) + " m/s " + num2str(wing_freq) + " PWM" "{\color{red}{SUBTRACTION}}: " + sub_string];
+                sub_title = [type2name(type) + " " + num2str(wind_speed) + " m/s " + num2str(wing_freq) + " Hz" "{\color{red}{SUBTRACTION}}: " + sub_string];
             else
-                sub_title = type2name(type) + " " + num2str(wind_speed) + " m/s " + num2str(wing_freq) + " PWM";
+                sub_title = type2name(type) + " " + num2str(wind_speed) + " m/s " + num2str(wing_freq) + " Hz";
             end
         elseif (isscalar(wing_freq_sel) && isscalar(wind_speed_sel))
             names(wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type) = type2name(type);
             if (body_subtraction)
-                sub_title = [num2str(wind_speed) + " m/s " + num2str(wing_freq) + " PWM" "{\color{red}{SUBTRACTION}}: " + sub_string];
+                sub_title = [num2str(wind_speed) + " m/s " + num2str(wing_freq) + " Hz" "{\color{red}{SUBTRACTION}}: " + sub_string];
             else
-                sub_title = num2str(wind_speed) + " m/s " + num2str(wing_freq) + " PWM";
+                sub_title = num2str(wind_speed) + " m/s " + num2str(wing_freq) + " Hz";
             end
         elseif (isscalar(wing_freq_sel) && isscalar(type_sel))
             names(wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type) = num2str(wind_speed) + " m/s";
             if (body_subtraction)
-                sub_title = [type2name(type) + " " + num2str(wing_freq) + " PWM" "{\color{red}{SUBTRACTION}}: " + sub_string];
+                sub_title = [type2name(type) + " " + num2str(wing_freq) + " Hz" "{\color{red}{SUBTRACTION}}: " + sub_string];
             else
-                sub_title = type2name(type) + " " + num2str(wing_freq) + " PWM";
+                sub_title = type2name(type) + " " + num2str(wing_freq) + " Hz";
             end
         elseif (isscalar(wind_speed_sel) && isscalar(type_sel))
-            names(wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type) = num2str(wing_freq) + " PWM";
+            names(wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type) = num2str(wing_freq) + " Hz";
             if (body_subtraction)
                 sub_title = [type2name(type) + " " + num2str(wind_speed) + " m/s" "{\color{red}{SUBTRACTION}}: " + sub_string];
             else
@@ -92,26 +92,26 @@ if (nondimensional)
         elseif (isscalar(wing_freq_sel))
             names(wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type) = type2name(type) + " " + num2str(wind_speed) + " m/s";
             if (body_subtraction)
-                sub_title = [num2str(wing_freq) + " PWM" "{\color{red}{SUBTRACTION}}: " + sub_string];
+                sub_title = [num2str(wing_freq) + " Hz" "{\color{red}{SUBTRACTION}}: " + sub_string];
             else
-                sub_title = num2str(wing_freq) + " PWM";
+                sub_title = num2str(wing_freq) + " Hz";
             end
         elseif (isscalar(wind_speed_sel))
-            names(wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type) = type2name(type) + " " + num2str(wing_freq) + " PWM";
+            names(wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type) = type2name(type) + " " + num2str(wing_freq) + " Hz";
             if (body_subtraction)
                 sub_title = [num2str(wind_speed) + " m/s" "{\color{red}{SUBTRACTION}}: " + sub_string];
             else
                 sub_title = num2str(wind_speed) + " m/s";
             end
         elseif (isscalar(type_sel))
-            names(wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type) = num2str(wind_speed) + " m/s " + num2str(wing_freq) + " PWM";
+            names(wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type) = num2str(wind_speed) + " m/s " + num2str(wing_freq) + " Hz";
             if (body_subtraction)
                 sub_title = [type2name(type) "{\color{red}{SUBTRACTION}}: " + sub_string];
             else
                 sub_title = type2name(type);
             end
         else
-            names(wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type) = type2name(type) + " " + num2str(wind_speed) + " m/s " + num2str(wing_freq) + " PWM";
+            names(wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type) = type2name(type) + " " + num2str(wind_speed) + " m/s " + num2str(wing_freq) + " Hz";
             if (body_subtraction)
                 sub_title = "{\color{red}{SUBTRACTION}}: " + sub_string;
             else

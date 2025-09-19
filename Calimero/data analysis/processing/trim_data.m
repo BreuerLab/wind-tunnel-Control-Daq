@@ -5,7 +5,7 @@ long_rises_orig_idx = get_idx_wingbeats(enc_pulse, rate);
 % disp("Number of long rises: " + length(long_rises_orig_idx))
 % There is no long pulse at beginning of trial or at end of trial
 
-padding = (rec_wingbeats - num_wingbeats) / 2;
+padding = round((rec_wingbeats - num_wingbeats) / 2);
 startIdx = long_rises_orig_idx(padding);
 endIdx = long_rises_orig_idx(end - (padding - 1));
 trimmed_results = results(startIdx:endIdx,:);

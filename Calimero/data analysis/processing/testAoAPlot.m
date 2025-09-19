@@ -15,13 +15,12 @@ AFAM_bool = false;
 calibration_filepath = "../../DAQ/Calibration Files/Mini40/FT52907.cal"; 
 cal_matrix = obtain_cal(calibration_filepath);
 
-wing_freq_sel = [0, 90, 120, 150, 180];
-wing_freq_sel = [0, 6, 8, 10];
+wing_freq_sel = [0, 2, 4, 6, 8, 10];
 
 wind_speeds = [4];
 types = ["flexible"]; % needs to match folder name only
 % data_path = "F:\Calimero Data\Calimero_07_12_to_07_14_Tests\";
-data_path = "F:\Calimero Data\Calimero_07_29_parsed\";
+data_path = "F:\Calimero Data\Calimero 09_19_2025\";
 % ADD PATH WHERE DATA SHOULD GET DUMPED
 
 for n = 1:length(wind_speeds)
@@ -87,13 +86,15 @@ for k = 1 : length(exp_files)
     [case_name, time_stamp, type, wing_freq, AoA, wind_speed] = parse_filename(baseFileName);
 
     % find matching offsets file
-    offsets_file = findFileMatchingCase(offsets_path, case_name);
+    offsets_file = findInitialOffsetsFile(offsets_path, case_name);
     load(offsets_path + offsets_file); % load in results var
+    offsets = offsets(1,:);
+    disp("Matching offsets: " + offsets_file)
     
     % Get raw data from file
     load(raw_data_path + baseFileName); % load in results var
     
-    [time_data, force_data, voltAdj, curAdj, theta, Z] = process_data(results, offsets, cal_matrix);
+    [time_data, force_data, voltAdj, curAdj, enc_pulse] = process_data(results, offsets, cal_matrix);
 
     cur_ind = find(wing_freq == wing_freq_sel);
 
