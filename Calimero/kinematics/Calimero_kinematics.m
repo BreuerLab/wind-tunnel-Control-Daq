@@ -22,6 +22,7 @@ data_path_F = "R:\ENG_Breuer_Shared\rgissler\Solidworks\Calimero\Data\wing_angle
 data_path_R = "R:\ENG_Breuer_Shared\rgissler\Solidworks\Calimero\Data\wing_angle_data_1Hz_rev.csv";
 
 phi_eqt = -atand((r*sin(theta)) ./ (d + r*cos(theta)));
+disp("Amplitude is " + max(phi_eqt) + " deg")
 
 data_F = readmatrix(data_path_F,"NumHeaderLines",2);
 time_F = data_F(:,1);
@@ -268,3 +269,4 @@ plot(r_vals, D_U_ratio_vals, LineWidth=2);
 ylabel("Downstroke-Upstroke Ratio")
 xlabel("Radial position of crank (mm)")
 set(gca, FontSize=14)
+

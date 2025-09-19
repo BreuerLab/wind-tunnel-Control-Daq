@@ -18,13 +18,13 @@ clear
 
 I0 = 1; % normalized units
 bw = 3.427; % mm, reported as 1/4 inch (6.35 mm) but effective diameter 86.5% listed in test at 3.4 mm
-L = 400; % mm, vertical length of FOV
-W = 400; % mm, horizontal width of FOV
+L = 500; % mm, vertical length of FOV
+W = 350; % mm, horizontal width of FOV
 wt_dim = 1200; % mm, wind tunnel is 1.2 x 1.2 m
 % vert_off = (14 + 7)*10; % mm, vertical offset of laser mirrors above wind tunnel
 
 vert_off = (14 + 1)*10; % mm, vertical offset of lens above wind tunnel
-d = ((wt_dim - L) / 2) + vert_off; % mm, vertical distance from focal point of cylindrical
+d = (wt_dim - L) / 2 + vert_off; % mm, vertical distance from focal point of cylindrical
                     % lens to top of FOV
 % z = linspace(d,d+L,200);
 hor_num = 1000;
@@ -36,32 +36,31 @@ vert_num = 1000;
 
 w_r = 39; % mm
 w_L = 177; % mm
-phi = 21.3; % deg
+phi = 21.3 - 180; % deg
 
 p_y = d + L/2;
-p_x = W/2;
 % Parameters
-pivot = [p_x, p_y];            % pivot point (not on the line)
-line_p1 = [p_x + w_r, p_y];          % line endpoint 1
-line_p2 = [p_x + w_L, p_y];          % line endpoint 2
+pivot = [0, p_y];            % pivot point (not on the line)
+line_p1 = [-w_r, p_y];          % line endpoint 1
+line_p2 = [-w_L, p_y];          % line endpoint 2
 
 % Radii of the two endpoints
 r1 = norm(line_p1 - pivot);
 r2 = norm(line_p2 - pivot);
 
 % Sample angles
-theta = linspace(-phi, phi, 200);
+theta = linspace(phi, -phi, 200);
 
 % Arc coordinates
-x_outer = pivot(1) - r1*cosd(theta);
-y_outer = pivot(2) - r1*sind(theta);
+x_outer = pivot(1) + r1*cosd(theta);
+y_outer = pivot(2) + r1*sind(theta);
 
-x_inner = pivot(1) - r2*cosd(theta);
-y_inner = pivot(2) - r2*sind(theta);
+x_inner = pivot(1) + r2*cosd(theta);
+y_inner = pivot(2) + r2*sind(theta);
 
 % Build annular sector polygon
-x_ring = [x_inner, fliplr(x_outer)];
-y_ring = [y_inner, fliplr(y_outer)];
+x_ring = [fliplr(x_outer), x_inner];
+y_ring = [fliplr(y_outer)y_inner];
 
 % ----------------------------------------------------------------------
 
@@ -69,11 +68,13 @@ t = 2; % thickness of laser beam edge on plot (not physical)
 % fl = 3.91; % mm, a concave lens so this number is actually negative
 % bfl_vals = 100; % mm
 % bfl_vals = [5.2, 5.3, 7.1, 7.7, 9.0, 11.0, 14.0, 15.0 16.3, 20.3, 21.3, 23.5, 26.2, 26.7];
-bfl_vals = 11; % mm
+bfl_vals = 7.1; % mm
 % back focal length (mechanical) different from effective focal length
 % (optical), "A mechanical measurement given as the distance between the
 % last surface of an optical lens to its image plane."
 P = 10; % W, roughly
+
+z = linspace(0,wt_dim,vert_num);
 
 if (~isscalar(bfl_vals))
     med_int_vals = zeros(size(bfl_vals));
@@ -81,8 +82,6 @@ end
 
 for j = 1:length(bfl_vals)
 bfl = bfl_vals(j);
-
-z = linspace(0,wt_dim + vert_off + bfl,vert_num);
 theta = atan(bw / (2 * bfl));
 int_grid = zeros(hor_num,length(z));
 laser_grid = zeros(hor_num,length(z));
@@ -130,9 +129,8 @@ end
 
 if (isscalar(bfl_vals))
 
-% [left bottom width height]
 FOV_pos = [-W/2 d + bfl W L];
-wind_tunnel_pos = [-wt_dim/2 + W/2 bfl + vert_off wt_dim wt_dim];
+wind_tunnel_pos = [-wt_dim/2 + W/2 bfl wt_dim wt_dim];
 
 % ----------------------------------------------------------------------
 % ----------Laser Beam Border in Wind Tunnel Section Plot---------------
@@ -153,9 +151,8 @@ xlabel('Horizontal Position (mm)')
 ylabel('Vertical Position (mm)')
 set(gca, FontSize=14)
 set(gca,'YDir','reverse')
-axis equal
 xlim([-wt_dim/2 + W/2 wt_dim/2 + W/2])
-ylim([0 wt_dim + vert_off])
+ylim([0 wt_dim])
 % xlim([-4 4])
 % ylim([0 8])
 % xlim([-4 4])
@@ -190,9 +187,8 @@ xlabel('Horizontal Position (mm)')
 ylabel('Vertical Position (mm)')
 set(gca, FontSize=14)
 set(gca,'YDir','reverse')
-axis equal
 xlim([-wt_dim/2 + W/2 wt_dim/2 + W/2])
-ylim([0 wt_dim + vert_off])
+ylim([0 wt_dim])
 title('Light Intensity in Wind Tunnel')
 
 % ----------------------------------------------------------------------
@@ -214,7 +210,6 @@ xlabel('Horizontal Position (mm)')
 ylabel('Vertical Position (mm)')
 set(gca, FontSize=14)
 set(gca,'YDir','reverse')
-axis equal
 xlim([-W/2 W/2])
 ylim([d+bfl d+bfl+L])
 title('Light Intensity in Field of View')
