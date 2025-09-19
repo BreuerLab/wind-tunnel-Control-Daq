@@ -26,10 +26,14 @@ function move_pitch(automatic, AoA)
     if (automatic)
         stop_time = abs(AoA - cur_ang)/4 + 1;
         pause(stop_time)
+
         Pitch_disable(Pitch);
         disp("MPS Pitch Disabled")
+
         cur_ang = Pitch_Angle();
         disp("Current Angle is: " + cur_ang)
+        
+        pause(2)
     else
         % Confirm user has disabled MPS before attempting to record data
         MPS_on_off_UI("off");

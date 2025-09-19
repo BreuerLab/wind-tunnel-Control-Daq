@@ -6,7 +6,7 @@ diary("data\output logs\" + speed + "ms_" + string(time_now) + ".txt")
 
 % DAQ Parameters
 rate = 12000; % measurement rate of NI DAQ, in Hz
-offset_duration = 5; % in seconds
+offset_duration = 6; % in seconds
 calibration_filepath = "../DAQ/Calibration Files/Mini40/FT52907.cal"; 
 voltage = 5; % 5 or 10 volts for load cell
 
@@ -120,7 +120,7 @@ end
 % -------------------------------------
 time_now = datetime;
 time_now.Format = 'yyyy-MM-dd HH-mm-ss';
-saveas(f,'data\plots\compareAoA_' + speed + "ms_" + string(time_now) + ".png")
+saveas(f,"data\plots\compareAoA_" + speed + "ms_" + string(time_now) + ".fig")
 
 if (~debug)
     % Clean up
