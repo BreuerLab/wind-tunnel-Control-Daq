@@ -15,6 +15,7 @@ wind_speed_sel = [4];
 type_sel = ["flexible"];
 AoA_sel = [-16:2:16];
 sub_strings = [];
+slack_bool = false;
 
 % make type list from type and subtraction types to add all
 % associated folders to the search
@@ -24,8 +25,11 @@ type_list = strrep(type_list, ' ', '_');
 % set up Slack messenger
 data_path = "F:\Calimero Data\Calimero 09_19_2025\";
 plot_data_path = data_path + "plot data\Calimero\";
+
+if slack_bool
 s = slackMsg(data_path);
 bot = slackProgressBar(data_path);
+end
 
 % assuming that all experiment folders are in the same speed
 % folder
@@ -80,10 +84,13 @@ selected_vars.type = type_sel;
 % Slack message
 time_now = datetime;
 time_now.Format = 'yyyy_MM_dd HH_mm_ss';
+
+if slack_bool
 s.send("Started making plots at: " + string(time_now))
 
 % Post the initial message
 [channelID, messageTs] = bot.makeBar();
+end
 
 for i = 1:2
     % for j = 1:2
@@ -92,7 +99,9 @@ for i = 1:2
              err_up_forces, err_down_forces, names, sub_title, norm_factors] = ...
     get_data_AoA(selected_vars, processed_files, offsets_files, norm_bool, sub_strings, shift_bool, sub_drift_bool);
             
+            if slack_bool
             bot.updateProgress(channelID, messageTs, (k + 2*(i-1))*(100/8));
+            end
             % (k + 2*(j-1) + 4*(i-1))*(100/8))
 
             time_now = datetime;
@@ -114,7 +123,7 @@ for i = 1:2
                 name = name + "Sub_" + sub_strings;
             end
 
-            save(name + ".mat","avg_forces", "avg_up_forces", "avg_down_forces",...
+            save(plot_data_path + name + ".mat","avg_forces", "avg_up_forces", "avg_down_forces",...
                 "err_forces", "err_up_forces", "err_down_forces", "norm_factors", "names")
 
             norm_bool = ~norm_bool;
@@ -127,7 +136,10 @@ end
 % Slack message
 time_now = datetime;
 time_now.Format = 'yyyy_MM_dd HH_mm_ss';
+
+if slack_bool
 s.send("Finished making plots at: " + string(time_now))
+end
 
 % figure
 % hold on

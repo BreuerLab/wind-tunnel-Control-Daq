@@ -2,6 +2,8 @@ function [avg_forces, avg_up_forces, avg_down_forces, err_forces, err_up_forces,
           err_down_forces, names, sub_title, norm_factors_arr] = ...
     get_data_AoA(selected_vars, processed_files, offsets_files, nondimensional, sub_strings, shift_bool, sub_drift)
 
+numAxes = 8;
+
 if (isempty(sub_strings))
     body_subtraction = false;
 else
@@ -22,13 +24,13 @@ for i = 1:length(wing_freq_sel)
 end
 
 % Initialize variables
-avg_forces = zeros(6, length(AoA_sel), length(wing_freq_sel), length(wind_speed_sel), length(type_sel));
-avg_up_forces = zeros(6, length(AoA_sel), length(wing_freq_sel), length(wind_speed_sel), length(type_sel));
-avg_down_forces = zeros(6, length(AoA_sel), length(wing_freq_sel), length(wind_speed_sel), length(type_sel));
+avg_forces = zeros(numAxes, length(AoA_sel), length(wing_freq_sel), length(wind_speed_sel), length(type_sel));
+avg_up_forces = zeros(numAxes, length(AoA_sel), length(wing_freq_sel), length(wind_speed_sel), length(type_sel));
+avg_down_forces = zeros(numAxes, length(AoA_sel), length(wing_freq_sel), length(wind_speed_sel), length(type_sel));
 % avg_forces_body = zeros(6, length(AoA_sel), length(wing_freq_sel), length(wind_speed_sel));
-err_forces = zeros(6, length(AoA_sel), length(wing_freq_sel), length(wind_speed_sel), length(type_sel));
-err_up_forces = zeros(6, length(AoA_sel), length(wing_freq_sel), length(wind_speed_sel), length(type_sel));
-err_down_forces = zeros(6, length(AoA_sel), length(wing_freq_sel), length(wind_speed_sel), length(type_sel));
+err_forces = zeros(numAxes, length(AoA_sel), length(wing_freq_sel), length(wind_speed_sel), length(type_sel));
+err_up_forces = zeros(numAxes, length(AoA_sel), length(wing_freq_sel), length(wind_speed_sel), length(type_sel));
+err_down_forces = zeros(numAxes, length(AoA_sel), length(wing_freq_sel), length(wind_speed_sel), length(type_sel));
 cases_final = strings(length(AoA_sel), length(wing_freq_sel), length(wind_speed_sel), length(type_sel));
 names = strings(length(wing_freq_sel), length(wind_speed_sel), length(type_sel));
 norm_factors_arr = zeros(2, length(AoA_sel), length(wing_freq_sel), length(wind_speed_sel));
@@ -110,28 +112,28 @@ for i = 1 : length(processed_files)
         load([baseFolder '/' modFileName]);
 
         % if (wing_freq == 0)
-            forces = filtered_data;
+            data = filtered_data;
             % up_forces = zeros(size(filtered_data));
             % down_forces = zeros(size(filtered_data));
         % else
-        %     forces = cycle_avg_forces;
+        %     data = cycle_avg_forces;
         %     % up_forces = upstroke_avg_forces;
         %     % down_forces = downstroke_avg_forces;
         % end
-        % up_forces = zeros(size(forces));
-        % down_forces = zeros(size(forces));
+        % up_forces = zeros(size(data));
+        % down_forces = zeros(size(data));
         % Maybe need to add squeeze(cycle_avg_forces) above
 
-        forces = applyBools(forces, sub_drift, modFileName, offsets_files, shift_bool, AoA, nondimensional, norm_factors);
+        data = applyBools(data, sub_drift, modFileName, offsets_files, shift_bool, AoA, nondimensional, norm_factors);
         % up_forces = applyBools(up_forces, sub_drift, modFileName, offsets_files, shift_bool, AoA, nondimensional, norm_factors);
         % down_forces = applyBools(down_forces, sub_drift, modFileName, offsets_files, shift_bool, AoA, nondimensional, norm_factors);
         
         norm_factors_arr(:, AoA_sel == AoA, wing_freq_ind, wind_speed_sel == wind_speed) = norm_factors;
 
         sub_string = "";
-        sub_term = zeros(1,6);
+        sub_term = zeros(1,numAxes);
         if (body_subtraction)
-            forces_body_list = zeros(length(sub_strings),6);
+            forces_body_list = zeros(length(sub_strings),numAxes);
             sub_bools = ones(length(sub_strings));
             for j = 1:length(sub_strings)
                 sub_string = sub_strings(j);
@@ -152,15 +154,15 @@ for i = 1 : length(processed_files)
             end
         end
 
-        for k = 1:6
+        for k = 1:numAxes
             if (body_subtraction)
                 avg_forces(k, AoA_sel == AoA, wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type)...
-                            = mean(forces(k,:)) - sub_term(k);
+                            = mean(data(k,:)) - sub_term(k);
                 % avg_up_forces(k, AoA_sel == AoA, wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type)...
                 %             = mean(up_forces(k,:)) - sub_term(k);    
             else
                 avg_forces(k, AoA_sel == AoA, wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type)...
-                    = mean(forces(k,:));
+                    = mean(data(k,:));
                 % avg_up_forces(k, AoA_sel == AoA, wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type)...
                 %     = mean(up_forces(k,:));
                 % avg_down_forces(k, AoA_sel == AoA, wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type)...
@@ -168,7 +170,7 @@ for i = 1 : length(processed_files)
             end
             
             err_forces(k, AoA_sel == AoA, wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type)...
-                = std(forces(k, :));
+                = std(data(k, :));
             % err_up_forces(k, AoA_sel == AoA, wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type)...
             %     = std(up_forces(k, :));
             % err_down_forces(k, AoA_sel == AoA, wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type)...

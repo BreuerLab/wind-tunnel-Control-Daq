@@ -44,21 +44,23 @@ end
 % tunnel reference frame (body frame to global frame)
 results_lab = coordinate_transformation(force_data, AoA);
 
+mod_results = [results_lab; voltAdj'; curAdj'];
+
 % Non-dimensionalize the data. Newtons to Force Coefficients and
 % Newton*meters to Moment Coefficients
 [norm_data, norm_factors, St, Re] = non_dimensionalize_data(wind_tunnel_path, results_lab, file);
 
 % Smooth the data with a butterworth filter
 fc = 100; % cutoff frequency
-filtered_data = filter_data(results_lab, frame_rate, fc);
-filtered_norm_data = filter_data(norm_data, frame_rate, fc);
+filtered_data = filter_data(mod_results, frame_rate, fc);
+% filtered_norm_data = filter_data(norm_data, frame_rate, fc);
 
 if (wing_freq > 1)
     fc = 10*wing_freq; % cutoff frequency
 else
     fc = 10;
 end
-filtered_data_smoothest = filter_data(results_lab, frame_rate, fc);
+filtered_data_smoothest = filter_data(mod_results, frame_rate, fc);
 
 % if (wing_freq > 1)
 %     fc = 5*wing_freq; % cutoff frequency
@@ -76,8 +78,8 @@ filtered_data_smoothest = filter_data(results_lab, frame_rate, fc);
 filename = case_name + " " + time_stamp + ".mat"; % file name for processed data
 
 saved_vars = {'time_data', 'force_data', 'results_lab',...
-    'filtered_data','filtered_data_smoothest'...
-    'filtered_norm_data', 'norm_factors', 'St', 'Re'};
+    'filtered_data','filtered_data_smoothest',...
+    'norm_factors', 'St', 'Re'};
 
 % If this is a flapping trial, analyze data over each wingbeat rather than
 % just in time
@@ -85,7 +87,7 @@ if (wing_freq > 0)
 [wingbeat_forces_raw, frames_raw, wingbeat_avg_forces_raw, wingbeat_SD_forces_raw,...
     wingbeat_rmse_forces_raw, wingbeat_max_forces_raw, wingbeat_min_forces_raw, wingbeat_COP_raw,...
     cycle_avg_forces_raw]...
-    = wingbeat_transformation(num_wingbeats, results_lab, enc_pulse, AoA, frame_rate);
+    = wingbeat_transformation(num_wingbeats, mod_results, enc_pulse, AoA, frame_rate);
 
 [wingbeat_forces, frames, wingbeat_avg_forces, wingbeat_SD_forces,...
     wingbeat_rmse_forces, wingbeat_max_forces, wingbeat_min_forces, wingbeat_COP,...

@@ -1,4 +1,5 @@
-function forces = applyBools(forces, sub_drift, modFileName, offsets_files, shift_bool, AoA, nondimensional, norm_factors)
+function data = applyBools(data, sub_drift, modFileName, offsets_files, shift_bool, AoA, nondimensional, norm_factors)
+    forces = data(1:6, :);
     if (sub_drift)
         [drift] = get_drift(modFileName, offsets_files);
         forces = forces - drift;
@@ -13,4 +14,5 @@ function forces = applyBools(forces, sub_drift, modFileName, offsets_files, shif
     if (nondimensional)
         forces = dimensionless(forces, norm_factors);
     end
+    data = [forces; data(7:8,:)];
 end

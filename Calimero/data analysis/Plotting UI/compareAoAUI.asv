@@ -684,7 +684,7 @@ methods (Access = private)
             y_label_F = "Cycle Average Force (N)";
             y_label_M = "Cycle Average Moment (N*m)";
         end
-        y_labels = [y_label_F, y_label_F, y_label_F, y_label_M, y_label_M, y_label_M, "Voltage (V)", "Current (mA)", "Power (W)"];
+        y_labels = [y_label_F, y_label_F, y_label_F, y_label_M, y_label_M, y_label_M, "Voltage (V)", "Current (mA)"];
         titles = obj.axes_labels(2:end);
 
         if (~isempty(obj.selection))
@@ -989,14 +989,8 @@ methods (Access = private)
                     % p.Color = colors(ind_c_dir, ind_c_trial);
                     p.LineWidth = 2;
                 end
-                if (idx == 9)
-                    y_var = lim_avg_forces(idx-1,:,freq_index).*lim_avg_forces(idx-2,:,freq_index)/1000;
-                    y_err = zeros(size(y_var));
-                else
-                    y_var = lim_avg_forces(idx,:,freq_index);
-                    y_err = zeros(size(y_var));
-                end
-                e = errorbar(ax, lim_AoA_sel, y_var, y_err,'.');
+                err = zeros(size(lim_err_forces(idx,:,freq_index)));
+                e = errorbar(ax, lim_AoA_sel, lim_avg_forces(idx,:,freq_index), err,'.');
                 % e = errorbar(ax, lim_AoA_sel, lim_avg_forces(idx,:,freq_index), lim_err_forces(idx,:,freq_index),'.');
                 e.MarkerSize = 25;
                 e.Color = colors(ind_c_trial, ind_c_dir);

@@ -11,6 +11,7 @@ addpath(genpath('../'))
 wind_speeds = [4];
 types = ["flexible"]; % needs to match folder name only
 data_path = "F:\Calimero Data\Calimero 09_19_2025\";
+slack_bool = false;
 % ADD PATH WHERE DATA SHOULD GET DUMPED
 
 for n = 1:length(wind_speeds)
@@ -19,9 +20,11 @@ for n = 1:length(wind_speeds)
 wind_speed_sel = wind_speeds(n);
 type = types(m);
 
+if (slack_bool)
 % set up Slack messenger objects
 s = slackMsg(data_path);
 bot = slackProgressBar(data_path);
+end
 
 speed_path = data_path + wind_speed_sel + " m.s/";
 filePattern = fullfile(speed_path); % Change to whatever pattern you need.
@@ -57,10 +60,13 @@ percent_complete = 0;
 try
 time_now = datetime;
 time_now.Format = 'yyyy_MM_dd HH_mm_ss';
-s.send("Started processing files at: " + string(time_now))
 
-% Post the initial message
-[channelID, messageTs] = bot.makeBar();
+if slack_bool
+    s.send("Started processing files at: " + string(time_now))
+    
+    % Post the initial message
+    [channelID, messageTs] = bot.makeBar();
+end
 
 % Grab each file and process the data from that file, storing the results
 for k = 1 : length(exp_files)
@@ -76,18 +82,26 @@ for k = 1 : length(exp_files)
     percent_complete = round((k / length(exp_files)) * 100, 2);
     disp(percent_complete + "% complete")
             
+    if slack_bool
     bot.updateProgress(channelID, messageTs, percent_complete);
+    end
 end
 
 diary off
 time_now = datetime;
 time_now.Format = 'yyyy_MM_dd HH_mm_ss';
+
+if slack_bool
 s.send("Finished processing all files at: " + string(time_now))
+end
 catch ME
 time_now = datetime;
 time_now.Format = 'yyyy_MM_dd HH_mm_ss';
+
+if slack_bool
 s.send("Encountered error while processing files at: " + string(time_now)...
     + ". " + percent_complete + "% complete.")    
+end
 rethrow(ME)
 end
 
