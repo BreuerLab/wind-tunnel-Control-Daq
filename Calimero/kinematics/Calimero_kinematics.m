@@ -233,7 +233,8 @@ legend()
 
 clear
 
-d = 20; % mm
+d_vals = linspace(12,24,3);
+% d = 20; % mm
 r_vals = linspace(6,11,100); % mm
 % r = 7.27; % mm
 numPts = 10000;
@@ -242,31 +243,40 @@ theta = linspace(0, 2*pi, numPts);
 
 time_eqt = linspace(0, 1, numPts);
 
-amp_up_vals = zeros(size(r_vals));
-amp_down_vals = zeros(size(r_vals));
-D_U_ratio_vals = zeros(size(r_vals));
+amp_up_vals = zeros(length(d_vals), length(r_vals));
+amp_down_vals = zeros(length(d_vals), length(r_vals));
+D_U_ratio_vals = zeros(length(d_vals), length(r_vals));
 
+for j = 1:length(d_vals)
+    d = d_vals(j);
 for i = 1:length(r_vals)
     r = r_vals(i);
     phi_eqt = -atand((r*sin(theta)) ./ (d + r*cos(theta)));
-    amp_up_vals(i) = max(phi_eqt);
-    amp_down_vals(i) = min(phi_eqt);
+    amp_up_vals(j, i) = max(phi_eqt);
+    amp_down_vals(j, i) = min(phi_eqt);
     
     dt = 1 / numPts;
     phi_eqt_dot = gradient(phi_eqt, dt);
     zc_idx = find(phi_eqt_dot(1:end-1) .* phi_eqt_dot(2:end) < 0);
     downstroke_count = zc_idx(2) - zc_idx(1);
-    D_U_ratio_vals(i) = downstroke_count / (length(phi_eqt_dot) - downstroke_count);
+    D_U_ratio_vals(j, i) = downstroke_count / (length(phi_eqt_dot) - downstroke_count);
+end
 end
 
 figure
+hold on
+
+for j = 1:length(d_vals)
 yyaxis left
-plot(r_vals, amp_up_vals, LineWidth=2);
+plot(r_vals, amp_up_vals(j,:), LineWidth=2, DisplayName="d = " + d_vals(j));
 ylabel("Amplitude (deg)")
 
 yyaxis right
-plot(r_vals, D_U_ratio_vals, LineWidth=2);
+plot(r_vals, D_U_ratio_vals(j,:), LineWidth=2, DisplayName="d = " + d_vals(j));
+end
+
 ylabel("Downstroke-Upstroke Ratio")
 xlabel("Radial position of crank (mm)")
+legend(Location="best")
 set(gca, FontSize=14)
 

@@ -2,7 +2,7 @@
 % offsets now - offsets from before first freq with wind on
 function [drift] = get_drift(experiment_filename, offsets_files)
     wing_freqs = [10, 4, 8, 0, 2, 6]; 
-    offsets_string = "_before_offsets_";
+    offsets_string = "_after_offsets_";
     calibration_filepath = "../../DAQ/Calibration Files/Mini40/FT52907.cal";
     cal_mat = obtain_cal(calibration_filepath);
 
