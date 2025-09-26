@@ -89,7 +89,7 @@ function this_DAQ = setup_DAQ(forceVoltage, rate)
     ch4.Range = [-forceVoltage, forceVoltage];
     ch5.Range = [-forceVoltage, forceVoltage];
     ch6.Range = [-5, 5];
-    ch7.Range = [-1, 1];
+    ch7.Range = [-5, 5];
     % ch7.Range = [-1, 1]; % voltage range anticipated for current is 0 - 0.2
     ch8.Range = [-5, 5];
 end

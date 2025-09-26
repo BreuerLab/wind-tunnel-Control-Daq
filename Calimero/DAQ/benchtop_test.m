@@ -15,11 +15,11 @@ addpath(genpath("../"))
 
 % case_name = wing_type + "_" + speed + "m.s_" + AoA_vals(j) + "deg_" + freq_vals(i) + "Hz";
 
-galil_plots = false;
+galil_plots = true;
 galil_IP_address = "192.168.1.3";
 dmc_benchtop_filename = "benchtop_test.dmc";
 ticksPerRev = 18432;
-freq = 6; % Hz
+freq = 3; % Hz
 acc = 3; % Hz
 measure_revs = 60;
 padding_revs = 4;
