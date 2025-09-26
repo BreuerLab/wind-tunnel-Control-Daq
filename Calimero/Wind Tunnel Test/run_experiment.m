@@ -13,6 +13,7 @@ voltage = 5; % 5 or 10 volts for load cell
 % Galil Parameters
 galil_address = "192.168.1.3";
 dmc_motion_filename = "motion.dmc";
+dmc_hold_filename = "hold.dmc";
 ticksPerRev = 18432;
 acc = 3; % Hz^2
 padding_revs = 4;
@@ -26,6 +27,7 @@ AFAM_bool = true;
 [f, tiles] = compare_AoA_fig(AFAM_bool);
 [f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4] = makeForceFigures();
 
+% Connect to galil
 try
     galil = galil_setup(galil_address);
     % Ensure Galil stops motor when the run_trial function completes
@@ -40,6 +42,29 @@ catch
     % (either on its own or termination by user)
     cleanup = onCleanup(@()myCleanupFun(galil, f));
 end
+
+% Allow user to set wings at midstroke and then galil will hold that
+% position afterwards
+% Define the total countdown time in seconds
+totalTime = 10; 
+
+% Define the update interval in seconds (how frequently the display updates)
+interval = 2; 
+
+fprintf('Countdown starting...\n');
+
+for i = totalTime:-interval:interval
+    fprintf('Time remaining: %d seconds\n', i);
+    pause(interval); 
+end
+
+dmc = fileread(dmc_hold_filename);
+dmc = string(dmc);
+
+% Load the program described by the .dmc file to the Galil device.
+galil.programDownload(dmc);
+% Command the galil to execute the program
+galil.command("XQ");
 
 diary off % IS THIS INITIAL DIARY NECESSARY, WHAT IS GETTING OUTPUT?
 
