@@ -5,49 +5,70 @@ d = 20; % mm
 r = 7.27; % mm
 numRevs = 5;
 numPts = 1000;
+% init_theta = atan2(3.451, 6.399);
+% theta = linspace(init_theta, init_theta + numRevs*2*pi, numPts);
 
-CAD_verification(r, d, numRevs, numPts);
+% init_theta only pertains to backwards case
+% this wasn't working initially because phi should actually have had a
+% negative sign to match CAD data
+init_theta = atan(-3.451/6.399);
+theta = linspace(init_theta, init_theta - numRevs*2*pi, numPts);
 
-theta = linspace(0, numRevs*2*pi, numPts);
+% init_theta = atan(3.451/6.399);
+% theta = linspace(init_theta, init_theta + numRevs*2*pi, numPts);
+time_eqt = linspace(0, numRevs, numPts);
+
+data_path_F = "R:\ENG_Breuer_Shared\rgissler\Solidworks\Calimero\Data\wing_angle_data_1Hz.csv";
+data_path_R = "R:\ENG_Breuer_Shared\rgissler\Solidworks\Calimero\Data\wing_angle_data_1Hz_rev.csv";
+
 phi_eqt = -atand((r*sin(theta)) ./ (d + r*cos(theta)));
 disp("Amplitude is " + max(phi_eqt) + " deg")
 
-dt = numRevs/numPts;
-time_eqt = linspace(0, numRevs, numPts);
+data_F = readmatrix(data_path_F,"NumHeaderLines",2);
+time_F = data_F(:,1);
+phi_F = data_F(:,2);
+
+data_R = readmatrix(data_path_R,"NumHeaderLines",2);
+time_R = data_R(:,1);
+phi_R = data_R(:,2);
+
+figure
+hold on
+plot(time_F, phi_F, DisplayName="SolidWorks Forward", LineWidth=2)
+plot(time_R, phi_R, DisplayName="SolidWorks Reverse", LineWidth=2)
+plot(time_eqt, phi_eqt, DisplayName="Equation", LineWidth=2)
+xlim([0 1])
+legend()
+
+dt = time_eqt(2) - time_eqt(1);
+time_eqt_trimmed = time_eqt(time_eqt <= 1);
 
 sine_data = max(phi_eqt)*sin(2*pi*time_eqt);
-sine_dot_data = gradient(sine_data, dt);
+sine_data_trimmed = sine_data(time_eqt <= 1);
+sine_dot_data = gradient(sine_data_trimmed, dt);
 
-% --------------------------------------------------------
-% Wing kinematics for forward motor rotation
-% --------------------------------------------------------
 init_theta = 0;
 theta_F = linspace(init_theta, init_theta + numRevs*2*pi, numPts);
 phi_eqt_F = atand((r*sin(theta_F)) ./ (d + r*cos(theta_F)));
-phi_eqt_F_dot = gradient(phi_eqt_F, dt);
+phi_eqt_F_trimmed = phi_eqt_F(time_eqt <= 1);
+phi_eqt_F_dot = gradient(phi_eqt_F_trimmed, dt);
 zc_idx_F = find(phi_eqt_F_dot(1:end-1) .* phi_eqt_F_dot(2:end) < 0);
 % zc_dir_F = sign(phi_eqt_F_dot(zc_idx_F+1) - phi_eqt_F_dot(zc_idx_F));
 downstroke_count_F = zc_idx_F(2) - zc_idx_F(1);
 D_U_ratio_F = downstroke_count_F / (length(phi_eqt_F_dot) - downstroke_count_F);
 disp("Downstroke-upstroke ratio moving forward is: " + D_U_ratio_F)
 
-% --------------------------------------------------------
-% Wing kinematics for backward motor rotation
-% --------------------------------------------------------
 init_theta = pi;
 theta_R = linspace(init_theta, init_theta - numRevs*2*pi, numPts);
 phi_eqt_R = atand((r*sin(theta_R)) ./ (d + r*cos(theta_R)));
-phi_eqt_R_dot = gradient(phi_eqt_R, dt);
+phi_eqt_R_trimmed = phi_eqt_R(time_eqt <= 1);
+phi_eqt_R_dot = gradient(phi_eqt_R_trimmed, dt);
 zc_idx_R = find(phi_eqt_R_dot(1:end-1) .* phi_eqt_R_dot(2:end) < 0);
 % zc_dir_R = sign(phi_eqt_R_dot(zc_idx_R+1) - phi_eqt_R_dot(zc_idx_R));
 downstroke_count_R = zc_idx_R(2) - zc_idx_R(1);
 D_U_ratio_R = downstroke_count_R / (length(phi_eqt_R_dot) - downstroke_count_R);
 disp("Downstroke-upstroke ratio moving forward is: " + D_U_ratio_R)
 
-% --------------------------------------------------------
-% Plotting angular displacement of sinusoidal motion compared with forward
-% and backward motion of mechanism based on equation
-% --------------------------------------------------------
 figure
 hold on
 plot(time_eqt, phi_eqt_F, DisplayName="Actual - Forward", LineWidth=2)
@@ -58,26 +79,21 @@ ylabel("Wing Angle (deg)")
 xlim([0 1])
 legend()
 
-% --------------------------------------------------------
-% Plotting angular velocity of sinusoidal motion compared with forward
-% and backward motion of mechanism based on equation
-% --------------------------------------------------------
 figure
 hold on
-plot(time_eqt, phi_eqt_F_dot, DisplayName="Actual - Forward", LineWidth=2)
-plot(time_eqt, phi_eqt_R_dot, DisplayName="Actual - Reverse", LineWidth=2)
-plot(time_eqt, sine_dot_data, DisplayName="Sinusoidal", LineWidth=2)
+plot(time_eqt_trimmed, phi_eqt_F_dot, DisplayName="Actual - Forward", LineWidth=2)
+plot(time_eqt_trimmed, phi_eqt_R_dot, DisplayName="Actual - Reverse", LineWidth=2)
+plot(time_eqt_trimmed, sine_dot_data, DisplayName="Sinusoidal", LineWidth=2)
 xlabel("Time (sec)")
 ylabel("Wing Angular Speed (deg/sec)")
 legend()
 
 %%
 % --------------------------------------------------------
-% Chat GPT gave me a numerical solution for finding what motor motion
-% is required to achieve sinusoidal oscillation of the wings.
+% Chat GPT gave me a numerical solution for finding what motor moti
 % --------------------------------------------------------
 
-% desired sinusoidal kinematics
+% ChatGPT solution 3
 phi_target = deg2rad(sine_data);
 
 % --- domain check ---
