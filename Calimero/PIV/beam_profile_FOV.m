@@ -26,6 +26,7 @@ wt_dim = 1200; % mm, wind tunnel is 1.2 x 1.2 m
 vert_off = (14 + 1)*10; % mm, vertical offset of lens above wind tunnel
 d = ((wt_dim - L) / 2) + vert_off; % mm, vertical distance from focal point of cylindrical
                     % lens to top of FOV
+h_off = W*0.35; % mm, horizontal offset of wind tunnel
 % z = linspace(d,d+L,200);
 hor_num = 1000;
 vert_num = 1000;
@@ -39,7 +40,7 @@ w_L = 177; % mm
 phi = 21.3; % deg
 
 p_y = d + L/2;
-p_x = W/2;
+p_x = h_off;
 % Parameters
 pivot = [p_x, p_y];            % pivot point (not on the line)
 line_p1 = [p_x + w_r, p_y];          % line endpoint 1
@@ -89,7 +90,8 @@ laser_grid = zeros(hor_num,length(z));
 for i = 1:length(z)
     cur_w = 2 * z(i) * tan(theta);
     % r = linspace(-W/2,W/2,200);
-    w_r = linspace(-wt_dim/2  + W/2, wt_dim/2 + W/2,hor_num);
+    % radial/width array for laser beam intensity calculation
+    w_r = linspace(-wt_dim/2  + h_off, wt_dim/2 + h_off,hor_num);
     % I0 = (2 * P) / (pi * (cur_w / 10)^2); % only true for cone
     A = pi * (bw / 10) * ((cur_w / 2) / 10);
     I0 = P / A;
@@ -98,18 +100,18 @@ for i = 1:length(z)
     % Store as a column
     int_grid(i,:) = I(:);
 
-    if (z(i) < bfl)
+    if (z(i) < bfl) % preserve laser as beam before lens
         [M, ind_left] = min(abs(w_r + bw/2));
         [M, ind_right] = min(abs(w_r - bw/2));
-    else
+    else % find location where beam width ends
         [M, ind_left] = min(abs(w_r + cur_w/2));
         [M, ind_right] = min(abs(w_r - cur_w/2));
     end
 
-    try
+    try % give laser some apparent thickness on the plot so it can be seen more clearly
     laser_grid(i, ind_left-t:ind_left+t) = 1;
     laser_grid(i, ind_right-t:ind_right+t) = 1;
-    catch
+    catch % when thickness hits border of plot, plot original unthickened line
     laser_grid(i, ind_left) = 1;
     laser_grid(i, ind_right) = 1;
     end
@@ -129,10 +131,11 @@ end
 end
 
 if (isscalar(bfl_vals))
+bfl = bfl_vals;
 
 % [left bottom width height]
 FOV_pos = [-W/2 d + bfl W L];
-wind_tunnel_pos = [-wt_dim/2 + W/2 bfl + vert_off wt_dim wt_dim];
+wind_tunnel_pos = [-wt_dim/2 + h_off bfl + vert_off wt_dim wt_dim];
 
 % ----------------------------------------------------------------------
 % ----------Laser Beam Border in Wind Tunnel Section Plot---------------
@@ -154,7 +157,7 @@ ylabel('Vertical Position (mm)')
 set(gca, FontSize=14)
 set(gca,'YDir','reverse')
 axis equal
-xlim([-wt_dim/2 + W/2 wt_dim/2 + W/2])
+xlim([-wt_dim/2 + h_off wt_dim/2 + h_off])
 ylim([0 wt_dim + vert_off])
 % xlim([-4 4])
 % ylim([0 8])
@@ -179,6 +182,10 @@ cb = colorbar;
 clim([0 0.5])
 datacursormode on
 
+% Plot annular region swept by wing
+fill(x_ring, y_ring, 'c', 'FaceAlpha', 0.3, 'EdgeColor', 'k');
+plot(pivot(1), pivot(2), 'ko', 'MarkerFaceColor', 'k'); % pivot
+
 % FOV rectangle
 rectangle('Position', FOV_pos, 'EdgeColor', 'k', 'LineWidth', 2)
 
@@ -191,7 +198,7 @@ ylabel('Vertical Position (mm)')
 set(gca, FontSize=14)
 set(gca,'YDir','reverse')
 axis equal
-xlim([-wt_dim/2 + W/2 wt_dim/2 + W/2])
+xlim([-wt_dim/2 + h_off wt_dim/2 + h_off])
 ylim([0 wt_dim + vert_off])
 title('Light Intensity in Wind Tunnel')
 
