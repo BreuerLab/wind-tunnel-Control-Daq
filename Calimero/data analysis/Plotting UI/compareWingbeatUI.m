@@ -99,7 +99,7 @@ methods
         obj.selection = strings(0);
         obj.sel_bird = obj.Calimero;
         obj.sel_type = nameToType(obj.sel_bird.name, obj.sel_bird.types(1));
-        obj.sel_freq = obj.sel_bird.freqs(1);
+        obj.sel_freq = obj.sel_bird.freqs(2);
         obj.sel_speed = obj.sel_bird.speeds(1);
         obj.sel_angle = 0;
 
@@ -396,7 +396,7 @@ methods
             speed_box.Items = obj.sel_bird.speeds + " m/s";
 
             obj.sel_type = nameToType(obj.sel_bird.name, obj.sel_bird.types(1));
-            obj.sel_freq = obj.sel_bird.freqs(1);
+            obj.sel_freq = obj.sel_bird.freqs(2);
             obj.sel_angle = 0;
             obj.sel_speed = obj.sel_bird.speeds(1);
 
@@ -808,13 +808,9 @@ methods(Static, Access = private)
                     if (contains(baseFileName, case_name_cur))
                         count = count + 1;
                         time_str = strtrim(extractBefore(extractAfter(baseFileName, case_name_cur), ".mat"));
-                        split_time_str = split(time_str);
-                        h_m_s = split_time_str(2);
-                        split_h_m_s = str2double(split(h_m_s, "-"));
-                        if (split_h_m_s(1) < 6)
-                            split_h_m_s(1) = split_h_m_s(1) + 12;
-                        end
-                        time_val = split_h_m_s(1)*3600 + split_h_m_s(2)*60 + split_h_m_s(3);
+                        split_time_str = split(time_str, "_");
+                        h_m_s = str2double(split_time_str(4:6));
+                        time_val = h_m_s(1)*3600 + h_m_s(2)*60 + h_m_s(3);
         
                         timestamps_str = [timestamps_str; time_str];
                         timestamps_val = [timestamps_val; time_val];
@@ -1111,6 +1107,10 @@ methods (Access = private)
             end
         end
         type_dir_names(ind_to_remove) = [];
+
+        if isempty(type_dir_names)
+            error("No type directories found...")
+        end
         
         paths = [];
         % path to folders where processed data (.mat files) are stored
@@ -1129,6 +1129,10 @@ methods (Access = private)
         for i = 1:length(paths)
             processed_data_path = paths(i);
             processed_data_files = [processed_data_files; compareWingbeatUI.getFiles(processed_data_path, '*.mat')];
+        end
+
+        if isempty(processed_data_files)
+            error("No processed data files found...")
         end
 
         colors = getColors(length(uniq_types), length(uniq_speeds), length(uniq_freqs), length(obj.selection));
@@ -1180,7 +1184,7 @@ methods (Access = private)
             wing_freq = str2double(extractBefore(cur_freq, " Hz"));
 
             flapper_name = string(extractBefore(obj.selection(i), "/"));
-            cur_bird = getBirdFromName(flapper_name, obj.Flapperoo, obj.MetaBird);
+            cur_bird = getBirdFromName(flapper_name, obj.Calimero);
             
             % Get color for this case name
             sels = [cur_type, cur_speed];
@@ -1280,7 +1284,7 @@ methods (Access = private)
             wing_freq = str2double(extractBefore(cur_freq, " Hz"));
 
             flapper_name = string(extractBefore(obj.selection(i), "/"));
-            cur_bird = getBirdFromName(flapper_name, obj.Flapperoo, obj.MetaBird);
+            cur_bird = getBirdFromName(flapper_name, obj.Calimero);
 
             % Get color for this case name
             sels = [cur_type, cur_speed];
@@ -1393,6 +1397,7 @@ methods (Access = private)
         if (obj.saveFig)
             filename = "saved_figure.fig";
             fignew = figure('Visible','off'); % Invisible figure
+            fignew.Position = [500,491,800,600];
             if (exist("l", "var"))
                 copyobj([l ax], fignew); % Copy the appropriate axes
             elseif (exist("cb", "var"))
@@ -1442,234 +1447,240 @@ methods (Access = private)
             cycle_min_forces, cycle_max_forces, cycle_rmse_forces, norm_factors] ...
         = compareWingbeatUI.load_data(data_folder, data_filename, obj.filt_num, obj.pitch_shift, center_to_LE, sel_angle, obj.norm);
 
-        amp = -1;
-
-        % Get forces from quasi-steady model
-        [time, inertial_force, added_mass_force, aero_force] = ...
-            getModel(obj.data_path, cur_bird.name, sel_freq, sel_angle, sel_speed, ...
-            lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, amp, norm_factors, obj.norm);
-
-        % just for lift case. Wanted to better understand
-        % when inertia is dominating over aerodynamics
-        phase_ratio = max(aero_force(:,2)) / max(inertial_force(:,2) + added_mass_force(:,2));
-        disp("----------------------------------------------------------------------------")
-        disp("Aerodynamics are " + phase_ratio + " times the sum of inertia and added mass")
-        disp("----------------------------------------------------------------------------")
-
-        convolution = true;
-        if (convolution)
-        % ---------------------------------------------------------
-        % ----Impulse response affected by aero force history------
-        % ---------------------------------------------------------
-        % Need to uncomment code above where impulse force is redefined as
-        % the vibration response to an impulse rather than impulse
-
-        % total_drag = aero_force(:,1) + inertial_force(:,1) + added_mass_force(:,1);
-        % total_lift = aero_force(:,2) + inertial_force(:,2) + added_mass_force(:,2);
-        % total_moment = aero_force(:,3) + inertial_force(:,3) + added_mass_force(:,3);
-        % total_force = [total_drag, total_lift, total_moment];
+        % TEMP FILL WITH ZEROS UNTIL FIXED
+        time = zeros(1);
+        inertial_force = zeros(1);
+        added_mass_force = zeros(1);
+        aero_force = zeros(1);
+        total_force = zeros(1);
+        % amp = -1;
         % 
-        % dt = time(2) - time(1);
-        % for k = 1:3
-        %     response = dt*conv(impulse_force(:,k), total_force(:,k));
-        %     response = response(1:(length(response) - 1)/2 + 1);
-        %     impulse_force(:,k) = response;
-        % end
-
-        % ---------------------------------------------------------
-        % -------History of dynamics affected by aero force--------
-        % ---------------------------------------------------------
-        % for k = 1:3
-        %     response = dt*conv(total_force(:,k), impulse_force(:,k));
-        %     response = response(1:(length(response) - 1)/2 + 1);
-        %     impulse_force(:,k) = response;
-        % end
-        % Here impulse_force is modelling the displacement response of the
-        % system (theta), so response is also going to be something in
-        % terms of theta, so wouldn't there need to be some multiplicative
-        % factor to go from theta back to a force
-
-        % ---------------------------------------------------------
-        % ---------------------------------------------------------
-        % ---------------------------------------------------------
-        % ---------------------------------------------------------
-        % --------Using expression for unit-impulse response-------
-        % ---------------------------------------------------------
-        % total_drag = aero_force(:,1) + inertial_force(:,1) + added_mass_force(:,1) + impulse_force(:,1);
-        % total_lift = aero_force(:,2) + inertial_force(:,2) + added_mass_force(:,2) + impulse_force(:,2);
-        % total_moment = aero_force(:,3) + inertial_force(:,3) + added_mass_force(:,3) + impulse_force(:,3);
-        % total_force = [total_drag, total_lift, total_moment];
-
-        total_drag = aero_force(:,1) + inertial_force(:,1) + added_mass_force(:,1);
-        total_lift = aero_force(:,2) + inertial_force(:,2) + added_mass_force(:,2);
-        total_moment = aero_force(:,3) + inertial_force(:,3) + added_mass_force(:,3);
-        total_force = [total_drag, total_lift, total_moment];
-
-        % z = 0.13803;
-        % w_n = 112.2551;
-        % w_d = 111.1004;
-        % mass = 0.010; % kg
-        % r = 0.2; % 20 cm from rotation axis, where is COM of wing?
-        % I = mass * r^2;
-        % T = total_lift * r;
+        % % Get forces from quasi-steady model
+        % % [time, inertial_force, added_mass_force, aero_force] = ...
+        % %     getModel(obj.data_path, cur_bird.name, sel_freq, sel_angle, sel_speed, ...
+        % %     lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha, AR, amp, norm_factors, obj.norm);
         % 
-        % g = -(exp(-z*w_n*time) .* cos(w_d*time)) / (I*w_d);
+        % % just for lift case. Wanted to better understand
+        % % when inertia is dominating over aerodynamics
+        % % phase_ratio = max(aero_force(:,2)) / max(inertial_force(:,2) + added_mass_force(:,2));
+        % % disp("----------------------------------------------------------------------------")
+        % % disp("Aerodynamics are " + phase_ratio + " times the sum of inertia and added mass")
+        % % disp("----------------------------------------------------------------------------")
         % 
-        % dt = time(2) - time(1);
-        % response = dt*conv(T, g);
-        % response = response(1:(length(response) - 1)/2 + 1);
-        % response = rad2deg(response);
-        % % response = response - response(end); % assuming it ends back up at zero
-        % 
-        % figure
-        % plot(time, response)
-        % xlabel("Time (s)")
-        % ylabel("Angular displacement (deg)")
-        % 
-        % wing_freq = str2double(extractBefore(sel_freq, " Hz"));
-        % 
-        % [time, ang_disp, ang_vel, ang_acc] = get_kinematics(obj.data_path, wing_freq, amp);
-        % 
-        % [center_to_LE, chord, COM_span, ...
-        %     wing_length, arm_length] = getWingMeasurements(cur_bird.name);
-        % 
-        % full_length = wing_length + arm_length;
-        % dr = 0.001;
-        % r = arm_length:dr:full_length;
-        % 
-        % theta_ddot = gradient(gradient(ang_disp + response, dt), dt);
-        % [inertial_force] = get_inertial(ang_disp + response, theta_ddot, r, COM_span, chord, sel_angle);
-
-        % ---------------------------------------------------------
-        % ---------------------------------------------------------
-        % ---------------------------------------------------------
-        % total_drag = aero_force(:,1) + inertial_force(:,1) + added_mass_force(:,1) + impulse_force(:,1);
-        % total_lift = aero_force(:,2) + inertial_force(:,2) + added_mass_force(:,2) + impulse_force(:,2);
-        % total_moment = aero_force(:,3) + inertial_force(:,3) + added_mass_force(:,3) + impulse_force(:,3);
-        % total_force = [total_drag, total_lift, total_moment];
+        % convolution = true;
+        % if (convolution)
+        % % ---------------------------------------------------------
+        % % ----Impulse response affected by aero force history------
+        % % ---------------------------------------------------------
+        % % Need to uncomment code above where impulse force is redefined as
+        % % the vibration response to an impulse rather than impulse
         % 
         % % total_drag = aero_force(:,1) + inertial_force(:,1) + added_mass_force(:,1);
         % % total_lift = aero_force(:,2) + inertial_force(:,2) + added_mass_force(:,2);
         % % total_moment = aero_force(:,3) + inertial_force(:,3) + added_mass_force(:,3);
         % % total_force = [total_drag, total_lift, total_moment];
-        % 
-        % z = 0.13803;
-        % w_n = 112.2551;
-        % w_d = 111.1004;
-        % mass = 0.010; % kg
-        % r = 0.02; % 20 cm from rotation axis, where is COM of wing?
-        % I = mass * r^2;
-        % T = total_lift * r;
-        % 
-        % g = -(exp(-z*w_n*time) .* cos(w_d*time)) / (I*w_d);
-        % 
-        % dt = time(2) - time(1);
-        % response = dt*conv(T, g);
-        % response = response(1:(length(response) - 1)/2 + 1);
-        % response = rad2deg(response);
-        % % response = response - response(end); % assuming it ends back up at zero
-        % 
-        % figure
-        % % hold on
-        % % yyaxis left
-        % plot(time, response)
-        % xlabel("Time (s)")
-        % ylabel("Angular displacement (deg)")
-        % % yyaxis right
-        % % plot(time, theta_ddot)
-        % % Do I now feed this theta response into the inertial force
-        % % calculation along with theta_body
-        % 
-        % wing_freq = str2double(extractBefore(sel_freq, " Hz"));
-        % 
-        % [time, ang_disp, ang_vel, ang_acc] = get_kinematics(obj.data_path, wing_freq, amp);
-        % 
-        % [center_to_LE, chord, COM_span, ...
-        %     wing_length, arm_length] = getWingMeasurements(cur_bird.name);
-        % 
-        % % load(path + "Vibes/theta_response.mat")
         % % 
-        % % % No this is getting the response following a 100g drop which is not
-        % % % what I want
-        % % ang_disp_vibe = interp1(t, response, time);
+        % % dt = time(2) - time(1);
+        % % for k = 1:3
+        % %     response = dt*conv(impulse_force(:,k), total_force(:,k));
+        % %     response = response(1:(length(response) - 1)/2 + 1);
+        % %     impulse_force(:,k) = response;
+        % % end
         % 
-        % full_length = wing_length + arm_length;
-        % dr = 0.001;
-        % r = arm_length:dr:full_length;
-
-        % theta_ddot = gradient(gradient(ang_disp + response, dt), dt);
-        % [inertial_force] = get_inertial(ang_disp + response, theta_ddot, r, COM_span, chord, sel_angle);
-
-
-
+        % % ---------------------------------------------------------
+        % % -------History of dynamics affected by aero force--------
+        % % ---------------------------------------------------------
+        % % for k = 1:3
+        % %     response = dt*conv(total_force(:,k), impulse_force(:,k));
+        % %     response = response(1:(length(response) - 1)/2 + 1);
+        % %     impulse_force(:,k) = response;
+        % % end
+        % % Here impulse_force is modelling the displacement response of the
+        % % system (theta), so response is also going to be something in
+        % % terms of theta, so wouldn't there need to be some multiplicative
+        % % factor to go from theta back to a force
         % 
-        % I = 0.007; % amplitude of curve
-        % phi = pi/2; % phase shift of curve
-        % z = 0.13803;
-        % w_n = 112.2551;
-        % w_d = 111.1004;
-        % % I = I * (16/9); % should this somehow be a function of freq
-        % % total_force(1,:) = -1000;
-        % % repeat time, theta_b arrays
-        % dt = (time(2) - time(1));
-        % time_long = 0:dt:3;
-        % total_force_long = [total_force(1:end-1, :); total_force(1:end-1, :); total_force(1:end-1, :);...
-        %             total_force(1:end-1, :); total_force(1:end-1, :); total_force(1:end-1, :);...
-        %             total_force(1:end-1, :); total_force(1:end-1, :); total_force(1:end, :)]';
-        % % vibe_force_long = [vibe_force(1:end-1, :); vibe_force(1:end-1, :); vibe_force(1:end-1, :);...
-        % %             vibe_force(1:end-1, :); vibe_force(1:end-1, :); vibe_force(1:end-1, :);...
-        % %             vibe_force(1:end-1, :); vibe_force(1:end-1, :); vibe_force(1:end, :)]';
-        % vibe_force_long = (exp(-z*w_n*time_long) .* sin(w_d*time_long + phi)) / (I*w_d);
+        % % ---------------------------------------------------------
+        % % ---------------------------------------------------------
+        % % ---------------------------------------------------------
+        % % ---------------------------------------------------------
+        % % --------Using expression for unit-impulse response-------
+        % % ---------------------------------------------------------
+        % % total_drag = aero_force(:,1) + inertial_force(:,1) + added_mass_force(:,1) + impulse_force(:,1);
+        % % total_lift = aero_force(:,2) + inertial_force(:,2) + added_mass_force(:,2) + impulse_force(:,2);
+        % % total_moment = aero_force(:,3) + inertial_force(:,3) + added_mass_force(:,3) + impulse_force(:,3);
+        % % total_force = [total_drag, total_lift, total_moment];
         % 
-        % % assume inertial force acts at center of wings
-        % chord = 0.1;
-        % shift_distance = -chord/2;
+        % total_drag = aero_force(:,1) + inertial_force(:,1) + added_mass_force(:,1);
+        % total_lift = aero_force(:,2) + inertial_force(:,2) + added_mass_force(:,2);
+        % total_moment = aero_force(:,3) + inertial_force(:,3) + added_mass_force(:,3);
+        % total_force = [total_drag, total_lift, total_moment];
         % 
-        % drag_force = vibe_force_long * sind(sel_angle);
-        % lift_force = vibe_force_long * cosd(sel_angle);
-        % pitch_moment = vibe_force_long * shift_distance;
+        % % z = 0.13803;
+        % % w_n = 112.2551;
+        % % w_d = 111.1004;
+        % % mass = 0.010; % kg
+        % % r = 0.2; % 20 cm from rotation axis, where is COM of wing?
+        % % I = mass * r^2;
+        % % T = total_lift * r;
+        % % 
+        % % g = -(exp(-z*w_n*time) .* cos(w_d*time)) / (I*w_d);
+        % % 
+        % % dt = time(2) - time(1);
+        % % response = dt*conv(T, g);
+        % % response = response(1:(length(response) - 1)/2 + 1);
+        % % response = rad2deg(response);
+        % % % response = response - response(end); % assuming it ends back up at zero
+        % % 
+        % % figure
+        % % plot(time, response)
+        % % xlabel("Time (s)")
+        % % ylabel("Angular displacement (deg)")
+        % % 
+        % % wing_freq = str2double(extractBefore(sel_freq, " Hz"));
+        % % 
+        % % [time, ang_disp, ang_vel, ang_acc] = get_kinematics(obj.data_path, wing_freq, amp);
+        % % 
+        % % [center_to_LE, chord, COM_span, ...
+        % %     wing_length, arm_length] = getWingMeasurements(cur_bird.name);
+        % % 
+        % % full_length = wing_length + arm_length;
+        % % dr = 0.001;
+        % % r = arm_length:dr:full_length;
+        % % 
+        % % theta_ddot = gradient(gradient(ang_disp + response, dt), dt);
+        % % [inertial_force] = get_inertial(ang_disp + response, theta_ddot, r, COM_span, chord, sel_angle);
         % 
-        % vibe_force_long = [drag_force; lift_force; pitch_moment];
+        % % ---------------------------------------------------------
+        % % ---------------------------------------------------------
+        % % ---------------------------------------------------------
+        % % total_drag = aero_force(:,1) + inertial_force(:,1) + added_mass_force(:,1) + impulse_force(:,1);
+        % % total_lift = aero_force(:,2) + inertial_force(:,2) + added_mass_force(:,2) + impulse_force(:,2);
+        % % total_moment = aero_force(:,3) + inertial_force(:,3) + added_mass_force(:,3) + impulse_force(:,3);
+        % % total_force = [total_drag, total_lift, total_moment];
+        % % 
+        % % % total_drag = aero_force(:,1) + inertial_force(:,1) + added_mass_force(:,1);
+        % % % total_lift = aero_force(:,2) + inertial_force(:,2) + added_mass_force(:,2);
+        % % % total_moment = aero_force(:,3) + inertial_force(:,3) + added_mass_force(:,3);
+        % % % total_force = [total_drag, total_lift, total_moment];
+        % % 
+        % % z = 0.13803;
+        % % w_n = 112.2551;
+        % % w_d = 111.1004;
+        % % mass = 0.010; % kg
+        % % r = 0.02; % 20 cm from rotation axis, where is COM of wing?
+        % % I = mass * r^2;
+        % % T = total_lift * r;
+        % % 
+        % % g = -(exp(-z*w_n*time) .* cos(w_d*time)) / (I*w_d);
+        % % 
+        % % dt = time(2) - time(1);
+        % % response = dt*conv(T, g);
+        % % response = response(1:(length(response) - 1)/2 + 1);
+        % % response = rad2deg(response);
+        % % % response = response - response(end); % assuming it ends back up at zero
+        % % 
+        % % figure
+        % % % hold on
+        % % % yyaxis left
+        % % plot(time, response)
+        % % xlabel("Time (s)")
+        % % ylabel("Angular displacement (deg)")
+        % % % yyaxis right
+        % % % plot(time, theta_ddot)
+        % % % Do I now feed this theta response into the inertial force
+        % % % calculation along with theta_body
+        % % 
+        % % wing_freq = str2double(extractBefore(sel_freq, " Hz"));
+        % % 
+        % % [time, ang_disp, ang_vel, ang_acc] = get_kinematics(obj.data_path, wing_freq, amp);
+        % % 
+        % % [center_to_LE, chord, COM_span, ...
+        % %     wing_length, arm_length] = getWingMeasurements(cur_bird.name);
+        % % 
+        % % % load(path + "Vibes/theta_response.mat")
+        % % % 
+        % % % % No this is getting the response following a 100g drop which is not
+        % % % % what I want
+        % % % ang_disp_vibe = interp1(t, response, time);
+        % % 
+        % % full_length = wing_length + arm_length;
+        % % dr = 0.001;
+        % % r = arm_length:dr:full_length;
         % 
-        % vibe_force_conv = zeros(size(vibe_force));
-        % % Convolutional approach
-        % for i = 1:3
-        % theta = dt*conv(total_force_long(i,:), vibe_force_long(i,:));
-        % theta = 20*theta(1:(length(theta) - 1)/2 + 1)';
+        % % theta_ddot = gradient(gradient(ang_disp + response, dt), dt);
+        % % [inertial_force] = get_inertial(ang_disp + response, theta_ddot, r, COM_span, chord, sel_angle);
         % 
-        % vibe_force_conv(:,i) = theta(end-length(total_force)+1:end);
-        % % below code has almost no effect on force
-        % % vibe_force(:,i) = vibe_force(:,i) + theta(end-length(total_force)+1:end);
+        % 
+        % 
+        % % 
+        % % I = 0.007; % amplitude of curve
+        % % phi = pi/2; % phase shift of curve
+        % % z = 0.13803;
+        % % w_n = 112.2551;
+        % % w_d = 111.1004;
+        % % % I = I * (16/9); % should this somehow be a function of freq
+        % % % total_force(1,:) = -1000;
+        % % % repeat time, theta_b arrays
+        % % dt = (time(2) - time(1));
+        % % time_long = 0:dt:3;
+        % % total_force_long = [total_force(1:end-1, :); total_force(1:end-1, :); total_force(1:end-1, :);...
+        % %             total_force(1:end-1, :); total_force(1:end-1, :); total_force(1:end-1, :);...
+        % %             total_force(1:end-1, :); total_force(1:end-1, :); total_force(1:end, :)]';
+        % % % vibe_force_long = [vibe_force(1:end-1, :); vibe_force(1:end-1, :); vibe_force(1:end-1, :);...
+        % % %             vibe_force(1:end-1, :); vibe_force(1:end-1, :); vibe_force(1:end-1, :);...
+        % % %             vibe_force(1:end-1, :); vibe_force(1:end-1, :); vibe_force(1:end, :)]';
+        % % vibe_force_long = (exp(-z*w_n*time_long) .* sin(w_d*time_long + phi)) / (I*w_d);
+        % % 
+        % % % assume inertial force acts at center of wings
+        % % chord = 0.1;
+        % % shift_distance = -chord/2;
+        % % 
+        % % drag_force = vibe_force_long * sind(sel_angle);
+        % % lift_force = vibe_force_long * cosd(sel_angle);
+        % % pitch_moment = vibe_force_long * shift_distance;
+        % % 
+        % % vibe_force_long = [drag_force; lift_force; pitch_moment];
+        % % 
+        % % vibe_force_conv = zeros(size(vibe_force));
+        % % % Convolutional approach
+        % % for i = 1:3
+        % % theta = dt*conv(total_force_long(i,:), vibe_force_long(i,:));
+        % % theta = 20*theta(1:(length(theta) - 1)/2 + 1)';
+        % % 
+        % % vibe_force_conv(:,i) = theta(end-length(total_force)+1:end);
+        % % % below code has almost no effect on force
+        % % % vibe_force(:,i) = vibe_force(:,i) + theta(end-length(total_force)+1:end);
+        % % end
+        % % 
+        % % figure
+        % % hold on
+        % % plot(time_long, total_force_long(3,:), DisplayName="Total Force")
+        % % plot(time_long, vibe_force_long(3,:), DisplayName="Vibe Force")
+        % % plot(time_long, theta, DisplayName="Convolution")
+        % % legend()
+        % % 
+        % % total_drag = total_drag + vibe_force_conv(:,1);
+        % % total_lift = total_lift + vibe_force_conv(:,2);
+        % % total_moment = total_moment + vibe_force_conv(:,3);
+        % % total_force = [total_drag, total_lift, total_moment];
         % end
         % 
-        % figure
-        % hold on
-        % plot(time_long, total_force_long(3,:), DisplayName="Total Force")
-        % plot(time_long, vibe_force_long(3,:), DisplayName="Vibe Force")
-        % plot(time_long, theta, DisplayName="Convolution")
-        % legend()
-        % 
-        % total_drag = total_drag + vibe_force_conv(:,1);
-        % total_lift = total_lift + vibe_force_conv(:,2);
-        % total_moment = total_moment + vibe_force_conv(:,3);
-        % total_force = [total_drag, total_lift, total_moment];
-        end
-
-        % vibe_force = impulse_force;
-        vibe_force = zeros(size(aero_force));
-        total_force = zeros(size(aero_force));
-        if (obj.mod_tot_inertial)
-            total_force = total_force + inertial_force;
-        end
-        if (obj.mod_tot_added_mass)
-            total_force = total_force + added_mass_force;
-        end
-        if (obj.mod_tot_aero)
-            total_force = total_force + aero_force;
-        end
-        if (obj.mod_tot_vibe)
-            total_force = total_force + vibe_force;
-        end
+        % % vibe_force = impulse_force;
+        % vibe_force = zeros(size(aero_force));
+        % total_force = zeros(size(aero_force));
+        % if (obj.mod_tot_inertial)
+        %     total_force = total_force + inertial_force;
+        % end
+        % if (obj.mod_tot_added_mass)
+        %     total_force = total_force + added_mass_force;
+        % end
+        % if (obj.mod_tot_aero)
+        %     total_force = total_force + aero_force;
+        % end
+        % if (obj.mod_tot_vibe)
+        %     total_force = total_force + vibe_force;
+        % end
 
         if (obj.sub)
         % Find exact filename matching this case

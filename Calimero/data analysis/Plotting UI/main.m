@@ -6,16 +6,15 @@ restoredefaultpath
 % overloaded function).
 % addpath(genpath('../data processing'))
 
-addpath(genpath('../../Wind Tunnel Test'))
-addpath(genpath('.'))
-addpath(genpath('../'))
+addpath(genpath('../../'))
 
 clear
 close all force
 
 % Sets up UI for comparing data over angles of attack
 monitor_num = 1;
-data_path = "F:\Calimero Data\Calimero 09_23_2025\";
+% data_path = "F:\Calimero Data\Calimero 09_23_2025\"; % for comparing plot data across ladder, ascending, descending
+data_path = "F:\Calimero Data\Calimero 09_23_2025_ascending\";
 % a = compareAoAUI(monitor_num, data_path);
 % a.dynamic_plotting();
 

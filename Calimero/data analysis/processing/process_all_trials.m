@@ -10,7 +10,7 @@ addpath(genpath('../'))
 
 wind_speeds = [4];
 types = ["flexible"]; % needs to match folder name only
-data_path = "F:\Calimero Data\Calimero 09_23_2025_ascending\";
+data_path = "F:\Calimero Data\Calimero 09_23_2025_ascending\Calimero\";
 slack_bool = false;
 % ADD PATH WHERE DATA SHOULD GET DUMPED
 

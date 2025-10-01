@@ -28,8 +28,8 @@ methods
             obj.speeds = [0, 3, 4, 5, 6];
             obj.AR = 2.5;
         elseif (name == "Calimero")
-            % obj.types = ["flexible"];
-            obj.types = ["ladder", "ascending", "descending"];
+            obj.types = ["flexible"];
+            % obj.types = ["ladder", "ascending", "descending"];
             obj.freqs = ["0 Hz", "2 Hz", "4 Hz", "6 Hz", "8 Hz", "10 Hz"];
             obj.angles = [-16:2:16];
             obj.speeds = [4];
