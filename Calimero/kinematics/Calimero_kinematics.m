@@ -2,7 +2,10 @@ clear
 close all
 
 d = 20; % mm
-r = 7.27; % mm
+% r = 7.27; % mm
+% r = 3.47; % 10 deg
+r = 6.84; % 20 deg
+% r = 10; % 30 deg
 numRevs = 5;
 numPts = 1000;
 
@@ -42,7 +45,7 @@ zc_idx_R = find(phi_eqt_R_dot(1:end-1) .* phi_eqt_R_dot(2:end) < 0);
 % zc_dir_R = sign(phi_eqt_R_dot(zc_idx_R+1) - phi_eqt_R_dot(zc_idx_R));
 downstroke_count_R = zc_idx_R(2) - zc_idx_R(1);
 D_U_ratio_R = downstroke_count_R / (length(phi_eqt_R_dot) - downstroke_count_R);
-disp("Downstroke-upstroke ratio moving forward is: " + D_U_ratio_R)
+disp("Downstroke-upstroke ratio moving backward is: " + D_U_ratio_R)
 
 % --------------------------------------------------------
 % Plotting angular displacement of sinusoidal motion compared with forward

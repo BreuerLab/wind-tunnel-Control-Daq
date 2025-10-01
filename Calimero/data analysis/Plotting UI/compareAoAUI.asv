@@ -771,10 +771,6 @@ methods (Access = private)
                         cur_struct_match = struct_matches(j);
                         break;
                     end
-                    % Found no matches, report error
-                    if j == length(struct_matches)
-                        error("Oops, didn't finding a matching structure selector")
-                    end
                 end
 
                 flapper_name = string(extractBefore(obj.selection(i), "/"));
@@ -907,10 +903,7 @@ methods (Access = private)
                         cur_struct_match = struct_matches(j);
                         break;
                     end
-                    % Found no matches, report error
-                    if j == length(struct_matches)
-                        error("Oops, didn't finding a matching structure selector")
-                    end
+                    error("Oops, didn't finding a matching structure selector")
                 end
 
                 flapper_name = string(extractBefore(obj.selection(i), "/"));
@@ -1045,9 +1038,7 @@ methods (Access = private)
         if (obj.saveFig)
             filename = "saved_figure.fig";
             fignew = figure('Visible','off'); % Invisible figure
-            fignew.Position = [500,491,800,600];
             if (exist("l", "var"))
-                % l.Location="bestoutside";
                 copyobj([l ax], fignew); % Copy the appropriate axes
             elseif (exist("cb", "var"))
                 copyobj([ax cb], fignew); % Copy the appropriate axes

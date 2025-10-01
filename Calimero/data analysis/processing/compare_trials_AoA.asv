@@ -23,7 +23,7 @@ type_list = [type_sel sub_strings];
 type_list = strrep(type_list, ' ', '_');
 
 % set up Slack messenger
-data_path = "F:\Calimero Data\Calimero 09_23_2025_ascending\";
+data_path = "F:\Calimero Data\Calimero 09_23_2025_scending\";
 
 dirPath = data_path + "plot data\Calimero\";
 if ~exist(dirPath, 'dir')

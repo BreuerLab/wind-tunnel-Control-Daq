@@ -10,7 +10,7 @@ addpath(genpath('../'))
 
 wind_speeds = [4];
 types = ["flexible"]; % needs to match folder name only
-data_path = "F:\Calimero Data\Calimero 09_23_2025_ascending\";
+data_path = "F:\Calimero Data\Calimero 09_23_2025_ladder\";
 slack_bool = false;
 % ADD PATH WHERE DATA SHOULD GET DUMPED
 
@@ -30,6 +30,12 @@ speed_path = data_path + wind_speed_sel + " m.s/";
 filePattern = fullfile(speed_path); % Change to whatever pattern you need.
 dir_names = dir(filePattern);
 
+dirPath = filepath + "processed data";
+if ~exist(dirPath, 'dir')
+    mkdir(dirPath);
+    fprintf('Directory "%s" created.\n', dirPath);
+end
+
 % path to folders where raw data (.csv files) are stored
 raw_data_path = [];
 offsets_path = [];
@@ -44,17 +50,7 @@ for i = 3:length(dir_names)
         offsets_path = [offsets_path filepath + "/raw data/offsets data/"];
         processed_data_path = [processed_data_path filepath + "/processed data/"];
         wind_tunnel_path = [wind_tunnel_path filepath + "/raw data/wind tunnel data/"];
-
-        dirPath = filepath + "/processed data";
-        if ~exist(dirPath, 'dir')
-            mkdir(dirPath);
-            fprintf('Directory "%s" created.\n', dirPath);
-        end
     end
-end
-
-if isempty(raw_data_path)
-    error("Oops, no data paths made")
 end
 
 % Get a list of all files in the folder with the desired file name pattern.

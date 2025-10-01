@@ -15,6 +15,9 @@ close all force
 
 % Sets up UI for comparing data over angles of attack
 monitor_num = 1;
-data_path = "F:\Calimero Data\Calimero 09_19_2025";
-a = compareAoAUI(monitor_num, data_path);
-a.dynamic_plotting();
+data_path = "F:\Calimero Data\Calimero 09_23_2025\";
+% a = compareAoAUI(monitor_num, data_path);
+% a.dynamic_plotting();
+
+b = compareWingbeatUI(monitor_num, data_path);
+b.dynamic_plotting();

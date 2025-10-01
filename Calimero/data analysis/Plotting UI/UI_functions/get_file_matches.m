@@ -73,9 +73,13 @@ function struct_matches = get_file_matches(selection_list, norm_bool, shift_bool
             end
         end
 
-        % check for repeat files to load
+        % Add structure match to list if list is empty or if it doesn't
+        % match the selector of any others in the list so far
         try
-            if (length(struct_matches) == 0 || sum(contains([struct_matches.dir_name], struct_match.dir_name)) == 0)
+            % Replaced following line on 09/29/2025 to get different Hz
+            % cases to save as unique struct_matches
+            % if (length(struct_matches) == 0 || sum(contains([struct_matches.dir_name], struct_match.dir_name)) == 0)
+            if (length(struct_matches) == 0 || sum(contains([struct_matches.selector], struct_match.selector)) == 0)
                 struct_matches = [struct_matches struct_match];
             end
         catch ME
