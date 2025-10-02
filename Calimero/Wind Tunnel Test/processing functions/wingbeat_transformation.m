@@ -35,6 +35,7 @@ numAxes = 8;
 
 frames_per_beat = round(length(forces) / num_wingbeats);
 
+% get rising pulse associated with each new wingbeat
 long_rises_orig_idx = get_idx_wingbeats(enc_pulse, rate);
 % only 180 since no long pulse included at end
 
@@ -46,6 +47,7 @@ cur_idx = 1;
 for j = 1:num_wingbeats
     if (j == num_wingbeats)
         cur_wingbeat = forces(:, cur_idx:end);
+        % resample wingbeat so that all wingbeats have the same length
         cur_wingbeat_resampled = resample(cur_wingbeat.', frames_per_beat, length(cur_wingbeat)).';
         wingbeat_forces(:,j,:) = cur_wingbeat_resampled;
     else

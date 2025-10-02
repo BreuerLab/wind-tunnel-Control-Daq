@@ -51,7 +51,13 @@ mod_results = [results_lab; voltAdj'; curAdj'];
 [norm_data, norm_factors, St, Re] = non_dimensionalize_data(wind_tunnel_path, results_lab, file);
 
 % Smooth the data with a butterworth filter
-fc = 100; % cutoff frequency
+% fc = 100; % cutoff frequency
+if (wing_freq > 1)
+    % fc = 10*wing_freq; % cutoff frequency
+    fc = 10*wing_freq; % cutoff frequency
+else
+    fc = 10;
+end
 filtered_data = filter_data(mod_results, frame_rate, fc);
 % filtered_norm_data = filter_data(norm_data, frame_rate, fc);
 

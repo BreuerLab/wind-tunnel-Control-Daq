@@ -1033,8 +1033,7 @@ methods(Static, Access = private)
             y_label_M = "Power/Frequency (dB/Hz)";
         end
 
-        y_labels = [y_label_F, y_label_F, y_label_F, y_label_M,...
-            y_label_M, y_label_M, "Voltage (V)", "Current (mA)"];
+        y_labels = [y_label_F, y_label_F, y_label_F, y_label_M, y_label_M, y_label_M];
     end
     
     function [abbr_sel] = get_abbr_names(sel)
@@ -1087,7 +1086,7 @@ methods (Access = private)
         delete(plot_panel.Children)
 
         [x_label, y_labels] = compareWingbeatUI.get_labels(obj.norm_period, obj.norm, obj.spectrum, obj.freq_scale);
-        titles = obj.axes_labels(2:end);
+        titles = obj.axes_labels(2:7);
 
         if (~isempty(obj.selection))
         % Parse selected cases
