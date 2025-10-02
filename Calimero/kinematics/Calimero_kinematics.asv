@@ -165,7 +165,7 @@ clear
 
 d_vals = linspace(16,24,3);
 % d = 20; % mm
-r_vals = linspace(0.1,12,100); % mm
+r_vals = linspace(0.1,11,100); % mm
 % r = 7.27; % mm
 numPts = 10000;
 
@@ -204,8 +204,8 @@ ylabel("Amplitude (deg)")
 yyaxis right
 plot(r_vals, D_U_ratio_vals(j,:), LineWidth=2, DisplayName="d = " + d_vals(j) + " mm");
 end
-xline(3, "k-", LineWidth=2, DisplayName="Lower Limit")
-xline(10.5, "k-", LineWidth=2, DisplayName="Upper Limit")
+xline(3.5, "k-", LineWsiDisplayName="Lower Limit")
+xline(10, "k-", DisplayName="Upper Limit")
 
 ylabel("Downstroke-Upstroke Ratio")
 xlabel("Radial position of crank (mm)")
