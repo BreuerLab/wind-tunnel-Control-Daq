@@ -21,8 +21,10 @@ function raw_plot(time, force, voltAdj, curAdj, enc_pulse, case_name, drift, rat
     % Same plot, but trimmed to only show a few wingbeat cycles between the
     % 2 and 4 second mark
     rate = round(rate);
-    trimmed_force = force(:,12*rate:14*rate);
-    trimmed_time = time(12*rate:14*rate);
+    tS = 10; % trim start, 10 seconds into trial
+    tE = 12; % trim end, 12 seconds into trial
+    trimmed_force = force(:,tS*rate:tE*rate);
+    trimmed_time = time(tS*rate:tE*rate);
 
     raw_force_plot(f2, tiles_2, trimmed_time, trimmed_force, case_name, drift, rate, fc, titles, true);
 
@@ -36,7 +38,7 @@ function raw_plot(time, force, voltAdj, curAdj, enc_pulse, case_name, drift, rat
 
     % Same plot, but trimmed to only show a few wingbeat cycles between the
     % 2 and 4 second mark
-    trimmed_extra_data = extra_data(:,12*rate:14*rate);
+    trimmed_extra_data = extra_data(:,tS*rate:tE*rate);
 
     raw_extra_plot(f4, tiles_4, trimmed_time, trimmed_extra_data, case_name, rate, fc, titles);
 end

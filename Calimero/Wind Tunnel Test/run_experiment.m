@@ -60,6 +60,9 @@ end
 
 dmc = fileread(dmc_hold_filename);
 dmc = string(dmc);
+% Replace the place holders in the .dmc file with the values specified
+% here. Other parameters can be changed directly in .dmc file.
+dmc = strrep(dmc, "dir_TEMP", "2");
 
 % Load the program described by the .dmc file to the Galil device.
 galil.programDownload(dmc);
@@ -106,7 +109,7 @@ case_name = wing_type + "_" + speed + "m.s_" + AoA_vals(j) + "deg_" + freq_vals(
     galil, dmc_motion_filename,...
     f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4);
 
-process_and_plot(force, i, AoA_vals(j), tiles, freq_vals);
+process_and_plot(force, i, AoA_vals, j, tiles, freq_vals);
 
 % -------------------------------------------------
 % -------- Move to next wingbeat frequency --------

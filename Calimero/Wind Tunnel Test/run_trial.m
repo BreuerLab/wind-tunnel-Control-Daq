@@ -17,6 +17,7 @@ function [force] = run_trial(flapper_obj, cal_matrix, case_name, offset_duration
 
         % Replace the place holders in the .dmc file with the values specified
         % here. Other parameters can be changed directly in .dmc file.
+        dmc = strrep(dmc, "dir_TEMP", "2");
         dmc = strrep(dmc, "ticks_TEMP", num2str(ticksPerRev));
         dmc = strrep(dmc, "revs_TEMP", num2str(num_revs));
         dmc = strrep(dmc, "speed_TEMP", num2str(freq));

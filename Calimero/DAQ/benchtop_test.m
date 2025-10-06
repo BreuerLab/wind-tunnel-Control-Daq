@@ -19,9 +19,9 @@ galil_plots = true;
 galil_IP_address = "192.168.1.3";
 dmc_benchtop_filename = "benchtop_test.dmc";
 ticksPerRev = 18432;
-freq = 3; % Hz
+freq = 8; % Hz
 acc = 3; % Hz
-measure_revs = 60;
+measure_revs = 50;
 padding_revs = 4;
 hold_time = 15; % sec
 wait_time = 1000; % ms
@@ -61,11 +61,31 @@ catch
     cleanup = onCleanup(@()myCleanupFunB(galil));
 end
 
+% ---------------------------
+% % Select what to record: e.g. position (_TPA) and torque (_TTA)
+% % galil.command('DR0,0');
+% galil.command('DRF=_TPA,_TTA,TIME');  % Must include TIME explicitly!
+% 
+%  % Create a buffer to hold incoming records
+% % Use a property or appdata to keep it accessible in callback
+% ref = RefHolder();
+% ref.Data = [];
+% 
+% % Define callback for onRecord event
+% % Use a cell callback that passes the COM object as an input
+% % galil.onRecord = {@recCallback, galil, data};
+% listener = addlistener(galil, 'onRecord', @(src, event) recCallback(src, event, ref));
+% 
+% % Start recording at 5 ms interval
+% galil.recordsStart(10);
+% % ---------------------------
+
 dmc = fileread(dmc_benchtop_filename);
 dmc = string(dmc);
 
 % Replace the place holders in the .dmc file with the values specified
 % here. Other parameters can be changed directly in .dmc file.
+dmc = strrep(dmc, "dir_TEMP", "2");
 dmc = strrep(dmc, "ticks_TEMP", num2str(ticksPerRev));
 dmc = strrep(dmc, "revs_TEMP", num2str(num_revs));
 dmc = strrep(dmc, "speed_TEMP", num2str(freq));
@@ -109,6 +129,43 @@ checkLimits(results);
 [time, force, voltAdj, curAdj, enc_pulse] = process_data(results, offsets_before, cal_matrix);
 
 pause(1);
+
+% -----------------
+% Stop recording
+% galil.recordsStart(0);
+
+
+
+
+
+% data = galil.record;   % Equivalent to galiltools 'record' function call
+% pos   = galil.sourceValue(data, '_TPA');   % access each field by its DRF name
+% torque= galil.sourceValue(data, '_TTA');
+% srcs = galil.sources;
+
+% for j = 1:length(srcs)
+%     cur_src = srcs{j};
+%     pos = -1*ones(1, length(ref.Data));
+% for i = 1:length(ref.Data)
+%     temp = ref.Data(:,i)';
+%     pos(i) = galil.sourceValue(temp, cur_src);   % access each field by its DRF name
+% end
+%     if (mean(pos) ~= 0)
+%         disp(j)
+%     end
+%     disp(cur_src)
+%     disp(mean(pos))
+% end
+
+
+
+
+% pos = -1*ones(1, length(ref.Data));
+% for i = 1:length(ref.Data)
+%     temp = ref.Data(:,i)';
+%     pos(i) = galil.sourceValue(temp, 'TIME');   % access each field by its DRF name
+% end
+% ------------------
 
 disp("Collecting final offset")
 % Get offset data after flapping at this angle and windspeed

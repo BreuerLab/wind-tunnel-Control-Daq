@@ -20,7 +20,7 @@ addpath(genpath("../."))
 % -----------------------------------------------------------------------
 AoA = [-16:2:16]; % angle of attack, set by MPS system
 % AoA = flip(AoA);
-AoA = ladder_sort(AoA); % rearrange in nonascending ladder order
+% AoA = ladder_sort(AoA); % rearrange in nonascending ladder order
 % AoA = 0;
 % [-16:1.5:-12 -12:1:-8 -8:0.5:8 8:1:12 12:1.5:16]
 % freq = [0, 2, 4, 6, 8, 10]; % wingbeat frequency, set by motor RPM

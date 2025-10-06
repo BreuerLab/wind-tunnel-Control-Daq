@@ -8,7 +8,7 @@
     AUA=0.5                 ; 'Chopper Mode
 		SH A                    ; 'Servo here (turn on motor)
 		DPA=0                   ; 'Define zero position
-		CEA=0                   ; 'Configure encoder
+		CEA=dir_TEMP                   ; 'Configure encoder
 		TM 1000                 ;
 
 		PRA=ticks_TEMP*revs_TEMP            ;
@@ -19,6 +19,8 @@
     KPA=2                 ; 'Proportional gain
     KIA=0.05              ; 'Integral gain
     KDA=8                 ; 'Derivative gain
+    FVA=0                 ;
+    FAA=0                 ;
     ILA=-2;
 
     WT waittime_TEMP;

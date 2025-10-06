@@ -15,8 +15,8 @@ close all force
 monitor_num = 1;
 % data_path = "F:\Calimero Data\Calimero 09_23_2025\"; % for comparing plot data across ladder, ascending, descending
 data_path = "F:\Calimero Data\Calimero 09_23_2025_ascending\";
-% a = compareAoAUI(monitor_num, data_path);
-% a.dynamic_plotting();
+a = compareAoAUI(monitor_num, data_path);
+a.dynamic_plotting();
 
-b = compareWingbeatUI(monitor_num, data_path);
-b.dynamic_plotting();
+% b = compareWingbeatUI(monitor_num, data_path);
+% b.dynamic_plotting();
