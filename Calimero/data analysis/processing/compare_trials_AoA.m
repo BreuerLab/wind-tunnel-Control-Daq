@@ -22,8 +22,14 @@ slack_bool = false;
 type_list = [type_sel sub_strings];
 type_list = strrep(type_list, ' ', '_');
 
-% set up Slack messenger
-data_path = "F:\Calimero Data\Calimero 09_23_2025_ascending\";
+% data_path = "F:\Calimero Data\Calimero 09_23_2025_ascending\";
+% Open a file selection dialog and get the file path
+data_path = uigetdir("F:\Calimero Data", 'Select a folder') + "\";
+if isequal(data_path, 0)
+    disp('User canceled folder selection.');
+else
+    disp(['Selected folder: ', data_path]);
+end
 
 dirPath = data_path + "plot data\Calimero\";
 if ~exist(dirPath, 'dir')
@@ -39,7 +45,7 @@ end
 
 % assuming that all experiment folders are in the same speed
 % folder
-speed_path = data_path + wind_speed_sel + " m.s/";
+speed_path = data_path + "Calimero/" + wind_speed_sel + " m.s/";
 filePattern = fullfile(speed_path);
 dir_names = dir(filePattern);
 
@@ -67,6 +73,10 @@ filePattern = fullfile(processed_data_path, '*.mat'); % Change to whatever patte
 processed_files = [];
 for i = 1:length(filePattern)
     processed_files = [processed_files; dir(filePattern(i))];
+end
+
+if isempty(processed_files)
+    error("Oops, no processed files found")
 end
 
 % Get a list of all files in the folder with the desired file name pattern.

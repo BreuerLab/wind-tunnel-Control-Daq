@@ -11,10 +11,18 @@ addpath(genpath('../../'))
 clear
 close all force
 
+% data_path = "F:\Calimero Data\Calimero 09_23_2025\"; % for comparing plot data across ladder, ascending, descending
+% data_path = "F:\Calimero Data\Calimero 09_23_2025_ascending\";
+data_path = uigetdir("F:\Calimero Data", 'Select a folder') + "\";
+if isequal(data_path, 0)
+    disp('User canceled folder selection.');
+else
+    disp(['Selected folder: ', data_path]);
+end
+
 % Sets up UI for comparing data over angles of attack
 monitor_num = 1;
-% data_path = "F:\Calimero Data\Calimero 09_23_2025\"; % for comparing plot data across ladder, ascending, descending
-data_path = "F:\Calimero Data\Calimero 09_23_2025_ascending\";
+
 a = compareAoAUI(monitor_num, data_path);
 a.dynamic_plotting();
 

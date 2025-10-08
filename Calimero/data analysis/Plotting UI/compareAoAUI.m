@@ -45,11 +45,6 @@ methods
         obj.stroke_labels = ["Full", "Upstroke", "Downstroke"];
         obj.range = [-16 16];
         obj.Calimero = flapper("Calimero");
-        
-        obj.sel_bird = obj.Calimero;
-        obj.sel_type = nameToType(obj.sel_bird.name, obj.sel_bird.types(1));
-        obj.sel_freq = obj.sel_bird.freqs(1);
-        obj.sel_speed = obj.sel_bird.speeds(1);
 
         obj.sub = false;
         obj.norm = false;
@@ -63,6 +58,28 @@ methods
         path = obj.data_path  + "/plot data/" + "Calimero/";
         cur_bird = obj.Calimero;
         attachFileListsToBird(path, cur_bird)
+
+        % Get types and speeds from filenames in 'plot data' folder
+        types = [];
+        speeds = [];
+        for i = 1:length(cur_bird.uniq_list)
+            name_parts = split(cur_bird.uniq_list(i).dir_name, "_");
+            type = name_parts(1);
+            speed = str2num(extractBefore(name_parts(2),"m.s"));
+            if (isempty(types) || sum(types == type) == 0)
+                types = [types type];
+            end
+            if (isempty(speeds) || sum(speeds == speed) == 0)
+                speeds = [speeds speed];
+            end
+        end
+        cur_bird.types = types;
+        cur_bird.speeds = speeds;
+
+        obj.sel_bird = obj.Calimero;
+        obj.sel_type = nameToType(obj.sel_bird.name, obj.sel_bird.types(1));
+        obj.sel_freq = obj.sel_bird.freqs(1);
+        obj.sel_speed = obj.sel_bird.speeds(1);
     end
 
     function dynamic_plotting(obj)
@@ -93,7 +110,7 @@ methods
         drop_y3 = drop_y2 - (unit_height + unit_spacing);
         d3 = uidropdown(option_panel);
         d3.Position = [10 drop_y3 180 unit_height];
-        d3.Items = obj.sel_bird.freqs;
+        d3.Items = ["All" obj.sel_bird.freqs];
         d3.ValueChangedFcn = @(src, event) freq_change(src, event);
 
         % Dropdown box for wind speed selection
@@ -172,10 +189,16 @@ methods
 
         button6_y = button5_y - (unit_height + unit_spacing);
         b7 = uibutton(option_panel,"state");
-        b7.Text = "Drift Correction";
-        b7.Position = [20 button6_y 160 unit_height];
+        b7.Text = "Drift Adj.";
+        b7.Position = [20 button6_y 80 unit_height];
         b7.BackgroundColor = [1 1 1];
         b7.ValueChangedFcn = @(src, event) drift_change(src, event, plot_panel);
+
+        b7_5 = uibutton(option_panel,"state");
+        b7_5.Text = "Drift Data";
+        b7_5.Position = [100 button6_y 80 unit_height];
+        b7_5.BackgroundColor = [1 1 1];
+        b7_5.ValueChangedFcn = @(src, event) drift_change(src, event, plot_panel);
 
         button7_y = button6_y - (unit_height + unit_spacing);
         b8 = uibutton(option_panel,"state");

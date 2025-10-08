@@ -10,9 +10,17 @@ addpath(genpath('../'))
 
 wind_speeds = [4];
 types = ["flexible"]; % needs to match folder name only
-data_path = "F:\Calimero Data\Calimero 09_23_2025_ascending\Calimero\";
 slack_bool = false;
 % ADD PATH WHERE DATA SHOULD GET DUMPED
+
+% data_path = "F:\Calimero Data\Calimero 09_23_2025_ascending\Calimero\";
+% Open a file selection dialog and get the file path
+data_path = uigetdir("F:\Calimero Data", 'Select a folder') + "\";
+if isequal(data_path, 0)
+    disp('User canceled folder selection.');
+else
+    disp(['Selected folder: ', data_path]);
+end
 
 for n = 1:length(wind_speeds)
     for m = 1:length(types)
