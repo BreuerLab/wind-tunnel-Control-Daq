@@ -1,6 +1,6 @@
 function [avg_forces, avg_up_forces, avg_down_forces, err_forces, err_up_forces,...
           err_down_forces, names, sub_title, norm_factors_arr] = ...
-    get_data_AoA(selected_vars, processed_files, offsets_files, nondimensional, sub_strings, shift_bool, sub_drift)
+    get_data_AoA(selected_vars, processed_files, offsets_files, nondimensional, sub_strings, shift_bool, sub_drift, config_idx, num_config)
 
 numAxes = 8;
 
@@ -34,6 +34,7 @@ err_down_forces = zeros(numAxes, length(AoA_sel), length(wing_freq_sel), length(
 cases_final = strings(length(AoA_sel), length(wing_freq_sel), length(wind_speed_sel), length(type_sel));
 names = strings(length(wing_freq_sel), length(wind_speed_sel), length(type_sel));
 norm_factors_arr = zeros(2, length(AoA_sel), length(wing_freq_sel), length(wind_speed_sel));
+drift = zeros(numAxes, length(AoA_sel), length(wing_freq_sel) + 1, length(wind_speed_sel), length(type_sel));
 % really only the windspeed matters here but let's include all
 % the variables include the normalization routine changes in the
 % future
@@ -189,7 +190,7 @@ for i = 1 : length(processed_files)
 
     end
     percent_done = round((i / length(processed_files))*100, 2);
-    disp(percent_done + "% Done")
+    disp(percent_done + "% Done (" + config_idx + " / " + num_config + ")")
 end   
 
 end

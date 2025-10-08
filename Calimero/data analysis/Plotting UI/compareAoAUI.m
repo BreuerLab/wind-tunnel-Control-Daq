@@ -25,7 +25,8 @@ properties
     sub;
     norm;
     shift;
-    drift;
+    driftCorr;
+    driftData;
     regress;
     aero_model;
     thinAirfoil;
@@ -50,7 +51,8 @@ methods
         obj.norm = false;
         obj.regress = false;
         obj.shift = false;
-        obj.drift = false;
+        obj.driftCorr = false;
+        obj.driftData = false;
         obj.aero_model = false;
         obj.thinAirfoil = false;
         obj.saveFig = false;
@@ -192,13 +194,13 @@ methods
         b7.Text = "Drift Adj.";
         b7.Position = [20 button6_y 80 unit_height];
         b7.BackgroundColor = [1 1 1];
-        b7.ValueChangedFcn = @(src, event) drift_change(src, event, plot_panel);
+        b7.ValueChangedFcn = @(src, event) driftCorr_change(src, event, plot_panel);
 
         b7_5 = uibutton(option_panel,"state");
         b7_5.Text = "Drift Data";
         b7_5.Position = [100 button6_y 80 unit_height];
         b7_5.BackgroundColor = [1 1 1];
-        b7_5.ValueChangedFcn = @(src, event) drift_change(src, event, plot_panel);
+        b7_5.ValueChangedFcn = @(src, event) driftData_change(src, event, plot_panel);
 
         button7_y = button6_y - (unit_height + unit_spacing);
         b8 = uibutton(option_panel,"state");
@@ -462,12 +464,24 @@ methods
             obj.update_plot(plot_panel);
         end
 
-        function drift_change(src, ~, plot_panel)
+        function driftCorr_change(src, ~, plot_panel)
             if (src.Value)
-                obj.drift = true;
+                obj.driftCorr = true;
                 src.BackgroundColor = [0.3010 0.7450 0.9330];
             else
-                obj.drift = false;
+                obj.driftCorr = false;
+                src.BackgroundColor = [1 1 1];
+            end
+
+            obj.update_plot(plot_panel);
+        end
+
+        function driftData_change(src, ~, plot_panel)
+            if (src.Value)
+                obj.driftData = true;
+                src.BackgroundColor = [0.3010 0.7450 0.9330];
+            else
+                obj.driftData = false;
                 src.BackgroundColor = [1 1 1];
             end
 
@@ -688,7 +702,7 @@ methods (Access = private)
     function update_plot(obj, plot_panel)
         delete(plot_panel.Children)
         
-        struct_matches = get_file_matches(obj.selection, obj.norm, obj.shift, obj.drift, obj.sub, obj.Calimero);
+        struct_matches = get_file_matches(obj.selection, obj.norm, obj.shift, obj.driftCorr, obj.sub, obj.Calimero);
         
         disp("Found following matches:")
         disp(struct_matches)

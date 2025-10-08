@@ -25,8 +25,8 @@ type_list = strrep(type_list, ' ', '_');
 % data_path = "F:\Calimero Data\Calimero 09_23_2025_ascending\";
 % Open a file selection dialog and get the file path
 data_path = uigetdir("F:\Calimero Data", 'Select a folder') + "\";
-if isequal(data_path, 0)
-    disp('User canceled folder selection.');
+if isequal(data_path, "0\")
+    error('User canceled folder selection.');
 else
     disp(['Selected folder: ', data_path]);
 end
@@ -108,15 +108,18 @@ s.send("Started making plots at: " + string(time_now))
 [channelID, messageTs] = bot.makeBar();
 end
 
+num_config = 2*2;
 for i = 1:2
     % for j = 1:2
         for k = 1:2
+            config_idx = (k + 2*(i-1));
+
             [avg_forces, avg_up_forces, avg_down_forces, err_forces, ...
              err_up_forces, err_down_forces, names, sub_title, norm_factors] = ...
-    get_data_AoA(selected_vars, processed_files, offsets_files, norm_bool, sub_strings, shift_bool, sub_drift_bool);
+    get_data_AoA(selected_vars, processed_files, offsets_files, norm_bool, sub_strings, shift_bool, sub_drift_bool, config_idx, num_config);
             
             if slack_bool
-            bot.updateProgress(channelID, messageTs, (k + 2*(i-1))*(100/8));
+            bot.updateProgress(channelID, messageTs, config_idx*(100/8));
             end
             % (k + 2*(j-1) + 4*(i-1))*(100/8))
 
