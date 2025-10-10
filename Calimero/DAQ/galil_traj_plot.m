@@ -105,8 +105,8 @@ ylabel("Current (mA)")
 yyaxis right
 plot(TimeArr, ActVel, DisplayName="TV")
 ylabel("Revolutions per second")
-xline(timeTrimmed(1))
-xline(timeTrimmed(end))
+xline(timeTrimmed(1), DisplayName="At Speed Start")
+xline(timeTrimmed(end), DisplayName="At Speed End")
 
 xlabel("Time (s)")
 legend(Location="best")
@@ -126,4 +126,6 @@ disp("Velocity is " + mean(trimmedVel) + " +/- " + std(trimmedVel) + " (1 SD)")
 
 figure
 plot(trimmedTime, trimmedVel)
+xlabel("Time (s)")
+ylabel("Wingbeat Frequency (Hz)")
 end

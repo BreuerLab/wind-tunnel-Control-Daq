@@ -11,10 +11,9 @@ clc
 
 addpath(genpath("../"))
 
-[f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4] = makeForceFigures();
-
 % case_name = wing_type + "_" + speed + "m.s_" + AoA_vals(j) + "deg_" + freq_vals(i) + "Hz";
 
+% Galil Setup
 galil_plots = true;
 galil_IP_address = "192.168.1.3";
 dmc_benchtop_filename = "benchtop_test.dmc";
@@ -25,11 +24,18 @@ measure_revs = 50;
 padding_revs = 4;
 hold_time = 15; % sec
 wait_time = 1000; % ms
+% REMEMBER MOTOR WIRES NEED TO BE FLIPPED TOO WHEN CHANGING DIRECTION
+galil_direction = 0; % 0 - forward, 1 - reverse
 
 case_name = "benchtop_" + 0 + "m.s_" + 0 + "deg_" + freq + "Hz_";
 time_now = datetime;
 time_now.Format = 'yyyy-MM-dd HH-mm-ss';
 case_name = case_name + string(time_now);
+
+daq_bool = false;
+% DAQ Setup
+if daq_bool
+[f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4] = makeForceFigures();
 
 % DAQ Parameters
 rate = 12000; % measurement rate of NI DAQ, in Hz
@@ -42,6 +48,7 @@ flapper_obj = Calimero(rate, voltage);
 
 % Get calibration matrix from calibration file
 cal_matrix = obtain_cal(calibration_filepath);
+end
 
 % estimate recording length based on parameters
 [num_revs, session_duration] = estimate_duration(freq, acc, measure_revs, padding_revs, hold_time, true);
@@ -85,7 +92,11 @@ dmc = string(dmc);
 
 % Replace the place holders in the .dmc file with the values specified
 % here. Other parameters can be changed directly in .dmc file.
-dmc = strrep(dmc, "dir_TEMP", "2");
+if galil_direction == 1
+    dmc = strrep(dmc, "dir_TEMP", "2");
+else
+    dmc = strrep(dmc, "dir_TEMP", "0");
+end
 dmc = strrep(dmc, "ticks_TEMP", num2str(ticksPerRev));
 dmc = strrep(dmc, "revs_TEMP", num2str(num_revs));
 dmc = strrep(dmc, "speed_TEMP", num2str(freq));
@@ -95,11 +106,13 @@ dmc = strrep(dmc, "waittime_TEMP", num2str(wait_time));
 % Load the program described by the .dmc file to the Galil device.
 galil.programDownload(dmc);
 
+if daq_bool
 % Get the offsets before experiment
 offsets_before = flapper_obj.get_force_offsets(case_name + "_before", offset_duration);
 offsets_before = offsets_before(1,:); % just taking means, no SDs
 disp("Initial offset data has been gathered");
 beep2;
+end
 
 % fig = uifigure;
 % fig.Position = [600 500 430 160];
@@ -114,6 +127,7 @@ pause(1);
 % Command the galil to execute the program
 galil.command("XQ");
 
+if daq_bool
 % Collect experiment data during flapping
 disp("Experiment data collection has begun");
 results = flapper_obj.measure_force(case_name, session_duration);
@@ -129,6 +143,9 @@ checkLimits(results);
 [time, force, voltAdj, curAdj, enc_pulse] = process_data(results, offsets_before, cal_matrix);
 
 pause(1);
+else
+    pause(session_duration)
+end
 
 % -----------------
 % Stop recording
@@ -167,6 +184,7 @@ pause(1);
 % end
 % ------------------
 
+if daq_bool
 disp("Collecting final offset")
 % Get offset data after flapping at this angle and windspeed
 offsets_after = flapper_obj.get_force_offsets(case_name + "_after", offset_duration);
@@ -202,6 +220,7 @@ fc = 100;  % cutoff frequency in Hz for filter
 % Display preliminary data
 raw_plot(time, force, voltAdj, curAdj, enc_pulse, case_name, drift, flapper_obj.daq.Rate, fc,...
     f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4);
+end
 
 if (galil_plots)
 galil_traj_plot(galil);
