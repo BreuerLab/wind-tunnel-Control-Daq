@@ -14,9 +14,9 @@ addpath(genpath("../"))
 % case_name = wing_type + "_" + speed + "m.s_" + AoA_vals(j) + "deg_" + freq_vals(i) + "Hz";
 
 % Galil Setup
-galil_plots = true;
+galil_plots = false;
 galil_IP_address = "192.168.1.3";
-dmc_benchtop_filename = "benchtop_test.dmc";
+dmc_benchtop_filename = "benchtop_test_reduced.dmc";
 ticksPerRev = 18432;
 freq = 8; % Hz
 acc = 3; % Hz
@@ -73,18 +73,19 @@ end
 % % galil.command('DR0,0');
 % galil.command('DRF=_TPA,_TTA,TIME');  % Must include TIME explicitly!
 % 
-%  % Create a buffer to hold incoming records
-% % Use a property or appdata to keep it accessible in callback
-% ref = RefHolder();
-% ref.Data = [];
-% 
-% % Define callback for onRecord event
-% % Use a cell callback that passes the COM object as an input
-% % galil.onRecord = {@recCallback, galil, data};
-% listener = addlistener(galil, 'onRecord', @(src, event) recCallback(src, event, ref));
-% 
-% % Start recording at 5 ms interval
-% galil.recordsStart(10);
+ % Create a buffer to hold incoming records
+% Use a property or appdata to keep it accessible in callback
+ref = RefHolder();
+ref.Data = [];
+
+% Define callback for onRecord event
+% Use a cell callback that passes the COM object as an input
+% galil.onRecord = {@recCallback, galil, data};
+listener = addlistener(galil, 'onRecord', @(src, event) recCallback(src, event, ref));
+
+% Start recording at 4 ms interval
+dt = 10*0.976; % in ms, for TM1000, corresponds to 0.976 ms
+galil.recordsStart(10);
 % % ---------------------------
 
 dmc = fileread(dmc_benchtop_filename);
@@ -144,44 +145,17 @@ checkLimits(results);
 
 pause(1);
 else
-    pause(session_duration)
+    pause(session_duration + 9)
 end
 
 % -----------------
 % Stop recording
-% galil.recordsStart(0);
+galil.recordsStart(0);
+% -----------------
 
+galil_data = cell2mat(ref.Data);
 
-
-
-
-% data = galil.record;   % Equivalent to galiltools 'record' function call
-% pos   = galil.sourceValue(data, '_TPA');   % access each field by its DRF name
-% torque= galil.sourceValue(data, '_TTA');
-% srcs = galil.sources;
-
-% for j = 1:length(srcs)
-%     cur_src = srcs{j};
-%     pos = -1*ones(1, length(ref.Data));
-% for i = 1:length(ref.Data)
-%     temp = ref.Data(:,i)';
-%     pos(i) = galil.sourceValue(temp, cur_src);   % access each field by its DRF name
-% end
-%     if (mean(pos) ~= 0)
-%         disp(j)
-%     end
-%     disp(cur_src)
-%     disp(mean(pos))
-% end
-
-
-
-
-% pos = -1*ones(1, length(ref.Data));
-% for i = 1:length(ref.Data)
-%     temp = ref.Data(:,i)';
-%     pos(i) = galil.sourceValue(temp, 'TIME');   % access each field by its DRF name
-% end
+galil_traj_plot_DR(galil_data);
 % ------------------
 
 if daq_bool
