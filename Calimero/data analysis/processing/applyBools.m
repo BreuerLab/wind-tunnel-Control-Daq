@@ -1,8 +1,7 @@
-function data = applyBools(data, sub_drift, modFileName, offsets_files, shift_bool, AoA, nondimensional, norm_factors)
+function data = applyBools(data, sub_drift, drift, shift_bool, AoA, nondimensional, norm_factors)
     forces = data(1:6, :);
     if (sub_drift)
-        [drift] = get_drift(modFileName, offsets_files);
-        forces = forces - drift;
+        forces = forces - drift(1:6);
     end
 
     if (shift_bool)

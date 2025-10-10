@@ -46,10 +46,7 @@ function [offsets_cur, offsets_filename] = findMatchingOffset...
     
     end
 
-    if exist('offsets_folder', 'var')
-        offsets_cur = load([offsets_folder '/' offsets_filename]).offsets;
-        offsets_cur = offsets_cur(1,:);
-    else
-        error("Failed to find matching offsets file")
-    end
+    if (
+    offsets_cur = load([offsets_folder '/' offsets_filename]).offsets;
+    offsets_cur = offsets_cur(1,:);
 end

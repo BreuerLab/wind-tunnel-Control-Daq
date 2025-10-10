@@ -11,18 +11,30 @@
 % wing_freq - wingbeat frequency, ex: 3
 % AoA - angle of attack, ex: 10
 % wind_speed - wind tunnel speed, ex: 4
-function [case_name, time_stamp, type, wing_freq, AoA, wind_speed] = parse_filename(filename)
+function [case_name, time_stamp, type, wing_freq, AoA, wind_speed, file_type] = parse_filename(filename)
     % Get case name from file name
     if (contains(filename,"_experiment"))
+        file_type = "experiment";
         case_name = extractBefore(filename,"_experiment_");
         time_stamp = extractBefore(extractAfter(filename,"_experiment_"), ".");
     elseif (contains(filename,"_before_offsets"))
+        file_type = "before_offsets";
         case_name = extractBefore(filename,"_before_offsets_");
         time_stamp = extractBefore(extractAfter(filename,"_before_offsets_"),".mat");
     elseif (contains(filename,"_after_offsets"))
+        file_type = "after_offsets";
         case_name = extractBefore(filename,"_after_offsets_");
         time_stamp = extractBefore(extractAfter(filename,"_after_offsets_"),".mat");
+    elseif (contains(filename,"_final_offsets"))
+        file_type = "final_offsets";
+        case_name = extractBefore(filename,"_final_offsets_");
+        time_stamp = extractBefore(extractAfter(filename,"_final_offsets_"),".mat");
+    elseif (contains(filename,"_offsets"))
+        file_type = "offsets";
+        case_name = extractBefore(filename,"_offsets_");
+        time_stamp = extractBefore(extractAfter(filename,"_offsets_"),".mat");
     elseif (contains(filename,"_wind_tunnel"))
+        file_type = "wind_tunnel";
         case_name = extractBefore(filename,"_wind_tunnel_");
         time_stamp = extractAfter(filename,"_wind_tunnel_");
     elseif (contains(filename,".mat"))
