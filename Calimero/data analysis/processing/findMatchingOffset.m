@@ -9,15 +9,15 @@ function [offsets_cur, offsets_filename] = findMatchingOffset...
         baseFileName = offsets_files(i).name;
         baseFolder = offsets_files(i).folder;
 
+        if contains(baseFileName, AoA_match + "deg")
         [case_name, time_stamp, type, wing_freq, AoA, wind_speed, file_type] = parse_filename(baseFileName);
-        
         type = convertCharsToStrings(type);
         
-        if (strcmp(file_type, offsets_string) ...
-        && (AoA == AoA_match) ...
+        if ((AoA == AoA_match)...
+        && (~contains(baseFileName, "Hz") || wing_freq == wing_freq_match)...
         && (wind_speed == wind_speed_match) ...
         && strcmp(type, type_match) ...
-        && (~contains(baseFileName, "Hz") || wing_freq == wing_freq_match))
+        && strcmp(file_type, offsets_string))
             % can't contain the term Hz
 
         count = count + 1;
@@ -42,6 +42,7 @@ function [offsets_cur, offsets_filename] = findMatchingOffset...
             offsets_folder = baseFolder;
         end
 
+        end
         end
     
     end

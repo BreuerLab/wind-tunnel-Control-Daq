@@ -826,7 +826,7 @@ methods (Access = private)
                 disp("Loading " + cur_file)
                 if obj.driftData
                     load(cur_file, "drift_vals")
-                    lim_drift = drift_vals(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
+                    lim_drift = avg_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
                 else
                 if (obj.stroke_index == 0)
                     load(cur_file, "avg_forces", "err_forces")
@@ -892,17 +892,11 @@ methods (Access = private)
                 for idx = 1:6
                 ax = tiles(idx);
                 hold(ax, 'on');
-                if obj.driftData
-                    e = scatter(ax, lim_AoA_sel, lim_drift(idx,:,freq_index));
-                    e.SizeData = 40;
-                    e.MarkerFaceColor = colors(ind_c_trial, ind_c_dir);
-                    e.MarkerEdgeColor = colors(ind_c_trial, ind_c_dir);
-                else
-                    err = zeros(size(lim_err_forces(idx,:,freq_index)));
-                    e = errorbar(ax, lim_AoA_sel, lim_avg_forces(idx,:,freq_index), err,'.');
-                    e.MarkerSize = 25;
-                    e.Color = colors(ind_c_trial, ind_c_dir);
-                end
+                err = zeros(size(lim_err_forces(idx,:,freq_index)));
+                e = errorbar(ax, lim_AoA_sel, lim_avg_forces(idx,:,freq_index), err,'.');
+                e.MarkerSize = 25;
+                e.Color = colors(ind_c_trial, ind_c_dir);
+                e.MarkerFaceColor = colors(ind_c_trial, ind_c_dir);
                 e.DisplayName = abbr_sel(i);
                 % e.Marker = markers(m);
                 
