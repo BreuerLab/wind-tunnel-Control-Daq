@@ -78,6 +78,9 @@ end
 ref = RefHolder();
 ref.Data = [];
 
+% only record stuff coming from axis A
+galil.command("QR A");
+
 % Define callback for onRecord event
 % Use a cell callback that passes the COM object as an input
 % galil.onRecord = {@recCallback, galil, data};
