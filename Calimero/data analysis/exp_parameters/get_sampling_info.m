@@ -12,6 +12,6 @@ function [frame_rate, num_wingbeats, rec_wingbeats] = get_sampling_info(wing_fre
     acc = 3;
     padding_revs = 4;
     hold_time = 15;
-    [rec_wingbeats, ~] = estimate_duration(wing_freq, acc, num_wingbeats, padding_revs, hold_time, false);
+    [rec_wingbeats, ~] = estimate_duration(wing_freq, acc, num_wingbeats, padding_revs, hold_time, true);
 
 end

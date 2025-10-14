@@ -48,16 +48,18 @@ cycle_avg_forces = zeros(numAxes, num_wingbeats);
 cur_idx = 1;
 for j = 1:num_wingbeats
     if (j == num_wingbeats)
-        short_pulses = rise_idx(rise_idx >= cur_idx & rise_idx < length(mod_results));
-        wingbeat_pos_time(j,:) = short_pulses;
+        short_pulses = rise_idx(rise_idx > cur_idx & rise_idx < length(mod_results));
+        % wingbeat_pos_time(j,:) = [cur_idx; short_pulses];
         cur_wingbeat = mod_results(:, cur_idx:end);
+        % THIS IS TWICE AS LONG AS IT SHOULD BE
+        % EXTRA WINGBEaT?
         % resample wingbeat so that all wingbeats have the same length
         cur_wingbeat_resampled = resample(cur_wingbeat.', frames_per_beat, length(cur_wingbeat)).';
         wingbeat_forces(:,j,:) = cur_wingbeat_resampled;
     else
         end_idx = long_rises_orig_idx(j+1);
-        short_pulses = rise_idx(rise_idx >= cur_idx & rise_idx < end_idx);
-        wingbeat_pos_time(j,:) = short_pulses;
+        short_pulses = rise_idx(rise_idx > cur_idx & rise_idx < end_idx);
+        wingbeat_pos_time(j,:) = [cur_idx; short_pulses];
         cur_wingbeat = mod_results(:, cur_idx:end_idx);
         cur_wingbeat_resampled = resample(cur_wingbeat.', frames_per_beat, length(cur_wingbeat)).';
         wingbeat_forces(:,j,:) = cur_wingbeat_resampled;
@@ -75,21 +77,16 @@ pos = 0:1:17;
 pos = pos / 18;
 pos = 2*pi*pos;
 pos = repmat(pos, 1, num_wingbeats);
-pos = unwrap(pos) / (2*pi);
 
 wingbeat_pos_time_arr = reshape(wingbeat_pos_time.', [], 1);
 
 figure
-plot(wingbeat_pos_time_arr, pos)
-xlabel("Time (seconds)")
-ylabel("Revolutions")
+plot(wingbeat_pos_time_arr, unwrap(pos))
 
-wingbeat_vel_time_arr = gradient(pos, wingbeat_pos_time_arr);
+wingbeat_vel_time_arr = gradient(unwrap(pos), wingbeat_pos_time_arr) / (2*pi);
 
 figure
 plot(wingbeat_pos_time_arr, wingbeat_vel_time_arr)
-xlabel("Time (seconds)")
-ylabel("Wingbeat Frequency (Hz)")
 
 frames = linspace(0, 1, frames_per_beat);
 

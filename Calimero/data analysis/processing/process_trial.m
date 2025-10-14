@@ -14,7 +14,7 @@
 % the experiment in more ways than simply the raw data does.
 function process_trial(file, raw_data_path, offsets_path, processed_data_path, wind_tunnel_path)
 
-[case_name, time_stamp, type, wing_freq, AoA, wind_speed] = parse_filename(file);
+[case_name, time_stamp, type, wing_freq, AoA, wind_speed, ~] = parse_filename(file);
 
 % NUM_WINGBEATS IS CURRENTLY NOT 180 EXACTLY SINCE JUST USING PWM
 [frame_rate, num_wingbeats, rec_wingbeats] = get_sampling_info(wing_freq);
@@ -40,10 +40,16 @@ end
 
 [time_data, force_data, voltAdj, curAdj, enc_pulse] = process_data(trimmed_results, offsets, cal_matrix);
 
+% -------------------------
+% if wing_freq ~= 0
+%     long_rises_orig_idx = get_idx_wingbeats(enc_pulse, frame_rate);
+% end
+
 % Rotate the data from the force transducer reference frame to the wind
 % tunnel reference frame (body frame to global frame)
 results_lab = coordinate_transformation(force_data, AoA);
 
+% enc_pulse not added because this is the only data that is filtered
 mod_results = [results_lab; voltAdj'; curAdj'];
 
 % Non-dimensionalize the data. Newtons to Force Coefficients and
@@ -110,6 +116,9 @@ if (wing_freq > 0)
     wingbeat_rmse_forces_smoothest, wingbeat_max_forces_smoothest, wingbeat_min_forces_smoothest, wingbeat_COP_smoothest,...
     cycle_avg_forces_smoothest]...
     = wingbeat_transformation(num_wingbeats, filtered_data_smoothest, enc_pulse, AoA, frame_rate);
+
+figure
+plot(frames_smoothest, wingbeat_avg_forces_smoothest(9,:))
 
 raw_wing_vars = {'wingbeat_forces_raw', 'frames_raw',...
     'wingbeat_avg_forces_raw', 'wingbeat_std_forces_raw',...
