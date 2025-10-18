@@ -23,7 +23,7 @@ act_vel = get_long(99, 102, galil_data); % Measured Velocity A
 act_vel = act_vel / (ticksPerRev*64);
 
 torque = get_long(103, 106, galil_data);
-voltCommand = torque * (10 / 32767); % motor command in volts, 10 V for every 32767 (see RD in command reference for Galil)
+voltCommand = torque * (20 / 65536); % motor command in volts, 10 V for every 32767 (see RD in command reference for Galil)
 current = AG * voltCommand * 1000; % current in mA
 time = 0:1:length(ref_pos)-1;
 time = time * (dt/1000); % time in seconds

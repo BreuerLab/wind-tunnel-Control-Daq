@@ -41,7 +41,7 @@ function [rise_idx, long_rises_orig_idx] = get_idx_wingbeats(enc_pulse, rate)
     xlabel("Time (seconds)")
 
     figure
-    histogram(pulse_widths)
+    histogram(pulse_widths,100)
     xlabel("Pulse width (ms)")
     ylabel("Frequency")
     end

@@ -8,6 +8,15 @@ close all
 restoredefaultpath
 addpath(genpath('../../'))
 
+% data_path = "F:\Calimero Data\Calimero 09_23_2025_ascending\Calimero\";
+% Open a file selection dialog and get the file path
+data_path = uigetdir("F:\Calimero Data", 'Select a folder') + "\";
+if isequal(data_path, 0)
+    disp('User canceled folder selection.');
+else
+    disp(['Selected folder: ', data_path]);
+end
+
 raw_data_path = "";
 offsets_path = "";
 processed_data_path = "";
@@ -32,7 +41,7 @@ type = "benchtop"; % needs to match folder name only
 %     end
 % end
 
-filepath = "C:\Users\rgissler\Downloads\DAQ\DAQ\data";
+filepath = data_path;
 raw_data_path = raw_data_path + filepath + "/raw data/experiment data/";
 offsets_path = offsets_path + filepath + "/raw data/offsets data/";
 processed_data_path = processed_data_path + filepath + "/processed data/";

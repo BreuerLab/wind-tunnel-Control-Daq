@@ -24,10 +24,11 @@ calibration_filepath = "../../DAQ/Calibration Files/Mini40/FT52907.cal";
 cal_matrix = obtain_cal(calibration_filepath);
 
 % find matching offsets file
-offsets_file = findInitialOffsetsFile(offsets_path, case_name);
-load(offsets_path + offsets_file); % load in results var
-offsets = offsets(1,:);
-disp("Matching offsets: " + offsets_file)
+% UNCOMMENT THIS!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+% offsets_file = findInitialOffsetsFile(offsets_path, case_name);
+% load(offsets_path + offsets_file); % load in results var
+% offsets = offsets(1,:);
+% disp("Matching offsets: " + offsets_file)
 
 % Get raw data from file
 load(raw_data_path + file); % load in results var
