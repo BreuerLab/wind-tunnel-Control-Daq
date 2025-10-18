@@ -1,4 +1,4 @@
-function [rise_idx, long_rises_orig_idx] = get_idx_wingbeats(enc_pulse, rate)
+function [beat_idx] = get_idx_wingbeats(enc_pulse, rate)
     % digitize pulses sent by galil
     enc_pulse_digital = zeros(size(enc_pulse));
     enc_pulse_digital(enc_pulse > 2.5) = 1;
@@ -6,23 +6,12 @@ function [rise_idx, long_rises_orig_idx] = get_idx_wingbeats(enc_pulse, rate)
     % Find rising and falling edges
     rise_idx = find(diff([0; enc_pulse_digital]) == 1);  % indices where 0 -> 1
     fall_idx = find(diff([enc_pulse_digital; 0]) == -1); % indices where 1 -> 0
+    beat_idx = sort([rise_idx; fall_idx]);
     
     % Measure pulse widths
     pulse_widths = fall_idx - rise_idx;
     samples_per_ms = round(rate) / 1000;
     pulse_widths = pulse_widths / samples_per_ms; % convert to ms
-    
-    % Select rising edges of "long" pulses
-    long_rises_orig_idx = rise_idx(pulse_widths > 3.5);
-    long_rises_pulses_idx = find(pulse_widths > 3.5);
-
-    % Count number of short pulses in between each set of long pulses
-    for i = 1:length(long_rises_orig_idx)-1
-        short_pulses = rise_idx(rise_idx > long_rises_orig_idx(i) & rise_idx < long_rises_orig_idx(i+1));
-        if (length(short_pulses) ~= 17)
-            error("Not 17 short pulses!")
-        end
-    end
 
     plot_bool = true;
     if (plot_bool)
@@ -36,7 +25,7 @@ function [rise_idx, long_rises_orig_idx] = get_idx_wingbeats(enc_pulse, rate)
     ylabel("Analog Galil Timing Pulse")
     yyaxis right
     plot(time, enc_pulse_digital)
-    scatter(time(long_rises_orig_idx), enc_pulse_digital(long_rises_orig_idx),40,"black", "filled")
+    scatter(time(beat_idx), enc_pulse_digital(beat_idx),40,"black", "filled")
     ylabel("Digitized Galil Timing Pulse")
     xlabel("Time (seconds)")
 
