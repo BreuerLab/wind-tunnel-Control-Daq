@@ -65,7 +65,13 @@ function this_DAQ = setup_DAQ(forceVoltage, rate)
 
     % -------------- Add the input channels --------------
     % 6 force channels: Fx, Fy, Fz, Mx, My, Mz
-    ch0 = this_DAQ.addinput(daq_ID, 0, "Voltage");
+    try
+        ch0 = this_DAQ.addinput(daq_ID, 0, "Voltage");
+    catch ME
+        daq_ID = DAQ_select(ME.message);
+        ch0 = this_DAQ.addinput(daq_ID, 0, "Voltage");
+    end
+
     ch1 = this_DAQ.addinput(daq_ID, 1, "Voltage");
     ch2 = this_DAQ.addinput(daq_ID, 2, "Voltage");
     ch3 = this_DAQ.addinput(daq_ID, 3, "Voltage");

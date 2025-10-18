@@ -9,4 +9,8 @@ function myCleanupFun(galil)
     
     % Command the galil to execute the program
     galil.command("XQ");
+
+    % galil.command("ST");
+    % pause(0.2)
+    % galil.command("MO");
 end

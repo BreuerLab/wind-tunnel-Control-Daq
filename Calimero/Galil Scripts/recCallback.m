@@ -1,5 +1,5 @@
 % The callback function
-function recCallback(src, event, ref)
+function recCallback(~, event, ref)
     % This callback is triggered on each DR record event.
     %
     % Inputs:
@@ -8,9 +8,6 @@ function recCallback(src, event, ref)
 
     % Retrieve one record
     rec = event.record;
-
-    time = src.sourceValue(rec, "TIME");
-    % disp(time)
 
     % Append it to the user data buffer
     ref.Data = [ref.Data rec];

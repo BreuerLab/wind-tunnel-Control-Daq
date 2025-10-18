@@ -18,7 +18,7 @@ galil_plots = false;
 galil_IP_address = "192.168.1.3";
 dmc_benchtop_filename = "benchtop_test_reduced.dmc";
 ticksPerRev = 18432;
-freq = 8; % Hz
+freq = 5; % Hz
 acc = 3; % Hz
 measure_revs = 50;
 padding_revs = 4;
@@ -32,7 +32,7 @@ time_now = datetime;
 time_now.Format = 'yyyy-MM-dd HH-mm-ss';
 case_name = case_name + string(time_now);
 
-daq_bool = false;
+daq_bool = true;
 % DAQ Setup
 if daq_bool
 [f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4] = makeForceFigures();
@@ -79,7 +79,7 @@ ref = RefHolder();
 ref.Data = [];
 
 % only record stuff coming from axis A
-galil.command("QR A");
+r = galil.command("QR A");
 
 % Define callback for onRecord event
 % Use a cell callback that passes the COM object as an input
@@ -87,8 +87,8 @@ galil.command("QR A");
 listener = addlistener(galil, 'onRecord', @(src, event) recCallback(src, event, ref));
 
 % Start recording at 4 ms interval
-dt = 10*0.976; % in ms, for TM1000, corresponds to 0.976 ms
-galil.recordsStart(10);
+dt = 10;
+galil.recordsStart(dt);
 % % ---------------------------
 
 dmc = fileread(dmc_benchtop_filename);
@@ -146,7 +146,7 @@ checkLimits(results);
 % Translate data from raw values into meaningful values
 [time, force, voltAdj, curAdj, enc_pulse] = process_data(results, offsets_before, cal_matrix);
 
-pause(1);
+pause(3);
 else
     pause(session_duration + 9)
 end
@@ -158,7 +158,7 @@ galil.recordsStart(0);
 
 galil_data = cell2mat(ref.Data);
 
-galil_traj_plot_DR(galil_data);
+galil_traj_plot_DR(galil_data, dt);
 % ------------------
 
 if daq_bool

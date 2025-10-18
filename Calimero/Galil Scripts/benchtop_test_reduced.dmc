@@ -27,23 +27,19 @@
 
     BG A                  ; 'Begin motion
 
-NEXT = (ticks_TEMP/18);
-NEXT_REV = ticks_TEMP;
+num_pts = 96;
+NEXT = (ticks_TEMP/num_pts);
+n = 0;
+bool = 0;
 #MAIN
-    POS = _TPA          ; 'read actual encoder position
-    IF (POS >= NEXT)    ; 'reached or passed threshold?
-        IF (POS >= NEXT_REV)
-        SB 17           ; 'set output bit
-        WT 4            ; 'wait 1 ms
-        CB 17           ; 'clear output bit
-        NEXT_REV = NEXT_REV + ticks_TEMP; 'schedule next trigger
-        NEXT = NEXT + (ticks_TEMP/18); 'schedule next trigger
-        ELSE
-        SB 17           ; 'set output bit
-        WT 2            ; 'wait 1 ms
-        CB 17           ; 'clear output bit
-        NEXT = NEXT + (ticks_TEMP/18); 'schedule next trigger
-        ENDIF
+    AR NEXT;
+    n = n+1;
+    bool = 1 - bool;
+
+    IF (bool)
+        SB 17            ; 'set output bit
+    ELSE
+        CB 17            ; 'clear output bit
     ENDIF
 JP #MAIN
 EN

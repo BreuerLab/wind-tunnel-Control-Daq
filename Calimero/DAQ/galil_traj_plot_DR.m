@@ -1,4 +1,4 @@
-function galil_traj_plot_DR(galil_data)
+function galil_traj_plot_DR(galil_data, dt)
 
 % Used to debug to figure out which values are changing in time
 % ----------------------------------------------------------------
@@ -12,6 +12,7 @@ function galil_traj_plot_DR(galil_data)
 
 ticksPerRev = 18432;
 AG = 0.4;
+dt = dt*0.976; % in ms, for TM1000, corresponds to 0.976 ms
 
 ref_pos = get_long(83, 86, galil_data); % Reference Position A
 ref_pos = ref_pos / ticksPerRev;
@@ -23,12 +24,13 @@ act_vel = get_long(99, 102, galil_data); % Measured Velocity A
 act_vel = act_vel / (ticksPerRev*64);
 
 torque = get_long(103, 106, galil_data);
-voltCommand = torque * (20 / 65536); % motor command in volts, 10 V for every 32767 (see RD in command reference for Galil)
+voltCommand = torque * (10 / 32767); % motor command in volts, 10 V for every 32767 (see RD in command reference for Galil)
 current = AG * voltCommand * 1000; % current in mA
+
 time = 0:1:length(ref_pos)-1;
 time = time * (dt/1000); % time in seconds
 
-findSpeedVariation(time, act_vel)
+% findSpeedVariation(time, act_vel)
 
 figure
 hold on
