@@ -9,7 +9,7 @@ function [frame_rate, num_wingbeats, rec_wingbeats] = get_sampling_info(wing_fre
         num_wingbeats = 12;
     end
 
-    num_wingbeats = 50;
+    % num_wingbeats = 50;
 
     acc = 3;
     padding_revs = 4;

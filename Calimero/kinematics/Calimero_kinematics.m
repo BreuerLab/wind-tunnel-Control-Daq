@@ -8,6 +8,7 @@ r = 3.47; % 10 deg
 % r = 10; % 30 deg
 numRevs = 1; % NEEDS TO BE 1, otherwise stuff gets funky
 numPts = 1000;
+% numPts = 48;
 
 CAD_verification(r, d, numRevs, numPts);
 

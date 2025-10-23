@@ -7,11 +7,20 @@ enc_pulse = results(:,10);
 % ^Wait, I don't think that's true. I think rec_wingbeats should equal
 % length(long_rises_orig_idx)
 
-num_pts = 96;
+num_pts = 48;
 padding = ((rec_wingbeats - num_wingbeats) / 2)*num_pts;
 startIdx = beat_idx(padding); % first padding revs ignored
 endIdx = beat_idx(end - padding); % last padding revs ignored
 trimmed_results = results(startIdx-1:endIdx-1,:); % shifted by 1 to include rising edge of first pulse and not rising edge of last pulse
+
+time = beat_idx / rate;
+pos = linspace(0,rec_wingbeats, length(beat_idx));
+vel = gradient(pos, time);
+
+figure
+plot(time, vel)
+xlabel("Time (seconds)")
+ylabel("Wingbeat Frequency (Hz)")
 
 plot_bool = true;
 if plot_bool
@@ -31,6 +40,17 @@ mid_idx = (num_wingbeats/2)*num_pts;
 frames_per_beat = (beat_idx(mid_idx + num_pts) - beat_idx(mid_idx));
 disp_calc = length(trimmed_results) / frames_per_beat;
 disp(disp_str + disp_calc)
+
+[beat_idx] = get_idx_wingbeats(trimmed_results(:,10), rate);
+
+time = beat_idx / rate;
+pos = linspace(0,num_wingbeats, length(beat_idx));
+vel = gradient(pos, time);
+
+figure
+plot(time, vel)
+xlabel("Time (seconds)")
+ylabel("Wingbeat Frequency (Hz)")
 
 % if trigger malfunctioned, alert user that data was not trimmed
 if (length(results) == length(trimmed_results))

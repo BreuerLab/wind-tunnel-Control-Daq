@@ -23,28 +23,42 @@ function process_trial(file, raw_data_path, offsets_path, processed_data_path, w
 calibration_filepath = "../../DAQ/Calibration Files/Mini40/FT52907.cal"; 
 cal_matrix = obtain_cal(calibration_filepath);
 
+% UNCOMMENT !!!!!!!!!!!!!!!!!!!!!!!
 % find matching offsets file
-% UNCOMMENT THIS!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 % offsets_file = findInitialOffsetsFile(offsets_path, case_name);
 % load(offsets_path + offsets_file); % load in results var
 % offsets = offsets(1,:);
 % disp("Matching offsets: " + offsets_file)
+% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+filePattern = fullfile(offsets_path, '*.mat'); % Change to whatever pattern you need.
+offsets_files = [];
+for i = 1:length(filePattern)
+    offsets_files = [offsets_files; dir(filePattern(i))];
+end
+
+offsets_string = "before_offsets";
+
+[offsets, offsets_cur_filename] = findMatchingOffset...
+(offsets_files, offsets_string, wing_freq, AoA, wind_speed, type, time_stamp);
+disp("Current offsets: " + offsets_cur_filename)
+% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 % Get raw data from file
 load(raw_data_path + file); % load in results var
 
-if (wing_freq == 0)
-trimmed_results = results(frame_rate:end-frame_rate,:);
-else
-trimmed_results = trim_data(results, rec_wingbeats, num_wingbeats, frame_rate);
-end
+% if (wing_freq == 0)
+% trimmed_results = results(frame_rate:end-frame_rate,:);
+% else
+% trimmed_results = trim_data(results, rec_wingbeats, num_wingbeats, frame_rate);
+% end
+
+% REPLACE WITH PROPER TRIMMING!!!!!!!!!!!!!!!!!!!!!!!
+trimmed_results = results;
+% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 [time_data, force_data, voltAdj, curAdj, enc_pulse] = process_data(trimmed_results, offsets, cal_matrix);
-
-% -------------------------
-% if wing_freq ~= 0
-%     long_rises_orig_idx = get_idx_wingbeats(enc_pulse, frame_rate);
-% end
 
 % Rotate the data from the force transducer reference frame to the wind
 % tunnel reference frame (body frame to global frame)
@@ -52,6 +66,9 @@ results_lab = coordinate_transformation(force_data, AoA);
 
 % enc_pulse not added because this is the only data that is filtered
 mod_results = [results_lab; voltAdj'; curAdj'];
+
+% motor model check
+motor_model(time_data, voltAdj, curAdj, wing_freq);
 
 % Non-dimensionalize the data. Newtons to Force Coefficients and
 % Newton*meters to Moment Coefficients
