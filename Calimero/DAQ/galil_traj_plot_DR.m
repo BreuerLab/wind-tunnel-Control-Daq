@@ -52,6 +52,7 @@ plot(time, current, DisplayName="Current")
 ylabel("Current (mA)")
 legend(Location="best")
 set(findall(gca, 'Type', 'Line'), 'LineWidth', 2);
+title(["Mean speed: " + mean(act_vel) "Mean current: " + mean(current)])
 set(gca, FontSize=14);
 
 % 83 - 86: Reference Position A

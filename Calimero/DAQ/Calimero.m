@@ -72,6 +72,8 @@ function this_DAQ = setup_DAQ(forceVoltage, rate)
         ch0 = this_DAQ.addinput(daq_ID, 0, "Voltage");
     end
 
+    % ch9 = this_DAQ.addinput(daq_ID, "ctr0", "EdgeCount"); % rising edges by default
+
     ch1 = this_DAQ.addinput(daq_ID, 1, "Voltage");
     ch2 = this_DAQ.addinput(daq_ID, 2, "Voltage");
     ch3 = this_DAQ.addinput(daq_ID, 3, "Voltage");
@@ -85,7 +87,10 @@ function this_DAQ = setup_DAQ(forceVoltage, rate)
     ch7 = this_DAQ.addinput(daq_ID, 21, "Voltage");
 
     % channel for Galil encoder measurement
-    ch8 = this_DAQ.addinput(daq_ID, 20, "Voltage");
+    % ch8 = this_DAQ.addinput(daq_ID, 20, "Voltage");
+    ch8 = this_DAQ.addinput(daq_ID, "port0/line24", "Digital");
+
+    % addclock(this_DAQ,"ScanClock","external","Dev4/Ctr0Source")
     
     % --------- Set the voltage range of the channels ---------
     ch0.Range = [-forceVoltage, forceVoltage];
@@ -97,7 +102,45 @@ function this_DAQ = setup_DAQ(forceVoltage, rate)
     ch6.Range = [-5, 5];
     ch7.Range = [-5, 5];
     % ch7.Range = [-1, 1]; % voltage range anticipated for current is 0 - 0.2
-    ch8.Range = [-5, 5];
+    % ch8.Range = [-5, 5];
+
+    % Configure continuous acquisition
+    % this_DAQ.ScansAvailableFcn = @(src, evt) processData(src, evt);
+    % this_DAQ.ScansAvailableFcnCount = 1000; % callback every 1000 samples
+
+    % function processData(src, evt)
+    % % Keep the data between calls
+    % persistent allData allTime totalScans
+    % 
+    % % How many scans are available right now?
+    % nScans = evt.ElementsAvailable;
+    % 
+    % % Read exactly that many scans (one scan == sample across all channels)
+    % newData = read(src, nScans, "OutputFormat", "Matrix");
+    % 
+    % % Initialize on first call
+    % if isempty(totalScans)
+    %     totalScans = 0;
+    %     allData = [];
+    %     allTime = [];
+    % end
+    % 
+    % % Build timestamps (seconds) for these new scans
+    % % totalScans is the number of scans we've already consumed
+    % % newTime runs from totalScans / Rate to (totalScans + nScans - 1) / Rate
+    % newTime = (totalScans + (0:(size(newData,1)-1))') / src.Rate;
+    % 
+    % % Append to cumulative arrays
+    % allData = [allData; newData];
+    % allTime = [allTime; newTime];
+    % 
+    % % Update counter
+    % totalScans = totalScans + size(newData,1);
+    % 
+    % % Optionally expose to base workspace or display progress
+    % assignin("base","allData",allData);
+    % assignin("base","allTime",allTime);
+    % end
 end
 
 end
@@ -196,8 +239,36 @@ function [results] = measure_force(obj, case_name, session_duration)
     % Start the DAQ session.
     % start(obj.daq, "Duration", session_duration);
 
+    %  % Shared variables
+    % allData = [];
+    % allTime = [];
+    % totalScans = 0;
+    % 
+    % start(obj.daq, "continuous");
+    % pause(session_duration)
+    % stop(obj.daq)
+    % 
+    % obj.daq.ScansAvailableFcn = @processData;
+    % 
+    % % Return data after acquisition
+    % time = allTime;
+    % data = allData;
+    % 
+    % % Nested callback function — has access to variables above
+    % function processData(src, evt)
+    %     nScans = evt.ElementsAvailable;
+    %     newData = read(src, nScans, "OutputFormat", "Matrix");
+    % 
+    %     newTime = (totalScans + (0:(size(newData,1)-1))') / src.Rate;
+    %     allData = [allData; newData];
+    %     allTime = [allTime; newTime];
+    %     totalScans = totalScans + size(newData,1);
+    % end
+
     % Read the data
     raw_data = read(obj.daq, seconds(session_duration));
+
+
     raw_data_table = timetable2table(raw_data);
 
     raw_data_table_times = raw_data_table(:, 1); % timestamps

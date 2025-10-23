@@ -22,12 +22,13 @@
     FVA=0                 ;
     FAA=0                 ;
     ILA=-2;
+    OCA=0,64;
 
     WT waittime_TEMP;
 
     BG A                  ; 'Begin motion
 
-num_pts = 96;
+num_pts = 48;
 NEXT = (ticks_TEMP/num_pts);
 n = 0;
 bool = 0;
