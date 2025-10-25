@@ -20,11 +20,16 @@ padding_revs = 4;
 wait_time = 2000; % ms
 
 % save data recording parameters
+vars = {'AoA_vals','freq_vals',...
+    'speed', 'wing_type',...
+    'measure_revs', 'hold_time',...
+    'automatic', 'debug', ...
+    'rate', 'offset_duration', 'calibration_filepath', 'voltage', 'galil_address'};
 currentDateTime = datetime('now', 'Format', 'yyyy_MM_dd_HH_mm_ss');
 currentDateTimeStr = char(currentDateTime);
 file_name = strjoin(["experiment_params", currentDateTimeStr], "_");
 full_file_name = "data\" + file_name + ".mat";
-save(full_file_name);
+save(full_file_name, vars{:});
 
 % Remind user of setup procedure
 procedure_UI();

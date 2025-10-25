@@ -1,0 +1,54 @@
+#SETUP
+ST                   ; 'Stop all motion
+MO                   ; 'Motor off
+CO 1                 ;' Configures bank 2 as outputs on extended I/O
+
+AGA=0                ; 'Amplifier gain (0-2), 0 -> 0.4 A/Phase
+BRA=1                ; 'Brushed Motor
+AUA=0.5              ; 'Chopper Mode
+SH A                 ; 'Servo here (turn on motor)
+DPA=0                ; 'Define zero position
+CEA=dir_TEMP         ; 'Configure encoder
+TM 1000              ; 'Servo update time of controller
+
+PRA=ticks_TEMP*revs_TEMP            ; 'Set desired distance
+SPA=ticks_TEMP*speed_TEMP           ; 'Set desired speed in counts/sec
+ACA=ticks_TEMP*acc_TEMP             ; 'Acceleration in counts/sec^2
+DCA=ticks_TEMP*acc_TEMP             ; 'Deceleration in counts/sec^2
+
+KPA=2               ; 'Proportional gain
+KIA=0.05            ; 'Integral gain
+KDA=8               ; 'Derivative gain
+FVA=0               ;
+FAA=0               ;
+ILA=-2              ;'KI bit limited to 2V and starts after motion complete
+
+WT waittime_TEMP;
+
+BG A                ; 'Begin motion
+
+'Allocate memory for arrays
+DM TimeArr[4000],Torque[4000],DesPos[4000],ActPos[4000],ActVel[4000];
+
+AR ticks_TEMP*revsRec_TEMP   ; 'Wait to record until at speed
+'Record time, torque, actual and desired position, velocity
+RA TimeArr[],Torque[],DesPos[],ActPos[],ActVel[];
+RD TIME,_TTA,_RPA,_TPA,_TVA;
+RC 2; 'Record data at 4 ms intervals
+
+num_pts = 48;
+NEXT = (ticks_TEMP/num_pts);
+n = 0;
+bool = 0;
+#MAIN
+    AR NEXT;
+    n = n+1;
+    bool = 1 - bool;
+
+    IF (bool)
+        SB 17           ; 'set output bit
+    ELSE
+        CB 17           ; 'clear output bit
+    ENDIF
+JP #MAIN
+EN

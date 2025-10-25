@@ -22,6 +22,17 @@ plot(time, vel)
 xlabel("Time (seconds)")
 ylabel("Wingbeat Frequency (Hz)")
 
+wing_freq = 4; % TEMP NEED TO REPLACE
+fc = 30; % cutoff frequency
+fs = num_pts * wing_freq;
+[b,a] = butter(6, fc/(fs/2));
+speedFilt = filtfilt(b,a,vel);
+
+figure
+plot(time, speedFilt)
+xlabel("Time (seconds)")
+ylabel("Filtered Wingbeat Frequency (Hz)")
+
 plot_bool = true;
 if plot_bool
 figure

@@ -1,5 +1,5 @@
 function [avg_forces, avg_up_forces, avg_down_forces, err_forces, err_up_forces,...
-          err_down_forces, names, sub_title, norm_factors_arr, drift_vals] = ...
+          err_down_forces, names, sub_title, norm_factors_arr, drift_vals, offsets_before_vals, offsets_after_vals] = ...
     get_data_AoA(selected_vars, processed_files, offsets_files, nondimensional, sub_strings, shift_bool, sub_drift, config_idx, num_config)
 
 numAxes = 8;
@@ -34,7 +34,9 @@ err_down_forces = zeros(numAxes, length(AoA_sel), length(wing_freq_sel), length(
 cases_final = strings(length(AoA_sel), length(wing_freq_sel), length(wind_speed_sel), length(type_sel));
 names = strings(length(wing_freq_sel), length(wind_speed_sel), length(type_sel));
 norm_factors_arr = zeros(2, length(AoA_sel), length(wing_freq_sel), length(wind_speed_sel));
-drift_vals = zeros(numAxes, length(AoA_sel), length(wing_freq_sel) + 1, length(wind_speed_sel), length(type_sel));
+drift_vals = zeros(numAxes, length(AoA_sel), length(wing_freq_sel)+1, length(wind_speed_sel), length(type_sel));
+offsets_before_vals = zeros(numAxes, length(AoA_sel), length(wing_freq_sel)+1, length(wind_speed_sel), length(type_sel));
+offsets_after_vals = zeros(numAxes, length(AoA_sel), length(wing_freq_sel)+1, length(wind_speed_sel), length(type_sel));
 % really only the windspeed matters here but let's include all
 % the variables include the normalization routine changes in the
 % future
@@ -125,9 +127,25 @@ for i = 1 : length(processed_files)
         % down_forces = zeros(size(data));
         % Maybe need to add squeeze(cycle_avg_forces) above
 
-        [drift] = get_drift(modFileName, offsets_files);
+        % get offsets from before and after trial
+        [drift, offsets_before, offsets_after] = get_drift(modFileName, offsets_files);
         drift_vals(:, AoA_sel == AoA, wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type)...
+                        = drift;
+        offsets_before_vals(:, AoA_sel == AoA, wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type)...
+                        = offsets_before;
+        offsets_after_vals(:, AoA_sel == AoA, wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type)...
+                        = offsets_after;
+
+        % Get total drift over the course of all freq at an AoA
+        if wing_freq == wing_freq_sel(end)
+            [drift, offsets_before, offsets_after] = get_total_drift(modFileName, offsets_files);
+            drift_vals(:, AoA_sel == AoA, end, wind_speed_sel == wind_speed, type_sel == type)...
                             = drift;
+            offsets_before_vals(:, AoA_sel == AoA, end, wind_speed_sel == wind_speed, type_sel == type)...
+                            = offsets_before;
+            offsets_after_vals(:, AoA_sel == AoA, end, wind_speed_sel == wind_speed, type_sel == type)...
+                            = offsets_after;
+        end
 
         data = applyBools(data, sub_drift, drift, shift_bool, AoA, nondimensional, norm_factors);
         % up_forces = applyBools(up_forces, sub_drift, modFileName, offsets_files, shift_bool, AoA, nondimensional, norm_factors);

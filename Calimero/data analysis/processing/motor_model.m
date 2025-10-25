@@ -13,17 +13,19 @@ eff = 0.81; % gearbox efficiency
 frame_rate = 1 / (time_data(2) - time_data(1));
 step = round(frame_rate / freq);
 
+startIdx = 20*step;
+endIdx = startIdx + step;
 % ---------------------------------------
 
 figure
 hold on
 yyaxis left
-plot(time_data(step:2*step), curAdj(step:2*step))
+plot(time_data(startIdx:endIdx), curAdj(startIdx:endIdx))
 xlabel("Time (sec)")
 ylabel("Current (mA)")
 
 yyaxis right
-plot(time_data(step:2*step), voltAdj(step:2*step))
+plot(time_data(startIdx:endIdx), voltAdj(startIdx:endIdx))
 ylabel("Voltage (V)")
 set(gca, FontSize=14)
 set(findall(gca, 'Type', 'line'), 'LineWidth', 2)
@@ -51,9 +53,6 @@ voltAdjFilt = filtfilt(b,a,voltAdj);
 % set(gca, FontSize=14)
 % set(findall(gca, 'Type', 'line'), 'LineWidth', 2)
 
-
-startIdx = 1*step;
-endIdx = 2*step;
 % -------------------
 
 figure
@@ -86,8 +85,8 @@ voltMod = mechTerm + resTerm + indTerm;
 
 figure
 hold on
-plot(time_data(step:2*step), voltAdjFilt(step:2*step), DisplayName="Voltage Measured")
-plot(time_data(step:2*step), voltMod(step:2*step), DisplayName="Voltage Predicted")
+plot(time_data(startIdx:endIdx), voltAdjFilt(startIdx:endIdx), DisplayName="Voltage Measured")
+plot(time_data(startIdx:endIdx), voltMod(startIdx:endIdx), DisplayName="Voltage Predicted")
 xlabel("Time (sec)")
 ylabel("Voltage (V)")
 legend()
@@ -96,9 +95,9 @@ set(findall(gca, 'Type', 'line'), 'LineWidth', 2)
 
 figure
 hold on
-plot(time_data(step:2*step), mechTerm(step:2*step), DisplayName="Mechanical Term")
-plot(time_data(step:2*step), resTerm(step:2*step), DisplayName="Resistance Term")
-plot(time_data(step:2*step), indTerm(step:2*step), DisplayName="Inductance Term")
+plot(time_data(startIdx:endIdx), mechTerm(startIdx:endIdx), DisplayName="Mechanical Term")
+plot(time_data(startIdx:endIdx), resTerm(startIdx:endIdx), DisplayName="Resistance Term")
+plot(time_data(startIdx:endIdx), indTerm(startIdx:endIdx), DisplayName="Inductance Term")
 xlabel("Time (sec)")
 ylabel("Voltage (V)")
 legend()
@@ -109,8 +108,8 @@ torque = k*(curAdjFilt/1000)*1000;
 outTorque = torque*gR*eff;
 figure
 hold on
-plot(time_data(step:2*step), torque(step:2*step), DisplayName="Motor Torque")
-plot(time_data(step:2*step), outTorque(step:2*step), DisplayName="Output Torque")
+plot(time_data(startIdx:endIdx), torque(startIdx:endIdx), DisplayName="Motor Torque")
+plot(time_data(startIdx:endIdx), outTorque(startIdx:endIdx), DisplayName="Output Torque")
 xlabel("Time (sec)")
 ylabel("Torque (mNm)")
 legend()

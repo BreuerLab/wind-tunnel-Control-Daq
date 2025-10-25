@@ -115,7 +115,7 @@ for i = 1:2
             config_idx = (k + 2*(i-1));
 
             [avg_forces, avg_up_forces, avg_down_forces, err_forces, ...
-             err_up_forces, err_down_forces, names, sub_title, norm_factors, drift_vals] = ...
+             err_up_forces, err_down_forces, names, sub_title, norm_factors, drift_vals, offsets_before_vals, offsets_after_vals] = ...
     get_data_AoA(selected_vars, processed_files, offsets_files, norm_bool, sub_strings, shift_bool, sub_drift_bool, config_idx, num_config);
             
             if slack_bool
@@ -143,7 +143,7 @@ for i = 1:2
             end
 
             save(plot_data_path + name + ".mat","avg_forces", "avg_up_forces", "avg_down_forces",...
-                "err_forces", "err_up_forces", "err_down_forces", "norm_factors", "names", "drift_vals")
+                "err_forces", "err_up_forces", "err_down_forces", "norm_factors", "names", "drift_vals", "offsets_before_vals", "offsets_after_vals")
 
             norm_bool = ~norm_bool;
         end

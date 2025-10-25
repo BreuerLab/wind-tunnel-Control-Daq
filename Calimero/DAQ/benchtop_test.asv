@@ -14,6 +14,7 @@ addpath(genpath("../"))
 % case_name = wing_type + "_" + speed + "m.s_" + AoA_vals(j) + "deg_" + freq_vals(i) + "Hz";
 
 % Galil Setup
+galil_plots = false;
 galil_IP_address = "192.168.1.3";
 DR_bool = false; % false - store data in arrays (RA), true - data record packets (DR)
 ticksPerRev = 18432;
@@ -25,11 +26,7 @@ hold_time = 15; % sec
 wait_time = 1000; % ms
 % REMEMBER MOTOR WIRES NEED TO BE FLIPPED TOO WHEN CHANGING DIRECTION
 galil_direction = 0; % 0 - forward, 1 - reverse
-if DR_bool
-    dmc_benchtop_filename = "benchtop_test_DR.dmc";
-else
-    dmc_benchtop_filename = "benchtop_test_RA.dmc";
-end
+if DR
 
 case_name = "benchtop_" + 0 + "m.s_" + 0 + "deg_" + freq + "Hz_";
 time_now = datetime;
@@ -55,7 +52,7 @@ cal_matrix = obtain_cal(calibration_filepath);
 end
 
 % estimate recording length based on parameters
-[num_revs, session_duration, at_speed_pos] = estimate_duration(freq, acc, measure_revs, padding_revs, hold_time, true);
+[num_revs, session_duration] = estimate_duration(freq, acc, measure_revs, padding_revs, hold_time, true);
 
 % save data recording parameters
 currentDateTime = datetime('now', 'Format', 'yyyy_MM_dd_HH_mm_ss');
@@ -80,7 +77,6 @@ catch
 end
 
 % ---------------------------
-if DR_bool
 % Create a buffer to hold incoming records
 % Use a property or appdata to keep it accessible in callback
 ref = RefHolder();
@@ -94,7 +90,6 @@ listener = addlistener(galil, 'onRecord', @(src, event) recCallback(src, event, 
 % Start recording at 4 ms interval
 dt = 10;
 galil.recordsStart(dt);
-end
 % ---------------------------
 
 dmc = fileread(dmc_benchtop_filename);
@@ -112,9 +107,6 @@ dmc = strrep(dmc, "revs_TEMP", num2str(num_revs));
 dmc = strrep(dmc, "speed_TEMP", num2str(freq));
 dmc = strrep(dmc, "acc_TEMP", num2str(acc));
 dmc = strrep(dmc, "waittime_TEMP", num2str(wait_time));
-if DR_bool
-    dmc = strrep(dmc, "revsRec_TEMP", num2str(round(at_speed_pos) + padding_revs));
-end
 
 % Load the program described by the .dmc file to the Galil device.
 galil.programDownload(dmc);
@@ -161,7 +153,6 @@ else
 end
 
 % -----------------
-if DR_bool
 % Stop recording
 galil.recordsStart(0);
 % -----------------
@@ -169,9 +160,6 @@ galil.recordsStart(0);
 galil_data = cell2mat(ref.Data);
 
 galil_traj_plot_DR(galil_data, dt);
-else
-galil_traj_plot(galil);
-end
 % ------------------
 
 if daq_bool
@@ -210,6 +198,10 @@ fc = 100;  % cutoff frequency in Hz for filter
 % Display preliminary data
 raw_plot(time, force, voltAdj, curAdj, enc_pulse, case_name, drift, flapper_obj.daq.Rate, fc,...
     f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4);
+end
+
+if (galil_plots)
+galil_traj_plot(galil);
 end
 
 clear cleanup

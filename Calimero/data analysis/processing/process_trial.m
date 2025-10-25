@@ -46,14 +46,14 @@ disp("Current offsets: " + offsets_cur_filename)
 % Get raw data from file
 load(raw_data_path + file); % load in results var
 
-% if (wing_freq == 0)
-% trimmed_results = results(frame_rate:end-frame_rate,:);
-% else
-% trimmed_results = trim_data(results, rec_wingbeats, num_wingbeats, frame_rate);
-% end
+if (wing_freq == 0)
+trimmed_results = results(frame_rate:end-frame_rate,:);
+else
+trimmed_results = trim_data(results, rec_wingbeats, num_wingbeats, frame_rate);
+end
 
 % REPLACE WITH PROPER TRIMMING!!!!!!!!!!!!!!!!!!!!!!!
-trimmed_results = results;
+% trimmed_results = results;
 % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
