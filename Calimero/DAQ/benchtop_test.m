@@ -17,7 +17,7 @@ addpath(genpath("../"))
 galil_IP_address = "192.168.1.3";
 DR_bool = false; % false - store data in arrays (RA), true - data record packets (DR)
 ticksPerRev = 18432;
-freq = 10; % Hz
+freq = 4; % Hz
 acc = 3; % Hz
 measure_revs = 50;
 padding_revs = 4;
@@ -55,14 +55,27 @@ cal_matrix = obtain_cal(calibration_filepath);
 end
 
 % estimate recording length based on parameters
-[num_revs, session_duration, at_speed_pos] = estimate_duration(freq, acc, measure_revs, padding_revs, hold_time, true);
+[num_revs, session_duration, time_to_speed, at_speed_pos] = estimate_duration(freq, acc, measure_revs, padding_revs, hold_time, true);
 
 % save data recording parameters
 currentDateTime = datetime('now', 'Format', 'yyyy_MM_dd_HH_mm_ss');
 currentDateTimeStr = char(currentDateTime);
 file_name = strjoin(["experiment_params", currentDateTimeStr], "_");
-full_file_name = "data\" + file_name + ".mat";
-save(full_file_name);
+full_file_name = "data\params\" + file_name + ".mat";
+
+vars = whos;
+saveVars = {};
+excludeNames = ["flapper_obj", "tiles_1", "tiles_2", "tiles_3", "tiles_4"];
+
+for k = 1:numel(vars)
+    val = evalin('base', vars(k).name);
+    if ~isa(val, 'matlab.ui.Figure') && ...
+       ~any(strcmp(vars(k).name, excludeNames))
+        saveVars{end+1} = vars(k).name;
+    end
+end
+
+save(full_file_name, saveVars{:});
 
 try
     galil = galil_setup(galil_IP_address);
@@ -112,7 +125,7 @@ dmc = strrep(dmc, "revs_TEMP", num2str(num_revs));
 dmc = strrep(dmc, "speed_TEMP", num2str(freq));
 dmc = strrep(dmc, "acc_TEMP", num2str(acc));
 dmc = strrep(dmc, "waittime_TEMP", num2str(wait_time));
-if DR_bool
+if ~DR_bool
     dmc = strrep(dmc, "revsRec_TEMP", num2str(round(at_speed_pos) + padding_revs));
 end
 
@@ -170,7 +183,17 @@ galil_data = cell2mat(ref.Data);
 
 galil_traj_plot_DR(galil_data, dt);
 else
-galil_traj_plot(galil);
+[TimeArr, Current, DesPos, ActPos, ActVel] = galil_traj_plot(galil);
+
+currentDateTime = datetime('now', 'Format', 'yyyy_MM_dd_HH_mm_ss');
+currentDateTimeStr = char(currentDateTime);
+file_name = strjoin([case_name, currentDateTimeStr], "_");
+full_file_name = "data\galil\" + file_name + ".mat";
+
+saveVars = {"TimeArr", "Current", "DesPos", "ActPos", "ActVel"};
+save(full_file_name, saveVars{:});
+
+plot_current_comp(time, curAdj, TimeArr, Current, freq, padding_revs, time_to_speed)
 end
 % ------------------
 

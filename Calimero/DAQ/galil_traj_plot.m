@@ -1,4 +1,4 @@
-function galil_traj_plot(g)
+function [TimeArr, Current, DesPos, ActPos, ActVel] = galil_traj_plot(g)
 ticksPerRev = 18432;
 AG = 0.4;
 TM = 1000; % TM 1000 corresponds to 976 microseconds, 1 increment in TM for every 1000
@@ -37,7 +37,7 @@ DesPos = DesPos(1:I);
 ActPos = ActPos(1:I);
 ActVel = ActVel(1:I);
 
-fc = 1;
+fc = 100;
 fs = round(1 / dt);
 [b,a] = butter(6,fc/(fs/2));
 filtered_vel = filtfilt(b,a,ActVel);

@@ -34,7 +34,7 @@ AR ticks_TEMP*revsRec_TEMP   ; 'Wait to record until at speed
 'Record time, torque, actual and desired position, velocity
 RA TimeArr[],Torque[],DesPos[],ActPos[],ActVel[];
 RD TIME,_TTA,_RPA,_TPA,_TVA;
-RC 2; 'Record data at 4 ms intervals
+RC 1; 'Record data at 2 ms intervals
 
 num_pts = 48;
 NEXT = (ticks_TEMP/num_pts);

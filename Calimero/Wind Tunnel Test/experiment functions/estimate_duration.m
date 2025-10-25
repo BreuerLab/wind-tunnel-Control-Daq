@@ -5,7 +5,7 @@
 % Ronan Gissler
 % July 2025
 
-function [num_revs, session_duration, at_speed_pos] = estimate_duration(vel, acc, measure_revs, padding_revs, hold_time, print_bool)
+function [num_revs, session_duration, time_to_speed, at_speed_pos] = estimate_duration(vel, acc, measure_revs, padding_revs, hold_time, print_bool)
 
     time_to_speed = vel / acc;
     if (print_bool)
