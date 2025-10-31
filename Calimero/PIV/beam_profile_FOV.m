@@ -20,12 +20,15 @@ I0 = 1; % normalized units
 bw = 3.427; % mm, reported as 1/4 inch (6.35 mm) but effective diameter 86.5% listed in test at 3.4 mm
 L = 400; % mm, vertical length of FOV
 W = 400; % mm, horizontal width of FOV
+L_cal = 500;
+W_cal = 310;
 wt_dim = 1200; % mm, wind tunnel is 1.2 x 1.2 m
 % vert_off = (14 + 7)*10; % mm, vertical offset of laser mirrors above wind tunnel
 
 vert_off = (14 + 1)*10; % mm, vertical offset of lens above wind tunnel
 d = ((wt_dim - L) / 2) + vert_off; % mm, vertical distance from focal point of cylindrical
-                    % lens to top of FOV
+                                    % lens to top of FOV
+d_cal = ((wt_dim - L_cal) / 2) + vert_off; % mm, vertical distance from focal point of cylindrical
 h_off = W*0.35; % mm, horizontal offset of wind tunnel
 % z = linspace(d,d+L,200);
 hor_num = 1000;
@@ -71,6 +74,7 @@ t = 2; % thickness of laser beam edge on plot (not physical)
 % bfl_vals = 100; % mm
 % bfl_vals = [5.2, 5.3, 7.1, 7.7, 9.0, 11.0, 14.0, 15.0 16.3, 20.3, 21.3, 23.5, 26.2, 26.7];
 bfl_vals = 11; % mm
+% bfl_vals = 20.3; % mm
 % back focal length (mechanical) different from effective focal length
 % (optical), "A mechanical measurement given as the distance between the
 % last surface of an optical lens to its image plane."
@@ -135,6 +139,7 @@ bfl = bfl_vals;
 
 % [left bottom width height]
 FOV_pos = [-W/2 d + bfl W L];
+Cal_pos = [-W/2 + (W - W_cal)/2 d_cal + bfl W_cal L_cal];
 wind_tunnel_pos = [-wt_dim/2 + h_off bfl + vert_off wt_dim wt_dim];
 
 % ----------------------------------------------------------------------
@@ -188,6 +193,9 @@ plot(pivot(1), pivot(2), 'ko', 'MarkerFaceColor', 'k'); % pivot
 
 % FOV rectangle
 rectangle('Position', FOV_pos, 'EdgeColor', 'k', 'LineWidth', 2)
+
+% Calibration target rectangle
+rectangle('Position', Cal_pos, 'EdgeColor', '#4f4f4f', 'LineWidth', 2)
 
 % Wind tunnel rectangle
 rectangle('Position', wind_tunnel_pos, 'EdgeColor', 'k', 'LineWidth', 1)
