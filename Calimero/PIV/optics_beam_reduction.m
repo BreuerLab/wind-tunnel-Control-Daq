@@ -10,6 +10,8 @@ fl_concave = -50; % mm
 % Good values include: 40, -30; 125, -100; 175, -150
 
 D_init = 3.85; % mm
+% D_init = 3;
+% D_init = 5;
 D_fin_orig = 5.85; % mm
 lens_separation = fl_convex + fl_concave;
 L_tot = 5850; % mm from emission to floor of tunnel

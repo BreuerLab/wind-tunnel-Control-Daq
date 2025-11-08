@@ -15,8 +15,8 @@ dq.Rate = 20000;                 % 20 kHz
 dq.ScansAvailableFcnCount = 5000; % callback every 1000 scans (0.05 s at 20 kHz)
 
 % Preallocate/initialize shared variables (parent workspace for the nested fn)
-allData = zeros(0, 2);    % adjust second dim if you change number of channels
-allTime = zeros(0, 1);
+allData = [];    % adjust second dim if you change number of channels
+allTime = [];
 totalScans = 0;
 
 % For debugging: enable a simple flag to print when callback runs
