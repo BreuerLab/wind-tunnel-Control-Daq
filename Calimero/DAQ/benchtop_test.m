@@ -17,7 +17,7 @@ addpath(genpath("../"))
 galil_IP_address = "192.168.1.3";
 DR_bool = false; % false - store data in arrays (RA), true - data record packets (DR)
 ticksPerRev = 18432;
-freq = 4; % Hz
+freq = 2; % Hz
 acc = 3; % Hz
 measure_revs = 50;
 padding_revs = 4;
@@ -48,14 +48,16 @@ calibration_filepath = "../DAQ/Calibration Files/Mini40/FT52907.cal";
 voltage = 5; % 5 or 10 volts for load cell
 
 % Make Calimero data collection object
-flapper_obj = Calimero(rate, voltage);
+flapper_obj = Calimero();
+
+flapper_obj.setup_DAQ(voltage, rate);
 
 % Get calibration matrix from calibration file
 cal_matrix = obtain_cal(calibration_filepath);
 end
 
 % estimate recording length based on parameters
-[num_revs, session_duration, time_to_speed, at_speed_pos] = estimate_duration(freq, acc, measure_revs, padding_revs, hold_time, true);
+[num_revs, session_duration, time_to_speed, at_speed_pos] = estimate_duration(freq, acc, measure_revs, padding_revs, hold_time, wait_time, true);
 
 % save data recording parameters
 currentDateTime = datetime('now', 'Format', 'yyyy_MM_dd_HH_mm_ss');
@@ -166,7 +168,13 @@ pause(1);
 checkLimits(results);
 
 % Translate data from raw values into meaningful values
-[time, force, voltAdj, curAdj, enc_pulse] = process_data(results, offsets_before, cal_matrix);
+[time, force, voltAdj, curAdj, enc_pulse, speed] = process_data(results, offsets_before, cal_matrix);
+
+figure
+plot(time, speed)
+xlabel("Time (seconds)")
+ylabel("Speed (Hz)")
+title("Speed measured from OC pulses")
 
 pause(3);
 else
@@ -231,7 +239,7 @@ end
 
 fc = 100;  % cutoff frequency in Hz for filter
 % Display preliminary data
-raw_plot(time, force, voltAdj, curAdj, enc_pulse, case_name, drift, flapper_obj.daq.Rate, fc,...
+raw_plot(time, force, voltAdj, curAdj, enc_pulse, case_name, drift, flapper_obj.DAQ.Rate, fc,...
     f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4);
 end
 

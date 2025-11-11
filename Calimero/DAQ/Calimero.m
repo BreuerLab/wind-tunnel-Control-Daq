@@ -41,23 +41,27 @@
 % Author: Ronan Gissler
 % Breuer Lab 2023
 
-classdef Calimero
+classdef Calimero < handle
 properties
-    forceVoltage; % 5 or 10 volts
-    daq; % National Instruments Data Acquistion Object
+    DAQ; % National Instruments Data Acquistion Object
+    data;
+    time;
 end
 
-methods(Static)
+methods
 
 % Builds DAQ object, adds channels, and sets appropriate channel
 % voltages
 % Inputs: forceVoltage - Voltage rating for all channels
 %         rate - Data sampling rate for DAQ
 % Returns: this_DAQ - A fully constructed DAQ object
-function this_DAQ = setup_DAQ(forceVoltage, rate)
+function setup_DAQ(obj, forceVoltage, rate)
     % Create DAQ session and set its aquisition rate (Hz).
-    this_DAQ = daq("ni");
-    this_DAQ.Rate = rate;
+    obj.DAQ.Rate = rate;
+    obj.DAQ.ScansAvailableFcnCount = 2000;
+        
+    % Pass the object handle (by reference)
+    obj.DAQ.ScansAvailableFcn = @(src, evt) processData(src, evt, obj);
     daq_ID = "Dev1";
     % Don't know your DAQ ID, type "daq.getDevices().ID" into the
     % command window to see what devices are currently connected to
@@ -66,32 +70,36 @@ function this_DAQ = setup_DAQ(forceVoltage, rate)
     % -------------- Add the input channels --------------
     % 6 force channels: Fx, Fy, Fz, Mx, My, Mz
     try
-        ch0 = this_DAQ.addinput(daq_ID, 0, "Voltage");
+        ch0 = obj.DAQ.addinput(daq_ID, 0, "Voltage");
     catch ME
         daq_ID = DAQ_select(ME.message);
-        ch0 = this_DAQ.addinput(daq_ID, 0, "Voltage");
+        ch0 = obj.DAQ.addinput(daq_ID, 0, "Voltage");
     end
 
     % ch9 = this_DAQ.addinput(daq_ID, "ctr0", "EdgeCount"); % rising edges by default
 
-    ch1 = this_DAQ.addinput(daq_ID, 1, "Voltage");
-    ch2 = this_DAQ.addinput(daq_ID, 2, "Voltage");
-    ch3 = this_DAQ.addinput(daq_ID, 3, "Voltage");
-    ch4 = this_DAQ.addinput(daq_ID, 4, "Voltage");
-    ch5 = this_DAQ.addinput(daq_ID, 5, "Voltage");
+    ch1 = obj.DAQ.addinput(daq_ID, 1, "Voltage");
+    ch2 = obj.DAQ.addinput(daq_ID, 2, "Voltage");
+    ch3 = obj.DAQ.addinput(daq_ID, 3, "Voltage");
+    ch4 = obj.DAQ.addinput(daq_ID, 4, "Voltage");
+    ch5 = obj.DAQ.addinput(daq_ID, 5, "Voltage");
 
     % channel for voltage measurement
-    ch6 = this_DAQ.addinput(daq_ID, 22, "Voltage");
+    ch6 = obj.DAQ.addinput(daq_ID, 22, "Voltage");
 
     % channel for current measurement
-    ch7 = this_DAQ.addinput(daq_ID, 21, "Voltage");
+    ch7 = obj.DAQ.addinput(daq_ID, 21, "Voltage");
 
     % channel for Galil encoder measurement
     % ch8 = this_DAQ.addinput(daq_ID, 20, "Voltage");
-    ch8 = this_DAQ.addinput(daq_ID, "port0/line24", "Digital");
+    ch8 = obj.DAQ.addinput(daq_ID, "port0/line24", "Digital");
 
-    % addclock(this_DAQ,"ScanClock","external","Dev4/Ctr0Source")
+    obj.DAQ.addinput(daq_ID,"ctr0","EdgeCount")
     
+    if ~(forceVoltage == 5 || forceVoltage == 10)
+        error("Invalid DAQ voltage for force transducer")
+    end
+        
     % --------- Set the voltage range of the channels ---------
     ch0.Range = [-forceVoltage, forceVoltage];
     ch1.Range = [-forceVoltage, forceVoltage];
@@ -141,27 +149,27 @@ function this_DAQ = setup_DAQ(forceVoltage, rate)
     % assignin("base","allData",allData);
     % assignin("base","allTime",allTime);
     % end
-end
 
+    function processData(src, ~, obj)
+        % disp("Saving Data")
+        [newData, newTime, ~] = read(src, src.ScansAvailableFcnCount, "OutputFormat", "Matrix");
+        obj.data = [obj.data; newData];
+        obj.time = [obj.time; newTime];
+    end
 end
-
-methods
 
 %% Constructor for Force Transducer Class
-function obj = Calimero(rate, forceVoltage)
-    if (forceVoltage == 5 || forceVoltage == 10)
-        obj.forceVoltage = forceVoltage;
-    else
-        error("Invalid DAQ voltage for force transducer")
-    end
-
-    obj.daq = Calimero.setup_DAQ(forceVoltage, rate);
+function obj = Calimero()
+    % obj.DAQ = Calimero.setup_DAQ(forceVoltage, rate);
+    obj.DAQ = daq("ni");
+    obj.data = [];
+    obj.time = [];
 end
 
 %% Destructor for Force Transducer Class
 function delete(obj)
-    delete(obj.daq);
-    clear obj.daq;
+    delete(obj.DAQ);
+    clear obj.DAQ;
 end
 
 % **************************************************************** %
@@ -188,19 +196,31 @@ function [offsets] = get_force_offsets(obj, case_name, tare_duration)
     % start(obj.daq, "Duration", tare_duration);
     
     % Read the data
-    bias_timetable = read(obj.daq, seconds(tare_duration));
-    bias_table = timetable2table(bias_timetable);
-    
-    % Extract columns (6 forces + current + voltage + position)
-    bias_array = table2array(bias_table(:, 2:end));
-    
+    % bias_timetable = read(obj.DAQ, seconds(tare_duration));
+    % bias_table = timetable2table(bias_timetable);
+    % 
+    % % Extract columns (6 forces + current + voltage + position)
+    % bias_array = table2array(bias_table(:, 2:end));
+
+    % Stop and flush DAQ buffer
+    stop(obj.DAQ);
+    flush(obj.DAQ);
+
+    % clear data arrays
+    obj.data = [];
+    obj.time = [];
+
+    start(obj.DAQ, "continuous");
+    pause(tare_duration);
+    stop(obj.DAQ)
+
     % Preallocate offset matrix (mean and std for each channel)
-    num_channels = min(size(bias_array));
+    num_channels = min(size(obj.data));
     offsets = zeros(2, num_channels);
 
     for i = 1:num_channels
-        offsets(1, i) = mean(bias_array(:, i));  % mean (offset)
-        offsets(2, i) = std(bias_array(:, i));   % std (noise)
+        offsets(1, i) = mean(obj.data(:, i));  % mean (offset)
+        offsets(2, i) = std(obj.data(:, i));   % std (noise)
     end
     
     % Save data to .mat file with timestamp
@@ -211,10 +231,6 @@ function [offsets] = get_force_offsets(obj, case_name, tare_duration)
     save(trial_file_name, "offsets");
 
     pause(1);
-
-    % Stop and flush DAQ buffer
-    stop(obj.daq);
-    flush(obj.daq);
 end
 
 % **************************************************************** %
@@ -266,18 +282,31 @@ function [results] = measure_force(obj, case_name, session_duration)
     % end
 
     % Read the data
-    raw_data = read(obj.daq, seconds(session_duration));
+    % raw_data = read(obj.DAQ, seconds(session_duration));
+    % 
+    % raw_data_table = timetable2table(raw_data);
+    % 
+    % raw_data_table_times = raw_data_table(:, 1); % timestamps
+    % raw_data_table_volt_vals = raw_data_table(:, 2:end); % voltage inputs (9 channels)
+    % 
+    % raw_times = seconds(table2array(raw_data_table_times));
+    % raw_volt_vals = table2array(raw_data_table_volt_vals);
 
+    % Stop and flush DAQ buffer
+    stop(obj.DAQ);
+    flush(obj.DAQ);
 
-    raw_data_table = timetable2table(raw_data);
+    % clear data arrays
+    obj.data = [];
+    obj.time = [];
 
-    raw_data_table_times = raw_data_table(:, 1); % timestamps
-    raw_data_table_volt_vals = raw_data_table(:, 2:end); % voltage inputs (9 channels)
-
-    raw_times = seconds(table2array(raw_data_table_times));
-    raw_volt_vals = table2array(raw_data_table_volt_vals);
+    tic
+    start(obj.DAQ, "continuous");
+    pause(session_duration);
+    stop(obj.DAQ)
+    toc
     
-    results = [raw_times raw_volt_vals];
+    results = [obj.time obj.data];
     
     % Save data to .mat file with timestamp
     currentDateTime = datetime('now', 'Format', 'yyyy_MM_dd_HH_mm_ss');
@@ -285,10 +314,6 @@ function [results] = measure_force(obj, case_name, session_duration)
     trial_name = strjoin([case_name, "experiment", currentDateTimeStr], "_");
     trial_file_name = "data\experiment data\" + trial_name + ".mat";
     save(trial_file_name, "results");
-    
-    % Flush data from DAQ buffer and stops background operations
-    stop(obj.daq);
-    flush(obj.daq);
 end
 
 end

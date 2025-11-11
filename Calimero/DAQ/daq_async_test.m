@@ -1,31 +1,49 @@
-classdef daq_async_test
+classdef daq_async_test < handle
     properties
-        forceVoltage; % 5 or 10 volts
-        daq; % National Instruments Data Acquistion Object
+        data;
+        time;
+        DAQ;
     end
 
     methods
-        function read_data()
-        daq_ID = "Dev4";
-        dq = daq("ni");
-        
-        % channel for voltage measurement
-        ch6 = this_DAQ.addinput(daq_ID, 22, "Voltage");
-        
-        % channel for current measurement
-        ch7 = this_DAQ.addinput(daq_ID, 21, "Voltage");
-        
-        % channel for Galil encoder measurement
-        % ch8 = this_DAQ.addinput(daq_ID, 20, "Voltage");
-        ch8 = this_DAQ.addinput(daq_ID, "port0/line24", "Digital");
-        
-        dq.Rate = 20000;                 % 20 kHz
-        dq.ScansAvailableFcnCount = 2000; % callback every 1000 scans (0.05 s at 20 kHz)
-        % Assign callback (nested function shares variables above)
-        dq.ScansAvailableFcn = @(src,evt) processData(src, evt);
-        
-        allData = [];
-        allTime = [];
+        function obj = daq_async_test()
+            obj.data = [];
+            obj.time = [];
+            dq = daq("ni");
+            obj.DAQ = dq;
+        end
+
+        function read_data(obj)
+            daq_ID = "Dev4";
+            
+            % channel for voltage measurement
+            ch6 = obj.DAQ.addinput(daq_ID, 22, "Voltage");
+            
+            % channel for current measurement
+            ch7 = obj.DAQ.addinput(daq_ID, 21, "Voltage");
+            
+            % channel for Galil encoder measurement - low resolution
+            ch8 = obj.DAQ.addinput(daq_ID, "port0/line24", "Digital");
+
+            % channel for Galil encoder measurement - high resolution
+            obj.DAQ.addinput(daq_ID,"ctr0","EdgeCount")
+            
+            obj.DAQ.Rate = 20000;
+            obj.DAQ.ScansAvailableFcnCount = 2000;
+            
+            % Pass the object handle (by reference)
+            obj.DAQ.ScansAvailableFcn = @(src, evt) processData(src, evt, obj);
+            
+            duration = 2;
+            start(obj.DAQ, "Duration", seconds(duration));
+            % pause(duration + 1);
+            % stop(obj.DAQ);
+
+            function processData(src, evt, obj)
+                [newData, newTime, ~] = read(src, src.ScansAvailableFcnCount, "OutputFormat", "Matrix");
+                obj.data = [obj.data; newData];
+                obj.time = [obj.time; newTime];
+            end
         end
     end
 end
