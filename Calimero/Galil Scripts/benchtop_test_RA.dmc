@@ -22,6 +22,7 @@ KDA=8               ; 'Derivative gain
 FVA=0               ;
 FAA=0               ;
 ILA=-2              ;'KI bit limited to 2V and starts after motion complete
+OCA=0,4               ;'Output compare pulse every 4 encoder pulses
 
 WT waittime_TEMP;
 
