@@ -10,8 +10,8 @@ theta = linspace(init_theta, init_theta - numRevs*2*pi, numPts);
 % theta = linspace(init_theta, init_theta + numRevs*2*pi, numPts);
 time_eqt = linspace(0, numRevs, numPts);
 
-data_path_F = "R:\ENG_Breuer_Shared\rgissler\Solidworks\Calimero\Data\wing_angle_data_1Hz.csv";
-data_path_R = "R:\ENG_Breuer_Shared\rgissler\Solidworks\Calimero\Data\wing_angle_data_1Hz_rev.csv";
+data_path_F = "R:\ENG_Breuer_Shared\group\Ronan\Solidworks\Calimero\Data\wing_angle_data_1Hz.csv";
+data_path_R = "R:\ENG_Breuer_Shared\group\Ronan\Solidworks\Calimero\Data\wing_angle_data_1Hz_rev.csv";
 
 phi_eqt = -atand((r*sin(theta)) ./ (d + r*cos(theta)));
 
