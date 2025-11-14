@@ -9,7 +9,7 @@ function [f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4] = makeForceFigures
     y_label_M = "Moment (N*m)";
     y_label_V = "Voltage (V)";
     y_label_C = "Current (mA)";
-    y_label_P = "Angle (rad)";
+    y_label_P = "Speed (Hz)";
     axes_labels = [x_label, y_label_F, y_label_M, y_label_V, y_label_C, y_label_P];
 
     f1 = figure;

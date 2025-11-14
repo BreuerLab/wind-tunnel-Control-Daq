@@ -17,7 +17,9 @@ dmc_hold_filename = "hold.dmc";
 ticksPerRev = 18432;
 acc = 3; % Hz^2
 padding_revs = 4;
-wait_time = 2000; % ms
+wait_time = 4000; % ms
+galil_direction = 0; % 0 - clockwise, slow downstroke), 1 - reverse
+OC_pulse_step = 4; % in ticks
 
 % save data recording parameters
 currentDateTime = datetime('now', 'Format', 'yyyy_MM_dd_HH_mm_ss');
@@ -69,7 +71,11 @@ dmc = fileread(dmc_hold_filename);
 dmc = string(dmc);
 % Replace the place holders in the .dmc file with the values specified
 % here. Other parameters can be changed directly in .dmc file.
-dmc = strrep(dmc, "dir_TEMP", "2");
+if galil_direction == 1
+    dmc = strrep(dmc, "dir_TEMP", "2");
+else
+    dmc = strrep(dmc, "dir_TEMP", "0");
+end
 
 % Load the program described by the .dmc file to the Galil device.
 galil.programDownload(dmc);
@@ -79,7 +85,9 @@ galil.command("XQ");
 diary off % IS THIS INITIAL DIARY NECESSARY, WHAT IS GETTING OUTPUT?
 
 % Make Calimero data collection object
-flapper_obj = Calimero(rate, voltage);
+flapper_obj = Calimero();
+
+flapper_obj.setup_DAQ(voltage, rate);
 
 % Get calibration matrix from calibration file
 cal_matrix = obtain_cal(calibration_filepath);
@@ -113,7 +121,7 @@ case_name = wing_type + "_" + speed + "m.s_" + AoA_vals(j) + "deg_" + freq_vals(
 % ----------------------------------------------------------
 [force] = run_trial(flapper_obj, cal_matrix, case_name, offset_duration,...
     offsets, ticksPerRev, freq_vals(i), acc, measure_revs, padding_revs, hold_time, wait_time,...
-    galil, dmc_motion_filename,...
+    galil_direction, OC_pulse_step, galil, dmc_motion_filename,...
     f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4);
 
 process_and_plot(force, i, AoA_vals, j, tiles, freq_vals);

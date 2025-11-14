@@ -61,7 +61,7 @@ function setup_DAQ(obj, forceVoltage, rate)
     obj.DAQ.ScansAvailableFcnCount = 2000;
         
     % Pass the object handle (by reference)
-    obj.DAQ.ScansAvailableFcn = @(src, evt) processData(src, evt, obj);
+    obj.DAQ.ScansAvailableFcn = @(src, evt) obj.processData(src, evt);
     daq_ID = "Dev1";
     % Don't know your DAQ ID, type "daq.getDevices().ID" into the
     % command window to see what devices are currently connected to
@@ -149,21 +149,38 @@ function setup_DAQ(obj, forceVoltage, rate)
     % assignin("base","allData",allData);
     % assignin("base","allTime",allTime);
     % end
+end
 
-    function processData(src, ~, obj)
-        % disp("Saving Data")
-        [newData, newTime, ~] = read(src, src.ScansAvailableFcnCount, "OutputFormat", "Matrix");
-        obj.data = [obj.data; newData];
-        obj.time = [obj.time; newTime];
-    end
+
+function processData(obj, src, evt)
+    % if ~isvalid(src) || ~isvalid(obj.DAQ) || ~src.Running
+    %     disp("Invalid call to processData")
+    %     return; % Session stopped — ignore stray callback
+    % end
+    % 
+    % nAvail = src.ScansAvailableFcnCount;
+    % if nAvail <= 0
+    %     disp("Trying to get scans from buffer, but none found")
+    %     return;
+    % end
+
+    % disp("Saving Data")
+    % [newData, newTime, ~] = read(src, evt.Source.NumElementsAvailable, "OutputFormat", "Matrix");
+    [newData, newTime, ~] = read(src, evt.NumElementsAvailable, "OutputFormat", "Matrix");
+    % [newData, newTime, ~] = read(src, src.ScansAvailableFcnCount, "OutputFormat", "Matrix");
+    % obj.data = [obj.data; newData];
+    % obj.time = [obj.time; newTime];
+
+    obj.data{end+1} = newData;
+    obj.time{end+1} = newTime;
 end
 
 %% Constructor for Force Transducer Class
 function obj = Calimero()
     % obj.DAQ = Calimero.setup_DAQ(forceVoltage, rate);
     obj.DAQ = daq("ni");
-    obj.data = [];
-    obj.time = [];
+    obj.data = {};
+    obj.time = {};
 end
 
 %% Destructor for Force Transducer Class
@@ -206,21 +223,34 @@ function [offsets] = get_force_offsets(obj, case_name, tare_duration)
     stop(obj.DAQ);
     flush(obj.DAQ);
 
-    % clear data arrays
-    obj.data = [];
-    obj.time = [];
-
+    % numScans = round(obj.DAQ.Rate * tare_duration);
+    % if (numScans ~= obj.DAQ.Rate * tare_duration)
+    %     disp(obj.DAQ.Rate * tare_duration)
+    % end
     start(obj.DAQ, "continuous");
+    % start(obj.DAQ, "Duration", seconds(tare_duration));
     pause(tare_duration);
     stop(obj.DAQ)
 
+
+    pause(1)
+    flush(obj.DAQ);
+    cur_data = vertcat(obj.data{:});
+    obj.data = {};
+    obj.time = {};
+    
+    % [newData, newTime, ~] = read(obj.DAQ, obj.DAQ.NumScansAvailable, "OutputFormat", "Matrix");
+    % % [newData, newTime, ~] = read(src, src.ScansAvailableFcnCount, "OutputFormat", "Matrix");
+    % obj.data = [obj.data; newData];
+    % obj.time = [obj.time; newTime];
+
     % Preallocate offset matrix (mean and std for each channel)
-    num_channels = min(size(obj.data));
+    num_channels = min(size(cur_data));
     offsets = zeros(2, num_channels);
 
     for i = 1:num_channels
-        offsets(1, i) = mean(obj.data(:, i));  % mean (offset)
-        offsets(2, i) = std(obj.data(:, i));   % std (noise)
+        offsets(1, i) = mean(cur_data(:, i));  % mean (offset)
+        offsets(2, i) = std(cur_data(:, i));   % std (noise)
     end
     
     % Save data to .mat file with timestamp
@@ -296,17 +326,29 @@ function [results] = measure_force(obj, case_name, session_duration)
     stop(obj.DAQ);
     flush(obj.DAQ);
 
-    % clear data arrays
-    obj.data = [];
-    obj.time = [];
-
-    tic
+    dt_extra = 0.2;
+    % numScans = round(obj.DAQ.Rate * session_duration);
+    % if (numScans ~= obj.DAQ.Rate * session_duration)
+    %     disp(obj.DAQ.Rate * session_duration)
+    % end
     start(obj.DAQ, "continuous");
+    % start(obj.DAQ, "Duration", seconds(session_duration));
     pause(session_duration);
     stop(obj.DAQ)
-    toc
+
+    pause(1)
+    flush(obj.DAQ);
+    cur_time = vertcat(obj.time{:});
+    cur_data = vertcat(obj.data{:});
+    obj.data = {};
+    obj.time = {};
+
+    % [newData, newTime, ~] = read(obj.DAQ, obj.DAQ.NumScansAvailable, "OutputFormat", "Matrix");
+    % % [newData, newTime, ~] = read(src, src.ScansAvailableFcnCount, "OutputFormat", "Matrix");
+    % obj.data = [obj.data; newData];
+    % obj.time = [obj.time; newTime];
     
-    results = [obj.time obj.data];
+    results = [cur_time cur_data];
     
     % Save data to .mat file with timestamp
     currentDateTime = datetime('now', 'Format', 'yyyy_MM_dd_HH_mm_ss');

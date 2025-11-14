@@ -26,7 +26,7 @@ function [num_revs, session_duration, time_to_speed, at_speed_pos] = estimate_du
         session_duration = hold_time;
     else
         num_revs = measure_revs + 2*(padding_revs + round((at_speed_pos) + 0.5));
-        session_duration = round((num_revs / vel) + 2*time_to_speed) + 2*(wait_time/1000);
+        session_duration = round((num_revs / vel) + 2*time_to_speed) + (wait_time/1000);
     end
     if (print_bool)
     disp(num_revs ...

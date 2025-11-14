@@ -1,4 +1,4 @@
-function [time, force, voltAdj, curAdj, enc_pulse, filtered_speed] = process_data(results, offsets, cal_matrix)
+function [time, force, voltAdj, curAdj, enc_pulse, speed] = process_data(results, offsets, cal_matrix, ticksPerRev, OC_pulse_step)
     time = results(:,1);
     force = volt_to_force(results(:,2:7), offsets, cal_matrix);
     voltAdj = voltM_to_voltA(results(:,8), offsets(1,7));
@@ -6,12 +6,10 @@ function [time, force, voltAdj, curAdj, enc_pulse, filtered_speed] = process_dat
     enc_pulse = results(:,10);
 
     dt = time(2) - time(1);
-    speed = gradient(results(:,11), dt);
-    ticksPerRev = 18432;
-    ticksPerPulse = 4;
-    speed = speed / (ticksPerRev / ticksPerPulse);
-    fc = 200;
-    fs = round(1 / dt);
-    [b,a] = butter(6,fc/(fs/2));
-    filtered_speed = filtfilt(b,a,speed);
+    % speed = gradient(results(:,11), dt);
+
+    order = 3;
+    framelen = 21;
+    speed = savitskyGolayDiff(results(:,11), order, framelen, dt);
+    speed = speed / (ticksPerRev / OC_pulse_step);
 end

@@ -17,12 +17,13 @@ addpath(genpath("../"))
 galil_IP_address = "192.168.1.3";
 DR_bool = false; % false - store data in arrays (RA), true - data record packets (DR)
 ticksPerRev = 18432;
-freq = 2; % Hz
+freq = 4; % Hz
 acc = 3; % Hz
 measure_revs = 50;
 padding_revs = 4;
 hold_time = 15; % sec
 wait_time = 1000; % ms
+OC_pulse_step = 4; % in ticks
 % REMEMBER MOTOR WIRES NEED TO BE FLIPPED TOO WHEN CHANGING DIRECTION
 galil_direction = 0; % 0 - forward, 1 - reverse
 if DR_bool
@@ -127,6 +128,7 @@ dmc = strrep(dmc, "revs_TEMP", num2str(num_revs));
 dmc = strrep(dmc, "speed_TEMP", num2str(freq));
 dmc = strrep(dmc, "acc_TEMP", num2str(acc));
 dmc = strrep(dmc, "waittime_TEMP", num2str(wait_time));
+dmc = strrep(dmc, "OC_TEMP", num2str(OC_pulse_step));
 if ~DR_bool
     dmc = strrep(dmc, "revsRec_TEMP", num2str(round(at_speed_pos) + padding_revs));
 end
@@ -167,14 +169,44 @@ pause(1);
 % Are we approaching limits of load cell?
 checkLimits(results);
 
+ticksPerRev = 18432;
 % Translate data from raw values into meaningful values
-[time, force, voltAdj, curAdj, enc_pulse, speed] = process_data(results, offsets_before, cal_matrix);
+[time, force, voltAdj, curAdj, enc_pulse, speed] = process_data(results, offsets_before, cal_matrix, ticksPerRev, OC_pulse_step);
 
-figure
+fc = 100;
+fs = rate;
+[b,a] = butter(6,fc/(fs/2));
+filtered_speed = filtfilt(b,a,speed);
+
+OC_f = figure;
 plot(time, speed)
 xlabel("Time (seconds)")
-ylabel("Speed (Hz)")
+ylabel("Filtered Speed (Hz)")
 title("Speed measured from OC pulses")
+saveas(OC_f,'data\plots\' + case_name + "_OC.png")
+
+% 1, 2, 3, 4, 6, 8, 9, 12, 16, 18, 24, 32, 36, 48, 64, 72, 96, 128,
+% 144, 192, 256, 288, 384, 512, 576, 768, 1024, 1152, 1536, 2048,
+% 2304, 3072, 4608, 6144, 9216, 18432
+
+
+pulsesPerStep = 18432 / OC_pulse_step;
+% trim beginning and end
+pulse_count = results(8*rate:end-8*rate,11);
+pulse_count = pulse_count(pulse_count ~= 0 & pulse_count ~= pulse_count(end));
+whole_idx = find(mod(pulse_count, pulsesPerStep) <3);
+diff_idx = diff(whole_idx);
+diff_idx = diff_idx(diff_idx ~= 1);
+eff_freq = rate ./ diff_idx;
+% wingbeat frequency error over a single wingbeat
+err = abs(eff_freq - freq);
+laser_freq = 192;
+cycle_frames = 96;
+err_frames = err*(1/freq)*laser_freq;
+
+% What's most important for phase averaging PIV is that a full cycle
+% has some repeatable time
+
 
 pause(3);
 else
@@ -201,7 +233,7 @@ full_file_name = "data\galil\" + file_name + ".mat";
 saveVars = {"TimeArr", "Current", "DesPos", "ActPos", "ActVel"};
 save(full_file_name, saveVars{:});
 
-plot_current_comp(time, curAdj, TimeArr, Current, freq, padding_revs, time_to_speed)
+plot_current_comp(time, curAdj, TimeArr, Current, freq, padding_revs, time_to_speed, case_name)
 end
 % ------------------
 
