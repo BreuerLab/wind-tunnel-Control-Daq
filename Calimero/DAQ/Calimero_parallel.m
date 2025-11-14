@@ -41,7 +41,7 @@
 % Author: Ronan Gissler
 % Breuer Lab 2023
 
-classdef Calimero < handle
+classdef Calimero_parallel < handle
 properties
     DAQ; % National Instruments Data Acquistion Object
     data;
@@ -176,7 +176,7 @@ function processData(obj, src, evt)
 end
 
 %% Constructor for Force Transducer Class
-function obj = Calimero()
+function obj = Calimero_parallel()
     % obj.DAQ = Calimero.setup_DAQ(forceVoltage, rate);
     obj.DAQ = daq("ni");
     obj.data = {};

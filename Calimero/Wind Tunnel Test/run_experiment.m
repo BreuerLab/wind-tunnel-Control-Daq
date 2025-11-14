@@ -9,6 +9,7 @@ rate = 12000; % measurement rate of NI DAQ, in Hz
 offset_duration = 6; % in seconds
 calibration_filepath = "../DAQ/Calibration Files/Mini40/FT52907.cal"; 
 voltage = 5; % 5 or 10 volts for load cell
+async = false;
 
 % Galil Parameters
 galil_address = "192.168.1.3";
@@ -85,9 +86,12 @@ galil.command("XQ");
 diary off % IS THIS INITIAL DIARY NECESSARY, WHAT IS GETTING OUTPUT?
 
 % Make Calimero data collection object
-flapper_obj = Calimero();
-
-flapper_obj.setup_DAQ(voltage, rate);
+if async
+    flapper_obj = Calimero();
+    flapper_obj.setup_DAQ(voltage, rate);
+else
+    flapper_obj = Calimero(rate, voltage);
+end
 
 % Get calibration matrix from calibration file
 cal_matrix = obtain_cal(calibration_filepath);
@@ -122,7 +126,7 @@ case_name = wing_type + "_" + speed + "m.s_" + AoA_vals(j) + "deg_" + freq_vals(
 [force] = run_trial(flapper_obj, cal_matrix, case_name, offset_duration,...
     offsets, ticksPerRev, freq_vals(i), acc, measure_revs, padding_revs, hold_time, wait_time,...
     galil_direction, OC_pulse_step, galil, dmc_motion_filename,...
-    f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4);
+    f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4, async);
 
 process_and_plot(force, i, AoA_vals, j, tiles, freq_vals);
 

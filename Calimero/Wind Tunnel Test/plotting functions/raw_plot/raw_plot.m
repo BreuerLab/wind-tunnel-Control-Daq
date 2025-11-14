@@ -3,8 +3,8 @@
 % **************************************************************** %
 % This function provides preliminary force data in the form of a 2 x 3
 % grid plot.
-function raw_plot(time, force, voltAdj, curAdj, speed, case_name, drift, rate, fc,...
-    f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4)
+function raw_plot(time, force, voltAdj, curAdj, enc_pulse, speed, case_name, drift, rate, fc,...
+    f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4, async)
     % close all
     titles = ["F_x","F_y","F_z","M_x","M_y","M_z","Voltage","Current","Speed (OC)"];
 
@@ -30,7 +30,11 @@ function raw_plot(time, force, voltAdj, curAdj, speed, case_name, drift, rate, f
 
     %% Figure with voltage, current, and encoder data
 
-    extra_data = [voltAdj, curAdj, speed];
+    if async
+        extra_data = [voltAdj, curAdj, speed];
+    else
+        extra_data = [voltAdj, curAdj, enc_pulse];
+    end
     extra_data = extra_data';
     raw_extra_plot(f3, tiles_3, time, extra_data, case_name, rate, fc, titles);
 

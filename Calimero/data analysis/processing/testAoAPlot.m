@@ -5,7 +5,7 @@
 % (i.e. you must be in the process trial folder)
 clear
 close all
-addpath(genpath('../Wind Tunnel Test'))
+addpath(genpath('../../'))
 addpath(genpath('.'))
 
 AFAM_bool = false;
@@ -16,11 +16,15 @@ calibration_filepath = "../../DAQ/Calibration Files/Mini40/FT52907.cal";
 cal_matrix = obtain_cal(calibration_filepath);
 
 wing_freq_sel = [0, 2, 4, 6, 8, 10];
+AoA_vals = [-16:2:16];
 
 wind_speeds = [4];
 types = ["flexible"]; % needs to match folder name only
 % data_path = "F:\Calimero Data\Calimero_07_12_to_07_14_Tests\";
-data_path = "F:\Calimero Data\Calimero 09_19_2025\";
+% data_path = "F:\Calimero Data\Calimero 09_23_2025_ascending\";
+data_path = "F:\Calimero Data\Calimero 11_13_2025\";
+slack_path = "F:\Calimero Data\";
+slack_bool = false;
 % ADD PATH WHERE DATA SHOULD GET DUMPED
 
 for n = 1:length(wind_speeds)
@@ -30,8 +34,10 @@ wind_speed_sel = wind_speeds(n);
 type = types(m);
 
 % set up Slack messenger objects
-s = slackMsg(data_path);
-bot = slackProgressBar(data_path);
+if slack_bool
+s = slackMsg(slack_path);
+bot = slackProgressBar(slack_path);
+end
 
 speed_path = data_path + wind_speed_sel + " m.s/";
 filePattern = fullfile(speed_path); % Change to whatever pattern you need.
@@ -54,6 +60,10 @@ for i = 3:length(dir_names)
     end
 end
 
+if (isempty(raw_data_path) || isempty(offsets_path) || isempty(processed_data_path) || isempty(wind_tunnel_path))
+    error("Oops, missing data path")
+end
+
 % Get a list of all files in the folder with the desired file name pattern.
 filePattern = fullfile(raw_data_path, '*.mat'); % Change to whatever pattern you need.
 exp_files = [];
@@ -65,12 +75,14 @@ end
 diary(data_path + "processing logs/" + wind_speed_sel + "ms_" + type + ".txt")
 percent_complete = 0;
 try
+if slack_bool
 time_now = datetime;
 time_now.Format = 'yyyy_MM_dd HH_mm_ss';
 s.send("Started processing files at: " + string(time_now))
 
 % Post the initial message
 [channelID, messageTs] = bot.makeBar();
+end
 
 prev_value = 0;
 % Grab each file and process the data from that file, storing the results
@@ -93,17 +105,21 @@ for k = 1 : length(exp_files)
     
     % Get raw data from file
     load(raw_data_path + baseFileName); % load in results var
-    
-    [time_data, force_data, voltAdj, curAdj, enc_pulse] = process_data(results, offsets, cal_matrix);
+
+    ticksPerRev = 18432;
+    OC_pulse_step = 4;
+    [time_data, force_data, voltAdj, curAdj, enc_pulse, speed] = process_data(results, offsets, cal_matrix, ticksPerRev, OC_pulse_step);
 
     cur_ind = find(wing_freq == wing_freq_sel);
 
-    process_and_plot(force_data, cur_ind, AoA, tiles, wing_freq_sel)
+    AoA_ind = find(AoA_vals == AoA);
+    process_and_plot(force_data, cur_ind, AoA_vals, AoA_ind, tiles, wing_freq_sel)
     end
 
     percent_complete = round((k / length(exp_files)) * 100, 2);
     disp(percent_complete + "% complete")
 
+    if slack_bool
     curr_value = percent_complete;
 
     prev_floor = floor(prev_value / 5);
@@ -113,17 +129,22 @@ for k = 1 : length(exp_files)
         bot.updateProgress(channelID, messageTs, percent_complete);
     end
     prev_value = curr_value;
+    end
 end
 
 diary off
+if slack_bool
 time_now = datetime;
 time_now.Format = 'yyyy_MM_dd HH_mm_ss';
 s.send("Finished processing all files at: " + string(time_now))
+end
 catch ME
+if slack_bool
 time_now = datetime;
 time_now.Format = 'yyyy_MM_dd HH_mm_ss';
 s.send("Encountered error while processing files at: " + string(time_now)...
-    + ". " + percent_complete + "% complete.")    
+    + ". " + percent_complete + "% complete.")
+end
 rethrow(ME)
 end
 

@@ -38,6 +38,7 @@ time_now.Format = 'yyyy-MM-dd HH-mm-ss';
 case_name = case_name + string(time_now);
 
 daq_bool = true;
+async = false;
 % DAQ Setup
 if daq_bool
 [f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4] = makeForceFigures();
@@ -48,10 +49,12 @@ offset_duration = 2; % in seconds
 calibration_filepath = "../DAQ/Calibration Files/Mini40/FT52907.cal"; 
 voltage = 5; % 5 or 10 volts for load cell
 
-% Make Calimero data collection object
-flapper_obj = Calimero();
-
-flapper_obj.setup_DAQ(voltage, rate);
+if async
+    flapper_obj = Calimero();
+    flapper_obj.setup_DAQ(voltage, rate);
+else
+    flapper_obj = Calimero(rate, voltage);
+end
 
 % Get calibration matrix from calibration file
 cal_matrix = obtain_cal(calibration_filepath);
@@ -271,8 +274,8 @@ end
 
 fc = 100;  % cutoff frequency in Hz for filter
 % Display preliminary data
-raw_plot(time, force, voltAdj, curAdj, enc_pulse, case_name, drift, flapper_obj.DAQ.Rate, fc,...
-    f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4);
+raw_plot(time, force, voltAdj, curAdj, enc_pulse, speed, case_name, drift, flapper_obj.DAQ.Rate, fc,...
+    f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4, async);
 end
 
 clear cleanup
