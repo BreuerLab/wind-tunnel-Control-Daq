@@ -45,6 +45,7 @@ function [offsets_cur, offsets_filename] = findMatchingOffset...
     % in the past I had replicated wingbeat frequency cases
     disp("Found " + count + " files, timestamps: ")
     disp(timestamps_str)
+    disp("    Experiment timestamp: " + time_stamp_match)
     disp("    Using closest timestamp: " + time_stamp_match_offsets)
     disp(" ")
     end

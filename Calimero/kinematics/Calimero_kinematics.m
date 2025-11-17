@@ -4,9 +4,9 @@ close all
 d = 20; % mm
 % r = 7.27; % mm
 % r = 3.47; % 10 deg
-% r = 6.84; % 20 deg
+r = 6.84; % 20 deg
 % r = 10; % 30 deg
-r = 8.45; % 25 deg
+% r = 8.45; % 25 deg
 numRevs = 1; % NEEDS TO BE 1, otherwise stuff gets funky
 numPts = 1000;
 % numPts = 48;

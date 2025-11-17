@@ -15,14 +15,14 @@ AFAM_bool = false;
 calibration_filepath = "../../DAQ/Calibration Files/Mini40/FT52907.cal"; 
 cal_matrix = obtain_cal(calibration_filepath);
 
-wing_freq_sel = [0, 2, 4, 6, 8, 10];
+wing_freq_sel = [0, 2, 4, 6, 8];
 AoA_vals = [-16:2:16];
 
 wind_speeds = [4];
 types = ["flexible"]; % needs to match folder name only
 % data_path = "F:\Calimero Data\Calimero_07_12_to_07_14_Tests\";
 % data_path = "F:\Calimero Data\Calimero 09_23_2025_ascending\";
-data_path = "F:\Calimero Data\Calimero 11_13_2025\";
+data_path = "F:\Calimero Data\Calimero 11_15_2025\";
 slack_path = "F:\Calimero Data\";
 slack_bool = false;
 % ADD PATH WHERE DATA SHOULD GET DUMPED
