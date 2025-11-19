@@ -17,7 +17,7 @@ function process_trial(file, raw_data_path, offsets_path, processed_data_path, w
 [case_name, time_stamp, type, wing_freq, AoA, wind_speed, ~] = parse_filename(file);
 
 % NUM_WINGBEATS IS CURRENTLY NOT 180 EXACTLY SINCE JUST USING PWM
-[frame_rate, num_wingbeats, rec_wingbeats] = get_sampling_info(wing_freq);
+[frame_rate, num_wingbeats, rec_wingbeats, ticksPerRev, OC_pulse_step] = get_sampling_info(wing_freq);
 
 % Get force calibration file
 calibration_filepath = "../../DAQ/Calibration Files/Mini40/FT52907.cal"; 
@@ -58,7 +58,8 @@ end
 % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-[time_data, force_data, voltAdj, curAdj, enc_pulse] = process_data(trimmed_results, offsets, cal_matrix);
+[time_data, force_data, voltAdj, curAdj, enc_pulse, speed] = ...
+    process_data(trimmed_results, offsets, cal_matrix, ticksPerRev, OC_pulse_step);
 
 % Rotate the data from the force transducer reference frame to the wind
 % tunnel reference frame (body frame to global frame)
@@ -68,7 +69,9 @@ results_lab = coordinate_transformation(force_data, AoA);
 mod_results = [results_lab; voltAdj'; curAdj'];
 
 % motor model check
-motor_model(time_data, voltAdj, curAdj, wing_freq);
+if wing_freq ~= 0
+    motor_model(time_data, voltAdj, curAdj, wing_freq);
+end
 
 % Non-dimensionalize the data. Newtons to Force Coefficients and
 % Newton*meters to Moment Coefficients

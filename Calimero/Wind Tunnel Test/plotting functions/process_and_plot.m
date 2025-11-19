@@ -1,4 +1,4 @@
-function process_and_plot(force, cur_ind, AoA_vals, AoA_ind, tiles, wing_freq_sel)
+function process_and_plot(force, cur_ind, AoA_vals, AoA_ind, tiles, wing_freq_sel, ind)
     wing_freq = wing_freq_sel(cur_ind);
     AoA = AoA_vals(AoA_ind);
     wing_freq_sorted = sort(wing_freq_sel);

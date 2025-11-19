@@ -34,8 +34,8 @@ s = slackMsg(data_path);
 bot = slackProgressBar(data_path);
 end
 
-speed_path = data_path + wind_speed_sel + " m.s/";
-filePattern = fullfile(speed_path); % Change to whatever pattern you need.
+% speed_path = data_path + wind_speed_sel + " m.s/";
+filePattern = fullfile(data_path); % Change to whatever pattern you need.
 dir_names = dir(filePattern);
 
 % path to folders where raw data (.csv files) are stored
@@ -43,29 +43,30 @@ raw_data_path = [];
 offsets_path = [];
 processed_data_path = [];
 wind_tunnel_path = [];
-% for i = 3:length(dir_names)
-%     cur_name_parts = split(dir_names(i).name);
-%     cur_name = cur_name_parts{1};
-%     if (type == cur_name)
-%         filepath = speed_path + dir_names(i).name;
-% 
-%         raw_data_path = [raw_data_path filepath + "/raw data/experiment data/"];
-%         offsets_path = [offsets_path filepath + "/raw data/offsets data/"];
-%         processed_data_path = [processed_data_path filepath + "/processed data/"];
-%         wind_tunnel_path = [wind_tunnel_path filepath + "/raw data/wind tunnel data/"];
-% 
-%         dirPath = filepath + "/processed data";
-%         if ~exist(dirPath, 'dir')
-%             mkdir(dirPath);
-%             fprintf('Directory "%s" created.\n', dirPath);
-%         end
-%     end
-% end
+for i = 3:length(dir_names)
+    cur_name_parts = split(dir_names(i).name);
+    cur_name = cur_name_parts{1};
+    if (type == cur_name)
+        filepath = data_path + dir_names(i).name;
 
-filepath = data_path;
-raw_data_path = [raw_data_path filepath + "/raw data/experiment data/"];
-offsets_path = [offsets_path filepath + "/raw data/offsets data/"];
-processed_data_path = [processed_data_path filepath + "/processed data/"];
+        raw_data_path = [raw_data_path filepath + "/raw data/experiment data/"];
+        offsets_path = [offsets_path filepath + "/raw data/offsets data/"];
+        processed_data_path = [processed_data_path filepath + "/processed data/"];
+        wind_tunnel_path = [wind_tunnel_path filepath + "/raw data/wind tunnel data/"];
+
+        dirPath = filepath + "/processed data";
+        if ~exist(dirPath, 'dir')
+            mkdir(dirPath);
+            fprintf('Directory "%s" created.\n', dirPath);
+        end
+    end
+end
+
+% filepath = data_path;
+% raw_data_path = [raw_data_path filepath + "/raw data/experiment data/"];
+% offsets_path = [offsets_path filepath + "/raw data/offsets data/"];
+% wind_tunnel_path = [wind_tunnel_path filepath + "/raw data/wind tunnel data/"];
+% processed_data_path = [processed_data_path filepath + "/processed data/"];
 
 if isempty(raw_data_path)
     error("Oops, no data paths made")

@@ -551,10 +551,13 @@ yr = ( (1:size(out1.uRaw,2)) - 0.5 );
     (yr * G.Y * S.Y.Slope + S.Y.Offset)/1000);
 
 % Reorient to compute vorticity
-out1.xRaw =  flip(out1.xRaw');
+% out1.xRaw =  flip(out1.xRaw');
+out1.xRaw =  -flip(out1.xRaw');
 out1.yRaw =  flip(out1.yRaw');
-out1.uRaw =  flip(out1.uRaw');
-out1.vRaw = -flip(out1.vRaw');
+% out1.uRaw =  flip(out1.uRaw');
+out1.uRaw =  -flip(out1.uRaw');
+% out1.vRaw = -flip(out1.vRaw');
+out1.vRaw = flip(out1.vRaw');
 if out1.dimNum == 3
     out1.wRaw = flip(out1.wRaw');
 end
@@ -588,6 +591,7 @@ end
 function omega_z = calculateVorticity(xRaw,yRaw,uRaw,vRaw)
 
 % A: ALGORITHM TAKEN FROM RAFFEL'S PIV HANDBOOK
+% 6.4 Estimation of Differential Quantities, page 195
 omega_z = nan(size(xRaw));
 
 dx = abs(xRaw(1,1) - xRaw(1,2));
@@ -604,6 +608,13 @@ for i = 2:size(xRaw,1)-1
             + (1/2)*dy*(uRaw(i-1,j+1) + 2*uRaw(i-1,j) + uRaw(i-1,j-1)) ...
             ) ...
             / (4*dx*dy);
+        % omega_z(i,j) = ((1/2) / (4*dx*dy))*...
+        %     ( ...
+        %     dx*(uRaw(i-1,j-1) + 2*uRaw(i,j-1) + uRaw(i+1,j-1)) ...
+        %     + dy*(vRaw(i+1,j-1) + 2*vRaw(i+1,j) + vRaw(i+1,j+1)) ...
+        %     - dx*(uRaw(i+1,j+1) + 2*uRaw(i,j+1) + uRaw(i-1,j+1)) ...
+        %     - dy*(vRaw(i-1,j+1) + 2*vRaw(i-1,j) + vRaw(i-1,j-1)) ...
+        %     );
     end
 end
 
