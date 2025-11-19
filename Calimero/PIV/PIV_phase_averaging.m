@@ -2,10 +2,11 @@ clear
 close all
 addpath(genpath('../../'))
 addpath(genpath('.'))
+addpath(genpath('C:\Users\rgissler\Documents\MATLAB'))
 
 num_images = 2500;
 
-minCorrelationValue = 0.2;
+% minCorrelationValue = 0.2;
 
 keys = {'2Hz_10AoA', '4Hz_10AoA', '6Hz_10AoA', '8Hz_10AoA'};
 values = ["R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_16_2025\2Hz_10AoA_01\StereoPIV_MPd(4x16x16_50%ov)_GPU",...
@@ -16,7 +17,7 @@ PIV_dict = containers.Map(keys, values);
 
 PIV_case_name = '2Hz_10AoA';
 file_path = PIV_dict(PIV_case_name);
-D = loadpiv(file_path,"extractAllVariables","Validate", minCorrelationValue);
+D = loadpiv(file_path,"extractAllVariables"); % "Validate", minCorrelationValue
 % "numCamFields", 4 HOW TO USE, I HAVE 4 CAMERAS
 
 if size(D.u,3) ~= num_images
@@ -102,66 +103,249 @@ disp("Extra laser pulses: " + (length(bin_ind_arr) - num_images))
 bin_ind_arr = bin_ind_arr(1:num_images);
 
 vort_phase_avg = zeros(size(D.x,1), size(D.x,2), num_bins);
-u_phase_avg = zeros(size(D.x,1), size(D.x,2), num_bins);
-v_phase_avg = zeros(size(D.x,1), size(D.x,2), num_bins);
-w_phase_avg = zeros(size(D.x,1), size(D.x,2), num_bins);
+u_phase_avg = zeros(size(vort_phase_avg));
+v_phase_avg = zeros(size(vort_phase_avg));
+w_phase_avg = zeros(size(vort_phase_avg));
+
+vort_phase_std = zeros(size(D.x,1), size(D.x,2), num_bins);
+u_phase_std = zeros(size(vort_phase_avg));
+v_phase_std = zeros(size(vort_phase_avg));
+w_phase_std = zeros(size(vort_phase_avg));
+
 bin_count = zeros(1,num_bins);
+bin_std = zeros(1,num_bins);
 for i = 1:num_bins
     bin_indices = find(bin_ind_arr == i);
     bin_count(i) = length(bin_indices);
+    bin_std(i) = std(norm_wing_pos_frame(bin_indices));
+
     vort_phase_avg(:,:,i) = mean(D.vort(:,:,bin_indices),3);
     u_phase_avg(:,:,i) = mean(D.u(:,:,bin_indices),3);
     v_phase_avg(:,:,i) = mean(D.v(:,:,bin_indices),3);
     w_phase_avg(:,:,i) = mean(D.w(:,:,bin_indices),3);
+
+    vort_phase_std(:,:,i) = std(D.vort(:,:,bin_indices), 0, 3);
+    u_phase_std(:,:,i) = std(D.u(:,:,bin_indices), 0, 3);
+    v_phase_std(:,:,i) = std(D.v(:,:,bin_indices), 0, 3);
+    w_phase_std(:,:,i) = std(D.w(:,:,bin_indices), 0, 3);
 end
+
+%% Plotting
+save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
 
 figure
 bar(bin_count)
 xlabel("Bin number")
 ylabel("Number of frames per bin")
+exportgraphics(gcf, save_filepath + PIV_case_name + "\phase_avg_bin_histogram.png", 'Resolution', 300);
 
-%% Plotting
-save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
+figure
+bar(bin_std)
+xlabel("Bin number")
+ylabel("Phase variability per bin")
+exportgraphics(gcf, save_filepath + PIV_case_name + "\phase_avg_bin_variability.png", 'Resolution', 300);
 
 %% Vorticity
 
-folder_name = PIV_case_name + "\vort\";
+dx = abs(D.x(1,2) - D.x(1,1));
+dy = abs(D.y(2,1) - D.y(1,1));
+Q_phase_avg = calQlate(u_phase_avg, v_phase_avg, dx, dy);
 
-if ~exist(save_filepath + folder_name, 'dir')
-    mkdir(save_filepath + folder_name);
-end
+params.PIV_case_name = PIV_case_name;
+params.save_filepath = save_filepath;
+params.num_bins = num_bins;
 
-figure('Units','normalized','OuterPosition',[0.6292 0.0454 0.3667 0.8759]);
-h = pcolor(D.x, D.y, vort_phase_avg(:,:,1));   % first frame of your data
-ax = gca;
-axis equal
-shading(ax, 'interp');
-xlim([-0.15 0.15])
-ylim([-0.2 0.2])
-% Xiaowei color map
-% min_vort = min(vort_phase_avg,[],'all');
-% max_vort = max(vort_phase_avg,[],'all');
-% vort_scale = max(abs([min_vort max_vort]));
-vort_scale = 100;
-colorbarpzn(-vort_scale, vort_scale); % , 'level', 21
-% clim([-100 100]);
-% colormap(ax, jet);
-% colorbar;
-title('Streamwise vorticity');
+params.title = "Streamwise vorticity";
+params.folder = "vort_avg";
+params.cmin = -50;
+params.cmax = 50;
+make_movie(D.x, D.y, vort_phase_avg, params)
 
-% --- Animation loop ---
+params.title = "Streamwise vorticity";
+params.folder = "vort_std";
+params.cmin = 0;
+params.cmax = 50;
+make_movie(D.x, D.y, vort_phase_std, params)
+
+params.title = "2D Q";
+params.folder = "Q";
+params.cmin = 0;
+params.cmax = 100;
+make_movie(D.x, D.y, Q_phase_avg, params)
+
+% track region of Q that's greater than 10 and located to the right of
+% x = 0 and that has some minimum size
+
+%% Stack phase averaged frames together into a volume
+figure
+wind_speed = 4;
+dt = wing_freq / num_bins;
+z = zeros(1, num_bins);
 for k = 1:num_bins
-    % Update ONLY the CData
-    set(h, 'CData', vort_phase_avg(:,:,k));
-
-    drawnow;
-    filename = sprintf('frame_%04d.png', k);  
-    exportgraphics(gcf, save_filepath + folder_name + filename, 'Resolution', 300);
+    z(k) =  wind_speed * dt * k;
+    h = contourf(D.x, D.y, vort_phase_avg(:,:,k), 71,'linestyle','none','ZLocation',z(k));  
 end
 
-fps = 5;
-gif_name = "anim";
-export_plot_gifs(save_filepath + PIV_case_name + "\vort\", gif_name, fps)
+% % --- Make each filled contour patch transparent ---
+% patches = get(h, 'Children');      % get individual contour patches
+% if iscell(patches), patches = vertcat(patches{:}); end
+% 
+% for p = 1:length(patches)
+%     set(patches(p), 'FaceAlpha', 1);  % 0 (invisible) → 1 (opaque)
+% end
+view(3)
+
+figure
+Qthresh = 3;
+for k = 1:num_bins
+    z(k) =  wind_speed * dt * k;
+    % h = contourf(D.x, D.y, vort_phase_avg(:,:,k), 71,'linestyle','none','ZLocation',z(k));
+    contour(D.x, D.y, Q_phase_avg(:,:,k), [Qthresh Qthresh],'LineColor', 'y', 'LineWidth',3,'ZLocation',z(k));
+    axis equal
+    % shading(ax, 'interp');
+    xlim([-0.15 0.15])
+    ylim([-0.2 0.2])
+    zlim([min(z) max(z)])
+    xlabel("x [m]")
+    ylabel("y [m]")
+    % Xiaowei color map
+    % min_vort = min(vort_phase_avg,[],'all');
+    % max_vort = max(vort_phase_avg,[],'all');
+    % vort_scale = max(abs([min_vort max_vort]));
+    cb = colorbarpzn(params.cmin, params.cmax); % , 'level', 21
+end
+view(3)
+
+% figure
+% hold on
+% for k = 1:num_bins
+%     surf(D.x, D.y, z(k)*ones(size(D.x)), Q_phase_avg(:,:,k), ...
+%          'EdgeColor','none');
+% end
+% colormap(jet)
+% colorbar
+% view(3)
+% axis equal
+
+z = zeros(1, num_bins);
+for k = 1:num_bins
+    z(k) =  wind_speed * dt * k;
+end
+
+% Create 3D grids
+% [X, Y, Z] = ndgrid(D.x(1,:), D.y(1,:), z);
+
+% x_idx = find(D.x(1,:) > -0.15 & D.x(1,:) < 0.15);  % columns
+% Trimming everything but tip vortex
+x_idx = find(D.x(1,:) > 0.025 & D.x(1,:) < 0.15);  % columns
+y_idx = find(D.y(:,1) > -0.2 & D.y(:,1) < 0.2);  % rows
+
+x_tr = D.x(y_idx, x_idx);
+y_tr = D.y(y_idx, x_idx);
+vort_phase_avg_tr = vort_phase_avg(y_idx, x_idx,:);
+Q_phase_avg_tr = Q_phase_avg(y_idx, x_idx,:);
+
+% manually shift z array so that red and blue portions align
+% z = circshift(z,5);
+
+[Ny, Nx] = size(x_tr);
+Nz = length(z);
+
+% Replicate along z
+X = repmat(x_tr, [1 1 Nz]);       % Ny x Nx x Nz
+Y = repmat(y_tr, [1 1 Nz]);       % Ny x Nx x Nz
+Z = repmat(reshape(z, [1 1 Nz]), [Ny Nx 1]); % Ny x Nx x Nz
+
+shift = -7;
+Q_phase_avg_tr_s = circshift(Q_phase_avg_tr, [0 0 shift]);  % shift along the 3rd dimension (Z)
+vort_phase_avg_tr_s = circshift(vort_phase_avg_tr, [0 0 shift]);  % shift along the 3rd dimension (Z)
+
+isoValue = 100;
+figure
+s = isosurface(X, Y, Z, Q_phase_avg_tr_s, isoValue);
+cData = interp3(X, Y, Z, vort_phase_avg_tr_s, s.vertices(:,1), s.vertices(:,2), s.vertices(:,3));
+p = patch('Vertices', s.vertices, 'Faces', s.faces, ...
+          'FaceVertexCData', cData, ...
+          'FaceColor', 'interp', ...
+          'EdgeColor', 'none');
+
+% p = patch(s);
+% isonormals(x,y,z,V,p)
+view(3);
+params.cmin = -50;
+params.cmax = 50;
+colorbarpzn(params.cmin, params.cmax); % , 'level', 21
+xlabel("x [m]")
+ylabel("y [m]")
+zlabel("z [m]")
+ax = gca;
+ax.ZDir = 'reverse';  % inverts tick direction
+ax.YAxisLocation = 'right';   % 'left' or 'right'
+
+% figure
+% scatter(s.vertices(:,2), s.vertices(:,3), 20, cData, 'filled')  % 20 = marker size
+% xlabel('Y')
+% ylabel('Z')
+% 
+% xProj = s.vertices(:,1);
+% zProj = s.vertices(:,3);
+% F = scatteredInterpolant(xProj, zProj, cData, 'natural', 'none');
+% 
+% nx = 200;  % number of grid points in X
+% nz = 200;  % number of grid points in Z
+% 
+% xq = linspace(min(xProj), max(xProj), nx);
+% zq = linspace(min(zProj), max(zProj), nz);
+% 
+% [Xq, Zq] = meshgrid(xq, zq);
+% 
+% Cq = F(Xq, Zq);
+% 
+% figure
+% imagesc(xq, zq, Cq)
+% set(gca, 'YDir', 'normal')  % so Z increases upwards
+% axis equal
+% xlabel('X')
+% ylabel('Z')
+% colormap(jet)
+% colorbar
+
+% iso-ish view
+% view([1 0.2 0.2]); % mostly along X, slight tilt in Y and Z
+% camup([0 1 0]);    % keep Y pointing up
+
+% YZ view
+view([1 0 0])   % camera along +X direction
+camup([0 1 0])  % keep Y vertical
+
+isoValue = 100;
+figure
+s = isosurface(X, Y, Z, Q_phase_avg_tr_s, isoValue);
+cData = interp3(X, Y, Z, vort_phase_avg_tr_s, s.vertices(:,1), s.vertices(:,2), s.vertices(:,3));
+p = patch('Vertices', s.vertices, 'Faces', s.faces, ...
+          'FaceVertexCData', cData, ...
+          'FaceColor', 'interp', ...
+          'EdgeColor', 'none');
+
+% p = patch(s);
+% isonormals(x,y,z,V,p)
+view(3);
+params.cmin = -50;
+params.cmax = 50;
+colorbarpzn(params.cmin, params.cmax); % , 'level', 21
+xlabel("x [m]")
+ylabel("y [m]")
+zlabel("z [m]")
+ax = gca;
+ax.XAxisLocation = 'bottom';   % 'left' or 'right'
+ax.YAxisLocation = 'right';   % 'left' or 'right'
+
+% XZ view
+view([0 1 0])   % camera along +Y direction
+camup([1 0 0])  % keep Z vertical
+
+% set(p,'FaceColor',[0.5 1 0.5]);  
+% set(p,'EdgeColor','none');
 
 %% Streamwise velocity
 
