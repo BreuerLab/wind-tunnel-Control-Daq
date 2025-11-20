@@ -10,10 +10,17 @@ function make_movie(x, y, val, params)
     % h = contourf(x, y, val(:,:,1),71,'linestyle','none');   % first frame of your data
     % ax = gca;
     
+    threshold = 100
     % --- Animation loop ---
     for k = 1:params.num_bins
         h = contourf(x, y, val(:,:,k), 71,'linestyle','none');
         hold on
+
+        mask = val(:,:,k) > threshold;           % logical mask
+        B = bwboundaries(mask);         % extract polygon(s)
+        xb = X(sub2ind(size(X),boundary(:,1), boundary(:,2)));
+        yb = Y(sub2ind(size(Y),boundary(:,1), boundary(:,2)));
+        plot(xb, yb, 'k-', 'LineWidth', 2);
 
         axis equal
         % shading(ax, 'interp');
@@ -25,7 +32,7 @@ function make_movie(x, y, val, params)
         % min_vort = min(vort_phase_avg,[],'all');
         % max_vort = max(vort_phase_avg,[],'all');
         % vort_scale = max(abs([min_vort max_vort]));
-        cb = colorbarpzn(params.cmin, params.cmax); % , 'level', 21
+        cb = colorbarpzn(params.cmin, params.cmax, 'dft','pwg'); % , 'level', 21
         % clim([-100 100]);
         % colormap(ax, jet);
         % colorbar;

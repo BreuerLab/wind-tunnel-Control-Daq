@@ -3,7 +3,7 @@ wind_speed = 4;
 dt = 1 / (wing_freq * num_bins);
 z = zeros(1, num_bins);
 for k = 1:num_bins
-    z(k) =  wind_speed * dt * (k - 1);
+    z(k) =  wind_speed * dt * k;
 end
 
 [Ny, Nx] = size(x);
@@ -44,8 +44,6 @@ Nz = length(z);
 xq = linspace(min(x(:)), max(x(:)), Nx*factor);
 yq = linspace(min(y(:)), max(y(:)), Ny*factor);
 zq = linspace(min(z(:)), max(z(:)), Nz*factor);
-dz = zq(2) - zq(1);
-zq = zq + dz; % trim off leading 0 so that diff is constant of zq_big
 
 [Xq, Yq, Zq] = meshgrid(xq, yq, zq);
 

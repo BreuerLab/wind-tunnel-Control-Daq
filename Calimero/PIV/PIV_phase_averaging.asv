@@ -15,7 +15,7 @@ values = ["R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_16_2025\2
           "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_16_2025\8Hz_10AoA\StereoPIV_MPd(4x16x16_50%ov)_GPU"];
 PIV_dict = containers.Map(keys, values);
 
-PIV_case_name = '2Hz_10AoA';
+PIV_case_name = '4Hz_10AoA';
 file_path = PIV_dict(PIV_case_name);
 D = loadpiv(file_path,"extractAllVariables"); % "Validate", minCorrelationValue
 % "numCamFields", 4 HOW TO USE, I HAVE 4 CAMERAS
@@ -169,11 +169,11 @@ params.cmin = 0;
 params.cmax = 50;
 make_movie(D.x, D.y, vort_phase_std, params)
 
-% params.title = "2D Q";
-% params.folder = "Q";
-% params.cmin = 150;
-% params.cmax = 250;
-% make_movie(D.x, D.y, Q_phase_avg, params)
+params.title = "2D Q";
+params.folder = "Q";
+params.cmin = 150;
+params.cmax = 250;
+make_movie(D.x, D.y, Q_phase_avg, params)
 
 % track region of Q that's greater than 10 and located to the right of
 % x = 0 and that has some minimum size
@@ -196,16 +196,7 @@ params.cmax = 250;
 make_movie_calc_circ(x_tr, y_tr, u_tr, v_tr, Q_phase_avg_tr, params)
 
 %% Stack phase averaged frames together into a volume
-folder = save_filepath + PIV_case_name + "\vort_avg_stacked\";
-
-if ~exist(folder, 'dir')
-    mkdir(folder);
-end
-
-figure
-factor = 5;
-ax = gca;
-for i = 1:num_bins*factor
+for i = 1:num_bins
 shift = i; % -7
 stack_vortices(x_tr, y_tr, vort_phase_avg_tr, Q_phase_avg_tr, wing_freq, num_bins, shift);
 
@@ -217,19 +208,15 @@ ax.YAxisLocation = 'right';   % 'left' or 'right'
 view([1 0 0])   % camera along +X direction
 camup([0 1 0])  % keep Y vertical
 
-drawnow;
-filename = sprintf('frame_%04d.png', i);  
-exportgraphics(gcf, folder + filename, 'Resolution', 300);
-cla(ax)
+exportgraphics(gcf, save_filepath + PIV_case_name + "\phase_avg_stacked_YZ.png", 'Resolution', 300);
 end
 
-fps = 25;
+fps = 5;
 gif_name = "stacked_animated";
-export_plot_gifs(folder, gif_name, fps)
+export_plot_gifs(params.save_filepath + PIV_case_name, gif_name, fps)
 
 % ------------------------------------------------------------------
 
-figure
 stack_vortices(x_tr, y_tr, vort_phase_avg_tr, Q_phase_avg_tr, wing_freq, num_bins, shift);
 
 ax = gca;
