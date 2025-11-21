@@ -2,25 +2,28 @@ clear
 close all
 addpath(genpath('../../'))
 
-minCorrelationValue = 0.3;
+% minCorrelationValue = 0.3;
 
-keys = {'0Hz_0AoA','0Hz_10AoA', '2Hz_10AoA'};
+keys = {'0Hz_0AoA','0Hz_10AoA', '2Hz_10AoA', '0Hz_10AoA_v2', '0Hz_10AoA_rigid'};
 values = ["R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_16_2025\0Hz_0AoA\StereoPIV_MPd(4x16x16_50%ov)_GPU",...
         "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_16_2025\0Hz_10AoA\StereoPIV_MPd(4x16x16_50%ov)_GPU",...
-        "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_16_2025\2Hz_10AoA_01\StereoPIV_MPd(4x16x16_50%ov)_GPU"];
+        "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_16_2025\2Hz_10AoA_01\StereoPIV_MPd(4x16x16_50%ov)_GPU",...
+        "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_18_2025\flexible_0Hz_10AoA\StereoPIV_MPd(4x16x16_50%ov)_GPU",...
+        "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_18_2025\rigid_0Hz_10AoA\StereoPIV_MPd(4x16x16_50%ov)_GPU"];
 dict = containers.Map(keys, values);
 
-case_name = '0Hz_10AoA';
+case_name = '0Hz_0AoA';
 file_path = dict(case_name);
-D = loadpiv(file_path,"extractAllVariables","Validate", minCorrelationValue);
+disp("Loading file: " + file_path)
+D = loadpiv(file_path,"extractAllVariables"); % "Validate", minCorrelationValue
 % "numCamFields", 4 HOW TO USE, I HAVE 4 CAMERAS
 
 %% Compute summary statistics
 % u_avg =  mean(u_field_frames,3);
 % v_avg =  mean(v_field_frames,3);
-w_avg = mean(D.w,3);
-vort_avg = mean(D.vort,3);
-corr_avg = mean(D.corr,3);
+w_avg = mean(D.w,3,"omitnan");
+vort_avg = mean(D.vort,3,"omitnan");
+corr_avg = mean(D.corr,3,"omitnan");
 
 xlims = [-0.15 0.15];
 ylims = [-0.2 0.2];
@@ -89,11 +92,16 @@ xlim(xlims)
 ylim(ylims)
 ax = gca;
 shading(ax, 'interp');
-clim([minCorrelationValue 1]); colormap(ax,jet);
+clim([0.3 1]); colormap(ax,jet);
 colorbar;
 title('Average PIV correlation')
 
-save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
+save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\Gliding Averages\";
+
+if ~exist(save_filepath, 'dir')
+    mkdir(save_filepath);
+end
+
 saveas(f1,save_filepath + case_name + "_w.fig")
 saveas(f2,save_filepath + case_name + "_omega.fig")
 exportgraphics(f2, save_filepath + case_name + "_omega.png", 'Resolution', 300);

@@ -17,24 +17,30 @@ function make_movie(x, y, val, params)
 
         axis equal
         % shading(ax, 'interp');
-        xlim([-0.15 0.15])
-        ylim([-0.2 0.2])
+        xlim(params.xlims)
+        ylim(params.ylims)
         xlabel("x [m]")
         ylabel("y [m]")
         % Xiaowei color map
         % min_vort = min(vort_phase_avg,[],'all');
         % max_vort = max(vort_phase_avg,[],'all');
         % vort_scale = max(abs([min_vort max_vort]));
-        cb = colorbarpzn(params.cmin, params.cmax); % , 'level', 21
-        % clim([-100 100]);
-        % colormap(ax, jet);
-        % colorbar;
-        title(params.title);
+        if params.zero ~= 0
+        cb = colorbarpzn(params.clims(1), params.clims(2), 'full', 1);
+        else
+        cb = colorbarpzn(params.clims(1), params.clims(2)); % , 'level', 21
+        end
+        title(params.title + ", frame: " + k);
 
         drawnow;
 
         filename = sprintf('frame_%04d.png', k);  
         exportgraphics(gcf, params.save_filepath + folder_name + filename, 'Resolution', 300);
+
+        percent_complete = (k / params.num_bins)*100;
+        if mod(k,5) == 0
+            disp("Percent complete: " + percent_complete)
+        end
     end
     
     fps = 5;
