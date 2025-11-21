@@ -6,7 +6,7 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB'))
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-PIV_case_name = '2Hz_A10_10AoA';
+PIV_case_name = '2Hz_A20_10AoA';
 L = 0.07; % characteristic length, guess of mean aerodynamic chord
 U = 4; % characteristic windspeed, freestream
 save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
@@ -356,12 +356,11 @@ figure
 factor = 5;
 for i = 1:num_bins*factor
 params.shift = i; % -7
-params.movie = true;
 stack_vortices(x_tr, y_tr, vort_phase_avg_tr, Q_phase_avg_tr, w_phase_avg_tr, wing_freq, params);
 
 ax = gca;
-ax.ZDir = 'reverse';  % inverts tick direction
-ax.YAxisLocation = 'right';   % 'left' or 'right'
+% ax.ZDir = 'reverse';  % inverts tick direction
+% ax.YAxisLocation = 'right';   % 'left' or 'right'
 
 % YZ view
 view([1 0 0])   % camera along +X direction

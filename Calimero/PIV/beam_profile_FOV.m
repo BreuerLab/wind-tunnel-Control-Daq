@@ -143,6 +143,11 @@ bfl = bfl_vals;
 % [left bottom width height]
 FOV_pos = [-W/2 d + bfl W L];
 Cal_pos = [-W/2 + (W - W_cal)/2 d_cal + bfl W_cal L_cal];
+PIV_w = 300;
+PIV_L = 400;
+PIV_x = -W/2 + (W - W_cal)/2 + (W_cal - PIV_w)/2;
+PIV_y = d_cal + bfl + (L_cal - PIV_L)/2;
+PIV_pos = [PIV_x PIV_y PIV_w PIV_L];
 wind_tunnel_pos = [-wt_dim/2 + h_off bfl + vert_off wt_dim wt_dim];
 
 % ----------------------------------------------------------------------
@@ -220,6 +225,43 @@ set(gca,'YDir','reverse')
 axis equal
 xlim([-wt_dim/2 + h_off wt_dim/2 + h_off])
 ylim([0 wt_dim + vert_off])
+title('Light Intensity in Wind Tunnel')
+
+% ----------------------------------------------------------------------
+% ------------------------Field of View in PIV Plot---------------------
+% ----------------------------------------------------------------------
+
+figure
+hold on
+
+datacursormode on
+
+% Calibration target rectangle
+rectangle('Position', PIV_pos, 'FaceColor', 'green',...
+          'EdgeColor', 'none','FaceAlpha', 0.5)
+
+% Plot annular region swept by wing
+plot([x_ring x_ring(1)], [y_ring y_ring(1)], 'k', 'LineWidth', 1.5);
+plot(pivot(1), pivot(2), 'ko', 'MarkerFaceColor', 'k'); % pivot
+
+x_ring_mirror = 2*pivot(1) - x_ring;  % reflect across pivot x
+
+plot([x_ring_mirror x_ring_mirror(1)], [y_ring y_ring(1)], 'k', 'LineWidth', 1.5);
+plot(pivot(1), pivot(2), 'ko', 'MarkerFaceColor', 'k'); % pivot
+
+% Wind tunnel rectangle
+rectangle('Position', wind_tunnel_pos, 'EdgeColor', 'k', 'LineWidth', 3)
+
+ylabel(cb,'W / cm^2','FontSize',16,'Rotation',270)
+xlabel('Horizontal Position (mm)')
+ylabel('Vertical Position (mm)')
+set(gca, FontSize=14)
+set(gca,'YDir','reverse')
+axis equal
+padding = 100;
+xlim([-wt_dim/2 + h_off - padding wt_dim/2 + h_off + padding])
+ylim([vert_off - padding wt_dim + vert_off + padding])
+set(gca, 'XDir', 'reverse'); % flip axis since PIV is from behind
 title('Light Intensity in Wind Tunnel')
 
 % ----------------------------------------------------------------------

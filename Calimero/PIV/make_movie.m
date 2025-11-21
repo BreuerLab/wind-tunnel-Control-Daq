@@ -26,7 +26,7 @@ function make_movie(x, y, val, params)
         % max_vort = max(vort_phase_avg,[],'all');
         % vort_scale = max(abs([min_vort max_vort]));
         if params.zero ~= 0
-        cb = colorbarpzn(params.clims(1), params.clims(2), 'full', 1);
+        cb = colorbarpzn(params.clims(1), params.clims(2), 'full', 1, 'dft', 'pwg');
         else
         cb = colorbarpzn(params.clims(1), params.clims(2)); % , 'level', 21
         end

@@ -19,16 +19,7 @@ Q_phase_avg_s = circshift(Q_phase_avg, [0 0 params.shift]);  % shift along the 3
 vort_phase_avg_s = circshift(vort_phase_avg, [0 0 params.shift]);  % shift along the 3rd dimension (Z)
 w_phase_avg_s = circshift(w_phase_avg, [0 0 params.shift]);
 
-% Shuffle axes
-
-% [X_new, Y_new, Z_new] = meshgrid(y(:,1), z, x(1,:));  
-% 
-% Q_new = permute(Q_phase_avg_s, [1 3 2]);  % Ny x Nz x Nx → new Y x new Z x new X
-% vort_new = permute(vort_phase_avg_s, [1 3 2]);
-
-% X2 = permute(X, [3 2 1]);     % becomes Z–X–Y
-% Y2 = permute(Y, [3 2 1]);
-% Z2 = permute(Z, [3 2 1]);
+% Shuffle axes so that 3D plot is easier to rotate
 Q2 = permute(Q_phase_avg_s, [2 3 1]);
 C2 = permute(w_phase_avg_s, [2 3 1]);
 
@@ -97,14 +88,20 @@ p = patch('vertices', s.vertices, 'faces', s.faces, ...
 
 view(3);
 if params.zero ~= 0
-    cb = colorbarpzn(params.clims(1), params.clims(2), 'full', 1);
+    cb = colorbarpzn(params.clims(1), params.clims(2), 'full', 1, 'dft', 'pwg');
 else
     cb = colorbarpzn(params.clims(1), params.clims(2)); % , 'level', 21
 end
 ylabel(cb,'\boldmath$\frac{\omega c}{U_{\infty}}$','Interpreter','Latex','FontSize',16,'Rotation',0)
-xlabel("y/c")
-ylabel("z/c")
-zlabel("x/c")
+xlabel("x/c")
+ylabel("y/c")
+zlabel("z/c")
+
+% Zoom out
+% ax = gca;
+% ax.XLim = ax.XLim * 2;   % doubles the range in x
+% ax.YLim = ax.YLim * 2;   % doubles the range in y
+% ax.ZLim = ax.ZLim * 2;   % doubles the range in z
 
 % xlabel("y [m]")
 % ylabel("z [m]")
