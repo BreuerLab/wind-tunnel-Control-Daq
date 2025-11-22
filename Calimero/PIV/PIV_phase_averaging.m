@@ -6,12 +6,15 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB'))
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-PIV_case_name = '2Hz_A10_10AoA';
+PIV_case_name = '2Hz_A20_10AoA';
 L = 0.07; % characteristic length, guess of mean aerodynamic chord
 U = 4; % characteristic windspeed, freestream
 save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
-readimx_bool = true;
 num_images = 2500;
+
+readimx_bool = false; % Read data from readimx or from saved .mat
+phase_avg_plot_bool = false;
+circ_plot_bool = false;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -19,22 +22,8 @@ if readimx_bool
 
 % minCorrelationValue = 0.2;
 
-keys = {'2Hz_A20_10AoA', '4Hz_A20_10AoA', '6Hz_A20_10AoA', '8Hz_A20_10AoA',...
-        '2Hz_A30_10AoA', '4Hz_A30_10AoA',...
-        '2Hz_A10_10AoA','4Hz_A10_10AoA'};
-values = ["R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_16_2025\2Hz_10AoA_01\StereoPIV_MPd(4x16x16_50%ov)_GPU",...
-          "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_16_2025\4Hz_10AoA\StereoPIV_MPd(4x16x16_50%ov)_GPU",...
-          "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_16_2025\6Hz_10AoA\StereoPIV_MPd(4x16x16_50%ov)_GPU",...
-          "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_16_2025\8Hz_10AoA\StereoPIV_MPd(4x16x16_50%ov)_GPU",...
-           ...
-          "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_18_2025\flexible_30_2Hz_10AoA\StereoPIV_MPd(4x16x16_50%ov)_GPU",...
-          "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_18_2025\flexible_30_4Hz_10AoA\StereoPIV_MPd(4x16x16_50%ov)_GPU",...
-           ...
-          "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_18_2025\flexible_2Hz_10AoA\StereoPIV_MPd(4x16x16_50%ov)_GPU",...
-          "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_18_2025\flexible_4Hz_10AoA\StereoPIV_MPd(4x16x16_50%ov)_GPU"];
-PIV_dict = containers.Map(keys, values);
+file_path = get_PIV_paths(PIV_case_name);
 
-file_path = PIV_dict(PIV_case_name);
 D = loadpiv(file_path,"extractAllVariables"); % "Validate", minCorrelationValue
 % "numCamFields", 4 HOW TO USE, I HAVE 4 CAMERAS
 
@@ -73,38 +62,20 @@ fprintf("Data trimmed from: (%d, %d) to (%d, %d)\n", ...
              init_size(1), init_size(2), fin_size(1), fin_size(2));
 
 vars = {'x', 'y', 'u', 'v', 'w', 'vort'};
+disp("Saving data to " + save_filepath + "trimmed data\")
 save(save_filepath + "trimmed data\" + PIV_case_name + "_data.mat", vars{:})
 
 else
     tic
-    load(save_filepath + "trimmed data\" + PIV_case_name + "_data.mat", vars{:})
+    load(save_filepath + "trimmed data\" + PIV_case_name + "_data.mat")
     toc
 end
 
 %% loading force data
-daq_data_paths = ["R:\ENG_Breuer_Shared\rgissler\Calimero Data\Calimero 11_16_2025\Calimero\DAQ\data\",...
-                  "R:\ENG_Breuer_Shared\rgissler\Calimero Data\Calimero_11_18_2025\data\"];
-daq_data_path = daq_data_paths(1);
+[daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name);
+
 exp_data_folder = daq_data_path + "experiment data\";
 offsets_data_folder = daq_data_path + "offsets data\";
-
-keys = {'2Hz_A20_10AoA', '4Hz_A20_10AoA', '6Hz_A20_10AoA', '8Hz_A20_10AoA',...
-        '2Hz_A30_10AoA','4Hz_A30_10AoA'...
-        '2Hz_A10_10AoA','4Hz_A10_10AoA','6Hz_A10_10AoA','8Hz_A10_10AoA'};
-values = ["PIV_0m.s_0deg_2Hz_2025-11-16 12-25-23_experiment_2025_11_16_12_27_36.mat",...
-          "PIV_0m.s_0deg_4Hz_2025-11-16 13-04-38_experiment_2025_11_16_13_05_58.mat",...
-          "PIV_0m.s_0deg_6Hz_2025-11-16 13-35-20_experiment_2025_11_16_13_36_29.mat",...
-          "PIV_0m.s_0deg_8Hz_2025-11-16 14-03-45_experiment_2025_11_16_14_04_45.mat",...
-          ...
-          "PIV_flexible_30_0m.s_0deg_2Hz_2025-11-18 18-53-17_experiment_2025_11_18_18_55_30.mat",...
-          "PIV_flexible_30_0m.s_0deg_4Hz_2025-11-18 19-21-27_experiment_2025_11_18_19_22_47.mat",...
-          ....
-          "PIV_flexible_0m.s_0deg_2Hz_2025-11-18 16-55-04_experiment_2025_11_18_16_57_14.mat",...
-          "PIV_flexible_0m.s_0deg_4Hz_2025-11-18 17-22-50_experiment_2025_11_18_17_24_13.mat",...
-          "PIV_flexible_0m.s_0deg_6Hz_2025-11-18 17-52-13_experiment_2025_11_18_17_53_28.mat",...
-          "PIV_flexible_0m.s_0deg_8Hz_2025-11-18 18-22-16_experiment_2025_11_18_18_23_19.mat"];
-daq_dict = containers.Map(keys, values);
-daq_data_filename = daq_dict(PIV_case_name);
 
 [case_name, time_stamp, type, wing_freq, AoA, wind_speed] = parse_filename(daq_data_filename);
 
@@ -171,8 +142,10 @@ w_phase_std = zeros(size(vort_phase_avg));
 
 bin_count = zeros(1,num_bins);
 bin_std = zeros(1,num_bins);
+% bin_indices_all = {};
 for i = 1:num_bins
     bin_indices = find(bin_ind_arr == i);
+    % bin_indices_all{i} = bin_indices;
     bin_count(i) = length(bin_indices);
     bin_std(i) = std(norm_wing_pos_frame(bin_indices));
 
@@ -199,14 +172,14 @@ end
 
 figure
 bar(bin_count)
-xlabel("Bin number")
-ylabel("Number of frames per bin")
+xlabel("Bin number", FontSize=16)
+ylabel("Number of frames per bin", FontSize=16)
 exportgraphics(gcf, folder + "\phase_avg_bin_histogram.png", 'Resolution', 300);
 
 figure
 bar(bin_std)
-xlabel("Bin number")
-ylabel("Phase variability per bin")
+xlabel("Bin number", FontSize=16)
+ylabel("Phase variability per bin", FontSize=16)
 exportgraphics(gcf, folder + "\phase_avg_bin_variability.png", 'Resolution', 300);
 
 %% Vorticity
@@ -223,8 +196,9 @@ params.num_bins = num_bins;
 params.xlims = [-2.14 2.14]; % roughly -0.15 to 0.15 meters
 params.ylims = [-2.86 2.86]; % roughly -0.2 to 0.2 meters
 
+if phase_avg_plot_bool
 params.zero = 0;
-params.title = "Streamwise vorticity - Average";
+params.title = "Streamwise vorticity - phase averaged";
 params.folder = "vort_avg";
 params.clims = [-1 1];
 make_movie(x, y, vort_phase_avg, params)
@@ -244,6 +218,7 @@ params.title = "Streamwise velocity - Average";
 params.folder = "w_avg";
 params.clims = [0.9 1.1];
 make_movie(x, y, w_phase_avg, params)
+end
 
 % params.title = "2D Q";
 % params.folder = "Q";
@@ -255,7 +230,7 @@ make_movie(x, y, w_phase_avg, params)
 % x = 0 and that has some minimum size
 
 % Trimming everything but tip vortex
-x_idx = find(x(1,:) > 0 & x(1,:) < 2.14);  % columns
+x_idx = find(x(1,:) > 0.4 & x(1,:) < 2.14);  % columns
 y_idx = find(y(:,1) > -2.86 & y(:,1) < 2.86);  % rows
 
 x_tr = x(y_idx, x_idx);
@@ -268,10 +243,13 @@ w_phase_avg_tr = w_phase_avg(y_idx, x_idx,:);
 
 % ----------------------------------------------------------------
 
+if circ_plot_bool
 params.title = "2D Q";
 params.folder = "Q";
 params.clims = [0.01 0.1];
-make_movie_calc_circ(x_tr, y_tr, u_tr, v_tr, vort_phase_avg_tr, Q_phase_avg_tr, params)
+% make_movie_calc_circ(x_tr, y_tr, u_tr, v_tr, vort_phase_avg_tr, Q_phase_avg_tr, params)
+make_movie_calc_circ(x, y, u, v, vort_phase_avg, Q_phase_avg, params)
+end
 
 %% Stack phase averaged frames together into a volume
 folder = save_filepath + PIV_case_name + "\vort_avg_stacked\";
@@ -283,14 +261,32 @@ end
 % ------------------------------------------------------------------
 
 figure
-% params.clims = [-1 1];
-% params.zero = 0;
-params.zero = 1;
-params.clims = [0.9 1.1];
+params.clims = [-1 1];
+params.zero = 0;
 params.movie = false;
 params.L = L;
-params.shift = 0;
-stack_vortices(x_tr, y_tr, vort_phase_avg_tr, Q_phase_avg_tr, w_phase_avg_tr, wing_freq, params);
+params.shift = -7;
+params.isoValue = 0.05; % 0.05
+stack_vortices(x_tr, y_tr, vort_phase_avg_tr, Q_phase_avg_tr, wing_freq, params);
+
+ax = gca;
+ax.XAxisLocation = 'bottom';   % 'left' or 'right'
+ax.YAxisLocation = 'right';   % 'left' or 'right'
+
+% XZ view
+view([0 -1 0])   % camera along +Y direction
+% camup([1 0 0])  % keep Z vertical
+
+file_name = "phase_avg_stacked_XZ_vort";
+saveas(gcf, folder + "\" + file_name + ".fig")
+exportgraphics(gcf, folder + "\" + file_name + ".png", 'Resolution', 300);
+
+% Same plot but color coded by streamwise velocity
+
+figure
+params.zero = 1;
+params.clims = [0.9 1.1];
+stack_vortices(x_tr, y_tr, w_phase_avg_tr, Q_phase_avg_tr, wing_freq, params);
 
 ax = gca;
 ax.XAxisLocation = 'bottom';   % 'left' or 'right'
@@ -300,19 +296,19 @@ ax.YAxisLocation = 'right';   % 'left' or 'right'
 view([0 1 0])   % camera along +Y direction
 % camup([1 0 0])  % keep Z vertical
 
-exportgraphics(gcf, folder + "\phase_avg_stacked_XZ.png", 'Resolution', 300);
+file_name = "phase_avg_stacked_XZ_vel";
+saveas(gcf, folder + "\" + file_name + ".fig")
+exportgraphics(gcf, folder + "\" + file_name + ".png", 'Resolution', 300);
 
 % ------------------------------------------------------------------
 
 figure
-% params.clims = [-1 1];
-% params.zero = 0;
-params.zero = 1;
-params.clims = [0.9 1.1];
+params.clims = [-1 1];
+params.zero = 0;
 params.movie = false;
 params.L = L;
 params.shift = 0;
-stack_vortices(x_tr, y_tr, vort_phase_avg_tr, Q_phase_avg_tr, w_phase_avg_tr, wing_freq, params);
+stack_vortices(x_tr, y_tr, vort_phase_avg_tr, Q_phase_avg_tr, wing_freq, params);
 
 ax = gca;
 ax.XAxisLocation = 'bottom';   % 'left' or 'right'
@@ -327,14 +323,12 @@ exportgraphics(gcf, folder + "\phase_avg_stacked_YZ.png", 'Resolution', 300);
 % ------------------------------------------------------------------
 
 figure
-% params.clims = [-1 1];
-% params.zero = 0;
-params.zero = 1;
-params.clims = [0.9 1.1];
+params.clims = [-1 1];
+params.zero = 0;
 params.movie = false;
 params.L = L;
 params.shift = 0;
-stack_vortices(x_tr, y_tr, vort_phase_avg_tr, Q_phase_avg_tr, w_phase_avg_tr, wing_freq, params);
+stack_vortices(x_tr, y_tr, vort_phase_avg_tr, Q_phase_avg_tr, wing_freq, params);
 
 ax = gca;
 ax.XAxisLocation = 'bottom';   % 'left' or 'right'
@@ -357,7 +351,7 @@ factor = 5;
 for i = 1:num_bins*factor
 params.shift = i; % -7
 params.movie = true;
-stack_vortices(x_tr, y_tr, vort_phase_avg_tr, Q_phase_avg_tr, w_phase_avg_tr, wing_freq, params);
+stack_vortices(x_tr, y_tr, vort_phase_avg_tr, Q_phase_avg_tr, wing_freq, params);
 
 ax = gca;
 ax.ZDir = 'reverse';  % inverts tick direction
@@ -366,6 +360,7 @@ ax.YAxisLocation = 'right';   % 'left' or 'right'
 % YZ view
 view([1 0 0])   % camera along +X direction
 camup([0 1 0])  % keep Y vertical
+% view([0 -1 0])   % camera along +Y direction
 
 drawnow;
 filename = sprintf('frame_%04d.png', i);  

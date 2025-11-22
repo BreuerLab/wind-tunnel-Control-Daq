@@ -56,7 +56,7 @@ function make_movie_calc_circ(x, y, u, v, vort, Q, params)
         % B = bwboundaries(mask);         % extract polygon(s)
 
         % Help identify tip vortex to start
-        if k == 1
+        % if k == 1
             x_idx = find(x(1,:) > 0.5);  % columns
             
             x_tr = x(:, x_idx);
@@ -67,12 +67,12 @@ function make_movie_calc_circ(x, y, u, v, vort, Q, params)
             [row, col] = ind2sub(size(Q), linIdx);
             xc = x_tr(row,col);
             yc = y_tr(row,col);
-        else
-            [maxVal, linIdx] = max(cur_frame_Q(:));       % get value and linear index
-            [row, col] = ind2sub(size(Q), linIdx);
-            xc = x(row,col);
-            yc = y(row,col);
-        end
+        % else
+        %     [maxVal, linIdx] = max(cur_frame_Q(:));       % get value and linear index
+        %     [row, col] = ind2sub(size(Q), linIdx);
+        %     xc = x(row,col);
+        %     yc = y(row,col);
+        % end
 
         % Check that new peak center falls within radius of last search
         % circle
@@ -178,8 +178,10 @@ function make_movie_calc_circ(x, y, u, v, vort, Q, params)
         % shading(ax, 'interp');
         xlim(params.xlims)
         ylim(params.ylims)
-        xlabel("x [m]")
-        ylabel("y [m]")
+        xlabel("x/c", FontSize=16)
+        ylabel("y/c", FontSize=16)
+        % xlabel("x [m]", FontSize=16)
+        % ylabel("y [m]", FontSize=16)
         % Xiaowei color map
         % min_vort = min(vort_phase_avg,[],'all');
         % max_vort = max(vort_phase_avg,[],'all');
@@ -188,12 +190,22 @@ function make_movie_calc_circ(x, y, u, v, vort, Q, params)
         % clim([-100 100]);
         % colormap(ax, jet);
         % colorbar;
-        title(params.title + ", Circ = " + circ(k) + ", frame: " + k);
+        title(params.title + ", Circ = " + circ(k) + ", frame: " + k, Fontsize=18);
 
         drawnow;
 
         filename = sprintf('frame_%04d.png', k);  
+        try
         exportgraphics(gcf, params.save_filepath + folder_name + filename, 'Resolution', 300);
+        catch ME
+            if k > 1
+                disp("Oops, lost connection with LRS. Trying again...")
+                pause(0.5)
+                exportgraphics(gcf, params.save_filepath + folder_name + filename, 'Resolution', 300);
+            else
+                rethrow(ME);
+            end
+        end
     end
     
     fps = 5;
@@ -203,6 +215,10 @@ function make_movie_calc_circ(x, y, u, v, vort, Q, params)
     figure
     plot(circ)
     ylabel("Circulation")
-    exportgraphics(gcf, params.save_filepath + params.PIV_case_name + "\circulation.png", 'Resolution', 300);
+
+    folder = params.save_filepath + params.PIV_case_name;
+    file_name = "circulation";
+    saveas(gcf, folder + "\" + file_name + ".fig")
+    exportgraphics(gcf, folder + "\" + file_name + ".png", 'Resolution', 300);
 
 end

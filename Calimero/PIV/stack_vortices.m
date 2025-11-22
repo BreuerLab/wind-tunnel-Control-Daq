@@ -1,4 +1,4 @@
-function stack_vortices(x, y, vort_phase_avg, Q_phase_avg, w_phase_avg, wing_freq, params)
+function stack_vortices(x, y, C_phase_avg, Q_phase_avg, wing_freq, params)
 wind_speed = 4;
 dt = 1 / (wing_freq * params.num_bins);
 z = zeros(1, params.num_bins);
@@ -6,6 +6,9 @@ for k = 1:params.num_bins
     z(k) =  wind_speed * dt * (k - 1);
 end
 z = z / params.L; % non-dimensionalize z by characterisitic length
+
+% normalize by wingbeat period
+z = z / max(z);
 
 [Ny, Nx] = size(x);
 Nz = length(z);
@@ -16,19 +19,16 @@ Y = repmat(y, [1 1 Nz]);       % Ny x Nx x Nz
 Z = repmat(reshape(z, [1 1 Nz]), [Ny Nx 1]); % Ny x Nx x Nz
 
 Q_phase_avg_s = circshift(Q_phase_avg, [0 0 params.shift]);  % shift along the 3rd dimension (Z)
-vort_phase_avg_s = circshift(vort_phase_avg, [0 0 params.shift]);  % shift along the 3rd dimension (Z)
-w_phase_avg_s = circshift(w_phase_avg, [0 0 params.shift]);
+C_phase_avg_s = circshift(C_phase_avg, [0 0 params.shift]);  % shift along the 3rd dimension (Z)
 
 % Shuffle axes so that 3D plot is easier to rotate
 Q2 = permute(Q_phase_avg_s, [2 3 1]);
-C2 = permute(w_phase_avg_s, [2 3 1]);
+C2 = permute(C_phase_avg_s, [2 3 1]);
 
 xv = squeeze(X(1,:,1));    % Nx
 yv = squeeze(Y(:,1,1));    % Ny
 zv = squeeze(Z(1,1,:));    % Nz
 [Z2, X2, Y2] = meshgrid(zv, xv, yv);
-
-isoValue = 0.05;
 
 % X_fin = X; Y_fin = Y; Z_fin = Z; Q_fin = Q_phase_avg_s; C_fin = w_phase_avg_s;
 X_fin = X2; Y_fin = Y2; Z_fin = Z2; Q_fin = Q2; C_fin = C2;
@@ -53,7 +53,7 @@ zq = zq + dz; % trim off leading 0 so that diff is constant of zq_big
 
 % Interpolate Q and vorticity onto fine grid
 Q_fine = interp3(X, Y, Z, Q_phase_avg, Xq, Yq, Zq, 'linear');
-vort_fine = interp3(X, Y, Z, vort_phase_avg, Xq, Yq, Zq, 'linear');
+C_fine = interp3(X, Y, Z, C_phase_avg, Xq, Yq, Zq, 'linear');
 
 %% Stack 3 wingbeats together
 
@@ -62,26 +62,27 @@ zq_big = [zq, zq + max(zq), zq + 2*max(zq)];
 
 % Repeat data along 3rd dimension
 Q_big    = cat(3, Q_fine,    Q_fine,    Q_fine);
-vort_big = cat(3, vort_fine, vort_fine, vort_fine);
+C_big = cat(3, C_fine, C_fine, C_fine);
 
 Q_big = circshift(Q_big, [0 0 params.shift]);  % shift along the 3rd dimension (Z)
-vort_big = circshift(vort_big, [0 0 params.shift]);  % shift along the 3rd dimension (Z)
+C_big = circshift(C_big, [0 0 params.shift]);  % shift along the 3rd dimension (Z)
 
 % Make a bigger grid using ndgrid
 [X_big, Y_big, Z_big] = meshgrid(xq, yq, zq_big);
 
-X_fin = X_big; Y_fin = Y_big; Z_fin = Z_big; Q_fin = Q_big; C_fin = vort_big;
+X_fin = X_big; Y_fin = Y_big; Z_fin = Z_big; Q_fin = Q_big; C_fin = C_big;
 end
 
 % Extract isosurface from larger volume
-% s = isosurface(X_fin, Y_fin, Z_fin, Q_fin, isoValue);
-s = isosurface(Z_fin, X_fin, Y_fin, Q_fin, isoValue);
-
-% Colors
-% cData = interp3(X_fin, Y_fin, Z_fin, C_fin, ...
-%                 s.vertices(:,1), s.vertices(:,2), s.vertices(:,3));
-cData = interp3(Z_fin, X_fin, Y_fin, C_fin, ...
+if params.movie
+    s = isosurface(X_fin, Y_fin, Z_fin, Q_fin, params.isoValue);
+    cData = interp3(X_fin, Y_fin, Z_fin, C_fin, ...
                 s.vertices(:,1), s.vertices(:,2), s.vertices(:,3));
+else
+    s = isosurface(Z_fin, X_fin, Y_fin, Q_fin, params.isoValue);
+    cData = interp3(Z_fin, X_fin, Y_fin, C_fin, ...
+                 s.vertices(:,1), s.vertices(:,2), s.vertices(:,3));
+end
 
 p = patch('vertices', s.vertices, 'faces', s.faces, ...
           'FaceVertexCData', cData, 'FaceColor', 'interp', 'EdgeColor', 'none');
@@ -92,10 +93,25 @@ if params.zero ~= 0
 else
     cb = colorbarpzn(params.clims(1), params.clims(2)); % , 'level', 21
 end
-ylabel(cb,'\boldmath$\frac{\omega c}{U_{\infty}}$','Interpreter','Latex','FontSize',16,'Rotation',0)
-xlabel("x/c")
-ylabel("y/c")
-zlabel("z/c")
+if ~params.movie
+    ylabel(cb,'\boldmath$\frac{\omega c}{U_{\infty}}$','Interpreter','Latex','FontSize',18,'Rotation',0)
+    xlabel("x/c", FontSize=16)
+    ylabel("y/c", FontSize=16)
+    zlabel("z/c", FontSize=16)
+else
+    cb.Visible = 'off';
+    ax = gca;
+    ax.XTick = [];
+    ax.YTick = [];
+    ax.ZTick = [];
+    ax.XTickLabel = [];
+    ax.YTickLabel = [];
+    ax.ZTickLabel = [];
+    ax.Box = 'off';
+    ax.XColor = 'none'; % hides axis line
+    ax.YColor = 'none';
+    ax.ZColor = 'none';
+end
 
 % Zoom out
 % ax = gca;

@@ -1,8 +1,21 @@
 clear
 close all
 addpath(genpath('../../'))
+addpath(genpath('.'))
+addpath(genpath('C:\Users\rgissler\Documents\MATLAB'))
 
 % minCorrelationValue = 0.3;
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+PIV_case_name = '0Hz_10AoA_v2';
+L = 0.07; % characteristic length, guess of mean aerodynamic chord
+U = 4; % characteristic windspeed, freestream
+save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
+
+readimx_bool = false;
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 keys = {'0Hz_0AoA','0Hz_10AoA', '2Hz_10AoA', '0Hz_10AoA_v2', '0Hz_10AoA_rigid'};
 values = ["R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_16_2025\0Hz_0AoA\StereoPIV_MPd(4x16x16_50%ov)_GPU",...
@@ -12,44 +25,86 @@ values = ["R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_16_2025\0
         "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_18_2025\rigid_0Hz_10AoA\StereoPIV_MPd(4x16x16_50%ov)_GPU"];
 dict = containers.Map(keys, values);
 
-case_name = '0Hz_0AoA';
-file_path = dict(case_name);
+if readimx_bool
+file_path = dict(PIV_case_name);
 disp("Loading file: " + file_path)
 D = loadpiv(file_path,"extractAllVariables"); % "Validate", minCorrelationValue
 % "numCamFields", 4 HOW TO USE, I HAVE 4 CAMERAS
 
+% Non-dimensionalize variables
+u_full = D.u/U;
+v_full = D.v/U;
+w_full = D.w/U;
+vort_full = D.vort*L/U;
+x_full = D.x/L;
+y_full = D.y/L;
+uncU = D.uncU/U;
+uncV = D.uncV/U;
+uncW = D.uncW/U;
+
+% Trimming data down
+xbounds = [-2.14 2.14]; % roughly -0.15 to 0.15 meters
+ybounds = [-2.86 2.86]; % roughly -0.2 to 0.2 meters
+
+x_idx = find(x_full(1,:) > xbounds(1) & x_full(1,:) < xbounds(2));  % columns
+y_idx = find(y_full(:,1) > ybounds(1) & y_full(:,1) < ybounds(2));  % rows
+
+x = x_full(y_idx, x_idx);
+y = y_full(y_idx, x_idx);
+u = u_full(y_idx, x_idx,:);
+v = v_full(y_idx, x_idx,:);
+w = w_full(y_idx, x_idx,:);
+vort = vort_full(y_idx, x_idx,:);
+
+init_size = size(x_full);
+fin_size = size(x);
+fprintf("Data trimmed from: (%d, %d) to (%d, %d)\n", ...
+             init_size(1), init_size(2), fin_size(1), fin_size(2));
+
+vars = {'x', 'y', 'u', 'v', 'w', 'vort'};
+disp("Saving data to " + save_filepath + "trimmed data\")
+save(save_filepath + "trimmed data\" + PIV_case_name + "_data.mat", vars{:})
+
+else
+    tic
+    load(save_filepath + "trimmed data\" + PIV_case_name + "_data.mat")
+    toc
+end
+
 %% Compute summary statistics
 % u_avg =  mean(u_field_frames,3);
 % v_avg =  mean(v_field_frames,3);
-w_avg = mean(D.w,3,"omitnan");
-vort_avg = mean(D.vort,3,"omitnan");
-corr_avg = mean(D.corr,3,"omitnan");
+w_avg = mean(w,3,"omitnan");
+vort_avg = mean(vort,3,"omitnan");
+% corr_avg = mean(D.corr,3,"omitnan");
 
-xlims = [-0.15 0.15];
-ylims = [-0.2 0.2];
 %% Plot
 f1 = figure;
-pcolor(D.x, D.y, w_avg);
-xlim(xlims)
-ylim(ylims)
-ax = gca;
-shading(ax, 'interp');
-clim([min(w_avg,[],'all') max(w_avg,[],'all')]);
-colormap(ax, jet);
-cb = colorbar;
-ylabel(cb,'\boldmath$\bar{w}$','Interpreter','Latex','FontSize',16,'Rotation',0)
-% ylabel(cb,'\boldmath$\frac{\bar{w}}{U_{\infty}}$','Interpreter','Latex','FontSize',16,'Rotation',0)
-title('Streamwise velocity, <w>')
+% pcolor(D.x, D.y, w_avg);
+contourf(x, y, w_avg, 71,'linestyle','none');
+% xlim(xlims)
+% ylim(ylims)
+% ax = gca;
+% shading(ax, 'interp');
+cb = colorbarpzn(0.9, 1.1, 'full', 1, 'dft', 'pwg');
+xlabel("y/c",FontSize=16)
+ylabel("z/c",FontSize=16)
+ylabel(cb,'\boldmath$\frac{\bar{w}}{U_{\infty}}$','Interpreter','Latex','FontSize',18,'Rotation',0)
+title('Streamwise velocity, <w>',FontSize=18)
 
 f2 = figure;
-pcolor(D.x, D.y, vort_avg);
-xlim(xlims)
-ylim(ylims)
-ax = gca;
-shading(ax, 'interp');
-vort_scale = 50;
-colorbarpzn(-vort_scale, vort_scale); % , 'level', 21
-title('Streamwise vorticty')
+% pcolor(D.x, D.y, vort_avg);
+contourf(x, y, vort_avg, 71,'linestyle','none');
+% xlim(xlims)
+% ylim(ylims)
+% ax = gca;
+% shading(ax, 'interp');
+vort_scale = 1;
+cb = colorbarpzn(-vort_scale, vort_scale); % , 'level', 21
+ylabel(cb,'\boldmath$\frac{\omega c}{U_{\infty}}$','Interpreter','Latex','FontSize',18,'Rotation',0)
+xlabel("y/c",FontSize=16)
+ylabel("z/c",FontSize=16)
+title('Streamwise vorticity',FontSize=18)
 
 %% Mirror voriticty data
 
@@ -86,15 +141,17 @@ title('Streamwise vorticty')
 % colorbar;
 % title('Streamwise vorticty')
 
-f3 = figure;
-pcolor(D.x, D.y, corr_avg);
-xlim(xlims)
-ylim(ylims)
-ax = gca;
-shading(ax, 'interp');
-clim([0.3 1]); colormap(ax,jet);
-colorbar;
-title('Average PIV correlation')
+% f3 = figure;
+% pcolor(D.x, D.y, corr_avg);
+% xlim(xlims)
+% ylim(ylims)
+% ax = gca;
+% shading(ax, 'interp');
+% clim([0.3 1]); colormap(ax,jet);
+% colorbar;
+% xlabel("y/c")
+% ylabel("z/c")
+% title('Average PIV correlation')
 
 save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\Gliding Averages\";
 
@@ -102,8 +159,8 @@ if ~exist(save_filepath, 'dir')
     mkdir(save_filepath);
 end
 
-saveas(f1,save_filepath + case_name + "_w.fig")
-saveas(f2,save_filepath + case_name + "_omega.fig")
-exportgraphics(f2, save_filepath + case_name + "_omega.png", 'Resolution', 300);
-saveas(f3,save_filepath + case_name + "_corr.fig")
-disp("Saved 3 plots to " + save_filepath)
+saveas(f1,save_filepath + PIV_case_name + "_w.fig")
+saveas(f2,save_filepath + PIV_case_name + "_omega.fig")
+exportgraphics(f2, save_filepath + PIV_case_name + "_omega.png", 'Resolution', 300);
+% saveas(f3,save_filepath + PIV_case_name + "_corr.fig")
+disp("Saved 2 plots to " + save_filepath)

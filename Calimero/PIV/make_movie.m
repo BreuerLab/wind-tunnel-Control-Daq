@@ -19,8 +19,11 @@ function make_movie(x, y, val, params)
         % shading(ax, 'interp');
         xlim(params.xlims)
         ylim(params.ylims)
-        xlabel("x [m]")
-        ylabel("y [m]")
+        % xlabel("x [m]")
+        % ylabel("y [m]")
+        xlabel("y/c", FontSize=16)
+        ylabel("z/c", FontSize=16)
+
         % Xiaowei color map
         % min_vort = min(vort_phase_avg,[],'all');
         % max_vort = max(vort_phase_avg,[],'all');
@@ -30,7 +33,8 @@ function make_movie(x, y, val, params)
         else
         cb = colorbarpzn(params.clims(1), params.clims(2)); % , 'level', 21
         end
-        title(params.title + ", frame: " + k);
+        ylabel(cb,'\boldmath$\frac{\omega c}{U_{\infty}}$','Interpreter','Latex','FontSize',18,'Rotation',0)
+        title([params.title "Bin number: " + k], FontSize=18);
 
         drawnow;
 

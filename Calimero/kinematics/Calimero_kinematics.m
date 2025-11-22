@@ -51,7 +51,7 @@ downstroke_count_R = zc_idx_R(2) - zc_idx_R(1);
 D_U_ratio_R = downstroke_count_R / (length(phi_eqt_R_dot) - downstroke_count_R);
 tau_ratio_R = downstroke_count_R / length(phi_eqt_R_dot);
 disp("Downstroke-upstroke ratio moving backward is: " + D_U_ratio_R)
-disp("Downstroke moving forward is " + round(tau_ratio_R*100) + "% of wingbeat")
+disp("Downstroke moving backward is " + round(tau_ratio_R*100) + "% of wingbeat")
 
 % --------------------------------------------------------
 % Plotting angular displacement of sinusoidal motion compared with forward
@@ -169,6 +169,7 @@ d_vals = linspace(16,24,3);
 % d = 20; % mm
 r_vals = linspace(0.1,12,100); % mm
 % r = 7.27; % mm
+
 numPts = 10000;
 
 theta = linspace(0, 2*pi, numPts);
@@ -214,3 +215,44 @@ xlabel("Radial position of crank (mm)")
 legend(Location="best")
 set(gca, FontSize=14)
 
+% --------------------------------------------------------
+% Wing kinematics for backward motor rotation
+% --------------------------------------------------------
+numRevs = 1; % NEEDS TO BE 1, otherwise stuff gets funky
+numPts = 1000;
+time_eqt = linspace(0, numRevs, numPts);
+
+colors = ["#fdd49e", "#fc8d59", "#b30000"];
+
+d = 20; % mm
+
+r_vals = [3.47, 6.84, 10];
+amps = [20, 40, 60];
+
+% phi_eqt = atand((r*sin(theta_R)) ./ (d + r*cos(theta_R)));
+sine_data = cos(2*pi*time_eqt);
+
+figure
+hold on
+plot(time_eqt, sine_data, DisplayName="cosine", LineWidth=2, color='k')
+
+for i = 1:length(r_vals)
+    r = r_vals(i);
+
+    init_theta = acos(-r/d);
+    theta_R = linspace(init_theta, init_theta - numRevs*2*pi, numPts);
+    phi_eqt_R = atand((r*sin(theta_R)) ./ (d + r*cos(theta_R)));
+    phi_eqt_R = phi_eqt_R / max(phi_eqt_R);
+
+    % Calculate downstroke-upstroke ratio
+    phi_eqt_R_dot = gradient(phi_eqt_R, dt);
+    zc_idx_R = find(phi_eqt_R_dot(1:end-1) .* phi_eqt_R_dot(2:end) < 0);
+    D_U_ratio_R = zc_idx_R / (length(phi_eqt_R_dot) - zc_idx_R);
+    disp("r = " + r + ", downstroke-upstroke ratio = " + D_U_ratio_R)
+
+    plot(time_eqt, phi_eqt_R, DisplayName="\phi = " + amps(i), LineWidth=2, color=colors(i))
+end
+ylim([-1 1])
+xlabel("t/T", FontSize=16)
+ylabel("\phi / max(\phi)", FontSize=16)
+legend(Location="southwest", FontSize=16)
