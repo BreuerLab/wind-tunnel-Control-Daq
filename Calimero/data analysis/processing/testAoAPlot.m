@@ -1,10 +1,11 @@
 % Author: Ronan Gissler
-% Last updated: October 2023
+% Last updated: December 2025
 
-% Note: Your current working directory in Matlab must include this file
-% (i.e. you must be in the process trial folder)
 clear
 close all
+
+% Change current working directory to the directory where this file is
+cd(fileparts(mfilename('fullpath')));
 addpath(genpath('../../'))
 addpath(genpath('.'))
 

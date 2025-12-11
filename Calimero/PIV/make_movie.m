@@ -30,10 +30,13 @@ function make_movie(x, y, val, params)
         % vort_scale = max(abs([min_vort max_vort]));
         if params.zero ~= 0
         cb = colorbarpzn(params.clims(1), params.clims(2), 'full', 1, 'dft', 'pwg');
+        % y_lab = '\boldmath$\frac{w}{U_{\infty}}$';
+        y_lab = '\boldmath$\frac{u}{U_{\infty}}$';
         else
         cb = colorbarpzn(params.clims(1), params.clims(2)); % , 'level', 21
+        y_lab = '\boldmath$\frac{\omega c}{U_{\infty}}$';
         end
-        ylabel(cb,'\boldmath$\frac{\omega c}{U_{\infty}}$','Interpreter','Latex','FontSize',18,'Rotation',0)
+        ylabel(cb, y_lab,'Interpreter','Latex','FontSize',18,'Rotation',0)
         title([params.title "Bin number: " + k], FontSize=18);
 
         drawnow;

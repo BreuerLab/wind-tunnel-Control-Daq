@@ -13,8 +13,9 @@ save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Resul
 num_images = 2500;
 
 readimx_bool = false; % Read data from readimx or from saved .mat
-phase_avg_plot_bool = false;
+phase_avg_plot_bool = true;
 circ_plot_bool = false;
+movie_plot_bool = false;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -230,7 +231,8 @@ end
 % x = 0 and that has some minimum size
 
 % Trimming everything but tip vortex
-x_idx = find(x(1,:) > 0.4 & x(1,:) < 2.14);  % columns
+% x_idx = find(x(1,:) > 0.4 & x(1,:) < 2.14);  % columns
+x_idx = find(x(1,:) > -1 & x(1,:) < 2.14);  % columns
 y_idx = find(y(:,1) > -2.86 & y(:,1) < 2.86);  % rows
 
 x_tr = x(y_idx, x_idx);
@@ -345,6 +347,7 @@ exportgraphics(gcf, folder + "\phase_avg_stacked_XY.png", 'Resolution', 300);
 % view([1 0.2 0.2]); % mostly along X, slight tilt in Y and Z
 % camup([0 1 0]);    % keep Y pointing up
 
+if movie_plot_bool
 % Make movie by shifting 3D plot frame by frame
 figure
 factor = 5;
@@ -371,6 +374,7 @@ end
 fps = 25;
 gif_name = "stacked_animated";
 export_plot_gifs(folder, gif_name, fps)
+end
 
 %% Streamwise velocity
 

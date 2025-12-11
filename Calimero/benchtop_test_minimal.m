@@ -2,20 +2,12 @@ clear
 close all
 clc
 
-% This file can be used to test the force transducer.
-% Begin by connecting the force transducer to the NI DAQ and the NI DAQ to
-% your personal computer.
-
 % Author: Ronan Gissler
 % Date: 09/12/2025
 
-addpath(genpath("../"))
-
-% case_name = wing_type + "_" + speed + "m.s_" + AoA_vals(j) + "deg_" + freq_vals(i) + "Hz";
-
 % Galil Setup
 galil_IP_address = "192.168.1.3";
-DR_bool = true; % false - store data in arrays (RA), true - data record packets (DR)
+DR_bool = false; % false - store data in arrays (RA), true - data record packets (DR)
 ticksPerRev = 18432;
 freq = 4; % Hz
 acc = 3; % Hz

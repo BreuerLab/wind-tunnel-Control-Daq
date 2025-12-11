@@ -1,4 +1,4 @@
-function motor_model(time_data, voltAdj, curAdj, freq)
+function motor_model(time_data, voltAdj, curAdj, freq, speed)
 
 % Motor Parameters
 R = 51.4; % Ohms
@@ -70,7 +70,7 @@ set(gca, FontSize=14)
 set(findall(gca, 'Type', 'line'), 'LineWidth', 2)
 
 % -------------------
-speedFilt = freq*ones(size(curAdjFilt));
+speedFilt = speed;
 % voltMod = k*(freq*2*pi*gR) + R*(curAdjFilt/1000) + L*gradient(curAdjFilt/1000, 1/frame_rate);
 mechTerm = k*(speedFilt*2*pi*gR); % Nm/A = V/(speed in rad/s)
 resTerm = R*(curAdjFilt/1000);

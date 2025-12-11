@@ -52,9 +52,6 @@ function make_movie_calc_circ(x, y, u, v, vort, Q, params)
         h = contourf(x, y, cur_frame_Q, 71,'linestyle','none');
         hold on
 
-        % mask = Q(:,:,k) > params.cmin;           % logical mask
-        % B = bwboundaries(mask);         % extract polygon(s)
-
         % Help identify tip vortex to start
         % if k == 1
             x_idx = find(x(1,:) > 0.5);  % columns
@@ -84,18 +81,28 @@ function make_movie_calc_circ(x, y, u, v, vort, Q, params)
         R  = 0.5; % meters, 0.025
         
         dist = sqrt((x - xc).^2 + (y - yc).^2);
-        mask = dist <= R;
-        
+        circ_mask = dist <= R;
+
+        mask_x = x(1,:) > -0.7 & x(1,:) < 2;
+        mask_y = y(:,1) > -1.6 & y(:,1) < 1.6;
+        rect_mask = mask_x & mask_y;
+
+        Q_mask = cur_frame_Q > 0.1;           % logical mask
+
+        % mask = rect_mask;
+        mask = circ_mask;
+        % mask = Q_mask;
+
+        x_shape = x;
+        y_shape = y;
+        x_shape(~mask) = NaN;
+        y_shape(~mask) = NaN;
+
         ds = abs(x(1,1) - x(1,2));
         vort_tr = vort(mask);
         % circ(k) = sum(vort_tr*ds^2);
 
-        x_circ = x;
-        y_circ = y;
-        x_circ(~mask) = NaN;
-        y_circ(~mask) = NaN;
-
-        h = pcolor(x_circ, y_circ, ones(size(x_circ)));
+        h = pcolor(x_shape, y_shape, ones(size(x_shape)));
 
         shading flat                 % removes the grid lines between cells
         set(h, 'EdgeColor', 'none')  % removes borders

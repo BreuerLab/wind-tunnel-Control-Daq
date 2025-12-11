@@ -14,8 +14,12 @@ slack_bool = false;
 % ADD PATH WHERE DATA SHOULD GET DUMPED
 
 % data_path = "F:\Calimero Data\Calimero 09_23_2025_ascending\Calimero\";
+
+h = helpdlg('Please select the folder that contains speed folders (e.g. 4 m.s).');
+uiwait(h);     % ensure the user reads it before continuing
+
 % Open a file selection dialog and get the file path
-data_path = uigetdir("F:\Calimero Data", 'Select a folder') + "\";
+data_path = uigetdir("F:\Calimero Data", 'Select a folder that contains speed folders') + "\";
 if isequal(data_path, 0)
     disp('User canceled folder selection.');
 else
@@ -34,8 +38,9 @@ s = slackMsg(data_path);
 bot = slackProgressBar(data_path);
 end
 
-% speed_path = data_path + wind_speed_sel + " m.s/";
-filePattern = fullfile(data_path); % Change to whatever pattern you need.
+speed_path = data_path + wind_speed_sel + " m.s/";
+% speed_path = data_path;
+filePattern = fullfile(speed_path); % Change to whatever pattern you need.
 dir_names = dir(filePattern);
 
 % path to folders where raw data (.csv files) are stored
@@ -47,7 +52,7 @@ for i = 3:length(dir_names)
     cur_name_parts = split(dir_names(i).name);
     cur_name = cur_name_parts{1};
     if (type == cur_name)
-        filepath = data_path + dir_names(i).name;
+        filepath = speed_path + dir_names(i).name;
 
         raw_data_path = [raw_data_path filepath + "/raw data/experiment data/"];
         offsets_path = [offsets_path filepath + "/raw data/offsets data/"];

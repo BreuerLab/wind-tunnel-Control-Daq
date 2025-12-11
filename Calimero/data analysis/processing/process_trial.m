@@ -25,10 +25,10 @@ cal_matrix = obtain_cal(calibration_filepath);
 
 % UNCOMMENT !!!!!!!!!!!!!!!!!!!!!!!
 % find matching offsets file
-% offsets_file = findInitialOffsetsFile(offsets_path, case_name);
-% load(offsets_path + offsets_file); % load in results var
-% offsets = offsets(1,:);
-% disp("Matching offsets: " + offsets_file)
+offsets_file = findInitialOffsetsFile(offsets_path, case_name);
+load(offsets_path + offsets_file); % load in results var
+offsets = offsets(1,:);
+disp("Matching offsets: " + offsets_file)
 % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 filePattern = fullfile(offsets_path, '*.mat'); % Change to whatever pattern you need.
 offsets_files = [];
@@ -47,8 +47,10 @@ disp("Current offsets: " + offsets_cur_filename)
 load(raw_data_path + file); % load in results var
 
 if (wing_freq == 0)
+% for gliding case, trim off first and last second of data
 trimmed_results = results(frame_rate:end-frame_rate,:);
 else
+% trim off period when acceleration + padding
 trimmed_results = trim_data(results, rec_wingbeats, num_wingbeats, frame_rate);
 end
 
@@ -69,9 +71,9 @@ results_lab = coordinate_transformation(force_data, AoA);
 mod_results = [results_lab; voltAdj'; curAdj'];
 
 % motor model check
-if wing_freq ~= 0
-    motor_model(time_data, voltAdj, curAdj, wing_freq);
-end
+% if wing_freq ~= 0
+%     motor_model(time_data, voltAdj, curAdj, wing_freq, speed);
+% end
 
 % Non-dimensionalize the data. Newtons to Force Coefficients and
 % Newton*meters to Moment Coefficients

@@ -30,6 +30,7 @@ methods
         elseif (name == "Calimero")
             % obj.types = types;
             % obj.types = ["ladder", "ascending", "descending"];
+            obj.types = ["10 deg body", "10 deg wings", "20 deg body", "20 deg wings"];
             obj.freqs = ["0 Hz", "2 Hz", "4 Hz", "6 Hz", "8 Hz", "10 Hz"];
             obj.angles = [-16:2:16];
             % obj.speeds = speeds;

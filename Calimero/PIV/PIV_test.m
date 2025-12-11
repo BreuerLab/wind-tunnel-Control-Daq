@@ -8,12 +8,13 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB'))
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-PIV_case_name = '0Hz_10AoA_v2';
+PIV_case_name = '0Hz_10AoA_rigid';
 L = 0.07; % characteristic length, guess of mean aerodynamic chord
 U = 4; % characteristic windspeed, freestream
+nondim_bool = true;
 save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
 
-readimx_bool = false;
+readimx_bool = true;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -29,18 +30,31 @@ if readimx_bool
 file_path = dict(PIV_case_name);
 disp("Loading file: " + file_path)
 D = loadpiv(file_path,"extractAllVariables"); % "Validate", minCorrelationValue
-% "numCamFields", 4 HOW TO USE, I HAVE 4 CAMERAS
 
-% Non-dimensionalize variables
-u_full = D.u/U;
-v_full = D.v/U;
-w_full = D.w/U;
-vort_full = D.vort*L/U;
-x_full = D.x/L;
-y_full = D.y/L;
-uncU = D.uncU/U;
-uncV = D.uncV/U;
-uncW = D.uncW/U;
+if nondim_bool % Non-dimensionalize variables
+    u_full = D.u/U;
+    v_full = D.v/U;
+    w_full = D.w/U;
+    vort_full = D.vort*(L/U);
+    x_full = D.x/L;
+    y_full = D.y/L;
+    uncU = D.uncU/U;
+    uncV = D.uncV/U;
+    uncW = D.uncW/U;
+else
+    u_full = D.u;
+    v_full = D.v;
+    w_full = D.w;
+    vort_full = D.vort;
+    x_full = D.x;
+    y_full = D.y;
+    uncU = D.uncU;
+    uncV = D.uncV;
+    uncW = D.uncW;
+end
+
+uncTot = (uncU.^2 + uncV.^2 + uncW.^2).^(1/2);
+corr = D.corr;
 
 % Trimming data down
 xbounds = [-2.14 2.14]; % roughly -0.15 to 0.15 meters
@@ -61,7 +75,7 @@ fin_size = size(x);
 fprintf("Data trimmed from: (%d, %d) to (%d, %d)\n", ...
              init_size(1), init_size(2), fin_size(1), fin_size(2));
 
-vars = {'x', 'y', 'u', 'v', 'w', 'vort'};
+vars = {'x', 'y', 'u', 'v', 'w', 'vort', 'corr', 'uncTot'};
 disp("Saving data to " + save_filepath + "trimmed data\")
 save(save_filepath + "trimmed data\" + PIV_case_name + "_data.mat", vars{:})
 
@@ -76,7 +90,7 @@ end
 % v_avg =  mean(v_field_frames,3);
 w_avg = mean(w,3,"omitnan");
 vort_avg = mean(vort,3,"omitnan");
-% corr_avg = mean(D.corr,3,"omitnan");
+corr_avg = mean(D.corr,3,"omitnan");
 
 %% Plot
 f1 = figure;
@@ -105,6 +119,30 @@ ylabel(cb,'\boldmath$\frac{\omega c}{U_{\infty}}$','Interpreter','Latex','FontSi
 xlabel("y/c",FontSize=16)
 ylabel("z/c",FontSize=16)
 title('Streamwise vorticity',FontSize=18)
+
+% grayscale + red colormap
+nRed = 10; 
+cmap = [gray(256); repmat([1 0 0], nRed, 1)];
+
+f3 = figure;
+pcolor(x, y, corr_avg);
+ax = gca;
+hold on
+shading(ax, 'interp');
+clim([0.4 0.6]); colormap(ax,cmap);
+colorbar;
+
+width = 0.3;
+height = 0.45;
+FOV_pos = [-0.17 -0.25 width height];
+% FOV rectangle
+rectangle('Position', FOV_pos, 'EdgeColor', 'k', 'LineWidth', 2)
+
+% xlabel("y/c",FontSize=16)
+% ylabel("z/c",FontSize=16)
+xlabel("y (m)",FontSize=16)
+ylabel("z (m)",FontSize=16)
+title('Average PIV correlation',FontSize=18)
 
 %% Mirror voriticty data
 

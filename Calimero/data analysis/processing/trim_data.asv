@@ -27,55 +27,55 @@ disp(length(trimmmed_results(1:startIdx,:)))
 disp(length(trimmmed_results(endIdx:end,:)))
 trimmed_results = trimmmed_results(startIdx:endIdx,:);
 
-% time = beat_idx / rate;
-% pos = linspace(0,rec_wingbeats, length(beat_idx));
-% vel = gradient(pos, time);
-% 
-% figure
-% plot(time, vel)
-% xlabel("Time (seconds)")
-% ylabel("Wingbeat Frequency (Hz)")
-% 
-% wing_freq = 4; % TEMP NEED TO REPLACE
-% fc = 30; % cutoff frequency
-% fs = num_pts * wing_freq;
-% [b,a] = butter(6, fc/(fs/2));
-% speedFilt = filtfilt(b,a,vel);
-% 
-% figure
-% plot(time, speedFilt)
-% xlabel("Time (seconds)")
-% ylabel("Filtered Wingbeat Frequency (Hz)")
-% 
-% plot_bool = true;
-% if plot_bool
-% figure
-% hold on
-% plot(results(:,1), enc_pulse)
-% xline(results(startIdx,1))
-% xline(results(endIdx,1))
-% 
-% figure
-% plot(trimmed_results(:,1), trimmed_results(:,10))
-% end
-% 
-% % Confirm that number of wingbeats now matches expectation
-% disp_str = "Number of wingbeats in trimmed data: ";
-% mid_idx = (num_wingbeats/2)*num_pts;
-% frames_per_beat = (beat_idx(mid_idx + num_pts) - beat_idx(mid_idx));
-% disp_calc = length(trimmed_results) / frames_per_beat;
-% disp(disp_str + disp_calc)
-% 
-% [beat_idx] = get_idx_wingbeats(trimmed_results(:,10), rate);
-% 
-% time = beat_idx / rate;
-% pos = linspace(0,num_wingbeats, length(beat_idx));
-% vel = gradient(pos, time);
-% 
-% figure
-% plot(time, vel)
-% xlabel("Time (seconds)")
-% ylabel("Wingbeat Frequency (Hz)")
+time = beat_idx / rate;
+pos = linspace(0,rec_wingbeats, length(beat_idx));
+vel = gradient(pos, time);
+
+figure
+plot(time, vel)
+xlabel("Time (seconds)")
+ylabel("Wingbeat Frequency (Hz)")
+
+wing_freq = 4; % TEMP NEED TO REPLACE
+fc = 30; % cutoff frequency
+fs = num_pts * wing_freq;
+[b,a] = butter(6, fc/(fs/2));
+speedFilt = filtfilt(b,a,vel);
+
+figure
+plot(time, speedFilt)
+xlabel("Time (seconds)")
+ylabel("Filtered Wingbeat Frequency (Hz)")
+
+plot_bool = true;
+if plot_bool
+figure
+hold on
+plot(results(:,1), enc_pulse)
+xline(results(startIdx,1))
+xline(results(endIdx,1))
+
+figure
+plot(trimmed_results(:,1), trimmed_results(:,10))
+end
+
+% Confirm that number of wingbeats now matches expectation
+disp_str = "Number of wingbeats in trimmed data: ";
+mid_idx = (num_wingbeats/2)*num_pts;
+frames_per_beat = (beat_idx(mid_idx + num_pts) - beat_idx(mid_idx));
+disp_calc = length(trimmed_results) / frames_per_beat;
+disp(disp_str + disp_calc)
+
+[beat_idx] = get_idx_wingbeats(trimmed_results(:,10), rate);
+
+time = beat_idx / rate;
+pos = linspace(0,num_wingbeats, length(beat_idx));
+vel = gradient(pos, time);
+
+figure
+plot(time, vel)
+xlabel("Time (seconds)")
+ylabel("Wingbeat Frequency (Hz)")
 
 % if trigger malfunctioned, alert user that data was not trimmed
 if (length(results) == length(trimmed_results))

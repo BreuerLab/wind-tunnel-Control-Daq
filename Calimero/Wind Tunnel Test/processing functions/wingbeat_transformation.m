@@ -29,15 +29,15 @@
 function [wingbeat_forces, frames, wingbeat_avg_forces, wingbeat_SD_forces,...
     wingbeat_rmse_forces, wingbeat_max_forces, wingbeat_min_forces, wingbeat_COP,...
     cycle_avg_forces]...
-    = wingbeat_transformation(num_wingbeats, mod_results, enc_pulse, AoA, rate)
+    = wingbeat_transformation(num_wingbeats, mod_results, OC_pulse_count, AoA, rate)
 
 frames_per_beat = round(length(mod_results) / num_wingbeats);
 
-mod_results = [mod_results; enc_pulse'];
+mod_results = [mod_results; OC_pulse_count'];
 numAxes = size(mod_results,1);
 
 % get rising pulse associated with each new wingbeat
-[rise_idx, long_rises_orig_idx] = get_idx_wingbeats(enc_pulse, rate);
+[nextRev_idx] = get_idx_wingbeats(OC_pulse_count);
 % only 180 since no long pulse included at end
 
 wingbeat_forces = zeros(numAxes, num_wingbeats, frames_per_beat);

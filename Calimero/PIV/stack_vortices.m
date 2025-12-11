@@ -95,7 +95,8 @@ else
 end
 if ~params.movie
     ylabel(cb,'\boldmath$\frac{\omega c}{U_{\infty}}$','Interpreter','Latex','FontSize',18,'Rotation',0)
-    xlabel("x/c", FontSize=16)
+    % xlabel("x/c", FontSize=16)
+    xlabel("t/T", FontSize=16)
     ylabel("y/c", FontSize=16)
     zlabel("z/c", FontSize=16)
 else
