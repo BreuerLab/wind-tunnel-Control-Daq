@@ -68,7 +68,9 @@ save(save_filepath + "trimmed data\" + PIV_case_name + "_data.mat", vars{:})
 
 else
     tic
-    load(save_filepath + "trimmed data\" + PIV_case_name + "_data.mat")
+    file_name = save_filepath + "trimmed data\" + PIV_case_name + "_data.mat";
+    disp("Loading " + file_name)
+    load(file_name)
     toc
 end
 
@@ -161,11 +163,17 @@ for i = 1:num_bins
     w_phase_std(:,:,i) = std(w(:,:,bin_indices), 0, 3);
 end
 
+net_w = zeros(1,num_bins);
+for i = 1:num_bins
+    net_w(i) = mean(w_phase_avg(:,:,i),"all");
+end
 
+figure
+plot(net_w)
 
 %% Plotting
 
-folder = save_filepath + PIV_case_name;
+fifolder = save_filepath + PIV_case_name;
 
 if ~exist(folder, 'dir')
     mkdir(folder);

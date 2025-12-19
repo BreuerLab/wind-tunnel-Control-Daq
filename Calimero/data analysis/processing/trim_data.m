@@ -1,11 +1,4 @@
-function trimmed_results = trim_data(results, rec_wingbeats, num_wingbeats, rate)
-
-enc_pulse = results(:,10);
-[beat_idx] = get_idx_wingbeats(enc_pulse, rate);
-% disp("Number of long rises: " + length(long_rises_orig_idx))
-% There is no long pulse at beginning of trial or at end of trial
-% ^Wait, I don't think that's true. I think rec_wingbeats should equal
-% length(long_rises_orig_idx)
+function trimmed_results = trim_data(results, rec_wingbeats, num_wingbeats)
 
 OC_pulse_step = 4; % in ticks
 pulsesPerStep = 18432 / OC_pulse_step;
@@ -14,17 +7,39 @@ OC_pulse_count = results(:,11);
 idx_first_change = find(diff(OC_pulse_count) ~= 0, 1, 'first');
 idx_last_change = find(diff(OC_pulse_count) ~= 0, 1, 'last') + 1;
 trimmed_OC_pulse_count = OC_pulse_count(idx_first_change:idx_last_change);
-trimmmed_results = results(OC_pulse_count ~= 0 & OC_pulse_count ~= OC_pulse_count(end),:);
-whole_idx = find(mod(trimmed_OC_pulse_count, pulsesPerStep) < 3);
+% trimmmed_results = results(OC_pulse_count ~= 0 & OC_pulse_count ~= OC_pulse_count(end),:);
+trimmmed_results = results(idx_first_change:idx_last_change,:);
+wingbeat_rem = mod(trimmed_OC_pulse_count, pulsesPerStep);
+dist_from_wingbeat = min(wingbeat_rem, pulsesPerStep - wingbeat_rem);
+whole_idx = find(dist_from_wingbeat < 8);
 diff_idx = diff(whole_idx);
-nextRev_whole_idx = find(diff_idx ~= 1) + 1; % add 1 because diff shortens size of array
+nextRev_whole_idx = find(diff_idx ~= 1 & diff_idx > 1000) + 1; % add 1 because diff shortens size of array
+% "& diff_idx > 1000" added since encoder signal jumps (noise, or missed
+% reading?)
 nextRev_idx = whole_idx(nextRev_whole_idx);
+disp(rec_wingbeats + " revs expected")
+disp(length(nextRev_idx) + " revs counted")
 
 padding = ((rec_wingbeats - num_wingbeats) / 2);
 startIdx = nextRev_idx(padding); % first padding revs ignored
 endIdx = nextRev_idx(end - padding); % last padding revs ignored
-disp(length(trimmmed_results(1:startIdx,:)))
-disp(length(trimmmed_results(endIdx:end,:)))
+
+if length(nextRev_idx) == (rec_wingbeats - 1)
+    endIdx = nextRev_idx(end - (padding - 1));
+    warning("Subtracting last wingbeat")
+    % rem_arr = mod(trimmed_OC_pulse_count, pulsesPerStep);
+    % final_wingbeat_portion = rem_arr(end) / max(rem_arr);
+    % disp()
+    % nextRev_idx(end) is not end of trimmed_OC_pulse_count in this case
+elseif length(nextRev_idx) == (rec_wingbeats - 2)
+    % trial that required this was 4 m/s 2 deg 2 Hz on 11/15/2024
+    % trial had two peaks in speed reading where data was missed
+    endIdx = nextRev_idx(end - (padding - 2));
+    warning("Subtracting last two wingbeats")
+end
+
+disp("Num values before trim: " + length(trimmmed_results(1:startIdx,:)))
+disp("Num values after trim: " + length(trimmmed_results(endIdx:end,:)))
 trimmed_results = trimmmed_results(startIdx:endIdx,:);
 
 % time = beat_idx / rate;

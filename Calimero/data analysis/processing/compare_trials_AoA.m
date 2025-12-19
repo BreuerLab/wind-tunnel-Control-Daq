@@ -45,9 +45,13 @@ end
 
 % assuming that all experiment folders are in the same speed
 % folder
-speed_path = data_path + "Calimero/" + wind_speed_sel + " m.s/";
+speed_path = data_path + wind_speed_sel + " m.s/";
 filePattern = fullfile(speed_path);
 dir_names = dir(filePattern);
+
+if isempty(dir_names)
+    error("Oops, no directory found")
+end
 
 % path to folders where processed data (.mat files) are stored
 processed_data_path = [];

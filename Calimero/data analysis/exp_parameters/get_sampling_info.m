@@ -9,13 +9,13 @@ function [frame_rate, num_wingbeats, rec_wingbeats, ticksPerRev, OC_pulse_step] 
         num_wingbeats = 12;
     end
 
-    num_wingbeats = 50;
+    % num_wingbeats = 50;
 
     acc = 3;
     padding_revs = 4;
     hold_time = 15;
     wait_time = 4000; % ms
-    print_bool = true;
+    print_bool = false;
     [rec_wingbeats, ~, ~, ~] = estimate_duration(wing_freq, acc, num_wingbeats, padding_revs, hold_time, wait_time, print_bool);
 
     ticksPerRev = 18432;
