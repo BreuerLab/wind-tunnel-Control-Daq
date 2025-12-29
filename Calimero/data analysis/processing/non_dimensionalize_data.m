@@ -16,8 +16,9 @@ function [norm_data, norm_factors, St, Re] = non_dimensionalize_data(path, resul
     wing_span = 0.177; % meters, length of single wing
     wing_chord = 0.10; % meters
     wing_length = 0.216; % meters, distance from wingtip to axis of rotation
-    angle_up = 21.3153; % degrees
-    angle_down = 21.3153; % degrees
+    % angle_up = 21.3153; % degrees
+    % angle_down = 21.3153; % degrees
+    [angle_up, angle_down] = getRangeWingbeat();
 
     % wing_freqs = [0, 2, 4, 6, 8, 10];
     wing_freqs = [10, 4, 8, 0, 2, 6];

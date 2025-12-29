@@ -12,7 +12,7 @@ addpath(genpath('../../Wind Tunnel Test'))
 addpath(genpath('../'))
 
 wind_speeds = [4];
-types = ["flexible"]; % needs to match folder name only
+types = ["flexible_10"]; % needs to match folder name only
 slack_bool = false;
 % ADD PATH WHERE DATA SHOULD GET DUMPED
 

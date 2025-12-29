@@ -10,8 +10,7 @@ addpath(genpath('.'))
 % -----------------------------------------------------------------
 % freq_speed_combos = [2, 4; 3, 6; 0, 4; 0, 6];
 
-wing_freq_sel = [0, 2, 4, 6, 8];
-wing_amp_sel = [10];
+wing_freq_sel = [0, 2, 4, 6, 8, 10];
 wind_speed_sel = [4];
 type_sel = ["flexible"];
 AoA_sel = [-16:2:16];
@@ -67,16 +66,8 @@ params_path = [];
 % ----------------------------------------------
 for i = 3:(length(dir_names))
     cur_name_parts = split(dir_names(i).name);
-    % cur_name = cur_name_parts{1}; % strip date from name
-
-    str = cur_name_parts{1};
-    str = strtrim(strrep(str,'_',' '));
-    tokens = regexp(str, '^(.*?)(\d+)$', 'tokens', 'once');
-
-    cur_type = strtrim(tokens{1});   % "wings"
-    cur_amp   = str2double(tokens{2}); % 10
-
-    if (sum(type_list == cur_type) > 0 && sum(wing_amp_sel == cur_amp) > 0) % find matches
+    cur_name = cur_name_parts{1}; % strip date from name
+    if (sum(type_list == cur_name) > 0) % find matches
         filepath = speed_path + dir_names(i).name;
         processed_data_path = [processed_data_path filepath + "/processed data/"];
         offsets_path = [offsets_path filepath + "/raw data/offsets data/"];
@@ -91,8 +82,8 @@ for i = 1:length(filePattern)
     processed_files = [processed_files; dir(filePattern(i))];
 end
 
-if isempty(processed_data_path)
-    error("Oops, no processed data path found")
+if isempty(processed_files)
+    error("Oops, no processed files found")
 end
 
 % Get a list of all files in the folder with the desired file name pattern.
@@ -109,9 +100,6 @@ for i = 1:length(filePattern)
     params_files = [params_files; dir(filePattern(i))];
 end
 
-% get freq_vals in their experimental order from params file
-load(params_path + params_files(1).name, "freq_vals")
-
 norm_bool = true;
 shift_bool = false;
 regress_bool = false;
@@ -120,7 +108,6 @@ sub_drift_bool = true;
 % Put all our selected variables into a struct called selected_vars
 selected_vars.AoA = AoA_sel;
 selected_vars.freq = wing_freq_sel;
-selected_vars.amp = wing_amp_sel;
 selected_vars.wind = wind_speed_sel;
 selected_vars.type = type_sel;
 
@@ -143,7 +130,7 @@ for i = 1:2
 
             [avg_forces, avg_up_forces, avg_down_forces, err_forces, ...
              err_up_forces, err_down_forces, names, sub_title, norm_factors, drift_vals, offsets_before_vals, offsets_after_vals] = ...
-    get_data_AoA(selected_vars, processed_files, offsets_files, norm_bool, sub_strings, shift_bool, sub_drift_bool, config_idx, num_config, freq_vals);
+    get_data_AoA(selected_vars, processed_files, offsets_files, norm_bool, sub_strings, shift_bool, sub_drift_bool, config_idx, num_config);
             
             if slack_bool
             bot.updateProgress(channelID, messageTs, config_idx*(100/8));

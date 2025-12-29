@@ -65,33 +65,22 @@ methods
 
         % Get types and speeds from filenames in 'plot data' folder
         types = [];
-        amps = [];
         speeds = [];
         for i = 1:length(cur_bird.uniq_list)
             name_parts = split(cur_bird.uniq_list(i).dir_name, "_");
-            for j = 1:length(name_parts)
-                if contains(name_parts(j), "m.s")
-                    speed = str2num(extractBefore(name_parts(j),"m.s"));
-                    amp = str2num(name_parts(j-1));
-                    type = name_parts(1:j-2);
-                end
-            end
-
+            type = name_parts(1);
+            speed = str2num(extractBefore(name_parts(2),"m.s"));
             if (isempty(types) || sum(types == type) == 0)
                 types = [types type];
             end
             if (isempty(speeds) || sum(speeds == speed) == 0)
                 speeds = [speeds speed];
             end
-            if (isempty(amps) || sum(amps == amp) == 0)
-                amps = [amps amp];
-            end
         end
         cur_bird.types = types;
-        cur_bird.amps = amps;
         cur_bird.speeds = speeds;
 
-        obj.sel_bird = cur_bird;
+        obj.sel_bird = obj.Calimero;
         obj.sel_type = nameToType(obj.sel_bird.name, obj.sel_bird.types(1));
         obj.sel_freq = obj.sel_bird.freqs(1);
         obj.sel_amp = obj.sel_bird.amps(1);
@@ -307,11 +296,6 @@ methods
             obj.sel_type = nameToType(obj.sel_bird.name, src.Value);
         end
 
-        % update amplitude variable with new value selected by user
-        function amp_change(src, ~)
-            obj.sel_amp = src.Value;
-        end
-
         % update frequency variable with new value selected by user
         function freq_change(src, ~)
             obj.sel_freq = src.Value;
@@ -354,11 +338,8 @@ methods
         function addToList(~, ~, plot_panel, lbox)
             sel_name = compareAoAUI.typeToSel(obj.sel_bird.name, obj.sel_type);
             speed = obj.sel_speed + "m.s";
-            folder = sel_name + " " + obj.sel_amp + " " + speed;
+            folder = sel_name + " " + speed;
             case_name = obj.sel_bird.name + "/" + strrep(folder, " ", "_") + "/" + obj.sel_freq;
-            % files in the folder plot data are organized using this
-            % format. For example, Calimero -> flexible_20_4m.s._saved...
-
             % if (obj.norm)
             %     % Extract first number after 'St: '
             %     St = sscanf(extractAfter(obj.sel_freq, "St: "), '%g', 1);

@@ -4,16 +4,16 @@ function [drift, offsets_before, offsets_after] = get_total_drift(experiment_fil
     calibration_filepath = "../../DAQ/Calibration Files/Mini40/FT52907.cal";
     cal_mat = obtain_cal(calibration_filepath);
 
-    [case_name_exp, time_stamp_exp, type_exp, wing_freq_exp, AoA_exp, wind_speed_exp] = parse_filename(experiment_filename);
+    [case_name_exp, time_stamp_exp, type_exp, wing_freq_exp, AoA_exp, wind_speed_exp, amp_exp, file_type] = parse_filename(experiment_filename);
 
     offsets_string = "offsets";
     [offsets_init, offsets_init_filename] = findMatchingOffset...
-        (offsets_files, offsets_string, wing_freq_exp, AoA_exp, wind_speed_exp, type_exp, time_stamp_exp);
+        (offsets_files, offsets_string, wing_freq_exp, amp_exp, AoA_exp, wind_speed_exp, type_exp, time_stamp_exp);
     disp("Initial offsets: " + offsets_init_filename)
 
     offsets_string = "final_offsets";
     [offsets_final, offsets_final_filename] = findMatchingOffset...
-        (offsets_files, offsets_string, wing_freq_exp, AoA_exp, wind_speed_exp, type_exp, time_stamp_exp);
+        (offsets_files, offsets_string, wing_freq_exp, amp_exp, AoA_exp, wind_speed_exp, type_exp, time_stamp_exp);
     disp("Final offsets: " + offsets_final_filename)
 
     drift_volt = offsets_final - offsets_init;

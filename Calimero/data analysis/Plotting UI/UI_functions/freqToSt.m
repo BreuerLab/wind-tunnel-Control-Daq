@@ -1,9 +1,7 @@
 function St = freqToSt(flapper, wing_freq, wind_speed, path, amp)
     [~, ~, ~, wing_length, arm_length] = getWingMeasurements(flapper);
     
-    [time, ang_disp, ang_vel, ~] = get_kinematics(path, wing_freq, amp);
-    angle_up = max(ang_disp);
-    angle_down = min(ang_disp);
+    [angle_up, angle_down] = getRangeWingbeat();
 
     full_length = wing_length + arm_length; % meters, distance from wingtip to axis of rotation
     amplitude = full_length * (abs(sind(angle_up)) + abs(sind(angle_down)));

@@ -38,11 +38,9 @@ function [case_name, time_stamp, type, wing_freq, AoA, wind_speed, amp, file_typ
         case_name = extractBefore(filename,"_wind_tunnel_");
         time_stamp = extractAfter(filename,"_wind_tunnel_");
     elseif (contains(filename,".mat"))
-        file_type = "processed";
         case_name = extractBefore(filename,"2025");
         time_stamp = "2025" + extractBefore(extractAfter(filename,"2025"), ".mat");
     else
-        file_type = "";
         case_name = filename;
         time_stamp = "";
     end
@@ -55,7 +53,6 @@ function [case_name, time_stamp, type, wing_freq, AoA, wind_speed, amp, file_typ
     wing_freq = -1;
     AoA = -1;
     wind_speed = -1;
-    amp = -1;
     for j=1:length(case_parts)
         if (contains(case_parts(j), "Hz"))
             wing_freq = str2double(erase(case_parts(j), "Hz"));
@@ -63,13 +60,11 @@ function [case_name, time_stamp, type, wing_freq, AoA, wind_speed, amp, file_typ
             AoA = str2double(erase(case_parts(j), "deg"));
         elseif (contains(case_parts(j), "m.s"))
             wind_speed = str2double(erase(case_parts(j), "m.s"));
-            % type = strjoin(case_parts(1:j-1)); % speed is first thing after type
-            
-            str = strjoin(case_parts(1:j-1));
+            type = strjoin(case_parts(1:j-1)); % speed is first thing after type
             tokens = regexp(str, '^(.*?)(\d+)$', 'tokens', 'once');
 
-            type = strtrim(tokens{1});   % "wings"
-            amp   = str2double(tokens{2}); % 10
+            label = strtrim(tokens{1});   % "wings"
+            num   = str2double(tokens{2}); % 10
         end
     end
 end
