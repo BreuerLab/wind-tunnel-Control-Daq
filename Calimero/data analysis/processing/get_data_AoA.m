@@ -257,6 +257,7 @@ function [forces_body] = getBody(wing_freq_sel, AoA_sel, wind_speed_sel, ...
         baseFolder = processed_files(j).folder;
         [case_name, time_stamp, type, wing_freq, AoA, wind_speed] = parse_filename(baseFileName);
         
+        
         type = convertCharsToStrings(type);
 
         if (type == sub_type ...

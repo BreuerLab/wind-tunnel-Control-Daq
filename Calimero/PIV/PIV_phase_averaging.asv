@@ -14,13 +14,13 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB'))
 %         '2Hz_A10_10AoA','4Hz_A10_10AoA','6Hz_A10_10AoA', '8Hz_A10_10AoA',...
 %         'r_2Hz_A10_10AoA', 'r_4Hz_A10_10AoA', 'r_6Hz_A10_10AoA', 'r_8Hz_A10_10AoA'};
 
-PIV_case_name = '8Hz_A10_10AoA';
+PIV_case_name = 'Hz_A20_10AoA';
 L = 0.07; % characteristic length, guess of mean aerodynamic chord
 U = 4; % characteristic windspeed, freestream
 save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
 num_images = 2500;
 
-readimx_bool = true; % Read data from readimx or from saved .mat
+readimx_bool = false; % Read data from readimx or from saved .mat
 phase_avg_plot_bool = true;
 circ_plot_bool = false;
 movie_plot_bool = false;
@@ -72,11 +72,11 @@ fprintf("Data trimmed from: (%d, %d) to (%d, %d)\n", ...
 
 vars = {'x', 'y', 'u', 'v', 'w', 'vort'};
 disp("Saving data to " + save_filepath + "trimmed data\")
-save(save_filepath + "trimmed data\" + PIV_case_name + ".mat", vars{:})
+save(save_filepath + "trimmed data\" + PIV_case_name + "_data.mat", vars{:})
 
 else
     tic
-    file_name = save_filepath + "trimmed data\" + PIV_case_name + ".mat";
+    file_name = save_filepath + "trimmed data\" + PIV_case_name + "_data.mat";
     disp("Loading " + file_name)
     load(file_name)
     toc
@@ -183,7 +183,7 @@ for i = 1:num_bins
 end
 
 disp("Saving net w vel to " + save_filepath + "processed data\")
-save(save_filepath + "processed data\" + PIV_case_name + ".mat", "net_w")
+save(save_filepath + "processed data\" + PIV_case_name + "_data.mat", "net_w")
 
 figure
 plot(net_w)

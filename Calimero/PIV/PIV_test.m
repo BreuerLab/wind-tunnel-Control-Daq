@@ -8,22 +8,23 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB'))
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-PIV_case_name = '0Hz_10AoA_rigid';
+PIV_case_name = 'body_10AoA';
 L = 0.07; % characteristic length, guess of mean aerodynamic chord
 U = 4; % characteristic windspeed, freestream
 nondim_bool = true;
 save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
 
-readimx_bool = true;
+readimx_bool = false;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-keys = {'0Hz_0AoA','0Hz_10AoA', '2Hz_10AoA', '0Hz_10AoA_v2', '0Hz_10AoA_rigid'};
+keys = {'0Hz_0AoA','0Hz_10AoA', '2Hz_10AoA', '0Hz_10AoA_v2', '0Hz_10AoA_rigid', 'body_10AoA'};
 values = ["R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_16_2025\0Hz_0AoA\StereoPIV_MPd(4x16x16_50%ov)_GPU",...
         "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_16_2025\0Hz_10AoA\StereoPIV_MPd(4x16x16_50%ov)_GPU",...
         "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_16_2025\2Hz_10AoA_01\StereoPIV_MPd(4x16x16_50%ov)_GPU",...
         "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_18_2025\flexible_0Hz_10AoA\StereoPIV_MPd(4x16x16_50%ov)_GPU",...
-        "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_18_2025\rigid_0Hz_10AoA\StereoPIV_MPd(4x16x16_50%ov)_GPU"];
+        "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_18_2025\rigid_0Hz_10AoA\StereoPIV_MPd(4x16x16_50%ov)_GPU",...
+        "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_16_2025\body_10AoA\StereoPIV_MPd(4x16x16_50%ov)"];
 dict = containers.Map(keys, values);
 
 if readimx_bool
@@ -90,7 +91,18 @@ end
 % v_avg =  mean(v_field_frames,3);
 w_avg = mean(w,3,"omitnan");
 vort_avg = mean(vort,3,"omitnan");
-corr_avg = mean(D.corr,3,"omitnan");
+corr_avg = mean(corr,3,"omitnan");
+
+% saving variation in time, even though we expect none except perhaps
+% vortex shedding off wing
+num_frames = size(w,3);
+net_w = zeros(1,num_frames);
+for i = 1:num_frames
+    net_w(i) = mean(w(:,:,i),"all","omitnan");
+end
+
+disp("Saving net w vel to " + save_filepath + "processed data\")
+save(save_filepath + "processed data\" + PIV_case_name + ".mat", "net_w")
 
 %% Plot
 f1 = figure;

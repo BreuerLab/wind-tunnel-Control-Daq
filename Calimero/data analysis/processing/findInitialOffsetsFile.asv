@@ -10,6 +10,7 @@ function file_name = findInitialOffsetsFile(path, case_name)
     for k = 1 : length(theFiles)
         baseFileName = theFiles(k).name;
         [case_name_cur, ~, ~, ~, ~, ~, ~, file_type] = parse_filename(baseFileName);
+        [case_name, ~, ~, ~, ~, ~, ~, file_type] = parse_filename(filename)
         if strcmp(case_name, case_name_cur) && strcmp(file_type, "offsets")
                 file_name = convertCharsToStrings(baseFileName);
                 break

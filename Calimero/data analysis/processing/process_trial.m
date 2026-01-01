@@ -14,7 +14,7 @@
 % the experiment in more ways than simply the raw data does.
 function process_trial(file, raw_data_path, offsets_path, processed_data_path, wind_tunnel_path)
 
-[case_name, time_stamp, type, wing_freq, AoA, wind_speed, ~] = parse_filename(file);
+[case_name, time_stamp, type, wing_freq, AoA, wind_speed, amp, ~] = parse_filename(file);
 
 % NUM_WINGBEATS IS CURRENTLY NOT 180 EXACTLY SINCE JUST USING PWM
 [frame_rate, num_wingbeats, rec_wingbeats, ticksPerRev, OC_pulse_step] = get_sampling_info(wing_freq);

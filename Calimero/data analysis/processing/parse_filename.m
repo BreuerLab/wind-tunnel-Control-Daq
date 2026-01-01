@@ -68,8 +68,12 @@ function [case_name, time_stamp, type, wing_freq, AoA, wind_speed, amp, file_typ
             str = strjoin(case_parts(1:j-1));
             tokens = regexp(str, '^(.*?)(\d+)$', 'tokens', 'once');
 
+            if isempty(tokens)
+            type = str;
+            else
             type = strtrim(tokens{1});   % "wings"
             amp   = str2double(tokens{2}); % 10
+            end
         end
     end
 end
