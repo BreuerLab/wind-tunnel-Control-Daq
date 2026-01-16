@@ -6,7 +6,17 @@ filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\pr
 filePattern = fullfile(filepath, '*.mat'); % Change to whatever pattern you need.
 processed_files = dir(filePattern);
 
-colors = ["#fdbe85";"#fd8d3c";"#d94701"];
+% colors = ["#fdbe85";"#fd8d3c";"#d94701"]; % reds
+colors = [
+    "#0072BD"
+    "#D95319"
+    "#EDB120"
+    "#7E2F8E"
+    "#77AC30"
+    "#4DBEEE"
+    "#A2142F"
+];
+
 amps = [10; 20; 30];
 
 base_w = 0;
@@ -29,11 +39,17 @@ end
 processed_files(strcmp({processed_files.name}, fileToRemove)) = [];
 
 figure
+ax = gca;
 xlabel("Wingbeat Frequency (Hz)")
 % legend()
+set(gca, FontSize=16)
 hold on
-yyaxis left
-ylabel("Mean w Velocity")
+% yyaxis left
+ylabel("\boldmath$\frac{\bar{u}}{U_{\infty}}$",'Interpreter','Latex', FontSize=24)
+ylabel("\boldmath$\big(\frac{\bar{u}}{U_{\infty}})_{robot} - \big(\frac{\bar{u}}{U_{\infty}})_{body}$",'Interpreter','Latex', FontSize=24)
+% ylabel("Mean Freestream Velocity in Wake")
+title(["Mean Freestream Velocity in Wake" ""])
+% ax.YAxis(1).Color = colors(1);
 
 for i = 1:length(processed_files)
     name = extractBefore(processed_files(i).name, ".");
@@ -55,15 +71,17 @@ for i = 1:length(processed_files)
         end
     end
 
-    c = colors(amps == amp);
-    if length(c) > 1
-        error("c should have length 1")
-    end
+    % c = colors(amps == amp);
+    % if length(c) > 1
+    %     error("c should have length 1")
+    % end
+    c = colors(1);
 
     % base case subtraction
     avg_w = avg_w - base_w;
 
-    s = scatter(wing_freq, avg_w, 40, "filled", MarkerEdgeColor=c, MarkerFaceColor=c);
+    s = scatter(wing_freq, avg_w, 80, "filled", MarkerEdgeColor=c, MarkerFaceColor=c);
+    % s = scatter(wing_freq, avg_w^2, 40, "filled", MarkerEdgeColor=c, MarkerFaceColor=c);
     
     if wing_freq == 2
         s.HandleVisibility="on";
@@ -78,13 +96,28 @@ AoA_sel = [-16:2:16];
 AoA = 10;
 wing_freq = [2,4,6,8];
 
-load("F:\Calimero Data\Calimero November 2025\plot data\Calimero\flexible_20_4m.s._saved_2025_12_27 17_28_26.mat",...
+% load("F:\Calimero Data\Calimero November 2025\plot data\Calimero\flexible_20_4m.s._saved_2025_12_27 17_28_26.mat",...
+%     "avg_forces")
+load("F:\Calimero Data\Calimero November 2025\plot data\Calimero\flexible_20_4m.s._norm_saved_2025_12_27 17_11_54",...
     "avg_forces")
+% load("F:\Calimero Data\Calimero November 2025\plot data\Calimero\flexible_Sub_20_4m.s._saved_2026_01_01 20_46_41Sub_body",...
+%     "avg_forces")
+% load("F:\Calimero Data\Calimero November 2025\plot data\Calimero\flexible_Sub_20_4m.s._norm_saved_2026_01_01 20_17_54Sub_body",...
+%     "avg_forces")
 
 drag = squeeze(avg_forces(1, AoA_sel == AoA, ismember(wing_freq_sel, wing_freq)));
 
-yyaxis right
-ylabel("Mean Drag")
+% yyaxis right
+figure
+hold on
+xlabel("Wingbeat Frequency (Hz)")
+ylabel("\boldmath$\overline{C}_D$",'Interpreter','Latex')
+% ylabel("Mean Drag Coefficient")
 ax = gca;
-ax.YDir = 'reverse';
-scatter(wing_freq, drag, 40, "filled")
+% ax.YDir = 'reverse';
+% ax.YAxis(2).Color = colors(2);
+title("Mean Drag Coefficient")
+set(gca, FontSize=16)
+
+c = colors(2);
+scatter(wing_freq, drag, 80, "filled",MarkerEdgeColor=c, MarkerFaceColor=c)

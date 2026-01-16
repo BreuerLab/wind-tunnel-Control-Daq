@@ -29,7 +29,7 @@ function [center_to_LE, chord, COM_span, wing_length, arm_length] = getWingMeasu
         % distance from center of force transducer to leading edge of wing
         center_to_LE = 0.06335;
         chord = 0.10;
-        wing_length = 0.25;
+        wing_length = 0.216; % meters, distance from wingtip to axis of rotation
         arm_length = 0.063;
         % arm length used to be 0.016, not sure where I got that # from now
     

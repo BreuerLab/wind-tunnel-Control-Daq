@@ -551,13 +551,16 @@ yr = ( (1:size(out1.uRaw,2)) - 0.5 );
     (yr * G.Y * S.Y.Slope + S.Y.Offset)/1000);
 
 % Reorient to compute vorticity
+% x - negative to positive (left to right)
+% y - negative to positive (bottom to top)
 % out1.xRaw =  flip(out1.xRaw');
-out1.xRaw =  -flip(out1.xRaw');
-out1.yRaw =  flip(out1.yRaw');
+out1.xRaw =  flip(-out1.xRaw',2); % NEW
+% out1.yRaw =  flip(out1.yRaw');
+out1.yRaw =  flip(out1.yRaw',2); % NEW
 % out1.uRaw =  flip(out1.uRaw');
-out1.uRaw =  -flip(out1.uRaw');
+out1.uRaw =  flip(out1.uRaw',2); % NEW
 % out1.vRaw = -flip(out1.vRaw');
-out1.vRaw = flip(out1.vRaw');
+out1.vRaw = flip(-out1.vRaw',2); % NEW
 if out1.dimNum == 3
     out1.wRaw = flip(out1.wRaw');
 end

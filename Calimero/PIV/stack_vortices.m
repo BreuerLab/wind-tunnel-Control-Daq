@@ -1,4 +1,40 @@
 function stack_vortices(x, y, C_phase_avg, Q_phase_avg, wing_freq, params)
+
+% ------------------------------------------------------------------
+mirror_bool = true;
+if mirror_bool
+% Mirror in x-direction across y-axis at centerpoint of robot/ellipse
+
+% First trim data about center point
+x_cen = -0.142 / params.L;
+
+x_idx = find(x(1,:) > x_cen);  % columns
+
+x = x(:, x_idx);
+y = y(:, x_idx);
+C_phase_avg = C_phase_avg(:, x_idx,:);
+Q_phase_avg = Q_phase_avg(:, x_idx,:);
+
+% shift axis so that min point is now considered as origin
+x = x - min(x, [], "all");
+
+% Now reflect data
+% x goes from positive to negative from left to right
+x_add = flip(-x,2);
+y_add = flip(y,2);
+C_add = flip(-C_phase_avg,2);
+Q_add = flip(Q_phase_avg,2);
+
+% trimming 2:end to exclude double counting of zero
+x = [x x_add(:,2:end)];
+y = [y y_add(:,2:end)];
+C_phase_avg = [C_phase_avg C_add(:,2:end,:)];
+Q_phase_avg = [Q_phase_avg Q_add(:,2:end,:)];
+end
+% ------------------------------------------------------------------
+
+% ------------------------------------------------------------------
+% Use frozen flow assumption, i.e. convection of vortices, to get z-axis
 wind_speed = 4;
 dt = 1 / (wing_freq * params.num_bins);
 z = zeros(1, params.num_bins);
@@ -12,6 +48,8 @@ z = z / max(z);
 
 [Ny, Nx] = size(x);
 Nz = length(z);
+
+% ------------------------------------------------------------------
 
 % Replicate along z
 X = repmat(x, [1 1 Nz]);       % Ny x Nx x Nz

@@ -15,8 +15,9 @@ function struct_matches = get_file_matches(selection_list, norm_bool, shift_bool
 
         if (sub_bool)
                 dir_parts = split(dir_name, '_');
-                dir_parts(2) = "Sub";
-                dir_name = strjoin(dir_parts, "_");
+                % find first numeric entry in dir_parts
+                idx = find(~isnan(str2double(dir_parts)), 1, 'first');
+                dir_name = strjoin([dir_parts(1:idx-1); "Sub"; dir_parts(idx:end)], "_");
         end
 
         if (norm_bool)

@@ -416,10 +416,11 @@ methods
             if (src.Value)
                 obj.norm = true;
                 src.BackgroundColor = [0.3010 0.7450 0.9330];
+
                 % replace freqs with strouhal numbers
                 for i = 1:length(d2.Items)
                     wing_freq = str2double(extractBefore(d2.Items{i}, " Hz"));
-                    St = freqToSt(obj.sel_bird.name, wing_freq, obj.sel_speed, obj.data_path, -1);
+                    St = freqToSt(obj.sel_bird.name, wing_freq, obj.sel_speed, obj.data_path, str2double(obj.sel_amp));
                     d2.Items{i} = ['St: ' num2str(St)];
                 end
 
@@ -432,8 +433,18 @@ methods
                     wing_freq = str2double(extractBefore(trial_name, " Hz"));
                     dir_parts = split(dir_name, '_');
                     wind_speed = sscanf(dir_parts(end), '%g', 1);
+                    
+                    str = strjoin(dir_parts(1:end-1));
+                    tokens = regexp(str, '^(.*?)(\d+)$', 'tokens', 'once');
 
-                    St = freqToSt(obj.sel_bird.name, wing_freq, wind_speed, obj.data_path, -1);
+                    if isempty(tokens)
+                    type = str;
+                    else
+                    type = strtrim(tokens{1});   % "wings"
+                    amp   = str2double(tokens{2}); % 10
+                    end
+
+                    St = freqToSt(obj.sel_bird.name, wing_freq, wind_speed, obj.data_path, amp);
                     obj.selection(i) = flapper_name + "/" + dir_name + "/" + ['St: ' num2str(St)];
                 end
             else
@@ -456,9 +467,19 @@ methods
                     St = str2double(extractAfter(trial_name, "St: "));
                     dir_parts = split(dir_name, '_');
                     wind_speed = sscanf(dir_parts(end), '%g', 1);
+
+                    str = strjoin(dir_parts(1:end-1));
+                    tokens = regexp(str, '^(.*?)(\d+)$', 'tokens', 'once');
+
+                    if isempty(tokens)
+                    type = str;
+                    else
+                    type = strtrim(tokens{1});   % "wings"
+                    amp   = str2double(tokens{2}); % 10
+                    end
                     
-                    abbr_freqs = str2double(extractBefore(obj.sel_bird.freqs(1:end-2), " Hz")); % remove v2 trials
-                    freq = stToFreq(obj.sel_bird.name, St, wind_speed, abbr_freqs);
+                    abbr_freqs = str2double(extractBefore(obj.sel_bird.freqs, " Hz")); % remove v2 trials
+                    freq = stToFreq(obj.sel_bird.name, St, wind_speed, abbr_freqs, amp);
                     obj.selection(i) = flapper_name + "/" + dir_name + "/" + freq + " Hz";
                 end
             end

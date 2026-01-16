@@ -168,7 +168,7 @@ for i = 1 : length(processed_files)
                     sub_bools(j) = false;
                     sub_string = strjoin(case_parts(2:end));
                 end
-                forces_body = getBody(wing_freq, AoA, wind_speed, nondimensional, ...
+                forces_body = getBody(wing_freq, AoA, wind_speed, amp, nondimensional, ...
                               processed_files, sub_string, sub_bools(j), shift_bool);
                 forces_body_list(j,:) = mean(forces_body,2);
                 
@@ -220,12 +220,13 @@ end
 
 end
 
-function [forces_body] = getBody(wing_freq_sel, AoA_sel, wind_speed_sel, ...
+function [forces_body] = getBody(wing_freq_sel, AoA_sel, wind_speed_sel, amp_sel,...
     nondimensional, processed_files, sub_string, sub_bool, shift_bool)
 
     % Parse relevant information from subtraction string
     case_parts = strtrim(split(sub_string));
     sub_type = "";
+    sub_amp = amp_sel;
     sub_wing_freq = wing_freq_sel;
     sub_wind_speed = wind_speed_sel;
     index = length(case_parts) + 1;
@@ -242,7 +243,16 @@ function [forces_body] = getBody(wing_freq_sel, AoA_sel, wind_speed_sel, ...
             end
         end
     end
-    sub_type = strjoin(case_parts(1:index-1)); % speed is first thing after type
+    str = strjoin(case_parts(1:index-1)); % speed is first thing after type
+
+    tokens = regexp(str, '^(.*?)(\d+)$', 'tokens', 'once');
+
+    if isempty(tokens)
+        sub_type = str;
+    else
+        sub_type = strtrim(tokens{1});   % "wings"
+        sub_amp   = str2double(tokens{2}); % 10
+    end
 
     if (sub_bool)
         sub_state = "Subtracting";
@@ -255,15 +265,15 @@ function [forces_body] = getBody(wing_freq_sel, AoA_sel, wind_speed_sel, ...
     for j = 1 : length(processed_files)
         baseFileName = processed_files(j).name;
         baseFolder = processed_files(j).folder;
-        [case_name, time_stamp, type, wing_freq, AoA, wind_speed] = parse_filename(baseFileName);
-        
-        
+        [case_name, time_stamp, type, wing_freq, AoA, wind_speed, amp, file_type] = parse_filename(baseFileName);
+
         type = convertCharsToStrings(type);
 
         if (type == sub_type ...
         && wing_freq == sub_wing_freq ...
         && AoA == AoA_sel ...
-        && wind_speed == sub_wind_speed)
+        && wind_speed == sub_wind_speed ...
+        && amp == sub_amp)
 
         load([baseFolder '/' baseFileName]);
 

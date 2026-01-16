@@ -14,14 +14,14 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB'))
 %         '2Hz_A10_10AoA','4Hz_A10_10AoA','6Hz_A10_10AoA', '8Hz_A10_10AoA',...
 %         'r_2Hz_A10_10AoA', 'r_4Hz_A10_10AoA', 'r_6Hz_A10_10AoA', 'r_8Hz_A10_10AoA'};
 
-PIV_case_name = '8Hz_A10_10AoA';
+PIV_case_name = '2Hz_A20_10AoA';
 L = 0.07; % characteristic length, guess of mean aerodynamic chord
 U = 4; % characteristic windspeed, freestream
 save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
 num_images = 2500;
 
-readimx_bool = true; % Read data from readimx or from saved .mat
-phase_avg_plot_bool = true;
+readimx_bool = false; % Read data from readimx or from saved .mat
+phase_avg_plot_bool = false;
 circ_plot_bool = false;
 movie_plot_bool = false;
 
@@ -81,6 +81,30 @@ else
     load(file_name)
     toc
 end
+
+%% Time-averaged velocity fields
+% Calculate mean values across time
+mean_u = mean(u,3);
+mean_v = mean(v,3);
+mean_w = mean(w,3);
+
+params.zero = 0;
+params.clims = [-0.1 0.1];
+params.y_lab = '\boldmath$\frac{u}{U_{\infty}}$';
+params.title = "Spanwise velocity";
+PIV_plot(x, y, mean_u, params)
+
+params.zero = 0;
+params.clims = [-0.1 0.1];
+params.y_lab = '\boldmath$\frac{v}{U_{\infty}}$';
+params.title = "Vertical velocity";
+PIV_plot(x, y, mean_v, params)
+
+params.zero = 1;
+params.clims = [0.9 1.1];
+params.y_lab = '\boldmath$\frac{w}{U_{\infty}}$';
+params.title = "Streamwise velocity";
+PIV_plot(x, y, mean_w, params)
 
 %% loading force data
 [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name);
@@ -192,7 +216,7 @@ ylabel("Average w velocity")
 
 %% Plotting
 
-fifolder = save_filepath + PIV_case_name;
+folder = save_filepath + PIV_case_name;
 
 if ~exist(folder, 'dir')
     mkdir(folder);
@@ -236,10 +260,15 @@ params.folder = "vort_std";
 params.clims = [0 1];
 make_movie(x, y, vort_phase_std, params)
 
-% params.title = "Spanwise velocity - Average";
-% params.folder = "u_avg";
-% params.clims = [-0.2 0.2];
-% make_movie(x, y, u_phase_avg, params)
+params.title = "Spanwise velocity - Average";
+params.folder = "u_avg";
+params.clims = [-0.2 0.2];
+make_movie(x, y, u_phase_avg, params)
+
+params.title = "Vertical velocity - Average";
+params.folder = "v_avg";
+params.clims = [-0.2 0.2];
+make_movie(x, y, v_phase_avg, params)
 
 params.zero = 1;
 params.title = "Streamwise velocity - Average";

@@ -10,7 +10,7 @@
 % St - Strouhal number for this trial
 % Re - Reynolds number for this trial
 function [norm_data, norm_factors, St, Re] = non_dimensionalize_data(path, results, file_name)
-    [case_name, time_stamp, type, wing_freq, AoA, U] = parse_filename(file_name);
+    [case_name, time_stamp, type, wing_freq, AoA, U, amp, file_type] = parse_filename(file_name);
     
     % Constant values based on geometry of wings and robot design
     wing_span = 0.177; % meters, length of single wing
@@ -18,13 +18,13 @@ function [norm_data, norm_factors, St, Re] = non_dimensionalize_data(path, resul
     wing_length = 0.216; % meters, distance from wingtip to axis of rotation
     % angle_up = 21.3153; % degrees
     % angle_down = 21.3153; % degrees
-    [angle_up, angle_down] = getRangeWingbeat();
+    [angle_up, angle_down] = getRangeWingbeat(amp);
 
     % wing_freqs = [0, 2, 4, 6, 8, 10];
     wing_freqs = [10, 4, 8, 0, 2, 6];
     
     total_area = wing_span * wing_chord * 2; % m^2
-    amplitude = wing_length * (sind(angle_up) + sind(angle_down));
+    amplitude = wing_length * (abs(sind(angle_up)) + abs(sind(angle_down)));
     % m, vertical distance traversed by wings during a full stroke, a
     % single wingbeat consists of two strokes: upstroke & downstroke
     

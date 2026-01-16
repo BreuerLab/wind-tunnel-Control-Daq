@@ -15,7 +15,7 @@ wing_amp_sel = [10];
 wind_speed_sel = [4];
 type_sel = ["flexible"];
 AoA_sel = [-16:2:16];
-sub_strings = [];
+sub_strings = []; % "body"
 slack_bool = false;
 
 % make type list from type and subtraction types to add all
@@ -110,7 +110,8 @@ for i = 1:length(filePattern)
 end
 
 % get freq_vals in their experimental order from params file
-load(params_path + params_files(1).name, "freq_vals")
+% uses first params file with first type
+load(params_path(1) + params_files(1).name, "freq_vals")
 
 norm_bool = true;
 shift_bool = false;

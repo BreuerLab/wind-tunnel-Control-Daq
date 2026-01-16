@@ -8,13 +8,13 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB'))
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-PIV_case_name = 'body_10AoA';
+PIV_case_name = '0Hz_10AoA';
 L = 0.07; % characteristic length, guess of mean aerodynamic chord
 U = 4; % characteristic windspeed, freestream
 nondim_bool = true;
 save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
 
-readimx_bool = false;
+readimx_bool = true;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -31,6 +31,9 @@ if readimx_bool
 file_path = dict(PIV_case_name);
 disp("Loading file: " + file_path)
 D = loadpiv(file_path,"extractAllVariables"); % "Validate", minCorrelationValue
+
+init_W = round((max(D.x,[],"all") - min(D.x,[],"all"))*100);
+init_L = round((max(D.y,[],"all") - min(D.y,[],"all"))*100);
 
 if nondim_bool % Non-dimensionalize variables
     u_full = D.u/U;
@@ -70,11 +73,17 @@ u = u_full(y_idx, x_idx,:);
 v = v_full(y_idx, x_idx,:);
 w = w_full(y_idx, x_idx,:);
 vort = vort_full(y_idx, x_idx,:);
+corr = corr(y_idx, x_idx,:);
+
+fin_W = round((max(x,[],"all") - min(x,[],"all")) * L * 100);
+fin_L = round((max(y,[],"all") - min(y,[],"all")) * L * 100);
 
 init_size = size(x_full);
 fin_size = size(x);
 fprintf("Data trimmed from: (%d, %d) to (%d, %d)\n", ...
              init_size(1), init_size(2), fin_size(1), fin_size(2));
+fprintf("Data trimmed from: (%d x %d cm) to (%d x %d cm)\n", ...
+             init_W, init_L, fin_W, fin_L);
 
 vars = {'x', 'y', 'u', 'v', 'w', 'vort', 'corr', 'uncTot'};
 disp("Saving data to " + save_filepath + "trimmed data\")
@@ -87,8 +96,8 @@ else
 end
 
 %% Compute summary statistics
-% u_avg =  mean(u_field_frames,3);
-% v_avg =  mean(v_field_frames,3);
+u_avg = mean(u,3,"omitnan");
+v_avg = mean(v,3,"omitnan");
 w_avg = mean(w,3,"omitnan");
 vort_avg = mean(vort,3,"omitnan");
 corr_avg = mean(corr,3,"omitnan");
@@ -117,6 +126,12 @@ xlabel("y/c",FontSize=16)
 ylabel("z/c",FontSize=16)
 ylabel(cb,'\boldmath$\frac{\bar{w}}{U_{\infty}}$','Interpreter','Latex','FontSize',18,'Rotation',0)
 title('Streamwise velocity, <w>',FontSize=18)
+
+params.zero = 0;
+params.clims = [-0.1 0.1];
+params.y_lab = '\boldmath$\frac{v}{U_{\infty}}$';
+params.title = "Vertical velocity, <v>";
+PIV_plot(x, y, v_avg, params)
 
 f2 = figure;
 % pcolor(D.x, D.y, vort_avg);
