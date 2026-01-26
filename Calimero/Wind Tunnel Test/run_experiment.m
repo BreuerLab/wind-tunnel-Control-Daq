@@ -87,10 +87,10 @@ diary off % IS THIS INITIAL DIARY NECESSARY, WHAT IS GETTING OUTPUT?
 
 % Make Calimero data collection object
 if async
-    flapper_obj = Calimero();
+    flapper_obj = Calimero_parallel();
     flapper_obj.setup_DAQ(voltage, rate);
 else
-    flapper_obj = Calimero(rate, voltage);
+    flapper_obj = Calimero_serial(rate, voltage);
 end
 
 % Get calibration matrix from calibration file

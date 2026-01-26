@@ -322,7 +322,6 @@ figure
 params.clims = [-1 1];
 params.zero = 0;
 params.movie = false;
-params.replicate = false;
 params.L = L;
 params.shift = -7;
 params.isoValue = 0.05; % 0.05
@@ -385,7 +384,6 @@ figure
 params.clims = [-1 1];
 params.zero = 0;
 params.movie = false;
-params.replicate = true;
 params.L = L;
 params.shift = 0;
 stack_vortices(x_tr, y_tr, vort_phase_avg_tr, Q_phase_avg_tr, wing_freq, params);
@@ -397,13 +395,6 @@ ax.YAxisLocation = 'right';   % 'left' or 'right'
 % YZ view
 view([0 0 1])   % camera along +X direction
 % camup([0 1 0])  % keep Y vertical
-
-% Get current orientation
-% [caz,cel] = view
-caz = -115.8261;
-cel = 56.2796;
-
-view([caz, cel])
 
 exportgraphics(gcf, folder + "\phase_avg_stacked_XY.png", 'Resolution', 300);
 

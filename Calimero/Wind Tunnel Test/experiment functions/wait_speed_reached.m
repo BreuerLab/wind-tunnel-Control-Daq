@@ -1,7 +1,8 @@
 function wait_speed_reached(desSpeed)
     disp("Waiting for speed to reach setting")
     lastSpeed = -1;
-    curSpeed = evalin('base',"AFAM_Tunnel.Speed");
+    load("R:\ENG_Breuer_Shared\group\AFAM_state.mat")
+    curSpeed = evalin('base', 'AFAM_Tunnel.Speed');
     while (abs(lastSpeed - curSpeed) > 0.05 || isnan(curSpeed) || lastSpeed == curSpeed)
         pause(2)
         lastSpeed = curSpeed;

@@ -72,9 +72,9 @@ zv = squeeze(Z(1,1,:));    % Nz
 X_fin = X2; Y_fin = Y2; Z_fin = Z2; Q_fin = Q2; C_fin = C2;
 
 %% Interpolate onto finer scale
-if params.movie || params.replicate
+if params.movie
 % choose upsampling factor
-factor = 2;  % was 5, replaced with 2
+factor = 5;  % try 2 or 3
 
 % original sizes
 [Ny, Nx] = size(x);
@@ -87,9 +87,7 @@ zq = linspace(min(z(:)), max(z(:)), Nz*factor);
 dz = zq(2) - zq(1);
 zq = zq + dz; % trim off leading 0 so that diff is constant of zq_big
 
-% [Xq, Yq, Zq] = ndgrid(xq, yq, zq);
-% [Xq, Yq, Zq] = meshgrid(xq, yq, zq);
-[Zq, Xq, Yq] = meshgrid(zq, xq, yq);
+[Xq, Yq, Zq] = meshgrid(xq, yq, zq);
 
 % Interpolate Q and vorticity onto fine grid
 Q_fine = interp3(X, Y, Z, Q_phase_avg, Xq, Yq, Zq, 'linear');
@@ -100,30 +98,29 @@ C_fine = interp3(X, Y, Z, C_phase_avg, Xq, Yq, Zq, 'linear');
 % Repeat Z coordinates
 zq_big = [zq, zq + max(zq), zq + 2*max(zq)];
 
-% Repeat data along 2nd dimension, z
-Q_big    = cat(2, Q_fine,    Q_fine,    Q_fine);
-C_big = cat(2, C_fine, C_fine, C_fine);
+% Repeat data along 3rd dimension
+Q_big    = cat(3, Q_fine,    Q_fine,    Q_fine);
+C_big = cat(3, C_fine, C_fine, C_fine);
 
-Q_big = circshift(Q_big, [0 params.shift 0]);  % shift along the 2nd dimension (Z)
-C_big = circshift(C_big, [0 params.shift 0]);  % shift along the 2nd dimension (Z)
+Q_big = circshift(Q_big, [0 0 params.shift]);  % shift along the 3rd dimension (Z)
+C_big = circshift(C_big, [0 0 params.shift]);  % shift along the 3rd dimension (Z)
 
 % Make a bigger grid using ndgrid
-% [X_big, Y_big, Z_big] = meshgrid(xq, yq, zq_big);
-[Z_big, X_big, Y_big] = meshgrid(zq_big, xq, yq);
+[X_big, Y_big, Z_big] = meshgrid(xq, yq, zq_big);
 
 X_fin = X_big; Y_fin = Y_big; Z_fin = Z_big; Q_fin = Q_big; C_fin = C_big;
 end
 
 % Extract isosurface from larger volume
-% if params.movie
-%     s = isosurface(X_fin, Y_fin, Z_fin, Q_fin, params.isoValue);
-%     cData = interp3(X_fin, Y_fin, Z_fin, C_fin, ...
-%                 s.vertices(:,1), s.vertices(:,2), s.vertices(:,3));
-% else
+if params.movie
+    s = isosurface(X_fin, Y_fin, Z_fin, Q_fin, params.isoValue);
+    cData = interp3(X_fin, Y_fin, Z_fin, C_fin, ...
+                s.vertices(:,1), s.vertices(:,2), s.vertices(:,3));
+else
     s = isosurface(Z_fin, X_fin, Y_fin, Q_fin, params.isoValue);
     cData = interp3(Z_fin, X_fin, Y_fin, C_fin, ...
                  s.vertices(:,1), s.vertices(:,2), s.vertices(:,3));
-% end
+end
 
 p = patch('vertices', s.vertices, 'faces', s.faces, ...
           'FaceVertexCData', cData, 'FaceColor', 'interp', 'EdgeColor', 'none');
