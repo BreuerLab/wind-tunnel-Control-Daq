@@ -400,8 +400,8 @@ view([0 0 1])   % camera along +X direction
 
 % Get current orientation
 % [caz,cel] = view
-caz = -115.8261;
-cel = 56.2796;
+caz = 0;
+cel = 0;
 
 view([caz, cel])
 
