@@ -24,7 +24,7 @@ AoA = [-16, 0, 16]; % angle of attack, set by MPS system
 % AoA = 0;
 % [-16:1.5:-12 -12:1:-8 -8:0.5:8 8:1:12 12:1.5:16]
 % freq = [0, 2, 4, 6, 8, 10]; % wingbeat frequency, set by motor RPM
-freq = [2, 4, 6]; % freq2 = freq(randperm(length(freq)))
+freq = [2, 3, 4]; % freq2 = freq(randperm(length(freq)))
 % freq = [3, 5, 0, 2, 4];
 measure_revs = 180; % number of wingbeats
 hold_time = 15; % seconds for glide trials

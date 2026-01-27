@@ -9,7 +9,7 @@ rate = 12000; % measurement rate of NI DAQ, in Hz
 offset_duration = 6; % in seconds
 calibration_filepath = "../DAQ/Calibration Files/Mini40/FT52907.cal"; 
 voltage = 5; % 5 or 10 volts for load cell
-async = false;
+async = true;
 
 % Galil Parameters
 galil_address = "192.168.1.3";
