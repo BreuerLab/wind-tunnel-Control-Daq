@@ -173,5 +173,9 @@ if (~debug)
     % Clean up
     delete(cleanup);
     delete(flapper_obj);
+    VFD_stop;
+    msg = "Experiments complete!";
+    disp(msg);
+    dictate(msg);
 end
 end

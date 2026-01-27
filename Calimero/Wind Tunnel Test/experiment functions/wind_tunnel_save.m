@@ -7,7 +7,8 @@ function wind_tunnel_save(case_name)
     filepath = trial_name + ".mat";
     filepath_string = "'" + filepath + "'";
 
-    load_afam_data;    % not needed if AFAM_Tunnel already in base workspace
+    AFAM_Tunnel = load_afam_data;
+    % not needed if AFAM_Tunnel already in base workspace
     % (i.e. running experiment code on AFAM PC)
     eval("save(" + filepath_string + ", 'AFAM_Tunnel');");
     

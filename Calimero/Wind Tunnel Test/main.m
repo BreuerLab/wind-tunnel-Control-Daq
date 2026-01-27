@@ -30,7 +30,7 @@ measure_revs = 180; % number of wingbeats
 hold_time = 15; % seconds for glide trials
 
 speed = 5; % wind tunnel air speed
-wing_type = "rigid_default"; % whatever name you'd like to use
+wing_type = "half_chord"; % whatever name you'd like to use
 % wing_type = "rigid";
 automatic = true; % run through trials automatically?
 debug = false; % testing on personal computer?

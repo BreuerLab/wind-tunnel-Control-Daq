@@ -1,17 +1,17 @@
 function wait_speed_reached(desSpeed)
     disp("Waiting for speed to reach setting")
     lastSpeed = -1;
-    load_afam_data;
+    AFAM_Tunnel = load_afam_data;
     curSpeed = AFAM_Tunnel.Speed;
     while (abs(lastSpeed - curSpeed) > 0.05 || isnan(curSpeed) || lastSpeed == curSpeed)
         pause(2)
         lastSpeed = curSpeed;
-        load_afam_data
+        AFAM_Tunnel = load_afam_data;
         curSpeed = AFAM_Tunnel.Speed;
         % disp(abs(lastSpeed - curSpeed)) % for debugging
     end
     pause(2)
-    load_afam_data;
+    AFAM_Tunnel = load_afam_data;
     curSpeed = AFAM_Tunnel.Speed;
     disp("Speed at " + curSpeed)
 
