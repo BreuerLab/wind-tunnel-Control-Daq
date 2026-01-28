@@ -16,10 +16,10 @@ function raw_extra_plot(f, tiles, time, extra_data, case_name, rate, fc, titles)
         plot(time, extra_data(j, :), 'Color', [0.7 0.7 0.7], 'DisplayName', 'raw');  % raw force in gray
         if (j < 3)
         plot(time, filtered_extra_data(j, :), 'b', 'DisplayName', 'filtered');       % filtered force in blue
-        title([titles(j+6), " avg: " + extra_means(j) + ...
+        title([titles(j), " avg: " + extra_means(j) + ...
                "    SD: " + extra_SDs(j)], FontSize=8);
         else
-        title([titles(j+6)], FontSize=8);
+        title([titles(j)], FontSize=8);
         end
         % xlabel(axes_labels(1));
         % ylabel(axes_labels(j+3));
