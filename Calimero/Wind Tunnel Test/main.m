@@ -12,7 +12,11 @@ clc;
 clear;
 close all;
 
-% restoredefaultpath
+% Change current working directory to the directory where this file is
+cd(fileparts(mfilename('fullpath')));
+% 'restoredefaultpath' also an option, but caused some bugs in the past
+
+% ensure all helper functions are made accessible
 addpath(genpath("../."))
 
 % -----------------------------------------------------------------------
