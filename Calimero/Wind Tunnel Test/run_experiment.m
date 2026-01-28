@@ -26,7 +26,7 @@ OC_pulse_step = 4; % in ticks
 currentDateTime = datetime('now', 'Format', 'yyyy_MM_dd_HH_mm_ss');
 currentDateTimeStr = char(currentDateTime);
 file_name = strjoin(["experiment_params", currentDateTimeStr], "_");
-full_file_name = "data\" + file_name + ".mat";
+full_file_name = "data\experiment parameters\" + file_name + ".mat";
 save(full_file_name);
 
 % Remind user of setup procedure
