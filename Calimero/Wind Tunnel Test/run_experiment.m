@@ -42,7 +42,7 @@ try
     galil = galil_setup(galil_address);
     % Ensure Galil stops motor when the run_trial function completes
     % (either on its own or termination by user)
-    cleanup = onCleanup(@()myCleanupFun(galil, f));
+    cleanup = onCleanup(@()myCleanupFun(galil, f, wing_type, speed));
 catch
     disp("Oops couldn't connect to Galil, trying again...")
     pause(2)
@@ -50,7 +50,7 @@ catch
     galil = galil_setup(galil_address);
     % Ensure Galil stops motor when the run_trial function completes
     % (either on its own or termination by user)
-    cleanup = onCleanup(@()myCleanupFun(galil, f));
+    cleanup = onCleanup(@()myCleanupFun(galil, f, wing_type, speed));
 end
 
 % Allow user to set wings at midstroke and then galil will hold that
@@ -167,7 +167,7 @@ end
 % -------------------------------------
 time_now = datetime;
 time_now.Format = 'yyyy-MM-dd HH-mm-ss';
-saveas(f,"data\plots\compareAoA_" + speed + "ms_" + string(time_now) + ".fig")
+saveas(f, "data\plots\compareAoA_" + wing_type + "_" + speed + "ms_" + string(time_now) + ".fig")
 
 if (~debug)
     % Clean up
