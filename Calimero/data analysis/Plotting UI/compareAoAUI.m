@@ -65,6 +65,7 @@ methods
 
         % Get types and speeds from filenames in 'plot data' folder
         types = [];
+        freqs = [];
         amps = [];
         speeds = [];
         for i = 1:length(cur_bird.uniq_list)
@@ -73,7 +74,15 @@ methods
                 if contains(name_parts(j), "m.s")
                     speed = str2num(extractBefore(name_parts(j),"m.s"));
                     amp = str2num(name_parts(j-1));
-                    type = name_parts(1:j-2);
+                    type = strjoin(name_parts(1:j-2));
+                end
+            end
+
+            trials = cur_bird.uniq_list(i).trial_names;
+            for j = 1:length(trials)
+                freq = trials(j);
+                if (isempty(freqs) || sum(freqs == freq) == 0)
+                    freqs = [freqs freq];
                 end
             end
 
@@ -88,6 +97,7 @@ methods
             end
         end
         cur_bird.types = types;
+        cur_bird.freqs = freqs;
         cur_bird.amps = amps;
         cur_bird.speeds = speeds;
 
@@ -872,7 +882,7 @@ methods (Access = private)
 
                 lim_AoA_sel = cur_bird.angles(cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2));
                 
-                cur_file = obj.data_path + "/plot data/" + cur_bird.name + "/" + cur_struct_match.file_name;
+                cur_file = obj.data_path + cur_bird.name + "/" + cur_struct_match.file_name;
                 disp("Loading " + cur_file)
                 if obj.driftData
                     load(cur_file, "drift_vals")
@@ -929,7 +939,7 @@ methods (Access = private)
                         zero_lift_alpha = 0;
                         zero_pitch_alpha = 0;
                     else
-                        path = obj.data_path + "/plot data/" + cur_bird.name;
+                        path = obj.data_path + cur_bird.name;
                         [lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha]...
                             = getGlideSlopes(path, cur_bird, cur_struct_match.dir_name, obj.range);
                     end
@@ -1019,7 +1029,7 @@ methods (Access = private)
 
                 lim_AoA_sel = cur_bird.angles(cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2));
                 
-                cur_file = obj.data_path + "/plot data/" + cur_bird.name + "/" + cur_struct_match.file_name;
+                cur_file = obj.data_path + cur_bird.name + "/" + cur_struct_match.file_name;
                 disp("Loading " + cur_file)
                 if (obj.stroke_index == 0)
                     load(cur_file, "avg_forces", "err_forces")
@@ -1071,7 +1081,7 @@ methods (Access = private)
                         zero_lift_alpha = 0;
                         zero_pitch_alpha = 0;
                     else
-                        path = obj.data_path + "/plot data/" + cur_bird.name;
+                        path = obj.data_path + cur_bird.name;
                         [lift_slope, pitch_slope, zero_lift_alpha, zero_pitch_alpha]...
                             = getGlideSlopes(path, cur_bird, cur_struct_match.dir_name, obj.range);
                     end

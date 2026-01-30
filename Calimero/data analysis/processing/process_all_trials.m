@@ -99,13 +99,6 @@ else
     disp("speed folder found")
 end
 
-filepath = data_path + speed_appendage + type_appendage;
-dirPath = filepath + "/processed data";
-if ~exist(dirPath, 'dir')
-    mkdir(dirPath);
-    fprintf('Directory "%s" created.\n', dirPath);
-end
-
 else
     disp("Skipped folder organization")
 
@@ -151,6 +144,13 @@ filePattern = fullfile(raw_data_path, '*.mat'); % Change to whatever pattern you
 exp_files = [];
 for i = 1:length(filePattern)
     exp_files = [exp_files; dir(filePattern(i))];
+end
+
+filepath = data_path + speed_appendage + type_appendage;
+dirPath = filepath + "/processed data";
+if ~exist(dirPath, 'dir')
+    mkdir(dirPath);
+    fprintf('Directory "%s" created.\n', dirPath);
 end
 
 % Record log of outputs while processing data

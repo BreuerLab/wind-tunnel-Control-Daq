@@ -28,6 +28,7 @@ end
 params_path = data_path + "raw data/experiment parameters/";
 
 [wind_speed_sel, type_sel, wing_freq_sel, AoA_sel, wing_amp_sel] = eval_params(params_path);
+% type_sel = strjoin(split(type_sel, "_"));
 sub_strings = []; % "body"
 
 % wing_freq_sel = [0, 2, 4, 6, 8];
@@ -125,7 +126,7 @@ for i = 1:2
             time_now = datetime;
             time_now.Format = 'yyyy_MM_dd HH_mm_ss';
             
-            name = type_sel + "_" + wind_speed_sel + "m.s.";
+            name = type_sel + "_" + wing_amp_sel + "_" + wind_speed_sel + "m.s.";
             if (norm_bool)
                name = name + "_norm"; 
             end

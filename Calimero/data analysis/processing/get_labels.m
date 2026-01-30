@@ -3,6 +3,7 @@ function [names, sub_title] = get_labels(names, selected_vars, wing_freq_ind, wi
 wing_freq_sel = selected_vars.freq;
 wind_speed_sel = selected_vars.wind;
 type_sel = selected_vars.type;
+type_sel = strjoin(split(type_sel, "_"));
 
 if (nondimensional)
         if (isscalar(wing_freq_sel) && isscalar(wind_speed_sel) && isscalar(type_sel))
@@ -59,7 +60,7 @@ if (nondimensional)
             end
         end
         
-        else
+else
             
         if (isscalar(wing_freq_sel) && isscalar(wind_speed_sel) && isscalar(type_sel))
             names(wing_freq_ind, wind_speed_sel == wind_speed, type_sel == type) = "";

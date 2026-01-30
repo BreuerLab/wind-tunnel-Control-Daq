@@ -16,6 +16,7 @@ wing_freq_sel = selected_vars.freq;
 wing_amp_sel = selected_vars.amp;
 wind_speed_sel = selected_vars.wind;
 type_sel = selected_vars.type;
+type_sel = strjoin(split(type_sel, "_"));
 
 % produces array of same size as wing_freq_sel but with the
 % frequency of each value in its place, ex:
@@ -48,8 +49,8 @@ sub_title = "";
 % Go through each file, grab its data, take the mean over all results to
 % produce a "dot" (i.e. a single point value) for each force and moment
 for i = 1 : length(processed_files)
-    baseFileName = processed_files(i).name;
-    baseFolder = processed_files(i).folder;
+    baseFileName = convertCharsToStrings(processed_files(i).name);
+    baseFolder = convertCharsToStrings(processed_files(i).folder);
     [case_name, time_stamp, type, wing_freq, AoA, wind_speed, amp, file_type] = parse_filename(baseFileName);
     
     type = convertCharsToStrings(type);
@@ -66,6 +67,7 @@ for i = 1 : length(processed_files)
     && ismember(type, type_sel))
 
         wing_freq_ind = wing_freq_sel == wing_freq;
+        % wing_freq_ind = find(wing_freq_sel == wing_freq);
 
         modFileName = baseFileName;
 
@@ -115,7 +117,7 @@ for i = 1 : length(processed_files)
         end
         end
 
-        load([baseFolder '/' modFileName]);
+        load(baseFolder + "/" + modFileName);
 
         % if (wing_freq == 0)
             data = filtered_data;

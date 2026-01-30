@@ -39,8 +39,8 @@ function [case_name, time_stamp, type, wing_freq, AoA, wind_speed, amp, file_typ
         time_stamp = extractAfter(filename,"_wind_tunnel_");
     elseif (contains(filename,".mat"))
         file_type = "processed";
-        case_name = extractBefore(filename,"2025");
-        time_stamp = "2025" + extractBefore(extractAfter(filename,"2025"), ".mat");
+        case_name = convertCharsToStrings(regexp(filename, '^.*?(?=\d{4})', 'match', 'once'));
+        time_stamp = extractBefore(extractAfter(filename,case_name), ".mat");
     else
         file_type = "";
         case_name = filename;
