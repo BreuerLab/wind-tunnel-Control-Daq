@@ -28,6 +28,8 @@ end
 params_path = data_path + "raw data/experiment parameters/";
 
 [wind_speed_sel, type_sel, wing_freq_sel, AoA_sel, wing_amp_sel] = eval_params(params_path);
+AoA_sel = unique(AoA_sel);
+
 % type_sel = strjoin(split(type_sel, "_"));
 sub_strings = []; % "body"
 

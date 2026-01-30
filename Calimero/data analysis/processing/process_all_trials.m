@@ -146,7 +146,6 @@ for i = 1:length(filePattern)
     exp_files = [exp_files; dir(filePattern(i))];
 end
 
-filepath = data_path + speed_appendage + type_appendage;
 dirPath = filepath + "/processed data";
 if ~exist(dirPath, 'dir')
     mkdir(dirPath);
