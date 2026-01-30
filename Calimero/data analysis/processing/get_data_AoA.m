@@ -1,7 +1,7 @@
 function [avg_forces, avg_up_forces, avg_down_forces, err_forces, err_up_forces,...
           err_down_forces, names, sub_title, norm_factors_arr, drift_vals, offsets_before_vals, offsets_after_vals] = ...
     get_data_AoA(selected_vars, processed_files, offsets_files, ...,
-    nondimensional, sub_strings, shift_bool, sub_drift, config_idx, num_config, freq_vals)
+    nondimensional, sub_strings, shift_bool, sub_drift, config_idx, num_config)
 
 numAxes = 8;
 
@@ -131,7 +131,7 @@ for i = 1 : length(processed_files)
         % Maybe need to add squeeze(cycle_avg_forces) above
 
         % get offsets from before and after trial
-        [drift, offsets_before, offsets_after] = get_drift(modFileName, offsets_files, freq_vals);
+        [drift, offsets_before, offsets_after] = get_drift(modFileName, offsets_files, wing_freq_sel);
         drift_vals(:, AoA_sel == AoA, wing_freq_ind, wing_amp_sel == amp, wind_speed_sel == wind_speed, type_sel == type)...
                         = drift;
         offsets_before_vals(:, AoA_sel == AoA, wing_freq_ind, wing_amp_sel == amp, wind_speed_sel == wind_speed, type_sel == type)...

@@ -59,7 +59,7 @@ methods
         obj.saveFig = false;
 
         % path = obj.data_path  + "/plot data/" + "Calimero/";
-        path = obj.data_path  + "plot data\" + "Calimero\";
+        path = obj.data_path + "Calimero\";
         cur_bird = obj.Calimero;
         attachFileListsToBird(path, cur_bird)
 

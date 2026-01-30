@@ -1,5 +1,11 @@
 % Author: Ronan Gissler
-% Last updated: October 2023
+% Last updated: January 2026
+
+% TO ADD:
+% BATCH PROCESSING OF MULTIPLE WIND SPEEDS OR TYPES (nested for loops)
+
+% ADD CHECK IF USER DECIDES TO RUN THIS ON DATA THAT'S ALREADY BEEN
+% ORGANIZED
 
 % Note: Your current working directory in Matlab must include this file
 % (i.e. you must be in the process trial folder)
@@ -8,73 +14,133 @@ close all
 
 % Change current working directory to the directory where this file is
 cd(fileparts(mfilename('fullpath')));
-addpath(genpath('../../Wind Tunnel Test'))
-addpath(genpath('../'))
+addpath(genpath('../../'))
 
-wind_speeds = [4];
-types = ["flexible_10"]; % needs to match folder name only
-slack_bool = false;
+% Data stored in Dataset Name -> speed -> type + date
+
+slack_bool = true;
+slack_path = "R:\ENG_Breuer_Shared\group\Ronan\";
 % ADD PATH WHERE DATA SHOULD GET DUMPED
 
 % data_path = "F:\Calimero Data\Calimero 09_23_2025_ascending\Calimero\";
 
-h = helpdlg('Please select the folder that contains speed folders (e.g. 4 m.s).');
+h = helpdlg("Please select the 'data' folder you'd like to process.");
 uiwait(h);     % ensure the user reads it before continuing
 
 % Open a file selection dialog and get the file path
-data_path = uigetdir("F:\Calimero Data", 'Select a folder that contains speed folders') + "\";
+data_path = uigetdir(".", "Select the 'data' folder") + "\";
 if isequal(data_path, 0)
     disp('User canceled folder selection.');
 else
     disp(['Selected folder: ', data_path]);
 end
 
-for n = 1:length(wind_speeds)
-    for m = 1:length(types)
+contents = dir(data_path);
 
-wind_speed_sel = wind_speeds(n);
-type = types(m);
+addFolders = false;
+for i = 3:length(contents)
+    name = contents(i).name;
+    % If folder contains experiment data and other folders, but hasn't
+    % already been put in a folder named raw data
+    if strcmp(name, "experiment data") && ~contains(data_path, "raw data")
+        addFolders = true;
+    end
+end
+
+if addFolders
+params_path = data_path + "/experiment parameters/";
+
+[wind_speed, type, freq_vals, AoA_vals, amp] = eval_params(params_path);
+
+oldFolder = data_path;
+raw_appendage = "/raw data";
+newFolder = data_path + raw_appendage;
+% Does 'raw data' folder already exist?
+if ~isfolder(newFolder)
+    % make raw_data folder
+    mkdir(newFolder)
+    % move data into raw_data folder
+    movefile(oldFolder + "/*", newFolder)
+    disp("raw data folder added")
+else
+    disp("raw data folder found")
+end
+
+parts = split(time_stamp, "_");
+date = strjoin(parts(1:3), "_");
+
+% Put 'raw data' in type + date folder
+oldFolder = data_path;
+type_appendage = "/" + type + "_" + date;
+newFolder = data_path + type_appendage;
+% Does type + date folder already exist?
+if ~isfolder(newFolder)
+    % make type + date folder
+    mkdir(newFolder)
+    % move data into type + date folder
+    movefile(oldFolder + "/*", newFolder)
+    disp("type_date folder added")
+else
+    disp("type_date folder found")
+end
+
+% Put type + date folder in speed folder
+oldFolder = data_path;
+speed_appendage = "/" + wind_speed + " m.s";
+newFolder = data_path + speed_appendage;
+% Does 'raw data' folder already exist?
+if ~isfolder(newFolder)
+    % make raw_data folder
+    mkdir(newFolder)
+    % move data into raw_data folder
+    movefile(oldFolder + "/*", newFolder)
+    disp("speed folder added")
+else
+    disp("speed folder found")
+end
+
+filepath = data_path + speed_appendage + type_appendage;
+dirPath = filepath + "/processed data";
+if ~exist(dirPath, 'dir')
+    mkdir(dirPath);
+    fprintf('Directory "%s" created.\n', dirPath);
+end
+
+else
+    disp("Skipped folder organization")
+
+    filepath = extractBefore(data_path, "raw data");
+    s = extractBefore(filepath, " m.s");
+    s_parts = split(s, "\");
+    wind_speed = str2num(s_parts(end));
+
+    s = erase(extractAfter(filepath, " m.s"), "\");
+    s_parts = split(s, "_");
+    idx = -1;
+    for j = 1:length(s_parts)
+        if isnan(str2double(s_parts(j))) % if is letters, not numbers
+            idx = j;
+        end
+    end
+    type = strjoin(s_parts(1:idx), "_");
+end
 
 if (slack_bool)
 % set up Slack messenger objects
-s = slackMsg(data_path);
-bot = slackProgressBar(data_path);
+s = slackMsg(slack_path);
+bot = slackProgressBar(slack_path);
 end
-
-speed_path = data_path + wind_speed_sel + " m.s/";
-% speed_path = data_path;
-filePattern = fullfile(speed_path); % Change to whatever pattern you need.
-dir_names = dir(filePattern);
 
 % path to folders where raw data (.csv files) are stored
 raw_data_path = [];
 offsets_path = [];
 processed_data_path = [];
 wind_tunnel_path = [];
-for i = 3:length(dir_names)
-    cur_name_parts = split(dir_names(i).name);
-    cur_name = cur_name_parts{1};
-    if (type == cur_name)
-        filepath = speed_path + dir_names(i).name;
 
-        raw_data_path = [raw_data_path filepath + "/raw data/experiment data/"];
-        offsets_path = [offsets_path filepath + "/raw data/offsets data/"];
-        processed_data_path = [processed_data_path filepath + "/processed data/"];
-        wind_tunnel_path = [wind_tunnel_path filepath + "/raw data/wind tunnel data/"];
-
-        dirPath = filepath + "/processed data";
-        if ~exist(dirPath, 'dir')
-            mkdir(dirPath);
-            fprintf('Directory "%s" created.\n', dirPath);
-        end
-    end
-end
-
-% filepath = data_path;
-% raw_data_path = [raw_data_path filepath + "/raw data/experiment data/"];
-% offsets_path = [offsets_path filepath + "/raw data/offsets data/"];
-% wind_tunnel_path = [wind_tunnel_path filepath + "/raw data/wind tunnel data/"];
-% processed_data_path = [processed_data_path filepath + "/processed data/"];
+raw_data_path = [raw_data_path filepath + "/raw data/experiment data/"];
+offsets_path = [offsets_path filepath + "/raw data/offsets data/"];
+processed_data_path = [processed_data_path filepath + "/processed data/"];
+wind_tunnel_path = [wind_tunnel_path filepath + "/raw data/wind tunnel data/"];
 
 if isempty(raw_data_path)
     error("Oops, no data paths made")
@@ -88,12 +154,12 @@ for i = 1:length(filePattern)
 end
 
 % Record log of outputs while processing data
-dirPath = data_path + "processing logs";
+dirPath = filepath + "/processing logs";
 if ~exist(dirPath, 'dir')
     mkdir(dirPath);
     fprintf('Directory "%s" created.\n', dirPath);
 end
-diary(dirPath + "/" + wind_speed_sel + "ms_" + type + ".txt")
+diary(dirPath + "/" + wind_speed + "ms_" + type + ".txt")
 percent_complete = 0;
 try
 time_now = datetime;
@@ -141,7 +207,4 @@ s.send("Encountered error while processing files at: " + string(time_now)...
     + ". " + percent_complete + "% complete.")    
 end
 rethrow(ME)
-end
-
-    end
 end

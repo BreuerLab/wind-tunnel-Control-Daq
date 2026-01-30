@@ -36,7 +36,8 @@ hold_time = 15; % seconds for glide trials
 speed = 5; % wind tunnel air speed
 wing_type = "span_half"; % whatever name you'd like to use
 % wing_type = "rigid";
+amp = 20; % degrees from midstroke to top of upstroke (or bottom of downstroke)
 automatic = true; % run through trials automatically?
 debug = false; % testing on personal computer?
 
-run_experiment(AoA, freq, speed, wing_type, measure_revs, hold_time, automatic, debug);
+run_experiment(AoA, freq, speed, wing_type, amp, measure_revs, hold_time, automatic, debug);

@@ -1,4 +1,4 @@
-function run_experiment(AoA_vals, freq_vals, speed, wing_type, measure_revs, hold_time, automatic, debug)
+function run_experiment(AoA_vals, freq_vals, speed, wing_type, amp, measure_revs, hold_time, automatic, debug)
 
 time_now = datetime;
 time_now.Format = 'yyyy-MM-dd HH-mm-ss';
@@ -118,7 +118,7 @@ disp(msg);
 dictate(msg);
 
 % Set case name and wingbeat frequency for this trial
-case_name = wing_type + "_" + speed + "m.s_" + AoA_vals(j) + "deg_" + freq_vals(i) + "Hz";
+case_name = wing_type + "_" + amp + "_" + speed + "m.s_" + AoA_vals(j) + "deg_" + freq_vals(i) + "Hz";
 
 % ----------------------------------------------------------
 % Collect data for single trial, turning flapper on and off

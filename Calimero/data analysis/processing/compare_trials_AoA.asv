@@ -2,17 +2,17 @@
 % Last updated: October 2023
 clear
 close all
+addpath(genpath('../../Wind Tunnel Test'))
+addpath(genpath('.'))
 
-% Change current working directory to the directory where this file is
-cd(fileparts(mfilename('fullpath')));
-addpath(genpath('../../'))
+% -----------------------------------------------------------------
+% ----The parameter combinations you want to see the data for------
+% -----------------------------------------------------------------
+% freq_speed_combos = [2, 4; 3, 6; 0, 4; 0, 6];
 
 % TO DO:
 % ADD SUPPORT FOR SUBTRACT CASES
 % ADD SUPPORT FOR MULTI-FILE PROCESSING
-
-slack_bool = true;
-slack_path = "R:\ENG_Breuer_Shared\group\Ronan\";
 
 h = helpdlg("Please select the folder containing 'raw data' and 'processed data'.");
 uiwait(h);     % ensure the user reads it before continuing
@@ -28,7 +28,6 @@ end
 params_path = data_path + "raw data/experiment parameters/";
 
 [wind_speed_sel, type_sel, wing_freq_sel, AoA_sel, wing_amp_sel] = eval_params(params_path);
-sub_strings = []; % "body"
 
 % wing_freq_sel = [0, 2, 4, 6, 8];
 % wing_amp_sel = [10];
@@ -37,16 +36,14 @@ sub_strings = []; % "body"
 % AoA_sel = [-16:2:16];
 % sub_strings = []; % "body"
 
+slack_bool = false;
+
 % make type list from type and subtraction types to add all
 % associated folders to the search
 % type_list = [type_sel sub_strings];
 % type_list = strrep(type_list, ' ', '_');
 
-path_parts = split(extractBefore(data_path, "m.s"), "\");
-root_path = strjoin(path_parts(1:end-1), "\");
-
-% Make plot data folder
-dirPath = root_path + "\plot data\Calimero\";
+dirPath = data_path + "plot data\Calimero\";
 if ~exist(dirPath, 'dir')
     mkdir(dirPath);
     fprintf('Directory "%s" created.\n', dirPath);
@@ -54,35 +51,78 @@ end
 plot_data_path = dirPath;
 
 if slack_bool
-s = slackMsg(slack_path);
-bot = slackProgressBar(slack_path);
+s = slackMsg(data_path);
+bot = slackProgressBar(data_path);
+end
+
+% assuming that all experiment folders are in the same speed
+% folder
+speed_path = data_path + wind_speed_sel + " m.s/";
+filePattern = fullfile(speed_path);
+dir_names = dir(filePattern);
+
+if isempty(dir_names)
+    error("Oops, no directory found")
 end
 
 % path to folders where processed data (.mat files) are stored
 processed_data_path = [];
-% path to folders where offsets data (.mat files) are stored
+% path to folders where offsets data (.csv files) are stored
 offsets_path = [];
+% path to where experiment params files (.mat files) are stored
+params_path = [];
+% ----------------------------------------------
+% INDEX SHIFTED TO 4 ON MAC INSTEAD OF 3 SINCE NEED TO SKIP
+% .DSSTORE directory too
+% FIX THIS BY CHECKING FOR ., .., AND .DS_STORE DIRECTORIES
+% ----------------------------------------------
+for i = 3:(length(dir_names))
+    cur_name_parts = split(dir_names(i).name);
+    % cur_name = cur_name_parts{1}; % strip date from name
 
-processed_data_path = [processed_data_path data_path + "/processed data/"];
-offsets_path = [offsets_path data_path + "/raw data/offsets data/"];
+    str = cur_name_parts{1};
+    str = strtrim(strrep(str,'_',' '));
+    tokens = regexp(str, '^(.*?)(\d+)$', 'tokens', 'once');
 
-if isempty(processed_data_path)
-    error("Oops, no processed data path found")
+    cur_type = strtrim(tokens{1});   % "wings"
+    cur_amp   = str2double(tokens{2}); % 10
+
+    if (sum(type_list == cur_type) > 0 && sum(wing_amp_sel == cur_amp) > 0) % find matches
+        filepath = speed_path + dir_names(i).name;
+        processed_data_path = [processed_data_path filepath + "/processed data/"];
+        offsets_path = [offsets_path filepath + "/raw data/offsets data/"];
+        params_path = [params_path filepath + "/raw data/"];
+    end
 end
 
-% Get a list of all 'processed data' files
-filePattern = fullfile(processed_data_path, '*.mat');
+% Get a list of all files in the folder with the desired file name pattern.
+filePattern = fullfile(processed_data_path, '*.mat'); % Change to whatever pattern you need.
 processed_files = [];
 for i = 1:length(filePattern)
     processed_files = [processed_files; dir(filePattern(i))];
 end
 
-% Get a list of all 'offset data' files
-filePattern = fullfile(offsets_path, '*.mat');
+if isempty(processed_data_path)
+    error("Oops, no processed data path found")
+end
+
+% Get a list of all files in the folder with the desired file name pattern.
+filePattern = fullfile(offsets_path, '*.mat'); % Change to whatever pattern you need.
 offsets_files = [];
 for i = 1:length(filePattern)
     offsets_files = [offsets_files; dir(filePattern(i))];
 end
+
+% Get a list of all experment params files in the folder with the desired file name pattern.
+filePattern = fullfile(params_path, '*.mat'); % Change to whatever pattern you need.
+params_files = [];
+for i = 1:length(filePattern)
+    params_files = [params_files; dir(filePattern(i))];
+end
+
+% get freq_vals in their experimental order from params file
+% uses first params file with first type
+load(params_path(1) + params_files(1).name, "freq_vals")
 
 norm_bool = true;
 shift_bool = false;
@@ -115,7 +155,7 @@ for i = 1:2
 
             [avg_forces, avg_up_forces, avg_down_forces, err_forces, ...
              err_up_forces, err_down_forces, names, sub_title, norm_factors, drift_vals, offsets_before_vals, offsets_after_vals] = ...
-    get_data_AoA(selected_vars, processed_files, offsets_files, norm_bool, sub_strings, shift_bool, sub_drift_bool, config_idx, num_config);
+    get_data_AoA(selected_vars, processed_files, offsets_files, norm_bool, sub_strings, shift_bool, sub_drift_bool, config_idx, num_config, freq_vals);
             
             if slack_bool
             bot.updateProgress(channelID, messageTs, config_idx*(100/8));
