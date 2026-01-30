@@ -50,7 +50,7 @@ end
 if addFolders
 params_path = data_path + "/experiment parameters/";
 
-[wind_speed, type, freq_vals, AoA_vals, amp] = eval_params(params_path);
+[wind_speed, type, freq_vals, AoA_vals, amp, time_stamp] = eval_params(params_path);
 
 oldFolder = data_path;
 raw_appendage = "/raw data";
@@ -98,7 +98,7 @@ if ~isfolder(newFolder)
 else
     disp("speed folder found")
 end
-
+    filepath = data_path + speed_appendage + type_appendage;
 else
     disp("Skipped folder organization")
 
@@ -170,6 +170,9 @@ if slack_bool
     % Post the initial message
     [channelID, messageTs] = bot.makeBar();
 end
+
+disp("---------------------------------------------------------------")
+disp("---------------------------------------------------------------")
 
 % Grab each file and process the data from that file, storing the results
 for k = 1 : length(exp_files)
