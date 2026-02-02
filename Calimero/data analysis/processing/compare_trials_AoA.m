@@ -17,8 +17,9 @@ end
 % ADD SUPPORT FOR SUBTRACT CASES
 % ADD SUPPORT FOR MULTI-FILE PROCESSING
 
-slack_bool = false;
-slack_path = "R:/ENG_Breuer_Shared/group/Ronan/";
+slack_bool = true;
+%slack_path = "R:/ENG_Breuer_Shared/group/Ronan/";
+slack_path = "R:/ENG_Breuer_Shared/group/Zachary/";
 
 h = helpdlg("Please select the folder containing 'raw data' and 'processed data'.");
 uiwait(h);     % ensure the user reads it before continuing

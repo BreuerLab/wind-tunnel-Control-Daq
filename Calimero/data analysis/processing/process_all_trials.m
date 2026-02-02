@@ -20,8 +20,9 @@ DELIM = string(filesep);
 
 % Data stored in Dataset Name -> speed -> type + date
 
-slack_bool = false;
-slack_path = "R:\ENG_Breuer_Shared\group\Ronan\";
+slack_bool = true;
+%slack_path = "R:\ENG_Breuer_Shared\group\Ronan\";
+slack_path = "R:\ENG_Breuer_Shared\group\Zachary\";
 % ADD PATH WHERE DATA SHOULD GET DUMPED
 
 % data_path = "F:\Calimero Data\Calimero 09_23_2025_ascending\Calimero\";
@@ -50,7 +51,7 @@ for i = 3:length(contents)
 end
 
 if addFolders
-params_path = data_path + DELIM + "experiment parameters" + DELIM;
+params_path = data_path + "experiment parameters" + DELIM;
 
 [wind_speed, type, freq_vals, AoA_vals, amp, time_stamp] = eval_params(params_path);
 

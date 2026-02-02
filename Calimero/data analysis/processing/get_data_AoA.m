@@ -116,8 +116,9 @@ for i = 1 : length(processed_files)
             % disp(" ")
         end
         end
-
-        load(baseFolder + "/" + modFileName);
+        
+        load_AoA_data(baseFolder, modFileName);
+        %load(baseFolder + "/" + modFileName);
 
         % if (wing_freq == 0)
             data = filtered_data;
