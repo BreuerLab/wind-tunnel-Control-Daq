@@ -22,7 +22,7 @@ addpath(genpath("../."))
 % -----------------------------------------------------------------------
 % ----------Parameters to Adjust for Your Specific Experiment------------
 % -----------------------------------------------------------------------
-AoA = [-10, -10:2:24]; % angle of attack, set by MPS system
+AoA = [-16, -16:2:24]; % angle of attack, set by MPS system
 % AoA = flip(AoA);
 % AoA = ladder_sort(AoA); % rearrange in nonascending ladder order
 % AoA = 0;
