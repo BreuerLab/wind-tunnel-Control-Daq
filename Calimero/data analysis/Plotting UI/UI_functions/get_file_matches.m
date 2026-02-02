@@ -1,14 +1,16 @@
 function struct_matches = get_file_matches(selection_list, norm_bool, shift_bool, drift_bool, sub_bool, Calimero)
     struct_matches = [];
+
+    DELIM = string(filesep);
     
     for i = 1:length(selection_list)
-        flapper_name = string(extractBefore(selection_list(i), "/"));
-        dir_name = string(extractAfter(selection_list(i), "/"));
+        flapper_name = string(extractBefore(selection_list(i), DELIM));
+        dir_name = string(extractAfter(selection_list(i), DELIM));
 
         % for compareAoAUI where selection_list string has
         % different form
         if (contains(dir_name, "Hz") || contains(dir_name, "St") || contains(dir_name, "PWM"))
-            dir_name = extractBefore(dir_name, "/");
+            dir_name = extractBefore(dir_name, DELIM);
         end
 
         cur_bird = getBirdFromName(flapper_name, Calimero);

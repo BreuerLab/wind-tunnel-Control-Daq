@@ -1,5 +1,10 @@
 classdef compareAoAUI
+properties (Constant)
+    DELIM = string(filesep);
+end
+
 properties
+    
     % 1 or 2, monitor to display plot on
     mon_num;
 
@@ -59,7 +64,7 @@ methods
         obj.saveFig = false;
 
         % path = obj.data_path  + "/plot data/" + "Calimero/";
-        path = obj.data_path + "Calimero\";
+        path = obj.data_path + "Calimero" + compareAoAUI.DELIM;
         cur_bird = obj.Calimero;
         attachFileListsToBird(path, cur_bird)
 
@@ -365,7 +370,7 @@ methods
             sel_name = compareAoAUI.typeToSel(obj.sel_bird.name, obj.sel_type);
             speed = obj.sel_speed + "m.s";
             folder = sel_name + " " + obj.sel_amp + " " + speed;
-            case_name = obj.sel_bird.name + "/" + strrep(folder, " ", "_") + "/" + obj.sel_freq;
+            case_name = obj.sel_bird.name + compareAoAUI.DELIM + strrep(folder, " ", "_") + compareAoAUI.DELIM + obj.sel_freq;
             % files in the folder plot data are organized using this
             % format. For example, Calimero -> flexible_20_4m.s._saved...
 
@@ -396,16 +401,16 @@ methods
 
             % removing value from list used for plotting
             if (obj.norm)
-                flapper_name = string(extractBefore(case_name, "/"));
-                dir_name = string(extractBefore(extractAfter(case_name, "/"), "/"));
-                trial_name = extractAfter(extractAfter(case_name, "/"), "/");
+                flapper_name = string(extractBefore(case_name, compareAoAUI.DELIM));
+                dir_name = string(extractBefore(extractAfter(case_name, compareAoAUI.DELIM), compareAoAUI.DELIM));
+                trial_name = extractAfter(extractAfter(case_name, compareAoAUI.DELIM), compareAoAUI.DELIM);
 
                 wing_freq = str2double(extractBefore(trial_name, " Hz"));
                 dir_parts = split(dir_name, '_');
                 wind_speed = sscanf(dir_parts(end), '%g', 1);
 
                 St = freqToSt(obj.sel_bird.name, wing_freq, wind_speed, obj.data_path, -1);
-                case_name = dir_name + "/" + ['St: ' num2str(St)];
+                case_name = dir_name + compareAoAUI.DELIM + ['St: ' num2str(St)];
             end
             new_list_indices = obj.selection ~= case_name;
             obj.selection = obj.selection(new_list_indices);
@@ -436,9 +441,9 @@ methods
 
                 % replace freqs with strouhal numbers
                 for i = 1:length(obj.selection)
-                    flapper_name = string(extractBefore(obj.selection(i), "/"));
-                    dir_name = string(extractBefore(extractAfter(obj.selection(i), "/"), "/"));
-                    trial_name = extractAfter(extractAfter(obj.selection(i), "/"), "/");
+                    flapper_name = string(extractBefore(obj.selection(i), compareAoAUI.DELIM));
+                    dir_name = string(extractBefore(extractAfter(obj.selection(i), compareAoAUI.DELIM), compareAoAUI.DELIM));
+                    trial_name = extractAfter(extractAfter(obj.selection(i), compareAoAUI.DELIM), compareAoAUI.DELIM);
 
                     wing_freq = str2double(extractBefore(trial_name, " Hz"));
                     dir_parts = split(dir_name, '_');
@@ -455,7 +460,7 @@ methods
                     end
 
                     St = freqToSt(obj.sel_bird.name, wing_freq, wind_speed, obj.data_path, amp);
-                    obj.selection(i) = flapper_name + "/" + dir_name + "/" + ['St: ' num2str(St)];
+                    obj.selection(i) = flapper_name + compareAoAUI.DELIM + dir_name + compareAoAUI.DELIM + ['St: ' num2str(St)];
                 end
             else
                 obj.norm = false;
@@ -470,9 +475,9 @@ methods
 
                 % replace strouhal numbers with freqs
                 for i = 1:length(obj.selection)
-                    flapper_name = string(extractBefore(obj.selection(i), "/"));
-                    dir_name = string(extractBefore(extractAfter(obj.selection(i), "/"), "/"));
-                    trial_name = extractAfter(extractAfter(obj.selection(i), "/"), "/");
+                    flapper_name = string(extractBefore(obj.selection(i), compareAoAUI.DELIM));
+                    dir_name = string(extractBefore(extractAfter(obj.selection(i), compareAoAUI.DELIM), compareAoAUI.DELIM));
+                    trial_name = extractAfter(extractAfter(obj.selection(i), compareAoAUI.DELIM), compareAoAUI.DELIM);
 
                     St = str2double(extractAfter(trial_name, "St: "));
                     dir_parts = split(dir_name, '_');
@@ -490,7 +495,7 @@ methods
                     
                     abbr_freqs = str2double(extractBefore(obj.sel_bird.freqs, " Hz")); % remove v2 trials
                     freq = stToFreq(obj.sel_bird.name, St, wind_speed, abbr_freqs, amp);
-                    obj.selection(i) = flapper_name + "/" + dir_name + "/" + freq + " Hz";
+                    obj.selection(i) = flapper_name + compareAoAUI.DELIM + dir_name + compareAoAUI.DELIM + freq + " Hz";
                 end
             end
 
@@ -630,7 +635,7 @@ methods(Static, Access = private)
         sub_title = "";
         abbr_sel = "";
         if (isscalar(sel))
-            abbr_sel = strrep(strrep(sel, "_", " "), "/", " ");
+            abbr_sel = strrep(strrep(sel, "_", " "), compareAoAUI.DELIM, " ");
         elseif (length(sel) > 1)
         flappers = [];
         types = [];
@@ -638,9 +643,9 @@ methods(Static, Access = private)
         freqs = [];
 
         for i = 1:length(sel)
-            flapper_name = string(extractBefore(sel(i), "/"));
-            dir_name = string(extractBefore(extractAfter(sel(i), "/"), "/"));
-            trial_name = extractAfter(extractAfter(sel(i), "/"), "/");
+            flapper_name = string(extractBefore(sel(i), compareAoAUI.DELIM));
+            dir_name = string(extractBefore(extractAfter(sel(i), compareAoAUI.DELIM), compareAoAUI.DELIM));
+            trial_name = extractAfter(extractAfter(sel(i), compareAoAUI.DELIM), compareAoAUI.DELIM);
             
             dir_parts = split(dir_name, '_');
             type = strjoin(dir_parts(1:end-1));
@@ -672,9 +677,9 @@ methods(Static, Access = private)
         end
 
         for i = 1:length(sel)
-            flapper_name = string(extractBefore(sel(i), "/")) + " ";
-            dir_name = string(extractBefore(extractAfter(sel(i), "/"), "/"));
-            trial_name = extractAfter(extractAfter(sel(i), "/"), "/");
+            flapper_name = string(extractBefore(sel(i), compareAoAUI.DELIM)) + " ";
+            dir_name = string(extractBefore(extractAfter(sel(i), compareAoAUI.DELIM), compareAoAUI.DELIM));
+            trial_name = extractAfter(extractAfter(sel(i), compareAoAUI.DELIM), compareAoAUI.DELIM);
             
             dir_parts = split(dir_name, '_');
             type = strjoin(dir_parts(1:end-1)) + " ";
@@ -788,9 +793,9 @@ methods (Access = private)
         unique_dir = [];
         num_dir = 0; % number of unique selected directories
         for j = 1:length(obj.selection)
-            flapper_name = string(extractBefore(obj.selection(j), "/"));
-            dir_name = string(extractBefore(extractAfter(obj.selection(j), "/"), "/"));
-            trial_name = extractAfter(extractAfter(obj.selection(j), "/"), "/");
+            flapper_name = string(extractBefore(obj.selection(j), compareAoAUI.DELIM));
+            dir_name = string(extractBefore(extractAfter(obj.selection(j), compareAoAUI.DELIM), compareAoAUI.DELIM));
+            trial_name = extractAfter(extractAfter(obj.selection(j), compareAoAUI.DELIM), compareAoAUI.DELIM);
 
             if (obj.sub)
                 dir_parts = split(dir_name, '_');
@@ -874,15 +879,15 @@ methods (Access = private)
                     end
                 end
 
-                flapper_name = string(extractBefore(obj.selection(i), "/"));
-                dir_name = string(extractBefore(extractAfter(obj.selection(i), "/"), "/"));
-                trial_name = extractAfter(extractAfter(obj.selection(i), "/"), "/");
+                flapper_name = string(extractBefore(obj.selection(i), compareAoAUI.DELIM));
+                dir_name = string(extractBefore(extractAfter(obj.selection(i), compareAoAUI.DELIM), compareAoAUI.DELIM));
+                trial_name = extractAfter(extractAfter(obj.selection(i), compareAoAUI.DELIM), compareAoAUI.DELIM);
 
                 cur_bird = getBirdFromName(flapper_name, obj.Calimero);
 
                 lim_AoA_sel = cur_bird.angles(cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2));
                 
-                cur_file = obj.data_path + cur_bird.name + "/" + cur_struct_match.file_name;
+                cur_file = obj.data_path + cur_bird.name + compareAoAUI.DELIM + cur_struct_match.file_name;
                 disp("Loading " + cur_file)
                 if obj.driftData
                     load(cur_file, "drift_vals")
@@ -1021,15 +1026,15 @@ methods (Access = private)
                     end
                 end
 
-                flapper_name = string(extractBefore(obj.selection(i), "/"));
-                dir_name = string(extractBefore(extractAfter(obj.selection(i), "/"), "/"));
-                trial_name = extractAfter(extractAfter(obj.selection(i), "/"), "/");
+                flapper_name = string(extractBefore(obj.selection(i), compareAoAUI.DELIM));
+                dir_name = string(extractBefore(extractAfter(obj.selection(i), compareAoAUI.DELIM), compareAoAUI.DELIM));
+                trial_name = extractAfter(extractAfter(obj.selection(i), compareAoAUI.DELIM), compareAoAUI.DELIM);
 
                 cur_bird = getBirdFromName(flapper_name, obj.Calimero);
 
                 lim_AoA_sel = cur_bird.angles(cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2));
                 
-                cur_file = obj.data_path + cur_bird.name + "/" + cur_struct_match.file_name;
+                cur_file = obj.data_path + cur_bird.name + compareAoAUI.DELIM + cur_struct_match.file_name;
                 disp("Loading " + cur_file)
                 if (obj.stroke_index == 0)
                     load(cur_file, "avg_forces", "err_forces")

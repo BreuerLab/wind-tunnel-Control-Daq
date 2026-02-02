@@ -6,14 +6,16 @@ restoredefaultpath
 % overloaded function).
 % addpath(genpath('../data processing'))
 
-addpath(genpath('../../'))
-
 clear
 close all force
 
+addpath(genpath('../../'))
+
+DELIM = string(filesep);
+
 % data_path = "F:\Calimero Data\Calimero 09_23_2025\"; % for comparing plot data across ladder, ascending, descending
 % data_path = "F:\Calimero Data\Calimero 09_23_2025_ascending\";
-data_path = uigetdir(".", "Select a 'plot data' folder") + "\";
+data_path = uigetdir(".", "Select a 'plot data' folder") + DELIM;
 if isequal(data_path, 0)
     disp('User canceled folder selection.');
 else
@@ -21,7 +23,7 @@ else
 end
 
 % Sets up UI for comparing data over angles of attack
-monitor_num = 1;
+monitor_num = 2;
 
 a = compareAoAUI(monitor_num, data_path);
 a.dynamic_plotting();
