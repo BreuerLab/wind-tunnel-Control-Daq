@@ -45,7 +45,7 @@ if nondim_bool % Non-dimensionalize variables
     vort_x_full = D.vortX*(L/U);
     x_full = D.x/L;
     y_full = D.y/L;
-    z_full = D.z; %D.z/L
+    y_full = D.y/L;
     uncU = D.uncU/U;
     uncV = D.uncV/U;
     uncW = D.uncW/U;
@@ -57,7 +57,6 @@ else
     vort_x_full = D.vortX;
     x_full = D.x;
     y_full = D.y;
-    z_full = D.z;
     uncU = D.uncU;
     uncV = D.uncV;
     uncW = D.uncW;
@@ -77,7 +76,6 @@ y_idx = find(y_full(:,1,1) > ybounds(1) & y_full(:,1,1) < ybounds(2));  % rows
 
 x = x_full(y_idx, x_idx,:);
 y = y_full(y_idx, x_idx,:);
-z = z_full(y_idx, x_idx,:);
 u = u_full(y_idx, x_idx,:,:);
 v = v_full(y_idx, x_idx,:,:);
 w = w_full(y_idx, x_idx,:,:);
@@ -160,7 +158,7 @@ cb = colorbarpzn(-vort_scale, vort_scale); % , 'level', 21
 ylabel(cb,'\boldmath$\frac{\omega c}{U_{\infty}}$','Interpreter','Latex','FontSize',18,'Rotation',0)
 xlabel("y/c",FontSize=16)
 ylabel("z/c",FontSize=16)
-title("Streamwise vorticity, z = " + round(z(1,1,i)*1000,1) + " mm",FontSize=18)
+title('Streamwise vorticity',FontSize=18)
 
 % grayscale + red colormap
 nRed = 10; 
@@ -178,16 +176,15 @@ contourf(x(:,:,i), y(:,:,i), vort_x_avg(:,:,i), 71,'linestyle','none');
 % ax = gca;
 % shading(ax, 'interp');
 vort_scale = 1;
-cb = colorbar;
-% cb = colorbarpzn(-vort_scale, vort_scale); % , 'level', 21
+cb = colorbarpzn(-vort_scale, vort_scale); % , 'level', 21
 ylabel(cb,'\boldmath$\frac{\omega c}{U_{\infty}}$','Interpreter','Latex','FontSize',18,'Rotation',0)
 xlabel("y/c",FontSize=16)
 ylabel("z/c",FontSize=16)
-title("Spanwise vorticity, z = " + round(z(1,1,i)*1000,1) + " mm",FontSize=18)
+title("Streamwise vorticity, z = " + ,FontSize=18)
 
 % grayscale + red colormap
-% nRed = 10; 
-% cmap = [gray(256); repmat([1 0 0], nRed, 1)];
+nRed = 10; 
+cmap = [gray(256); repmat([1 0 0], nRed, 1)];
 
 end
 
