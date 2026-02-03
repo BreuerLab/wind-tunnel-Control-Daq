@@ -22,7 +22,7 @@ addpath(genpath("../."))
 % -----------------------------------------------------------------------
 % ----------Parameters to Adjust for Your Specific Experiment------------
 % -----------------------------------------------------------------------
-AoA = [-10, -10:2:24]; % angle of attack, set by MPS system
+AoA = [-16, -16:2:24]; % angle of attack, set by MPS system
 % AoA = flip(AoA);
 % AoA = ladder_sort(AoA); % rearrange in nonascending ladder order
 % AoA = 0;
@@ -34,7 +34,7 @@ measure_revs = 180; % number of wingbeats
 hold_time = 15; % seconds for glide trials
 
 speed = 6; % wind tunnel air speed
-wing_type = "default"; % whatever name you'd like to use
+wing_type = "chord_half"; % whatever name you'd like to use
 % wing_type = "rigid";
 amp = 20; % degrees from midstroke to top of upstroke (or bottom of downstroke)
 automatic = true; % run through trials automatically?

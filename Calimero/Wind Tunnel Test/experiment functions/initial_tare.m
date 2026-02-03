@@ -1,4 +1,4 @@
-function offsets = initial_tare(flapper_obj, offset_duration, wing_type, speed, AoA, automatic)
+function offsets = initial_tare(flapper_obj, offset_duration, wing_type, speed, AoA, automatic, amp)
     %----------------------------
     % Turn off wind tunnel
     %----------------------------
@@ -18,7 +18,7 @@ function offsets = initial_tare(flapper_obj, offset_duration, wing_type, speed, 
     move_pitch(automatic, AoA);
     
     % Get offset data before flapping at this angle with no wind
-    offset_name = wing_type + "_" + speed + "m.s_" + AoA + "deg";
+    offset_name = wing_type + "_" + amp + "_" + speed + "m.s_" + AoA + "deg";
     offsets = flapper_obj.get_force_offsets(offset_name, offset_duration);
     offsets = offsets(1,:); % just taking means, no SDs
     disp("Offset data at this AoA has been gathered");
