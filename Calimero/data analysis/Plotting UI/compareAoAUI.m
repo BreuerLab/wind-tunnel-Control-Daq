@@ -50,7 +50,7 @@ methods
             "Roll Moment", "Pitch Moment", "Yaw Moment", "Voltage", "Current", "Power"];
         obj.stroke_index = 0;
         obj.stroke_labels = ["Full", "Upstroke", "Downstroke"];
-        obj.range = [-16 16];
+        obj.range = [-16 24];
         obj.Calimero = flapper("Calimero");
 
         obj.sub = false;
@@ -250,8 +250,8 @@ methods
         s.Position = [10 AoA_y 180 3];
         s.Limits = obj.range;
         s.Value = obj.range;
-        s.MajorTicks = [-16 -12 -8 -4 0 4 8 12 16];
-        s.MinorTicks = [-14 -10 -6 -2 2 6 10 14];
+        s.MajorTicks = [-16 -12 -8 -4 0 4 8 12 16 20 24];
+        s.MinorTicks = [-14 -10 -6 -2 2 6 10 14 18 22];
         % s.MinorTicks = [-14.5 -13 -11:1:-9 -7.5:0.5:-4.5 -3.5:0.5:-0.5 0.5:0.5:3.5 4.5:0.5:7.5 9:1:11 13 14.5];
         s.ValueChangedFcn = @(src, event) AoA_change(src, event, plot_panel);
 
