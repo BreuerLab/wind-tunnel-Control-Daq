@@ -34,6 +34,7 @@ methods
             obj.types = ["10 deg body", "10 deg wings", "20 deg body", "20 deg wings"];
             obj.freqs = ["0 Hz", "2 Hz", "4 Hz", "6 Hz", "8 Hz", "10 Hz"];
             obj.angles = [-16:2:24];
+            % obj.angles = [10, 16];
             % obj.amps = [10, 20, 30];
             % obj.speeds = [0, 4];
             obj.AR = 2.5; % NEEDS UPDATING!
