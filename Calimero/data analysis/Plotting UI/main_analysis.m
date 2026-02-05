@@ -23,7 +23,7 @@ else
 end
 
 % Sets up UI for comparing data over angles of attack
-monitor_num = 2;
+monitor_num = 1;
 
 a = compareAoAUI(monitor_num, data_path);
 a.dynamic_plotting();

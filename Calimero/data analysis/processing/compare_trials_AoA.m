@@ -18,8 +18,15 @@ end
 % ADD SUPPORT FOR MULTI-FILE PROCESSING
 
 slack_bool = true;
-%slack_path = "R:/ENG_Breuer_Shared/group/Ronan/";
-slack_path = "R:/ENG_Breuer_Shared/group/Zachary/";
+
+% Mac vs PC
+if DELIM == "\"
+    %slack_path = "R:" + DELIM + "ENG_Breuer_Shared" + DELIM + "group" + DELIM + "Ronan" + DELIM;
+    slack_path = "R:" + DELIM + "ENG_Breuer_Shared" + DELIM + "group" + DELIM + "Zachary" + DELIM;
+    % ADD PATH WHERE DATA SHOULD GET DUMPED
+else
+    slack_path = "/Volumes/LRSResearch/ENG_Breuer_Shared/group/Zachary/";
+end
 
 h = helpdlg("Please select the folder containing 'raw data' and 'processed data'.");
 uiwait(h);     % ensure the user reads it before continuing

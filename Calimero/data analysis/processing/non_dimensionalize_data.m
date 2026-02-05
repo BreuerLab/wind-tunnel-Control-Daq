@@ -9,19 +9,47 @@
 % norm_data - (n x 6) non-dimensionalized force transducer data
 % St - Strouhal number for this trial
 % Re - Reynolds number for this trial
-function [norm_data, norm_factors, St, Re] = non_dimensionalize_data(path, results, file_name)
+function [norm_data, norm_factors, St, Re] = non_dimensionalize_data(path, results, file_name, type)
     [case_name, time_stamp, type, wing_freq, AoA, U, amp, file_type] = parse_filename(file_name);
     
-    % Constant values based on geometry of wings and robot design
-    wing_span = 0.177; % meters, length of single wing
-    wing_chord = 0.10; % meters
-    wing_length = 0.216; % meters, distance from wingtip to axis of rotation
     % angle_up = 21.3153; % degrees
     % angle_down = 21.3153; % degrees
     [angle_up, angle_down] = getRangeWingbeat(amp);
+    
+    if strcmp(type,"default")
+        wing_span = 0.177; % meters, length of single wing
+        wing_chord = 0.073; % meters
+        wing_length = 0.221; % meters, distance from wingtip to axis of rotation
+
+
+    elseif strcmp(type,"chord half")
+        wing_span = 0.177; % meters, length of single wing
+        wing_chord = 0.0365; % meters
+        wing_length = 0.221; % meters, distance from wingtip to axis of rotation
+
+
+    elseif strcmp(type,"span half")
+        wing_span = 0.0885; % meters, length of single wing
+        wing_chord = 0.073; % meters
+        wing_length = 0.1325; % meters, distance from wingtip to axis of rotation
+
+
+    elseif strcmp(type,"body")
+        wing_span = 1; % meters, length of single wing
+        wing_chord = 1; % meters
+        wing_length = 1; % meters, distance from wingtip to axis of rotation
+
+    else % Ronan's old values
+        % Constant values based on geometry of wings and robot design
+        wing_span = 0.177; % meters, length of single wing
+        wing_chord = 0.10; % meters
+        wing_length = 0.216; % meters, distance from wingtip to axis of rotation
+    
+    end
 
     % wing_freqs = [0, 2, 4, 6, 8, 10];
-    wing_freqs = [10, 4, 8, 0, 2, 6];
+    % wing_freqs = [10, 4, 8, 0, 2, 6];
+    wing_freqs = [0, 2, 3, 4];
     
     total_area = wing_span * wing_chord * 2; % m^2
     amplitude = wing_length * (abs(sind(angle_up)) + abs(sind(angle_down)));
