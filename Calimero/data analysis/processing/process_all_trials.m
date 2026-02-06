@@ -21,9 +21,16 @@ DELIM = string(filesep);
 % Data stored in Dataset Name -> speed -> type + date
 
 slack_bool = true;
-%slack_path = "R:\ENG_Breuer_Shared\group\Ronan\";
-slack_path = "R:\ENG_Breuer_Shared\group\Zachary\";
-% ADD PATH WHERE DATA SHOULD GET DUMPED
+
+% separating this for Windows vs Mac
+if strcmp(DELIM, "\")
+    %slack_path = "R:" + DELIM + "ENG_Breuer_Shared" + DELIM + "group" + DELIM + "Ronan" + DELIM;
+    slack_path = "R:" + DELIM + "ENG_Breuer_Shared" + DELIM + "group" + DELIM + "Zachary" + DELIM;
+    % ADD PATH WHERE DATA SHOULD GET DUMPED
+else
+    slack_path = "/Volumes/LRSResearch/ENG_Breuer_Shared/group/Zachary/";
+end
+
 
 % data_path = "F:\Calimero Data\Calimero 09_23_2025_ascending\Calimero\";
 
@@ -31,11 +38,20 @@ h = helpdlg("Please select the 'data' folder you'd like to process.");
 uiwait(h);     % ensure the user reads it before continuing
 
 % Open a file selection dialog and get the file path
-data_path = uigetdir(".", "Select the 'data' folder") + DELIM;
-if isequal(data_path, 0)
-    disp('User canceled folder selection.');
-else
-    disp(['Selected folder: ', data_path]);
+if strcmp(DELIM, "\")
+    data_path = uigetdir(".", "Select the 'data' folder") + DELIM;
+    if isequal(data_path, 0)
+        disp('User canceled folder selection.');
+    else
+        disp(['Selected folder: ', data_path]);
+    end
+else  % For Zachary's Mac to directly open file
+    data_path = uigetdir("/Users/zjrosoff/Documents/GitHub/wind-tunnel-Control-Daq/Calimero/data analysis/processing", "Select the 'data' folder") + DELIM;
+    if isequal(data_path, 0)
+        disp('User canceled folder selection.');
+    else
+        disp(['Selected folder: ', data_path]);
+    end
 end
 
 contents = dir(data_path);
@@ -185,7 +201,7 @@ for k = 1 : length(exp_files)
     disp("Reading from: ")
     disp(baseFileName)
 
-    process_trial(baseFileName, raw_data_path, offsets_path, processed_data_path, wind_tunnel_path);
+    process_trial(baseFileName, raw_data_path, offsets_path, processed_data_path, wind_tunnel_path, type);
     end
 
     percent_complete = round((k / length(exp_files)) * 100, 2);

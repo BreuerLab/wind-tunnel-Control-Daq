@@ -106,7 +106,7 @@ diary("data\output logs\" + speed + "ms_" + AoA_vals(j) + "deg.txt")
 % -----------------------------------------------
 % Tare measurement at desired angle with wind off
 % -----------------------------------------------
-offsets = initial_tare(flapper_obj, offset_duration, wing_type, speed, AoA_vals(j), automatic);
+offsets = initial_tare(flapper_obj, offset_duration, wing_type, speed, AoA_vals(j), automatic, amp);
 
 % ------------------------------------------------
 % ---- Loop through wingbeat frequencies ---------
@@ -153,7 +153,7 @@ if (j < length(AoA_vals) && ~automatic)
 end
 
 % Get final offset data
-offset_name = wing_type + "_" + speed + "m.s_" + AoA_vals(j) + "deg_final";
+offset_name = wing_type + "_" + amp + "_" + speed + "m.s_" + AoA_vals(j) + "deg_final";
 flapper_obj.get_force_offsets(offset_name, offset_duration);
 disp("Final offset data at this AoA has been gathered");
 beep2;

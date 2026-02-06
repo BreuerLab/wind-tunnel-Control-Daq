@@ -12,7 +12,7 @@
 % A .mat file is produced in the directory described by processed_data_path
 % containing a number of variables whose contents describe the results of
 % the experiment in more ways than simply the raw data does.
-function process_trial(file, raw_data_path, offsets_path, processed_data_path, wind_tunnel_path)
+function process_trial(file, raw_data_path, offsets_path, processed_data_path, wind_tunnel_path, type)
 
 [case_name, time_stamp, type, wing_freq, AoA, wind_speed, amp, ~] = parse_filename(file);
 
@@ -85,7 +85,7 @@ mod_results = [results_lab; voltAdj'; curAdj'];
 
 % Non-dimensionalize the data. Newtons to Force Coefficients and
 % Newton*meters to Moment Coefficients
-[norm_data, norm_factors, St, Re] = non_dimensionalize_data(wind_tunnel_path, results_lab, file);
+[norm_data, norm_factors, St, Re] = non_dimensionalize_data(wind_tunnel_path, results_lab, file, type);
 
 % Smooth the data with a butterworth filter
 % fc = 100; % cutoff frequency

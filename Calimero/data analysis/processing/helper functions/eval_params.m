@@ -18,5 +18,5 @@ function [speed, wing_type, freq_vals, AoA_vals, amp, latest_timestamp] = eval_p
     
     vars = {"speed", "wing_type", "freq_vals", "AoA_vals", "amp"};
     load(params_path + latest_file, vars{:})
-    disp("Loaded " + params_path + fileName)
+    disp("Loaded " + params_path + latest_file)
 end
