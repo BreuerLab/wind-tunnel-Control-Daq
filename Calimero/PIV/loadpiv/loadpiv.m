@@ -409,15 +409,22 @@ for file = frameRange
 
     if eav == 1
         % D.corr(:,:,fnum) = out1.corrRaw;
-        D.uncU(:,:,:,fnum) = out1.uncURaw;
-        D.uncV(:,:,:,fnum) = out1.uncVRaw;
+        tmp = out1.uncURaw;
+        tmp(tmp == 0) = NaN;
+        D.uncU(:,:,:,fnum) = tmp;
+
+        tmp = out1.uncVRaw;
+        tmp(tmp == 0) = NaN;
+        D.uncV(:,:,:,fnum) = tmp;
     end
 
     % For 3-dimensional data
     if out1.dimNum == 3
         D.w(:,:,:,fnum) = out1.wRaw;
         if eav == 1
-            D.uncW(:,:,:,fnum) = out1.uncWRaw;
+            tmp = out1.uncWRaw;
+            tmp(tmp == 0) = NaN;
+            D.uncW(:,:,:,fnum) = tmp;
         end
     end
 

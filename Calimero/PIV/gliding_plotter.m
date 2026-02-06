@@ -83,6 +83,7 @@ v = v_full(y_idx, x_idx,:,:);
 w = w_full(y_idx, x_idx,:,:);
 vortZ = vort_z_full(y_idx, x_idx,:,:);
 vortX = vort_x_full(y_idx, x_idx,:,:);
+uncTot = uncTot(y_idx, x_idx,:,:);
 % corr = corr(y_idx, x_idx,:);
 
 fin_W = round((max(x,[],"all") - min(x,[],"all")) * L * 100);
@@ -111,6 +112,7 @@ end
 u_avg = mean(u,4,"omitnan");
 v_avg = mean(v,4,"omitnan");
 w_avg = mean(w,4,"omitnan");
+uncTot_avg = mean(uncTot, 4,"omitnan");
 vort_z_avg = mean(vortZ,4,"omitnan");
 vort_x_avg = mean(vortX,4,"omitnan");
 % corr_avg = mean(corr,3,"omitnan");
@@ -165,6 +167,30 @@ title("Streamwise vorticity, z = " + round(z(1,1,i)*1000,1) + " mm",FontSize=18)
 % grayscale + red colormap
 nRed = 10; 
 cmap = [gray(256); repmat([1 0 0], nRed, 1)];
+
+end
+
+for i = 1:5
+
+figure;
+% pcolor(D.x, D.y, vort_avg);
+contourf(x(:,:,i), y(:,:,i), uncTot_avg(:,:,i), 71,'linestyle','none');
+% xlim(xlims)
+% ylim(ylims)
+% ax = gca;
+% shading(ax, 'interp');
+vort_scale = 1;
+cb = colorbar;
+clim([0 0.1])
+% cb = colorbarpzn(-vort_scale, vort_scale); % , 'level', 21
+ylabel(cb,'\boldmath$\frac{\omega c}{U_{\infty}}$','Interpreter','Latex','FontSize',18,'Rotation',0)
+xlabel("y/c",FontSize=16)
+ylabel("z/c",FontSize=16)
+title("Total Velocity Uncertainty, z = " + round(z(1,1,i)*1000,1) + " mm",FontSize=18)
+
+% grayscale + red colormap
+% nRed = 10; 
+% cmap = [gray(256); repmat([1 0 0], nRed, 1)];
 
 end
 
