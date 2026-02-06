@@ -20,7 +20,7 @@ DELIM = string(filesep);
 
 % Data stored in Dataset Name -> speed -> type + date
 
-slack_bool = true;
+slack_bool = false;
 
 % separating this for Windows vs Mac
 if strcmp(DELIM, "\")

@@ -11,8 +11,8 @@ addpath(genpath('../../'))
 % ADD SUPPORT FOR SUBTRACT CASES
 % ADD SUPPORT FOR MULTI-FILE PROCESSING
 
-slack_bool = true;
-sub_bool = false;
+slack_bool = false;
+sub_bool = true;
 user = "Z"; % "Z": Zachary or "R": Ronan
 
 if ismac
@@ -27,8 +27,8 @@ if ispc && strcmp(user,"Z") % For Zachary's PC
 elseif ismac && strcmp(user,"Z")
     slack_path = "/Volumes/LRSResearch/ENG_Breuer_Shared/group/Zachary/";
 elseif ispc && strcmp(user,"R")
-    %slack_path = "R:" + DELIM + "ENG_Breuer_Shared" + DELIM + "group" +...
-    %             DELIM + "Ronan" + DELIM;
+    slack_path = "R:" + DELIM + "ENG_Breuer_Shared" + DELIM + "group" +...
+                 DELIM + "Ronan" + DELIM;
 end
 
 h = helpdlg("Please select the folder containing 'raw data' and 'processed data'.");
@@ -52,12 +52,22 @@ end
 
 % Open a file selection dialog and get the file path
 if sub_bool
-data_path = uigetdir(search_path, "Select the folder containing 'raw data' and 'processed data") + DELIM;
-if isequal(data_path, "0\")
+
+h = helpdlg("Please select the subtraction folder containing 'raw data' and 'processed data'.");
+uiwait(h);     % ensure the user reads it before continuing    
+
+sub_data_path = uigetdir(search_path, "Select the folder containing 'raw data' and 'processed data") + DELIM;
+if isequal(sub_data_path, "0\")
     disp('User canceled folder selection.');
 else
-    disp(['Selected folder: ', data_path]);
+    disp(['Selected folder: ', sub_data_path]);
 end
+
+sub_params_path = sub_data_path + "raw data" + DELIM + "experiment parameters" + DELIM;
+
+[sub_wind_speed_sel, sub_type_sel, sub_wing_freq_sel, sub_AoA_sel, sub_wing_amp_sel] = eval_params(sub_params_path);
+
+sub_strings = sub_type_sel;
 end
 
 % data_path = uigetdir(".", "Select the folder containing 'raw data' and 'processed data'") + DELIM;
@@ -73,7 +83,7 @@ params_path = data_path + "raw data" + DELIM + "experiment parameters" + DELIM;
 AoA_sel = unique(AoA_sel);
 
 % type_sel = strjoin(split(type_sel, "_"));
-sub_strings = []; % "body"
+% sub_strings = []; % "body"
 
 % wing_freq_sel = [0, 2, 4, 6, 8];
 % wing_amp_sel = [10];
@@ -110,6 +120,11 @@ offsets_path = [];
 
 processed_data_path = [processed_data_path data_path + DELIM + "processed data" + DELIM];
 offsets_path = [offsets_path data_path + DELIM + "raw data" + DELIM + "offsets data" + DELIM];
+
+if sub_bool
+    processed_data_path = [processed_data_path sub_data_path + DELIM + "processed data" + DELIM];
+    offsets_path = [offsets_path sub_data_path + DELIM + "raw data" + DELIM + "offsets data" + DELIM];
+end
 
 if isempty(processed_data_path)
     error("Oops, no processed data path found")

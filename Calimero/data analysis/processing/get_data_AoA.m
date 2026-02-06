@@ -166,6 +166,7 @@ for i = 1 : length(processed_files)
             sub_bools = ones(length(sub_strings));
             for j = 1:length(sub_strings)
                 sub_string = sub_strings(j);
+                % handle case with addition rather than subtraction
                 case_parts = strtrim(split(sub_string));
                 if (case_parts(1) == "-")
                     sub_bools(j) = false;
@@ -233,6 +234,8 @@ function [forces_body] = getBody(wing_freq_sel, AoA_sel, wind_speed_sel, amp_sel
     sub_wing_freq = wing_freq_sel;
     sub_wind_speed = wind_speed_sel;
     index = length(case_parts) + 1;
+    % Handle case where subtraction wingbeat frequency or wind speed
+    % selected by user rather than just providing the type
     for j=1:length(case_parts)
         if (contains(case_parts(j), "Hz"))
             sub_wing_freq = str2double(erase(case_parts(j), "Hz"));
@@ -272,9 +275,9 @@ function [forces_body] = getBody(wing_freq_sel, AoA_sel, wind_speed_sel, amp_sel
 
         type = convertCharsToStrings(type);
 
-        if (type == sub_type ...
+        if (AoA == AoA_sel ...
         && wing_freq == sub_wing_freq ...
-        && AoA == AoA_sel ...
+        && type == sub_type ...
         && wind_speed == sub_wind_speed ...
         && amp == sub_amp)
 
