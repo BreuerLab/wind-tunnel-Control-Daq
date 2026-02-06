@@ -30,6 +30,12 @@ else  % For Zachary's Mac to directly open file
         disp(['Selected folder: ', data_path]);
     end
 end
+% data_path = uigetdir(".", "Select a 'plot data' folder") + DELIM;
+% if isequal(data_path, 0)
+%     disp('User canceled folder selection.');
+% else
+%     disp(['Selected folder: ', data_path]);
+% end
 
 % Sets up UI for comparing data over angles of attack
 monitor_num = 1;
