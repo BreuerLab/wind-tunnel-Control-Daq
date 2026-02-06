@@ -7,29 +7,62 @@ close all
 cd(fileparts(mfilename('fullpath')));
 addpath(genpath('../../'))
 
+% TO DO:
+% ADD SUPPORT FOR SUBTRACT CASES
+% ADD SUPPORT FOR MULTI-FILE PROCESSING
+
+slack_bool = true;
+sub_bool = false;
+
 if ismac
     DELIM = "/";
 elseif ispc
     DELIM = "\";
 end
 
-% TO DO:
-% ADD SUPPORT FOR SUBTRACT CASES
-% ADD SUPPORT FOR MULTI-FILE PROCESSING
-
-slack_bool = false;
-slack_path = "R:/ENG_Breuer_Shared/group/Ronan/";
+% Mac vs PC
+if DELIM == "\"
+    %slack_path = "R:" + DELIM + "ENG_Breuer_Shared" + DELIM + "group" + DELIM + "Ronan" + DELIM;
+    slack_path = "R:" + DELIM + "ENG_Breuer_Shared" + DELIM + "group" + DELIM + "Zachary" + DELIM;
+    % ADD PATH WHERE DATA SHOULD GET DUMPED
+else
+    slack_path = "/Volumes/LRSResearch/ENG_Breuer_Shared/group/Zachary/";
+end
 
 h = helpdlg("Please select the folder containing 'raw data' and 'processed data'.");
 uiwait(h);     % ensure the user reads it before continuing
 
 % Open a file selection dialog and get the file path
-data_path = uigetdir(".", "Select the folder containing 'raw data' and 'processed data'") + DELIM;
-if isequal(data_path, "0\")
-    error('User canceled folder selection.');
-else
-    disp(['Selected folder: ', data_path]);
+if strcmp(DELIM, "\")
+    data_path = uigetdir(".", "Select the folder containing 'raw data' and 'processed data") + DELIM;
+    if isequal(data_path, "0\")
+        disp('User canceled folder selection.');
+    else
+        disp(['Selected folder: ', data_path]);
+    end
+else  % For Zachary's Mac to directly open file
+    data_path = uigetdir("/Users/zjrosoff/Documents/GitHub/wind-tunnel-Control-Daq/Calimero/data analysis/processing", "Select the folder containing 'raw data' and 'processed data") + DELIM;
+    if isequal(data_path, "0\")
+        disp('User canceled folder selection.');
+    else
+        disp(['Selected folder: ', data_path]);
+    end
 end
+
+% Open a file selection dialog and get the file path
+data_path = uigetdir(".", "Select the folder containing 'raw data' and 'processed data") + DELIM;
+    if isequal(data_path, "0\")
+        disp('User canceled folder selection.');
+    else
+        disp(['Selected folder: ', data_path]);
+    end
+
+% data_path = uigetdir(".", "Select the folder containing 'raw data' and 'processed data'") + DELIM;
+% if isequal(data_path, "0\")
+%     error('User canceled folder selection.');
+% else
+%     disp(['Selected folder: ', data_path]);
+% end
 
 params_path = data_path + "raw data" + DELIM + "experiment parameters" + DELIM;
 
