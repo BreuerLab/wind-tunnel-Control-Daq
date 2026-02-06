@@ -32,12 +32,28 @@ h = helpdlg("Please select the folder containing 'raw data' and 'processed data'
 uiwait(h);     % ensure the user reads it before continuing
 
 % Open a file selection dialog and get the file path
-data_path = uigetdir(".", "Select the folder containing 'raw data' and 'processed data'") + DELIM;
-if isequal(data_path, "0\")
-    error('User canceled folder selection.');
-else
-    disp(['Selected folder: ', data_path]);
+if strcmp(DELIM, "\")
+    data_path = uigetdir(".", "Select the folder containing 'raw data' and 'processed data") + DELIM;
+    if isequal(data_path, "0\")
+        disp('User canceled folder selection.');
+    else
+        disp(['Selected folder: ', data_path]);
+    end
+else  % For Zachary's Mac to directly open file
+    data_path = uigetdir("/Users/zjrosoff/Documents/GitHub/wind-tunnel-Control-Daq/Calimero/data analysis/processing", "Select the folder containing 'raw data' and 'processed data") + DELIM;
+    if isequal(data_path, "0\")
+        disp('User canceled folder selection.');
+    else
+        disp(['Selected folder: ', data_path]);
+    end
 end
+
+% data_path = uigetdir(".", "Select the folder containing 'raw data' and 'processed data'") + DELIM;
+% if isequal(data_path, "0\")
+%     error('User canceled folder selection.');
+% else
+%     disp(['Selected folder: ', data_path]);
+% end
 
 params_path = data_path + "raw data" + DELIM + "experiment parameters" + DELIM;
 
