@@ -15,9 +15,9 @@ addpath(genpath("../"))
 
 % Galil Setup
 galil_IP_address = "192.168.1.3";
-DR_bool = true; % false - store data in arrays (RA), true - data record packets (DR)
+DR_bool = false; % false - store data in arrays (RA), true - data record packets (DR)
 ticksPerRev = 18432;
-freq = 4; % Hz
+freq = 8; % Hz
 acc = 3; % Hz
 measure_revs = 50;
 padding_revs = 4;
@@ -38,7 +38,7 @@ time_now.Format = 'yyyy-MM-dd HH-mm-ss';
 case_name = case_name + string(time_now);
 
 daq_bool = true;
-async = false;
+async = true;
 % DAQ Setup
 if daq_bool
 [f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4] = makeForceFigures();
@@ -50,7 +50,7 @@ calibration_filepath = "../DAQ/Calibration Files/Mini40/FT52907.cal";
 voltage = 5; % 5 or 10 volts for load cell
 
 if async
-    flapper_obj = Calimero();
+    flapper_obj = Calimero_parallel();
     flapper_obj.setup_DAQ(voltage, rate);
 else
     flapper_obj = Calimero(rate, voltage);
@@ -195,7 +195,7 @@ saveas(OC_f,'data\plots\' + case_name + "_OC.png")
 
 pulsesPerStep = 18432 / OC_pulse_step;
 % trim beginning and end
-pulse_count = results(8*rate:end-8*rate,11);
+pulse_count = results(6*rate:end-6*rate,11);
 pulse_count = pulse_count(pulse_count ~= 0 & pulse_count ~= pulse_count(end));
 whole_idx = find(mod(pulse_count, pulsesPerStep) <3);
 diff_idx = diff(whole_idx);

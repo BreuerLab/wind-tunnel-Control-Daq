@@ -28,7 +28,7 @@ function raw_force_plot(f, tiles, time, force, case_name, drift, rate, fc, title
                "    SD: " + force_SDs(k) + ...
                "    max: " + force_maxs(k) + ...
                "    min: " + force_mins(k)], FontSize=8);
-        if (zoomed_bool)
+        if (zoomed_bool && (forces_min ~= 0 || forces_max ~= 0))
         if (k < 4)
             ylim([mult_fac*forces_min mult_fac*forces_max])
         else
