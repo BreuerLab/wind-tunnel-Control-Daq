@@ -14,12 +14,14 @@ addpath(genpath("../"))
 % case_name = wing_type + "_" + speed + "m.s_" + AoA_vals(j) + "deg_" + freq_vals(i) + "Hz";
 
 % Galil Setup
+galil_bool = true;
+
 galil_IP_address = "192.168.1.3";
 DR_bool = false; % false - store data in arrays (RA), true - data record packets (DR)
 ticksPerRev = 18432;
 freq = 8; % Hz
 acc = 3; % Hz
-measure_revs = 50;
+measure_revs = 270;
 padding_revs = 4;
 hold_time = 15; % sec
 wait_time = 1000; % ms
@@ -31,20 +33,23 @@ if DR_bool
 else
     dmc_benchtop_filename = "benchtop_test_RA.dmc";
 end
+dmc_hold_filename = "hold.dmc";
 
 case_name = "benchtop_" + 0 + "m.s_" + 0 + "deg_" + freq + "Hz_";
+% case_name = "PIV_flexible_30_" + 0 + "m.s_" + 0 + "deg_" + freq + "Hz_";
 time_now = datetime;
 time_now.Format = 'yyyy-MM-dd HH-mm-ss';
 case_name = case_name + string(time_now);
 
 daq_bool = true;
-async = true;
+async = true; % run daq in asynchronous or synchronous mode
+force_bool = false; % plot force data or not
 % DAQ Setup
 if daq_bool
 [f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4] = makeForceFigures();
 
 % DAQ Parameters
-rate = 12000; % measurement rate of NI DAQ, in Hz
+rate = 15000; % measurement rate of NI DAQ, in Hz
 offset_duration = 2; % in seconds
 calibration_filepath = "../DAQ/Calibration Files/Mini40/FT52907.cal"; 
 voltage = 5; % 5 or 10 volts for load cell
@@ -53,7 +58,7 @@ if async
     flapper_obj = Calimero_parallel();
     flapper_obj.setup_DAQ(voltage, rate);
 else
-    flapper_obj = Calimero(rate, voltage);
+    flapper_obj = Calimero_serial(rate, voltage);
 end
 
 % Get calibration matrix from calibration file
@@ -83,6 +88,7 @@ end
 
 save(full_file_name, saveVars{:});
 
+if galil_bool
 try
     galil = galil_setup(galil_IP_address);
     % Ensure Galil stops motor when the run_trial function completes
@@ -97,6 +103,9 @@ catch
     % (either on its own or termination by user)
     cleanup = onCleanup(@()myCleanupFunB(galil));
 end
+
+% Set wings to midstroke
+set_hold_position(galil, dmc_hold_filename, galil_direction)
 
 % ---------------------------
 if DR_bool
@@ -115,8 +124,12 @@ dt = 10;
 galil.recordsStart(dt);
 end
 % ---------------------------
+if freq ~= 0
+    dmc = fileread(dmc_benchtop_filename);
+else
+    dmc = fileread(dmc_hold_filename);
+end
 
-dmc = fileread(dmc_benchtop_filename);
 dmc = string(dmc);
 
 % Replace the place holders in the .dmc file with the values specified
@@ -126,6 +139,8 @@ if galil_direction == 1
 else
     dmc = strrep(dmc, "dir_TEMP", "0");
 end
+
+if (freq ~= 0)
 dmc = strrep(dmc, "ticks_TEMP", num2str(ticksPerRev));
 dmc = strrep(dmc, "revs_TEMP", num2str(num_revs));
 dmc = strrep(dmc, "speed_TEMP", num2str(freq));
@@ -135,9 +150,12 @@ dmc = strrep(dmc, "OC_TEMP", num2str(OC_pulse_step));
 if ~DR_bool
     dmc = strrep(dmc, "revsRec_TEMP", num2str(round(at_speed_pos) + padding_revs));
 end
+end
 
 % Load the program described by the .dmc file to the Galil device.
 galil.programDownload(dmc);
+
+end
 
 if daq_bool
 % Get the offsets before experiment
@@ -157,8 +175,10 @@ end
 
 pause(1);
 
+if galil_bool
 % Command the galil to execute the program
 galil.command("XQ");
+end
 
 if daq_bool
 % Collect experiment data during flapping
@@ -174,9 +194,10 @@ checkLimits(results);
 
 ticksPerRev = 18432;
 % Translate data from raw values into meaningful values
-[time, force, voltAdj, curAdj, enc_pulse, speed] = process_data(results, offsets_before, cal_matrix, ticksPerRev, OC_pulse_step);
+[time, force, voltAdj, curAdj, speed] = ...
+    process_data(results, offsets_before, cal_matrix, ticksPerRev, OC_pulse_step, async);
 
-fc = 100;
+fc = 20;
 fs = rate;
 [b,a] = butter(6,fc/(fs/2));
 filtered_speed = filtfilt(b,a,speed);
@@ -193,19 +214,26 @@ saveas(OC_f,'data\plots\' + case_name + "_OC.png")
 % 2304, 3072, 4608, 6144, 9216, 18432
 
 
-pulsesPerStep = 18432 / OC_pulse_step;
-% trim beginning and end
-pulse_count = results(6*rate:end-6*rate,11);
-pulse_count = pulse_count(pulse_count ~= 0 & pulse_count ~= pulse_count(end));
-whole_idx = find(mod(pulse_count, pulsesPerStep) <3);
-diff_idx = diff(whole_idx);
-diff_idx = diff_idx(diff_idx ~= 1);
-eff_freq = rate ./ diff_idx;
-% wingbeat frequency error over a single wingbeat
-err = abs(eff_freq - freq);
-laser_freq = 192;
-cycle_frames = 96;
-err_frames = err*(1/freq)*laser_freq;
+% pulsesPerStep = 18432 / OC_pulse_step;
+% % trim beginning and end
+% pulse_count = results(8*rate:end-8*rate,11);
+% pulse_count = pulse_count(pulse_count ~= 0 & pulse_count ~= pulse_count(end));
+% whole_idx = find(mod(pulse_count, pulsesPerStep) <3);
+% diff_idx = diff(whole_idx);
+% diff_idx = diff_idx(diff_idx ~= 1);
+% eff_freq = rate ./ diff_idx;
+% % wingbeat frequency error over a single wingbeat
+% err = abs(eff_freq - freq);
+% laser_freq = 192;
+% cycle_frames = 96;
+% err_frames = err*(1/freq)*laser_freq;
+
+las_count = results(:,12);
+las_count = las_count(las_count ~= 0 & las_count ~= las_count(end));
+las_count_diff = diff(las_count);
+whole_idx = find(las_count_diff ~= 0);
+las_rep_rate = rate ./ diff(whole_idx);
+disp("Length of las_rep_rate: " + length(las_rep_rate) + ", with mean: " + mean(las_rep_rate)) 
 
 % What's most important for phase averaging PIV is that a full cycle
 % has some repeatable time
@@ -216,6 +244,7 @@ else
     pause(session_duration + 9)
 end
 
+if galil_bool && freq ~= 0
 % -----------------
 if DR_bool
 % Stop recording
@@ -239,6 +268,7 @@ save(full_file_name, saveVars{:});
 plot_current_comp(time, curAdj, TimeArr, Current, freq, padding_revs, time_to_speed, case_name)
 end
 % ------------------
+end
 
 if daq_bool
 disp("Collecting final offset")
@@ -274,8 +304,8 @@ end
 
 fc = 100;  % cutoff frequency in Hz for filter
 % Display preliminary data
-raw_plot(time, force, voltAdj, curAdj, enc_pulse, speed, case_name, drift, flapper_obj.DAQ.Rate, fc,...
-    f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4, async);
+raw_plot(time, force, voltAdj, curAdj, speed, case_name, drift, flapper_obj.DAQ.Rate, fc,...
+    f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4, force_bool);
 end
 
 clear cleanup
