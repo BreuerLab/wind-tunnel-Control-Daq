@@ -20,17 +20,19 @@ DELIM = string(filesep);
 
 % Data stored in Dataset Name -> speed -> type + date
 
-slack_bool = false;
+slack_bool = true;
+user = "Z"; % "Z": Zachary or "R": Ronan
 
 % separating this for Windows vs Mac
-if strcmp(DELIM, "\")
-    %slack_path = "R:" + DELIM + "ENG_Breuer_Shared" + DELIM + "group" + DELIM + "Ronan" + DELIM;
-    slack_path = "R:" + DELIM + "ENG_Breuer_Shared" + DELIM + "group" + DELIM + "Zachary" + DELIM;
-    % ADD PATH WHERE DATA SHOULD GET DUMPED
-else
+if ispc && strcmp(user,"Z") % For Zachary's PC
+    slack_path = "R:" + DELIM + "ENG_Breuer_Shared" + DELIM + "group" +...
+                 DELIM + "Zachary" + DELIM;
+elseif ismac && strcmp(user,"Z")
     slack_path = "/Volumes/LRSResearch/ENG_Breuer_Shared/group/Zachary/";
+elseif ispc && strcmp(user,"R")
+    slack_path = "R:" + DELIM + "ENG_Breuer_Shared" + DELIM + "group" +...
+                 DELIM + "Ronan" + DELIM;
 end
-
 
 % data_path = "F:\Calimero Data\Calimero 09_23_2025_ascending\Calimero\";
 

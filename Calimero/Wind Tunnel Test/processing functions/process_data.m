@@ -1,4 +1,4 @@
-function [time, force, voltAdj, curAdj, speed] = ...
+function [time, force, voltAdj, curAdj, speed, OC_pulse_count] = ...
     process_data(results, offsets, cal_matrix, ticksPerRev, OC_pulse_step, async)
     time = results(:,1);
     force = volt_to_force(results(:,2:7), offsets, cal_matrix);
@@ -8,6 +8,7 @@ function [time, force, voltAdj, curAdj, speed] = ...
     dt = time(2) - time(1);
     order = 3;
     framelen = 21;
+    OC_pulse_count = results(:,11);
 
     if async
     speed = savitskyGolayDiff(results(:,11), order, framelen, dt);

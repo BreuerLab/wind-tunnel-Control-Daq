@@ -25,7 +25,7 @@ if ispc && strcmp(user,"Z") % For Zachary's PC
     slack_path = "R:" + DELIM + "ENG_Breuer_Shared" + DELIM + "group" +...
                  DELIM + "Zachary" + DELIM;
 elseif ismac && strcmp(user,"Z")
-    slack_path = "/Volumes/LRSResearch/ENG_Breuer_Shared/group/Zachary/";
+    slack_path = "/Volumes/LRSResearch/ENG_Breuer_Shared/group/Zachary";
 elseif ispc && strcmp(user,"R")
     slack_path = "R:" + DELIM + "ENG_Breuer_Shared" + DELIM + "group" +...
                  DELIM + "Ronan" + DELIM;
@@ -39,7 +39,6 @@ if ismac && strcmp(user,"Z") % For Zachary's Mac to directly open file
     search_path = "/Users/zjrosoff/Documents/GitHub/wind-tunnel-Control-Daq/Calimero/data analysis/processing";
 else
     search_path = ".";
-
 end
 
 data_path = uigetdir(search_path,...
@@ -198,7 +197,7 @@ for i = 1:2
             name = name + "_saved_" + string(time_now);
 
             if(~isempty(sub_strings))
-                name = name + "Sub_" + sub_strings;
+                name = name + "_Sub_" + sub_strings;
             end
 
             save(plot_data_path + name + ".mat","avg_forces", "avg_up_forces", "avg_down_forces",...
