@@ -1,14 +1,14 @@
 function [avg_forces, avg_up_forces, avg_down_forces, err_forces, err_up_forces,...
           err_down_forces, names, sub_title, norm_factors_arr, drift_vals, offsets_before_vals, offsets_after_vals] = ...
     get_data_AoA(selected_vars, processed_files, offsets_files, ...,
-    nondimensional, sub_strings, shift_bool, sub_drift, config_idx, num_config)
+    nondimensional, sub_strings, shift_bool, sub_drift, config_idx, num_config, sub_bool, type_sel)
 
 numAxes = 8;
 
-if (isempty(sub_strings))
-    body_subtraction = false;
-else
+if sub_bool
     body_subtraction = true;
+else
+    body_subtraction = false;
 end
 
 AoA_sel = selected_vars.AoA;
@@ -173,7 +173,7 @@ for i = 1 : length(processed_files)
                     sub_string = strjoin(case_parts(2:end));
                 end
                 forces_body = getBody(wing_freq, AoA, wind_speed, amp, nondimensional, ...
-                              processed_files, sub_string, sub_bools(j), shift_bool);
+                              processed_files, sub_string, sub_bools(j), shift_bool, type_sel);
                 forces_body_list(j,:) = mean(forces_body,2);
                 
                 if (sub_bools(j) == true)
@@ -225,7 +225,7 @@ end
 end
 
 function [forces_body] = getBody(wing_freq_sel, AoA_sel, wind_speed_sel, amp_sel,...
-    nondimensional, processed_files, sub_string, sub_bool, shift_bool)
+    nondimensional, processed_files, sub_string, sub_bool, shift_bool, type_sel)
 
     % Parse relevant information from subtraction string
     case_parts = strtrim(split(sub_string));
@@ -273,18 +273,19 @@ function [forces_body] = getBody(wing_freq_sel, AoA_sel, wind_speed_sel, amp_sel
         baseFolder = processed_files(j).folder;
         [case_name, time_stamp, type, wing_freq, AoA, wind_speed, amp, file_type] = parse_filename(baseFileName);
 
-        type = convertCharsToStrings(type);
+        % type = convertCharsToStrings(type);
+        type = string(sub_string);
 
         if (AoA == AoA_sel ...
         && wing_freq == sub_wing_freq ...
-        && type == sub_type ...
+        && type == sub_string ... % && type == sub_type ... if defining from name (not params)
         && wind_speed == sub_wind_speed ...
         && amp == sub_amp)
 
         load([baseFolder '/' baseFileName]);
 
         if (shift_bool)
-        [center_to_LE, ~, ~, ~, ~] = getWingMeasurements("Flapperoo");
+        [center_to_LE, ~, ~, ~, ~] = getWingMeasurements(type_sel);
         [mod_filtered_data] = shiftPitchMomentToLE(filtered_data, center_to_LE, AoA);
         filtered_data = mod_filtered_data;
         end

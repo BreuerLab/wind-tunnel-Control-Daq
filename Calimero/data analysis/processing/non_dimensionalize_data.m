@@ -26,11 +26,11 @@ function [norm_data, norm_factors, St, Re] = non_dimensionalize_data(path, resul
         wing_span = 0.177; % meters, length of single wing
         wing_chord = 0.073; % meters
         wing_length = 0.201; % meters, distance from wingtip to axis of rotation
-    case {"chord half", "bodychordhalf"}
+    case {"chord_half", "bodychordhalf"}
         wing_span = 0.177;
         wing_chord = 0.0365;
         wing_length = 0.201;
-    case {"span half", "bodyspanhalf"}
+    case {"span_half", "bodyspanhalf"}
         wing_span = 0.0885;
         wing_chord = 0.073;
         wing_length = 0.1125;
