@@ -36,7 +36,7 @@ function [center_to_LE, chord, COM_span, wing_length, arm_length] = getWingMeasu
         % spanwise location of COM
         COM_span = 0.08; % from root of wing
         COM_span = COM_span + arm_length;
-    elseif (flapper == "default")
+    elseif (flapper == "default") || strcmp(flapper, "default sub")
         % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         % ALL THESE VALUES NEED TO BE UPDATED
         % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -50,7 +50,7 @@ function [center_to_LE, chord, COM_span, wing_length, arm_length] = getWingMeasu
         % spanwise location of COM
         COM_span = 0.08; % from root of wing
         COM_span = COM_span + arm_length;
-    elseif (flapper == "span_half")
+    elseif  strcmp(flapper, "span_half") || strcmp(flapper, "span half sub") || strcmp(flapper, "span half")
         % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         % ALL THESE VALUES NEED TO BE UPDATED
         % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -64,7 +64,7 @@ function [center_to_LE, chord, COM_span, wing_length, arm_length] = getWingMeasu
         % spanwise location of COM
         COM_span = 0.08; % from root of wing
         COM_span = COM_span + arm_length;
-    elseif (flapper == "chord_half")
+    elseif (flapper == "chord_half") || strcmp(flapper, "chord half sub") || strcmp(flapper, "chord half")
         % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         % ALL THESE VALUES NEED TO BE UPDATED
         % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
