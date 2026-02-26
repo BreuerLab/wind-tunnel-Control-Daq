@@ -8,25 +8,31 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB'))
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-PIV_case_name = '0Hz_16AoA_stubby';
+PIV_case_name = '0Hz_20deg';
 L = 0.07; % characteristic length, guess of mean aerodynamic chord
 U = 4; % characteristic windspeed, freestream
 nondim_bool = true;
 save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
+data_path = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\STB Final\";
 
 readimx_bool = true;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-keys = {'0Hz_0AoA','0Hz_10AoA', '2Hz_10AoA', '0Hz_10AoA_v2',...
-        '0Hz_10AoA_rigid', 'body_10AoA', '0Hz_16AoA_stubby'};
-values = ["R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_16_2025\0Hz_0AoA\StereoPIV_MPd(4x16x16_50%ov)_GPU",...
-        "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_16_2025\0Hz_10AoA\StereoPIV_MPd(4x16x16_50%ov)_GPU",...
-        "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_16_2025\2Hz_10AoA_01\StereoPIV_MPd(4x16x16_50%ov)_GPU",...
-        "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_18_2025\flexible_0Hz_10AoA\StereoPIV_MPd(4x16x16_50%ov)_GPU",...
-        "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_18_2025\rigid_0Hz_10AoA\StereoPIV_MPd(4x16x16_50%ov)_GPU",...
-        "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_16_2025\body_10AoA\StereoPIV_MPd(4x16x16_50%ov)",...
-        "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\STB_01_31_2026\Test_2\ImgPreproc\ShakeTheBox 2-pulse\Binning_32x32x32_50%ov_ord=0"];
+% keys = {'0Hz_0AoA','0Hz_10AoA', '2Hz_10AoA', '0Hz_10AoA_v2',...
+%         '0Hz_10AoA_rigid', 'body_10AoA', '0Hz_16AoA_stubby'};
+% values = ["R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_16_2025\0Hz_0AoA\StereoPIV_MPd(4x16x16_50%ov)_GPU",...
+%         "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_16_2025\0Hz_10AoA\StereoPIV_MPd(4x16x16_50%ov)_GPU",...
+%         "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_16_2025\2Hz_10AoA_01\StereoPIV_MPd(4x16x16_50%ov)_GPU",...
+%         "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_18_2025\flexible_0Hz_10AoA\StereoPIV_MPd(4x16x16_50%ov)_GPU",...
+%         "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_18_2025\rigid_0Hz_10AoA\StereoPIV_MPd(4x16x16_50%ov)_GPU",...
+%         "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_16_2025\body_10AoA\StereoPIV_MPd(4x16x16_50%ov)",...
+%         "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\STB_01_31_2026\Test_2\ImgPreproc\ShakeTheBox 2-pulse\Binning_32x32x32_50%ov_ord=0"];
+keys = {'0Hz_20deg'};
+% LRS
+% values = [data_path + "STB_02_08_2026\flex_20deg_0Hz\ImgPreproc\ShakeTheBox 2-pulse\Binning_48x48x48_75%ov_ord=0"];
+% Local
+values = ["D:\flex_20deg_0Hz"];
 dict = containers.Map(keys, values);
 
 if readimx_bool
@@ -129,19 +135,6 @@ disp("Saving net w vel to " + save_filepath + "processed data\")
 save(save_filepath + "processed data\" + PIV_case_name + ".mat", "net_w")
 
 %% Plot
-f1 = figure;
-% pcolor(D.x, D.y, w_avg);
-contourf(x(:,:,1), y(:,:,1), w_avg(:,:,1), 71,'linestyle','none');
-% xlim(xlims)
-% ylim(ylims)
-% ax = gca;
-% shading(ax, 'interp');
-cb = colorbarpzn(0.9, 1.1, 'full', 1, 'dft', 'pwg');
-xlabel("y/c",FontSize=16)
-ylabel("z/c",FontSize=16)
-ylabel(cb,'\boldmath$\frac{\bar{w}}{U_{\infty}}$','Interpreter','Latex','FontSize',18,'Rotation',0)
-title('Streamwise velocity, <w>',FontSize=18)
-
 params.zero = 0;
 params.clims = [-0.1 0.1];
 params.y_lab = '\boldmath$\frac{v}{U_{\infty}}$';
@@ -150,7 +143,24 @@ PIV_plot(x(:,:,1), y(:,:,1), v_avg(:,:,1), params)
 
 for i = 1:5
 
-f2 = figure;
+figure;
+% pcolor(D.x, D.y, w_avg);
+contourf(x(:,:,i), y(:,:,i), w_avg(:,:,i), 71,'linestyle','none');
+% xlim(xlims)
+% ylim(ylims)
+% ax = gca;
+% shading(ax, 'interp');
+cb = colorbarpzn(0.9, 1.1, 'full', 1, 'dft', 'pwg');
+xlabel("y/c",FontSize=16)
+ylabel("z/c",FontSize=16)
+ylabel(cb,'\boldmath$\frac{\bar{w}}{U_{\infty}}$','Interpreter','Latex','FontSize',18,'Rotation',0)
+title("Streamwise velocity, <w>, z = " + round(z(1,1,i)*1000,1) + " mm",FontSize=18)
+
+end
+
+for i = 1:5
+
+figure;
 % pcolor(D.x, D.y, vort_avg);
 contourf(x(:,:,i), y(:,:,i), vort_z_avg(:,:,i), 71,'linestyle','none');
 % xlim(xlims)
@@ -181,9 +191,9 @@ contourf(x(:,:,i), y(:,:,i), uncTot_avg(:,:,i), 71,'linestyle','none');
 % shading(ax, 'interp');
 vort_scale = 1;
 cb = colorbar;
-clim([0 0.1])
+clim([0 0.05])
 % cb = colorbarpzn(-vort_scale, vort_scale); % , 'level', 21
-ylabel(cb,'\boldmath$\frac{\omega c}{U_{\infty}}$','Interpreter','Latex','FontSize',18,'Rotation',0)
+ylabel(cb,'\boldmath$\frac{V}{U_{\infty}}$','Interpreter','Latex','FontSize',18,'Rotation',0)
 xlabel("y/c",FontSize=16)
 ylabel("z/c",FontSize=16)
 title("Total Velocity Uncertainty, z = " + round(z(1,1,i)*1000,1) + " mm",FontSize=18)

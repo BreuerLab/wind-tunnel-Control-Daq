@@ -12,7 +12,7 @@ addpath(genpath('../../'))
 % ADD SUPPORT FOR MULTI-FILE PROCESSING
 
 slack_bool = false;
-sub_bool = true;
+sub_bool = false;
 user = "Z"; % "Z": Zachary or "R": Ronan
 
 if ismac
@@ -68,6 +68,8 @@ sub_params_path = sub_data_path + "raw data" + DELIM + "experiment parameters" +
 [sub_wind_speed_sel, sub_type_sel, sub_wing_freq_sel, sub_AoA_sel, sub_wing_amp_sel] = eval_params(sub_params_path);
 
 sub_strings = sub_type_sel;
+else
+    sub_strings = [];
 end
 
 % data_path = uigetdir(".", "Select the folder containing 'raw data' and 'processed data'") + DELIM;

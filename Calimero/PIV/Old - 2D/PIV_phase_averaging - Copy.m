@@ -14,14 +14,13 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB'))
 %         '2Hz_A10_10AoA','4Hz_A10_10AoA','6Hz_A10_10AoA', '8Hz_A10_10AoA',...
 %         'r_2Hz_A10_10AoA', 'r_4Hz_A10_10AoA', 'r_6Hz_A10_10AoA', 'r_8Hz_A10_10AoA'};
 
-PIV_case_name = 'flexible_20deg_6Hz';
+PIV_case_name = 'UP_one_flexible_20deg_6Hz';
 L = 0.07; % characteristic length, guess of mean aerodynamic chord
 U = 4; % characteristic windspeed, freestream
 save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
 num_images = 2500;
 
-readimx_bool = true; % Read data from readimx or from saved .mat
-nondim_bool = true;
+readimx_bool = false; % Read data from readimx or from saved .mat
 phase_avg_plot_bool = false;
 circ_plot_bool = false;
 movie_plot_bool = false;
@@ -71,16 +70,11 @@ if readimx_bool
 % fprintf("Data trimmed from: (%d, %d) to (%d, %d)\n", ...
 %              init_size(1), init_size(2), fin_size(1), fin_size(2));
 
-[x, y, z, u, v, w, vortX, vortY, vortZ, uncTot] = import_STB_data(PIV_case_name, nondim_bool, U, L);
+[x, y, z, u, v, w, vortZ, vortX, uncTot] = import_STB_data(PIV_case_name, dict);
 
-% vars = {'x','y','z','u','v','w','vortX','vortY','vortZ','uncTot'};
-vars = {'x','y','z','vortX','vortY','vortZ'};
-disp("Saving data to " + save_filepath + "trimmed data\")
-save(save_filepath + "trimmed data\" + PIV_case_name + ".mat", vars{:})
-
-% check variable size in GB
-info = whos('vortZ');
-sizeGB = info.bytes / 1024^3;
+% vars = {'x', 'y', 'u', 'v', 'w', 'vort'};
+% disp("Saving data to " + save_filepath + "trimmed data\")
+% save(save_filepath + "trimmed data\" + PIV_case_name + ".mat", vars{:})
 
 else
     tic
@@ -92,27 +86,27 @@ end
 
 %% Time-averaged velocity fields
 % Calculate mean values across time
-mean_u = mean(u,4);
-mean_v = mean(v,4);
-mean_w = mean(w,4);
+mean_u = mean(u,3);
+mean_v = mean(v,3);
+mean_w = mean(w,3);
 
 params.zero = 0;
 params.clims = [-0.1 0.1];
 params.y_lab = '\boldmath$\frac{u}{U_{\infty}}$';
 params.title = "Spanwise velocity";
-PIV_plot(x(:,:,3), y(:,:,3), mean_u(:,:,3), params)
+PIV_plot(x, y, mean_u, params)
 
 params.zero = 0;
 params.clims = [-0.1 0.1];
 params.y_lab = '\boldmath$\frac{v}{U_{\infty}}$';
 params.title = "Vertical velocity";
-PIV_plot(x(:,:,3), y(:,:,3), mean_v(:,:,3), params)
+PIV_plot(x, y, mean_v, params)
 
 params.zero = 1;
 params.clims = [0.9 1.1];
 params.y_lab = '\boldmath$\frac{w}{U_{\infty}}$';
 params.title = "Streamwise velocity";
-PIV_plot(x(:,:,3), y(:,:,3), mean_w(:,:,3), params)
+PIV_plot(x, y, mean_w, params)
 
 %% loading force data
 [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name);
@@ -160,20 +154,6 @@ las_rep_rate = diff(whole_idx);
 laser_ind = whole_idx + mid_indices_adj(1);
 wing_pos_frame = wing_pos(laser_ind);
 norm_wing_pos_frame = mod(wing_pos_frame,1);
-norm_wing_pos_frame_tr = norm_wing_pos_frame(end-(num_images - 1):end);
-norm_wing_pos_frame_int = round(norm_wing_pos_frame * (ticksPerRev / OC_pulse_step),3);
-full_cycle = 0.5:1:(ticksPerRev / OC_pulse_step)+0.5;
-% edges = (min(norm_wing_pos_frame_int)-0.5):(max(norm_wing_pos_frame_int)+0.5);
-
-figure
-histogram(norm_wing_pos_frame_int, full_cycle)
-xlabel("Encoder Ticks")
-ylabel("Frequency")
-
-figure
-histogram(norm_wing_pos_frame_int, 70)
-xlabel("Encoder Ticks")
-ylabel("Frequency")
 
 % 50 for 2 Hz, 45 for 4 Hz, 45 for 6 Hz, 23 for 8 Hz
 % num_bins = 50;
@@ -181,8 +161,6 @@ keys = {2, 4, 6, 8};
 num_bins_opts = [50, 45, 45, 23];
 bins_dict = containers.Map(keys, num_bins_opts);
 num_bins = bins_dict(wing_freq);
-
-num_bins = 70;
 
 disp("Using " + num_bins + " bins")
 % num_bins = 25; % for 4 Hz
@@ -192,23 +170,18 @@ num_cycles = length(find(diff(bin_ind_arr) < 0)); % back to beginning of a cycle
 disp("Number of cycles: " + num_cycles)
 disp("Expected number of cycles: " + num_images / (200 / wing_freq))
 
-disp("Cropped off " + (length(bin_ind_arr) - num_images) + " extra laser pulses from beginning")
-% crop off last few extra pulses
-% bin_ind_arr = bin_ind_arr(1:num_images);
-% crop off first few extra pulses
-bin_ind_arr = bin_ind_arr(end-(num_images - 1):end);
+disp("Extra laser pulses: " + (length(bin_ind_arr) - num_images))
+bin_ind_arr = bin_ind_arr(1:num_images);
 
-vortX_phase_avg = zeros(size(x,1), size(x,2), size(x,3), num_bins);
-vortY_phase_avg = zeros(size(vortX_phase_avg));
-vortZ_phase_avg = zeros(size(vortX_phase_avg));
-u_phase_avg = zeros(size(vortX_phase_avg));
-v_phase_avg = zeros(size(vortX_phase_avg));
-w_phase_avg = zeros(size(vortX_phase_avg));
+vort_phase_avg = zeros(size(x,1), size(x,2), num_bins);
+u_phase_avg = zeros(size(vort_phase_avg));
+v_phase_avg = zeros(size(vort_phase_avg));
+w_phase_avg = zeros(size(vort_phase_avg));
 
-vort_phase_std = zeros(size(vortX_phase_avg));
-u_phase_std = zeros(size(vortX_phase_avg));
-v_phase_std = zeros(size(vortX_phase_avg));
-w_phase_std = zeros(size(vortX_phase_avg));
+vort_phase_std = zeros(size(x,1), size(x,2), num_bins);
+u_phase_std = zeros(size(vort_phase_avg));
+v_phase_std = zeros(size(vort_phase_avg));
+w_phase_std = zeros(size(vort_phase_avg));
 
 bin_count = zeros(1,num_bins);
 bin_std = zeros(1,num_bins);
@@ -219,29 +192,24 @@ for i = 1:num_bins
     bin_count(i) = length(bin_indices);
     bin_std(i) = std(norm_wing_pos_frame(bin_indices));
 
-    vortX_phase_avg(:,:,:,i) = mean(vortX(:,:,:,bin_indices),4);
-    vortY_phase_avg(:,:,:,i) = mean(vortY(:,:,:,bin_indices),4);
-    vortZ_phase_avg(:,:,:,i) = mean(vortZ(:,:,:,bin_indices),4);
-    u_phase_avg(:,:,:,i) = mean(u(:,:,:,bin_indices),4);
-    v_phase_avg(:,:,:,i) = mean(v(:,:,:,bin_indices),4);
-    w_phase_avg(:,:,:,i) = mean(w(:,:,:,bin_indices),4);
+    vort_phase_avg(:,:,i) = mean(vort(:,:,bin_indices),3);
+    u_phase_avg(:,:,i) = mean(u(:,:,bin_indices),3);
+    v_phase_avg(:,:,i) = mean(v(:,:,bin_indices),3);
+    w_phase_avg(:,:,i) = mean(w(:,:,bin_indices),3);
 
-    % vort_phase_std(:,:,:,i) = std(vort(:,:,bin_indices), 0, 4);
-    % u_phase_std(:,:,:,i) = std(u(:,:,bin_indices), 0, 4);
-    % v_phase_std(:,:,:,i) = std(v(:,:,bin_indices), 0, 4);
-    % w_phase_std(:,:,:,i) = std(w(:,:,bin_indices), 0, 4);
+    vort_phase_std(:,:,i) = std(vort(:,:,bin_indices), 0, 3);
+    u_phase_std(:,:,i) = std(u(:,:,bin_indices), 0, 3);
+    v_phase_std(:,:,i) = std(v(:,:,bin_indices), 0, 3);
+    w_phase_std(:,:,i) = std(w(:,:,bin_indices), 0, 3);
 end
-
-[B, I] = sort(norm_wing_pos_frame_tr);
-vortZ_sorted = vortZ(:,:,:,I);
 
 net_w = zeros(1,num_bins);
 for i = 1:num_bins
-    net_w(i) = mean(w_phase_avg(:,:,:,i),"all");
+    net_w(i) = mean(w_phase_avg(:,:,i),"all");
 end
 
-% disp("Saving net w vel to " + save_filepath + "processed data\")
-% save(save_filepath + "processed data\" + PIV_case_name + ".mat", "net_w")
+disp("Saving net w vel to " + save_filepath + "processed data\")
+save(save_filepath + "processed data\" + PIV_case_name + ".mat", "net_w")
 
 figure
 plot(net_w)
@@ -270,9 +238,9 @@ exportgraphics(gcf, folder + "\phase_avg_bin_variability.png", 'Resolution', 300
 
 %% Vorticity
 
-% dx = abs(x(1,2) - x(1,1));
-% dy = abs(y(2,1) - y(1,1));
-% Q_phase_avg = calQlate(u_phase_avg, v_phase_avg, dx, dy);
+dx = abs(x(1,2) - x(1,1));
+dy = abs(y(2,1) - y(1,1));
+Q_phase_avg = calQlate(u_phase_avg, v_phase_avg, dx, dy);
 
 params.PIV_case_name = PIV_case_name;
 params.save_filepath = save_filepath;
@@ -283,33 +251,11 @@ params.xlims = [-2.14 2.14]; % roughly -0.15 to 0.15 meters
 params.ylims = [-2.86 2.86]; % roughly -0.2 to 0.2 meters
 
 if phase_avg_plot_bool
-z_ind = 1;
-params.zero = 0;
-params.title = "Spanwise vorticity - phase averaged";
-params.folder = "vortX_avg";
-params.clims = [-1 1];
-make_movie(x(:,:,z_ind), y(:,:,z_ind), vortX_phase_avg(:,:,z_ind,:), params)
-
-z_ind = 3;
-params.zero = 0;
-params.title = "Spanwise vorticity - phase averaged";
-params.folder = "vortY_avg";
-params.clims = [-1 1];
-make_movie(x(:,:,z_ind), y(:,:,z_ind), vortY_phase_avg(:,:,z_ind,:), params)
-
-z_ind = 3;
 params.zero = 0;
 params.title = "Streamwise vorticity - phase averaged";
-params.folder = "vortZ_avg";
+params.folder = "vort_avg";
 params.clims = [-1 1];
-make_movie(x(:,:,z_ind), y(:,:,z_ind), vortZ_phase_avg(:,:,z_ind,:), params)
-
-params.zero = 0;
-params.title = "Streamwise vorticity - sorted";
-params.folder = "vortZ_sorted";
-params.clims = [-1 1];
-params.num_bins = num_images;
-make_movie(x(:,:,3), y(:,:,3), vortZ_sorted(:,:,3,:), params)
+make_movie(x, y, vort_phase_avg, params)
 
 params.title = "Streamwise vorticity - Standard Deviation";
 params.folder = "vort_std";

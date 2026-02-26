@@ -79,7 +79,7 @@ disp("Saving data to " + save_filepath + "trimmed data\")
 save(save_filepath + "trimmed data\" + PIV_case_name + ".mat", vars{:})
 
 % check variable size in GB
-info = whos('vortZ');
+info = whos('A');
 sizeGB = info.bytes / 1024^3;
 
 else
@@ -283,26 +283,23 @@ params.xlims = [-2.14 2.14]; % roughly -0.15 to 0.15 meters
 params.ylims = [-2.86 2.86]; % roughly -0.2 to 0.2 meters
 
 if phase_avg_plot_bool
-z_ind = 1;
 params.zero = 0;
 params.title = "Spanwise vorticity - phase averaged";
 params.folder = "vortX_avg";
 params.clims = [-1 1];
-make_movie(x(:,:,z_ind), y(:,:,z_ind), vortX_phase_avg(:,:,z_ind,:), params)
+make_movie(x(:,:,3), y(:,:,3), vortX_phase_avg(:,:,3,:), params)
 
-z_ind = 3;
 params.zero = 0;
 params.title = "Spanwise vorticity - phase averaged";
 params.folder = "vortY_avg";
 params.clims = [-1 1];
-make_movie(x(:,:,z_ind), y(:,:,z_ind), vortY_phase_avg(:,:,z_ind,:), params)
+make_movie(x(:,:,3), y(:,:,3), vortY_phase_avg(:,:,3,:), params)
 
-z_ind = 3;
 params.zero = 0;
 params.title = "Streamwise vorticity - phase averaged";
 params.folder = "vortZ_avg";
 params.clims = [-1 1];
-make_movie(x(:,:,z_ind), y(:,:,z_ind), vortZ_phase_avg(:,:,z_ind,:), params)
+make_movie(x(:,:,3), y(:,:,3), vortZ_phase_avg(:,:,3,:), params)
 
 params.zero = 0;
 params.title = "Streamwise vorticity - sorted";

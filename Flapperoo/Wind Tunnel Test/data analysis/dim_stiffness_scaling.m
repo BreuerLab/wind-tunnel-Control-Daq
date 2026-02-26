@@ -21,6 +21,10 @@ scaleFactorsMean = [];
 genFactorsMin = [];
 genFactorsMax = [];
 genFactorsMean = [];
+St_min = [];
+St_max = [];
+St_mean = [];
+coeff = [];
 
 % Ducci 2021
 % Parameters for Ibis
@@ -35,12 +39,27 @@ speed = [13 18]; % m/s, from equilibrium flight condition
 
 [sm, sM, se] = getScaleFactors(R, amp);
 [gm, gM, ge] = getGenFactors(R, amp, freq, speed);
+[Stm, StM, Ste] = getSt(R, amp, freq, speed);
+[fl_min, fl_max, fl_mean] = getFlappingContrib(Stm, StM, Ste);
 
-[names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin, genFactorsMax, genFactorsMean] = ...
+[names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin,...
+          genFactorsMax, genFactorsMean, St_min, St_max, St_mean] = ...
     addToLists(names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin, genFactorsMax, genFactorsMean,...
-               n, sm, sM, se, gm, gM, ge);
+               St_min, St_max, St_mean, n, sm, sM, se, gm, gM, ge, Stm, StM, Ste);
 
-clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean genFactorsMin genFactorsMax genFactorsMean
+% amp = linspace(0,pi/2,10);
+% St = linspace(St_min,St_max,20);
+l = R;
+expr = besselj(0,amp) / (((2*(pi^2))/3) * ((l^2 - 3*l*R + 3*R^2)/(R^2))...
+                        * (besselj(1,amp)/amp));
+coeff = [coeff mean(expr,"all")];
+% y = St.^2 ./ (St.^2 + expr);
+% 
+% figure
+% plot(St, y)
+
+clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean...
+    genFactorsMin genFactorsMax genFactorsMean St_min St_max St_mean coeff
 % -------------------------------------------------------------------
 
 % https://journals.biologists.com/jeb/article/204/15/2741/32794/Flight-kinematics-of-the-barn-swallow-Hirundo
@@ -55,12 +74,21 @@ speed = [4, 14];
 
 [sm, sM, se] = getScaleFactors(R, amp);
 [gm, gM, ge] = getGenFactors(R, amp, freq, speed);
+[Stm, StM, Ste] = getSt(R, amp, freq, speed);
 
-[names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin, genFactorsMax, genFactorsMean] = ...
+[names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin,...
+          genFactorsMax, genFactorsMean, St_min, St_max, St_mean] = ...
     addToLists(names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin, genFactorsMax, genFactorsMean,...
-               n, sm, sM, se, gm, gM, ge);
+               St_min, St_max, St_mean, n, sm, sM, se, gm, gM, ge, Stm, StM, Ste);
 
-clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean genFactorsMin genFactorsMax genFactorsMean
+R = R(:);
+l = R;
+expr = besselj(0,amp) ./ (((2*(pi^2))/3) .* ((l.^2 - 3*l.*R + 3*R.^2)./(R.^2))...
+                        .* (besselj(1,amp)./amp));
+coeff = [coeff mean(expr,"all")];
+
+clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean...
+    genFactorsMin genFactorsMax genFactorsMean St_min St_max St_mean coeff
 % -------------------------------------------------------------------
 
 % https://journals.biologists.com/jeb/article/198/6/1259/6940/Neuromuscular-Control-and-Kinematics-of
@@ -75,12 +103,21 @@ speed = [8 18];
 
 [sm, sM, se] = getScaleFactors(R, amp);
 [gm, gM, ge] = getGenFactors(R, amp, freq, speed);
+[Stm, StM, Ste] = getSt(R, amp, freq, speed);
 
-[names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin, genFactorsMax, genFactorsMean] = ...
+[names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin,...
+          genFactorsMax, genFactorsMean, St_min, St_max, St_mean] = ...
     addToLists(names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin, genFactorsMax, genFactorsMean,...
-               n, sm, sM, se, gm, gM, ge);
+               St_min, St_max, St_mean, n, sm, sM, se, gm, gM, ge, Stm, StM, Ste);
 
-clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean genFactorsMin genFactorsMax genFactorsMean
+R = R(:);
+l = R;
+expr = besselj(0,amp) ./ (((2*(pi^2))/3) .* ((l.^2 - 3*l.*R + 3*R.^2)./(R.^2))...
+                        .* (besselj(1,amp)./amp));
+coeff = [coeff mean(expr,"all")];
+
+clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean...
+    genFactorsMin genFactorsMax genFactorsMean St_min St_max St_mean coeff
 % -------------------------------------------------------------------
 
 % https://journals.biologists.com/jeb/article/211/5/717/18121/Vortex-wake-and-flight-kinematics-of-a-swift-in
@@ -95,12 +132,21 @@ speed = [8 9.2];
 
 [sm, sM, se] = getScaleFactors(R, amp);
 [gm, gM, ge] = getGenFactors(R, amp, freq, speed);
+[Stm, StM, Ste] = getSt(R, amp, freq, speed);
 
-[names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin, genFactorsMax, genFactorsMean] = ...
+[names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin,...
+          genFactorsMax, genFactorsMean, St_min, St_max, St_mean] = ...
     addToLists(names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin, genFactorsMax, genFactorsMean,...
-               n, sm, sM, se, gm, gM, ge);
+               St_min, St_max, St_mean, n, sm, sM, se, gm, gM, ge, Stm, StM, Ste);
 
-clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean genFactorsMin genFactorsMax genFactorsMean
+R = R(:);
+l = R;
+expr = besselj(0,amp) ./ (((2*(pi^2))/3) .* ((l.^2 - 3*l.*R + 3*R.^2)./(R.^2))...
+                        .* (besselj(1,amp)./amp));
+coeff = [coeff mean(expr,"all")];
+
+clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean...
+    genFactorsMin genFactorsMax genFactorsMean St_min St_max St_mean coeff
 % -------------------------------------------------------------------
 
 % https://journals.biologists.com/jeb/article/49/3/527/21322/Power-Requirements-for-Horizontal-Flight-in-the
@@ -115,12 +161,21 @@ speed = [8 18];
 
 [sm, sM, se] = getScaleFactors(R, amp);
 [gm, gM, ge] = getGenFactors(R, amp, freq, speed);
+[Stm, StM, Ste] = getSt(R, amp, freq, speed);
 
-[names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin, genFactorsMax, genFactorsMean] = ...
+[names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin,...
+          genFactorsMax, genFactorsMean, St_min, St_max, St_mean] = ...
     addToLists(names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin, genFactorsMax, genFactorsMean,...
-               n, sm, sM, se, gm, gM, ge);
+               St_min, St_max, St_mean, n, sm, sM, se, gm, gM, ge, Stm, StM, Ste);
 
-clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean genFactorsMin genFactorsMax genFactorsMean
+R = R(:);
+l = R;
+expr = besselj(0,amp) ./ (((2*(pi^2))/3) .* ((l.^2 - 3*l.*R + 3*R.^2)./(R.^2))...
+                        .* (besselj(1,amp)./amp));
+coeff = [coeff mean(expr,"all")];
+
+clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean...
+    genFactorsMin genFactorsMax genFactorsMean St_min St_max St_mean coeff
 % -------------------------------------------------------------------
 
 % https://royalsocietypublishing.org/doi/epdf/10.1098/rstb.2015.0385
@@ -136,12 +191,21 @@ speed = [4 8];
 
 [sm, sM, se] = getScaleFactors(R, amp);
 [gm, gM, ge] = getGenFactors(R, amp, freq, speed);
+[Stm, StM, Ste] = getSt(R, amp, freq, speed);
 
-[names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin, genFactorsMax, genFactorsMean] = ...
+[names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin,...
+          genFactorsMax, genFactorsMean, St_min, St_max, St_mean] = ...
     addToLists(names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin, genFactorsMax, genFactorsMean,...
-               n, sm, sM, se, gm, gM, ge);
+               St_min, St_max, St_mean, n, sm, sM, se, gm, gM, ge, Stm, StM, Ste);
 
-clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean genFactorsMin genFactorsMax genFactorsMean
+R = R(:);
+l = R;
+expr = besselj(0,amp) ./ (((2*(pi^2))/3) .* ((l.^2 - 3*l.*R + 3*R.^2)./(R.^2))...
+                        .* (besselj(1,amp)./amp));
+coeff = [coeff mean(expr,"all")];
+
+clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean...
+    genFactorsMin genFactorsMax genFactorsMean St_min St_max St_mean coeff
 % -------------------------------------------------------------------
 
 % Bat: T. brasiliensis
@@ -154,12 +218,21 @@ speed = [4 8];
 
 [sm, sM, se] = getScaleFactors(R, amp);
 [gm, gM, ge] = getGenFactors(R, amp, freq, speed);
+[Stm, StM, Ste] = getSt(R, amp, freq, speed);
 
-[names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin, genFactorsMax, genFactorsMean] = ...
+[names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin,...
+          genFactorsMax, genFactorsMean, St_min, St_max, St_mean] = ...
     addToLists(names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin, genFactorsMax, genFactorsMean,...
-               n, sm, sM, se, gm, gM, ge);
+               St_min, St_max, St_mean, n, sm, sM, se, gm, gM, ge, Stm, StM, Ste);
 
-clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean genFactorsMin genFactorsMax genFactorsMean
+R = R(:);
+l = R;
+expr = besselj(0,amp) ./ (((2*(pi^2))/3) .* ((l.^2 - 3*l.*R + 3*R.^2)./(R.^2))...
+                        .* (besselj(1,amp)./amp));
+coeff = [coeff mean(expr,"all")];
+
+clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean...
+    genFactorsMin genFactorsMax genFactorsMean St_min St_max St_mean coeff
 % -------------------------------------------------------------------
 
 % House martin
@@ -172,12 +245,21 @@ speed = [4 10];
 
 [sm, sM, se] = getScaleFactors(R, amp);
 [gm, gM, ge] = getGenFactors(R, amp, freq, speed);
+[Stm, StM, Ste] = getSt(R, amp, freq, speed);
 
-[names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin, genFactorsMax, genFactorsMean] = ...
+[names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin,...
+          genFactorsMax, genFactorsMean, St_min, St_max, St_mean] = ...
     addToLists(names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin, genFactorsMax, genFactorsMean,...
-               n, sm, sM, se, gm, gM, ge);
+               St_min, St_max, St_mean, n, sm, sM, se, gm, gM, ge, Stm, StM, Ste);
 
-clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean genFactorsMin genFactorsMax genFactorsMean
+R = R(:);
+l = R;
+expr = besselj(0,amp) ./ (((2*(pi^2))/3) .* ((l.^2 - 3*l.*R + 3*R.^2)./(R.^2))...
+                        .* (besselj(1,amp)./amp));
+coeff = [coeff mean(expr,"all")];
+
+clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean...
+    genFactorsMin genFactorsMax genFactorsMean St_min St_max St_mean coeff
 % -------------------------------------------------------------------
 
 % Geese
@@ -190,12 +272,21 @@ speed = [14 18];
 
 [sm, sM, se] = getScaleFactors(R, amp);
 [gm, gM, ge] = getGenFactors(R, amp, freq, speed);
+[Stm, StM, Ste] = getSt(R, amp, freq, speed);
 
-[names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin, genFactorsMax, genFactorsMean] = ...
+[names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin,...
+          genFactorsMax, genFactorsMean, St_min, St_max, St_mean] = ...
     addToLists(names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin, genFactorsMax, genFactorsMean,...
-               n, sm, sM, se, gm, gM, ge);
+               St_min, St_max, St_mean, n, sm, sM, se, gm, gM, ge, Stm, StM, Ste);
 
-clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean genFactorsMin genFactorsMax genFactorsMean
+R = R(:);
+l = R;
+expr = besselj(0,amp) ./ (((2*(pi^2))/3) .* ((l.^2 - 3*l.*R + 3*R.^2)./(R.^2))...
+                        .* (besselj(1,amp)./amp));
+coeff = [coeff mean(expr,"all")];
+
+clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean...
+    genFactorsMin genFactorsMax genFactorsMean St_min St_max St_mean coeff
 % -------------------------------------------------------------------
 
 % Brooke bat depilation paper not going to work since they give amplitude
@@ -216,16 +307,25 @@ speed = [7.25 10];
 
 [sm, sM, se] = getScaleFactors(R, amp);
 [gm, gM, ge] = getGenFactors(R, amp, freq, speed);
+[Stm, StM, Ste] = getSt(R, amp, freq, speed);
 
-[names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin, genFactorsMax, genFactorsMean] = ...
+[names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin,...
+          genFactorsMax, genFactorsMean, St_min, St_max, St_mean] = ...
     addToLists(names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin, genFactorsMax, genFactorsMean,...
-               n, sm, sM, se, gm, gM, ge);
+               St_min, St_max, St_mean, n, sm, sM, se, gm, gM, ge, Stm, StM, Ste);
+
+R = R(:);
+l = R;
+expr = besselj(0,amp) ./ (((2*(pi^2))/3) .* ((l.^2 - 3*l.*R + 3*R.^2)./(R.^2))...
+                        .* (besselj(1,amp)./amp));
+coeff = [coeff mean(expr,"all")];
+
+clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean...
+    genFactorsMin genFactorsMax genFactorsMean St_min St_max St_mean coeff
 
 % More or less the same as the Cybird P2
 % from "Flight Dynamics of a Flapping-Wing Air Vehicle"
 % in that paper they just say wingbeat amplitude 55 in paper
-
-clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean genFactorsMin genFactorsMax genFactorsMean
 % -------------------------------------------------------------------
 
 % MetaBird
@@ -239,12 +339,21 @@ speed = [3 6];
 
 [sm, sM, se] = getScaleFactors(R, amp);
 [gm, gM, ge] = getGenFactors(R, amp, freq, speed);
+[Stm, StM, Ste] = getSt(R, amp, freq, speed);
 
-[names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin, genFactorsMax, genFactorsMean] = ...
+[names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin,...
+          genFactorsMax, genFactorsMean, St_min, St_max, St_mean] = ...
     addToLists(names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin, genFactorsMax, genFactorsMean,...
-               n, sm, sM, se, gm, gM, ge);
+               St_min, St_max, St_mean, n, sm, sM, se, gm, gM, ge, Stm, StM, Ste);
 
-clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean genFactorsMin genFactorsMax genFactorsMean
+R = R(:);
+l = R;
+expr = besselj(0,amp) ./ (((2*(pi^2))/3) .* ((l.^2 - 3*l.*R + 3*R.^2)./(R.^2))...
+                        .* (besselj(1,amp)./amp));
+coeff = [coeff mean(expr,"all")];
+
+clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean...
+    genFactorsMin genFactorsMax genFactorsMean St_min St_max St_mean coeff
 % -------------------------------------------------------------------
 
 n = "Flapperoo"
@@ -256,24 +365,34 @@ speed = [3, 6];
 
 [sm, sM, se] = getScaleFactors(R, amp);
 [gm, gM, ge] = getGenFactors(R, amp, freq, speed);
+[Stm, StM, Ste] = getSt(R, amp, freq, speed);
 
-[names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin, genFactorsMax, genFactorsMean] = ...
+[names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin,...
+          genFactorsMax, genFactorsMean, St_min, St_max, St_mean] = ...
     addToLists(names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin, genFactorsMax, genFactorsMean,...
-               n, sm, sM, se, gm, gM, ge);
+               St_min, St_max, St_mean, n, sm, sM, se, gm, gM, ge, Stm, StM, Ste);
 
-clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean genFactorsMin genFactorsMax genFactorsMean
+R = R(:);
+l = R;
+expr = besselj(0,amp) ./ (((2*(pi^2))/3) .* ((l.^2 - 3*l.*R + 3*R.^2)./(R.^2))...
+                        .* (besselj(1,amp)./amp));
+coeff = [coeff mean(expr,"all")];
+
+clearvars -except names scaleFactorsMin scaleFactorsMax scaleFactorsMean...
+    genFactorsMin genFactorsMax genFactorsMean St_min St_max St_mean coeff
 % ------------------------------------------------
 
-fin = [names; scaleFactorsMin; scaleFactorsMax; scaleFactorsMean; genFactorsMin; genFactorsMax; genFactorsMean];
+fin = [names; St_min; St_max; St_mean];
 
 % ------------------------------------------------
 function factor = calcFactor(R, amp)
     factor = 4.25*(2*R*amp)^2;
 end
 
-function [names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin, genFactorsMax, genFactorsMean] = ...
+function [names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin,...
+          genFactorsMax, genFactorsMean, St_min, St_max, St_mean] = ...
     addToLists(names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsMin, genFactorsMax, genFactorsMean,...
-               n, sm, sM, se, gm, gM, ge)
+               St_min, St_max, St_mean, n, sm, sM, se, gm, gM, ge, Stm, StM, Ste)
     names = [names n];
     scaleFactorsMin = [scaleFactorsMin sm];
     scaleFactorsMax = [scaleFactorsMax sM];
@@ -281,12 +400,22 @@ function [names, scaleFactorsMin, scaleFactorsMax, scaleFactorsMean, genFactorsM
     genFactorsMin = [genFactorsMin gm];
     genFactorsMax = [genFactorsMax gM];
     genFactorsMean = [genFactorsMean ge];
+    St_min = [St_min Stm];
+    St_max = [St_max StM];
+    St_mean = [St_mean Ste];
 end
 
 function [sm, sM, se] = getScaleFactors(R, amp)
-    sm = calcFactor(min(R), min(amp));
-    sM = calcFactor(max(R), max(amp));
-    se = calcFactor(mean(R), mean(amp));
+    % Old method, before 02/15/2026
+    % sm = calcFactor(min(R), min(amp));
+    % sM = calcFactor(max(R), max(amp));
+    % se = calcFactor(mean(R), mean(amp));
+
+    [Rg, Ag] = ndgrid(R, amp);
+    scale = 4.25*(2*Rg.*Ag).^2;
+    se = mean(scale,"all");
+    sM = max(scale, [], "all");
+    sm = min(scale, [], "all");
 end
 
 function [gm, gM, ge] = getGenFactors(R, amp, freq, speed)
@@ -299,4 +428,20 @@ function [gm, gM, ge] = getGenFactors(R, amp, freq, speed)
     gm = ((sm*(min(freq))^2) / (sm*(min(freq))^2 + (max(speed))^2)) * 100;
     gM = ((sM*(max(freq))^2) / (sM*(max(freq))^2 + (min(speed))^2)) * 100;
     ge = ((se*(mean(freq))^2) / (se*(mean(freq))^2 + (mean(speed))^2)) * 100;
+end
+
+function [St_min, St_max, St_mean] = getSt(R, amp, freq, speed)
+    [Rg, Ag, Fg, Sg] = ndgrid(R, amp, freq, speed);
+    St = (2 .* Rg .* Ag .* Fg) ./ Sg;
+    St_mean = mean(St,"all");
+    St_max = max(St, [], "all");
+    St_min = min(St, [], "all");
+end
+
+function [fl_min, fl_max, fl_mean] = getFlappingContrib(St_min, St_max, St_mean)
+    St = [St_min, St_max, St_mean];
+    fl = (St.^2) ./ (St.^2 + (1/4.25)) * 100; % expressed as percent
+    fl_mean = mean(fl);
+    fl_max = max(fl);
+    fl_min = min(fl);
 end
