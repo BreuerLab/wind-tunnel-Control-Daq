@@ -1,18 +1,13 @@
+function batch_compare_trials_AoA(data_path, sub_data_path, sub_bool)
+
 % Author: Ronan Gissler
 % Last updated: October 2023
-clear
-close all
-
-% Change current working directory to the directory where this file is
-cd(fileparts(mfilename('fullpath')));
-addpath(genpath('../../'))
 
 % TO DO:
 % ADD SUPPORT FOR SUBTRACT CASES
 % ADD SUPPORT FOR MULTI-FILE PROCESSING
 
 slack_bool = false;
-sub_bool = false;
 user = "Z"; % "Z": Zachary or "R": Ronan
 
 if ismac
@@ -31,52 +26,12 @@ elseif ispc && strcmp(user,"R")
                  DELIM + "Ronan" + DELIM;
 end
 
-h = helpdlg("Please select the folder containing 'raw data' and 'processed data'.");
-uiwait(h);     % ensure the user reads it before continuing
-
-% Open a file selection dialog and get the file path
-if ismac && strcmp(user,"Z") % For Zachary's Mac to directly open file
-    search_path = "/Users/zjrosoff/Documents/GitHub/wind-tunnel-Control-Daq/Calimero/data analysis/processing";
-else
-    search_path = ".";
-end
-
-data_path = uigetdir(search_path,...
-    "Select the folder containing 'raw data' and 'processed data") + DELIM;
-if isequal(data_path, "0\")
-    disp('User canceled folder selection.');
-else
-    disp(['Selected folder: ', data_path]);
-end
-
-% Open a file selection dialog and get the file path
-if sub_bool
-
-h = helpdlg("Please select the subtraction folder containing 'raw data' and 'processed data'.");
-uiwait(h);     % ensure the user reads it before continuing    
-
-sub_data_path = uigetdir(search_path, "Select the folder containing 'raw data' and 'processed data") + DELIM;
-if isequal(sub_data_path, "0\")
-    disp('User canceled folder selection.');
-else
-    disp(['Selected folder: ', sub_data_path]);
-end
-
 sub_params_path = sub_data_path + "raw data" + DELIM + "experiment parameters" + DELIM;
 
+% Might not need eval_params, as we are making sub_strings the
+% clean_body_type from main, as this will allow for subtraction matching
 [sub_wind_speed_sel, sub_type_sel, sub_wing_freq_sel, sub_AoA_sel, sub_wing_amp_sel] = eval_params(sub_params_path);
-
 sub_strings = sub_type_sel;
-else
-    sub_strings = [];
-end
-
-% data_path = uigetdir(".", "Select the folder containing 'raw data' and 'processed data'") + DELIM;
-% if isequal(data_path, "0\")
-%     error('User canceled folder selection.');
-% else
-%     disp(['Selected folder: ', data_path]);
-% end
 
 params_path = data_path + "raw data" + DELIM + "experiment parameters" + DELIM;
 
@@ -176,7 +131,7 @@ for i = 1:2
 
             [avg_forces, avg_up_forces, avg_down_forces, err_forces, ...
              err_up_forces, err_down_forces, names, sub_title, norm_factors, drift_vals, offsets_before_vals, offsets_after_vals] = ...
-    get_data_AoA(selected_vars, processed_files, offsets_files, norm_bool, sub_strings, shift_bool, sub_drift_bool, config_idx, num_config);
+    get_data_AoA(selected_vars, processed_files, offsets_files, norm_bool, sub_strings, shift_bool, sub_drift_bool, config_idx, num_config, sub_bool, type_sel);
             
             if slack_bool
             bot.updateProgress(channelID, messageTs, config_idx*(100/8));
@@ -198,8 +153,8 @@ for i = 1:2
             end
             name = name + "_saved_" + string(time_now);
 
-            if(~isempty(sub_strings))
-                name = name + "_Sub_" + sub_strings;
+            if sub_bool
+                name = name + "_sub_" + sub_strings;
             end
 
             save(plot_data_path + name + ".mat","avg_forces", "avg_up_forces", "avg_down_forces",...

@@ -351,7 +351,8 @@ methods
             if (obj.norm)
                 for i = 1:length(d2.Items)
                     wing_freq = str2double(extractBefore(d2.Items{i}, " Hz"));
-                    St = freqToSt(obj.sel_bird.name, wing_freq, obj.sel_speed, obj.data_path, -1);
+                    % St = freqToSt(obj.sel_bird.name, wing_freq, obj.sel_speed, obj.data_path, -1);
+                    St = freqToSt(obj.sel_type, obj.sel_freq, obj.sel_speed, obj.data_path, -1); % for Zachary
                     d2.Items{i} = ['St: ' num2str(St)];
                 end
             end
@@ -412,7 +413,8 @@ methods
                 dir_parts = split(dir_name, '_');
                 wind_speed = sscanf(dir_parts(end), '%g', 1);
 
-                St = freqToSt(obj.sel_bird.name, wing_freq, wind_speed, obj.data_path, -1);
+                % St = freqToSt(obj.sel_bird.name, wing_freq, wind_speed, obj.data_path, -1);
+                St = freqToSt(obj.sel_type, obj.sel_freq, obj.sel_speed, obj.data_path, -1); % for Zachary
                 case_name = dir_name + compareAoAUI.DELIM + ['St: ' num2str(St)];
             end
             new_list_indices = obj.selection ~= case_name;
@@ -435,12 +437,16 @@ methods
                 obj.norm = true;
                 src.BackgroundColor = [0.3010 0.7450 0.9330];
 
-                % replace freqs with strouhal numbers
-                for i = 1:length(d2.Items)
-                    wing_freq = str2double(extractBefore(d2.Items{i}, " Hz"));
-                    St = freqToSt(obj.sel_bird.name, wing_freq, obj.sel_speed, obj.data_path, obj.sel_amp);
-                    d2.Items{i} = ['St: ' num2str(St)];
-                end
+                % replace freqs with strouhal numbers in dropdown -->
+                % COMMENTING OUT BECAUSE DIFFERENT WINGS HAVE DIFFERENT St - Zachary
+
+                % for i = 1:length(d2.Items)
+                %     wing_freq = str2double(extractBefore(d2.Items{i}, " Hz"));
+                %     % St = freqToSt(obj.sel_bird.name, wing_freq, obj.sel_speed, obj.data_path, obj.sel_amp);
+                % 
+                %     St = freqToSt(obj.sel_type, wing_freq, obj.sel_speed, obj.data_path, obj.sel_amp); % for Zachary
+                %     d2.Items{i} = ['St: ' num2str(St)];
+                % end
 
                 % replace freqs with strouhal numbers
                 for i = 1:length(obj.selection)
@@ -462,7 +468,8 @@ methods
                     amp   = str2double(tokens{2}); % 10
                     end
 
-                    St = freqToSt(obj.sel_bird.name, wing_freq, wind_speed, obj.data_path, amp);
+                    % St = freqToSt(obj.sel_bird.name, wing_freq, wind_speed, obj.data_path, amp);
+                    St = freqToSt(type, wing_freq, wind_speed, obj.data_path, amp); % for Zachary
                     obj.selection(i) = flapper_name + compareAoAUI.DELIM + dir_name + compareAoAUI.DELIM + ['St: ' num2str(St)];
                 end
             else
@@ -1158,6 +1165,7 @@ methods (Access = private)
             l = legend(ax, Location="best");
             ax.FontSize = 18;
         end
+        
         if (obj.saveFig)
             filename = "saved_figure.fig";
             fignew = figure('Visible','off'); % Invisible figure

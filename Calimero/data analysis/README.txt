@@ -37,3 +37,20 @@ variation with angle of attack.
 
 Then in the plotting UI folder run main_analysis.m to plot
 the data in the GUI.
+
+-----------------------------------------------------------
+---------------- Batch Data Analysis Steps ----------------
+-----------------------------------------------------------
+
+1) Clean the data, like above.
+
+2) Create a new "batch" folder with all the trial folders you'd 
+like to process. Run this folder in batch_main_process_trials.m
+
+3) If subtracting, split the batch folder into a wing data folder
+and body data folder. Run these folders in 
+batch_main_compare_trials.m. If not subtracting, comment out the
+necessary lines and put false for sub_bool where
+batch_compare_trials_AoA.m is called
+
+4) Plot as normal on main_analysis.m in the Plotting UI folder

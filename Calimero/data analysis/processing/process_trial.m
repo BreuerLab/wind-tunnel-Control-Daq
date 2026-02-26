@@ -14,7 +14,8 @@
 % the experiment in more ways than simply the raw data does.
 function process_trial(file, raw_data_path, offsets_path, processed_data_path, wind_tunnel_path, type)
 
-[case_name, time_stamp, type, wing_freq, AoA, wind_speed, amp, ~] = parse_filename(file);
+% I don't want to use wing_type_from_name, I want type from eval_params.m
+[case_name, time_stamp, wing_type_from_name, wing_freq, AoA, wind_speed, amp, ~] = parse_filename(file);
 
 % NUM_WINGBEATS IS CURRENTLY NOT 180 EXACTLY SINCE JUST USING PWM
 [frame_rate, num_wingbeats, rec_wingbeats, ticksPerRev, OC_pulse_step] = get_sampling_info(wing_freq);
@@ -60,8 +61,10 @@ end
 % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 % !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-[time_data, force_data, voltAdj, curAdj, enc_pulse, OC_pulse_count] = ...
-    process_data(trimmed_results, offsets, cal_matrix, ticksPerRev, OC_pulse_step);
+async = true; % We are doing async method of collecting data
+
+[time_data, force_data, voltAdj, curAdj, speed, OC_pulse_count] = ...
+    process_data(trimmed_results, offsets, cal_matrix, ticksPerRev, OC_pulse_step, async);
 
 dt = time_data(2) - time_data(1);
 % speed = gradient(results(:,11), dt)

@@ -95,6 +95,7 @@ function setup_DAQ(obj, forceVoltage, rate)
     ch8 = obj.DAQ.addinput(daq_ID, "port0/line24", "Digital");
 
     obj.DAQ.addinput(daq_ID,"ctr0","EdgeCount")
+    obj.DAQ.addinput(daq_ID,"ctr1","EdgeCount")
     
     if ~(forceVoltage == 5 || forceVoltage == 10)
         error("Invalid DAQ voltage for force transducer")
@@ -164,9 +165,15 @@ function processData(obj, src, evt)
     %     return;
     % end
 
+    if src.NumScansAvailable == 0
+        disp("--------   Empty Scan!   --------")
+        return
+    end
+
     % disp("Saving Data")
     % [newData, newTime, ~] = read(src, evt.Source.NumElementsAvailable, "OutputFormat", "Matrix");
-    [newData, newTime, ~] = read(src, evt.NumElementsAvailable, "OutputFormat", "Matrix");
+    % [newData, newTime, ~] = read(src, evt.NumElementsAvailable, "OutputFormat", "Matrix");
+    [newData, newTime, ~] = read(src, "all", "OutputFormat", "Matrix");
     % [newData, newTime, ~] = read(src, src.ScansAvailableFcnCount, "OutputFormat", "Matrix");
     % obj.data = [obj.data; newData];
     % obj.time = [obj.time; newTime];

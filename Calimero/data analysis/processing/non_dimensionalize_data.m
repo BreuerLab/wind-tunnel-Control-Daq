@@ -9,43 +9,54 @@
 % norm_data - (n x 6) non-dimensionalized force transducer data
 % St - Strouhal number for this trial
 % Re - Reynolds number for this trial
+
 function [norm_data, norm_factors, St, Re] = non_dimensionalize_data(path, results, file_name, type)
-    [case_name, time_stamp, type, wing_freq, AoA, U, amp, file_type] = parse_filename(file_name);
+    
+% I don't want to use wing_type_from_name, I want type from eval_params.m
+[case_name, time_stamp, wing_type_from_name, wing_freq, AoA, U, amp, file_type] = parse_filename(file_name);
     
     % angle_up = 21.3153; % degrees
     % angle_down = 21.3153; % degrees
     [angle_up, angle_down] = getRangeWingbeat(amp);
     
-    if strcmp(type,"default")
+    % Constant values based on geometry of wings and robot design
+
+    switch lower(string(type))  % Case-insensitive, converts to string
+    case {"default", "bodydefault"}
         wing_span = 0.177; % meters, length of single wing
         wing_chord = 0.073; % meters
-        wing_length = 0.221; % meters, distance from wingtip to axis of rotation
+        wing_length = 0.201; % meters, distance from wingtip to axis of rotation
+    case {"chord_half", "bodychordhalf"}
+        wing_span = 0.177;
+        wing_chord = 0.0365;
+        wing_length = 0.201;
+    case {"span_half", "bodyspanhalf"}
+        wing_span = 0.0885;
+        wing_chord = 0.073;
+        wing_length = 0.1125;
+    otherwise
+        error('Oops, wing type "%s" not found', type); % throw error and stop execution
+end
 
-
-    elseif strcmp(type,"chord half")
-        wing_span = 0.177; % meters, length of single wing
-        wing_chord = 0.0365; % meters
-        wing_length = 0.221; % meters, distance from wingtip to axis of rotation
-
-
-    elseif strcmp(type,"span half")
-        wing_span = 0.0885; % meters, length of single wing
-        wing_chord = 0.073; % meters
-        wing_length = 0.1325; % meters, distance from wingtip to axis of rotation
-
-
-    elseif strcmp(type,"body")
-        wing_span = 1; % meters, length of single wing
-        wing_chord = 1; % meters
-        wing_length = 1; % meters, distance from wingtip to axis of rotation
-
-    else % Ronan's old values
-        % Constant values based on geometry of wings and robot design
-        wing_span = 0.177; % meters, length of single wing
-        wing_chord = 0.10; % meters
-        wing_length = 0.216; % meters, distance from wingtip to axis of rotation
-    
-    end
+    % if (strcmp(type,"default") || strcmp(type,"bodyDefault")) 
+    %     wing_span = 0.177; % meters, length of single wing
+    %     wing_chord = 0.073; % meters
+    %     wing_length = 0.201; % meters, distance from wingtip to axis of rotation
+    % 
+    % elseif (strcmp(type,"chord half") || strcmp(type,"bodyChordhalf"))
+    %     wing_span = 0.177; % meters, length of single wing
+    %     wing_chord = 0.0365; % meters
+    %     wing_length = 0.201; % meters, distance from wingtip to axis of rotation
+    % 
+    % elseif (strcmp(type,"span half") || strcmp(type,"bodySpanhalf")) 
+    %     wing_span = 0.0885; % meters, length of single wing
+    %     wing_chord = 0.073; % meters
+    %     wing_length = 0.1125; % meters, distance from wingtip to axis of rotation
+    % 
+    % else       
+    %     error('Oops, wing type not found');  % throw error and stop execution
+    % 
+    % end
 
     % wing_freqs = [0, 2, 4, 6, 8, 10];
     % wing_freqs = [10, 4, 8, 0, 2, 6];
