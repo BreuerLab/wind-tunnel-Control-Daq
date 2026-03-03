@@ -21,9 +21,14 @@ function file_path = get_PIV_paths(PIV_case_name)
 %           "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_18_2025\rigid_6Hz_10AoA\StereoPIV_MPd(4x16x16_50%ov)_GPU",...
 %           "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Calimero_11_18_2025\rigid_8Hz_10AoA\StereoPIV_MPd(4x16x16_50%ov)_GPU"];
 
-keys = {'UP_one_flexible_20deg_6Hz', 'flexible_20deg_6Hz'};
-values = ["G:\STB_02_11_2026\UP_one_flexible_20deg_6Hz\ImgPreproc\ShakeTheBox 2-pulse\Binning_48x48x48_75%ov_ord=0",...
-          "G:\STB_02_11_2026\flexible_20deg_6Hz\ImgPreproc\ShakeTheBox 2-pulse\Binning_48x48x48_75%ov_ord=0"];
+keys = {'UP_one_flexible_20deg_6Hz', 'flexible_20deg_6Hz', 'turbine'};
+% drive = "G:\";
+drive = "Y:\";
+values = [drive + "STB_02_11_2026\UP_one_flexible_20deg_6Hz\ImgPreproc\ShakeTheBox 2-pulse\Binning_48x48x48_75%ov_ord=0",...
+          drive + "STB_02_11_2026\flexible_20deg_6Hz\ImgPreproc\ShakeTheBox 2-pulse\Binning_48x48x48_75%ov_ord=0",...
+          drive + "STB_02_11_2026\turbine_6ms_S\ShakeTheBox 2-pulse\Binning_48x48x48_75%ov_ord=0"];
+
+
 
 PIV_dict = containers.Map(keys, values);
 

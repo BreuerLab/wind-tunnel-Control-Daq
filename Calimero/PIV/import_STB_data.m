@@ -1,7 +1,5 @@
-function [x, y, z, u, v, w, vortX, vortY, vortZ, uncTot] = import_STB_data(PIV_case_name, nondim_bool, U, L)
-file_path = get_PIV_paths(PIV_case_name);
-disp("Loading file: " + file_path)
-D = loadpiv(file_path,"extractAllVariables"); % "Validate", minCorrelationValue
+function [x, y, z, u, v, w, vortX, vortY, vortZ, uncTot] = import_STB_data(file_path, nondim_bool, U, L, sel_frames)
+D = loadpiv(file_path,"extractAllVariables","frameSelect",sel_frames); % "Validate", minCorrelationValue
 
 init_W = round((max(D.x,[],"all") - min(D.x,[],"all"))*100);
 init_L = round((max(D.y,[],"all") - min(D.y,[],"all"))*100);
@@ -64,8 +62,8 @@ fin_L = round((max(y,[],"all") - min(y,[],"all")) * L * 100);
 
 init_size = size(x_full);
 fin_size = size(x);
-fprintf("Data trimmed from: (%d, %d) to (%d, %d)\n", ...
-             init_size(1), init_size(2), fin_size(1), fin_size(2));
-fprintf("Data trimmed from: (%d x %d cm) to (%d x %d cm)\n", ...
-             init_W, init_L, fin_W, fin_L);
+% fprintf("Data trimmed from: (%d, %d) to (%d, %d)\n", ...
+%              init_size(1), init_size(2), fin_size(1), fin_size(2));
+% fprintf("Data trimmed from: (%d x %d cm) to (%d x %d cm)\n", ...
+%              init_W, init_L, fin_W, fin_L);
 end

@@ -1,4 +1,4 @@
-function Q = calQlate(u,v,dx,dy,order,wdw)
+function Q = calQlate3D(u,v,dx,dy,order,wdw)
 % A Q-te function to calculate 2D-Q: the second (not first) invariant of the velocity gradient tensor.
 % sgolay filter of order = 3 and window length = 9
 

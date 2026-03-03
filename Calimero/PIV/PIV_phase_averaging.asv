@@ -14,87 +14,83 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB'))
 %         '2Hz_A10_10AoA','4Hz_A10_10AoA','6Hz_A10_10AoA', '8Hz_A10_10AoA',...
 %         'r_2Hz_A10_10AoA', 'r_4Hz_A10_10AoA', 'r_6Hz_A10_10AoA', 'r_8Hz_A10_10AoA'};
 
+% PIV_case_name = 'turbine';
 PIV_case_name = 'flexible_20deg_6Hz';
 L = 0.07; % characteristic length, guess of mean aerodynamic chord
-U = 4; % characteristic windspeed, freestream
+U = 6; % characteristic windspeed, freestream
+% L = 0.07; % characteristic length, guess of mean aerodynamic chord
+% U = 4; % characteristic windspeed, freestream
 save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
 num_images = 2500;
 
 readimx_bool = true; % Read data from readimx or from saved .mat
 nondim_bool = true;
-phase_avg_plot_bool = false;
+phase_avg_plot_bool = true;
 circ_plot_bool = false;
 movie_plot_bool = false;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-if readimx_bool
-
-% minCorrelationValue = 0.2;
-
-% file_path = get_PIV_paths(PIV_case_name);
+% if readimx_bool
 % 
-% D = loadpiv(file_path,"extractAllVariables"); % "Validate", minCorrelationValue
-% % "numCamFields", 4 HOW TO USE, I HAVE 4 CAMERAS
+% [x, y, z, u, v, w, vortX, vortY, vortZ, uncTot] = import_STB_data(PIV_case_name, nondim_bool, U, L);
 % 
-% if size(D.u,3) ~= num_images
-%     error("PIV not " + num_images + " frames!")
+% % vars = {'x','y','z','u','v','w','vortX','vortY','vortZ','uncTot'};
+% vars = {'x','y','z','vortX','vortY','vortZ'};
+% disp("Saving data to " + save_filepath + "trimmed data\")
+% save(save_filepath + "trimmed data\" + PIV_case_name + ".mat", vars{:})
+% 
+% % check variable size in GB
+% info = whos('vortZ');
+% sizeGB = info.bytes / 1024^3;
+% 
+% else
+%     tic
+%     file_name = save_filepath + "trimmed data\" + PIV_case_name + ".mat";
+%     disp("Loading " + file_name)
+%     load(file_name)
+%     toc
 % end
-% 
-% % Non-dimensionalize variables
-% u_full = D.u/U;
-% v_full = D.v/U;
-% w_full = D.w/U;
-% vort_full = D.vort*L/U;
-% x_full = D.x/L;
-% y_full = D.y/L;
-% uncU = D.uncU/U;
-% uncV = D.uncV/U;
-% uncW = D.uncW/U;
-% 
-% % Trimming data down
-% xbounds = [-2.14 2.14]; % roughly -0.15 to 0.15 meters
-% ybounds = [-2.86 2.86]; % roughly -0.2 to 0.2 meters
-% 
-% x_idx = find(x_full(1,:) > xbounds(1) & x_full(1,:) < xbounds(2));  % columns
-% y_idx = find(y_full(:,1) > ybounds(1) & y_full(:,1) < ybounds(2));  % rows
-% 
-% x = x_full(y_idx, x_idx);
-% y = y_full(y_idx, x_idx);
-% u = u_full(y_idx, x_idx,:);
-% v = v_full(y_idx, x_idx,:);
-% w = w_full(y_idx, x_idx,:);
-% vort = vort_full(y_idx, x_idx,:);
-% 
-% init_size = size(x_full);
-% fin_size = size(x);
-% fprintf("Data trimmed from: (%d, %d) to (%d, %d)\n", ...
-%              init_size(1), init_size(2), fin_size(1), fin_size(2));
-
-[x, y, z, u, v, w, vortX, vortY, vortZ, uncTot] = import_STB_data(PIV_case_name, nondim_bool, U, L);
-
-% vars = {'x','y','z','u','v','w','vortX','vortY','vortZ','uncTot'};
-vars = {'x','y','z','vortX','vortY','vortZ'};
-disp("Saving data to " + save_filepath + "trimmed data\")
-save(save_filepath + "trimmed data\" + PIV_case_name + ".mat", vars{:})
-
-% check variable size in GB
-info = whos('A');
-sizeGB = info.bytes / 1024^3;
-
-else
-    tic
-    file_name = save_filepath + "trimmed data\" + PIV_case_name + ".mat";
-    disp("Loading " + file_name)
-    load(file_name)
-    toc
-end
 
 %% Time-averaged velocity fields
-% Calculate mean values across time
-mean_u = mean(u,4);
-mean_v = mean(v,4);
-mean_w = mean(w,4);
+file_path = get_PIV_paths(PIV_case_name);
+files = dir(fullfile(file_path,'*.vc7'));
+num_files = length(files);
+time_avg_bool = false;
+
+if time_avg_bool
+disp("Time Average: Loading file: " + file_path)
+num_files = 1000; % TEMPORARY LINE ---- DELETE
+for i = 1:num_files
+    [x, y, z, u, v, w, vortX, vortY, vortZ, uncTot] = import_STB_data(file_path, nondim_bool, U, L, i);
+
+    if i == 1
+        mean_u = zeros(size(x));
+        mean_v = zeros(size(x));
+        mean_w = zeros(size(x));
+        mean_vortX = zeros(size(x));
+        mean_vortY = zeros(size(x));
+        mean_vortZ = zeros(size(x));
+    end
+    mean_u = mean_u + u;
+    mean_v = mean_v + v;
+    mean_w = mean_w + w;
+    mean_vortX = mean_vortX + vortX;
+    mean_vortY = mean_vortY + vortY;
+    mean_vortZ = mean_vortZ + vortZ;
+
+    if mod(i,100) == 0
+        disp(['processed ',num2str(i),'/',num2str(num_files)])
+    end
+end
+
+% Divide sum by length to calculate mean
+mean_u = mean_u / num_files;
+mean_v = mean_v / num_files;
+mean_w = mean_w / num_files;
+mean_vortX = mean_vortX / num_files;
+mean_vortY = mean_vortY / num_files;
+mean_vortZ = mean_vortZ / num_files;
 
 params.zero = 0;
 params.clims = [-0.1 0.1];
@@ -114,129 +110,79 @@ params.y_lab = '\boldmath$\frac{w}{U_{\infty}}$';
 params.title = "Streamwise velocity";
 PIV_plot(x(:,:,3), y(:,:,3), mean_w(:,:,3), params)
 
-%% loading force data
-[daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name);
+params.zero = 0;
+params.clims = [-0.5 0.5];
+params.y_lab = '\boldmath$\frac{u}{U_{\infty}}$';
+params.title = "Spanwise vorticity";
+PIV_plot(x(:,:,3), y(:,:,3), mean_vortX(:,:,3), params)
 
-exp_data_folder = daq_data_path + "experiment data\";
-offsets_data_folder = daq_data_path + "offsets data\";
+params.zero = 0;
+params.clims = [-0.5 0.5];
+params.y_lab = '\boldmath$\frac{v}{U_{\infty}}$';
+params.title = "Vertical vorticity";
+PIV_plot(x(:,:,3), y(:,:,3), mean_vortY(:,:,3), params)
 
-[case_name, time_stamp, type, wing_freq, AoA, wind_speed, amp, file_type] = parse_filename(daq_data_filename);
+params.zero = 0;
+params.clims = [-1 1];
+params.y_lab = '\boldmath$\frac{w}{U_{\infty}}$';
+params.title = "Streamwise vorticity";
+PIV_plot(x(:,:,3), y(:,:,3), mean_vortZ(:,:,3), params)
+end
 
-% Find matching offsets file
-offsets_string = "before_offsets";
-calibration_filepath = "../DAQ/Calibration Files/Mini40/FT52907.cal";
-cal_mat = obtain_cal(calibration_filepath);
+% get bin number associated with each frame from DAQ measurements
+[bin_ind_arr, num_bins] = frame_to_bin(PIV_case_name, num_images);
 
-% Get a list of all files in the folder with the desired file name pattern.
-filePattern = fullfile(offsets_data_folder, '*.mat');
-offsets_files = dir(filePattern);
-
-% try
-[offsets, offsets_filename] = findMatchingOffset...
-    (offsets_files, offsets_string, wing_freq, amp, AoA, wind_speed, type, time_stamp);
-% catch
-%     error("Oops, no offsets found. Did you check that daq_data_path is correct?")
-% end
-
-% Get raw data from file
-load(exp_data_folder + daq_data_filename); % load in results var
-
-ticksPerRev = 18432;
-OC_pulse_step = 4;
-[time_data, force_data, voltAdj, curAdj, enc_pulse, speed] = process_data(results, offsets, cal_mat, ticksPerRev, OC_pulse_step);
-
-wing_pos = results(:,11) / (ticksPerRev / OC_pulse_step);
-
-% Find indices where a laser fire has been recorded
-las_count = results(:,12);
-mid_indices = find(las_count ~= 0 & las_count ~= las_count(end));
-% if removed all mid_indices, would miss first and last pulse
-mid_indices_adj = [mid_indices(1) - 1; mid_indices; mid_indices(end) + 1];
-las_count_tr = las_count(mid_indices_adj);
-las_count_diff = diff(las_count_tr);
-whole_idx = find(las_count_diff ~= 0);
-las_rep_rate = diff(whole_idx);
-
-laser_ind = whole_idx + mid_indices_adj(1);
-wing_pos_frame = wing_pos(laser_ind);
-norm_wing_pos_frame = mod(wing_pos_frame,1);
-norm_wing_pos_frame_tr = norm_wing_pos_frame(end-(num_images - 1):end);
-norm_wing_pos_frame_int = round(norm_wing_pos_frame * (ticksPerRev / OC_pulse_step),3);
-full_cycle = 0.5:1:(ticksPerRev / OC_pulse_step)+0.5;
-% edges = (min(norm_wing_pos_frame_int)-0.5):(max(norm_wing_pos_frame_int)+0.5);
-
-figure
-histogram(norm_wing_pos_frame_int, full_cycle)
-xlabel("Encoder Ticks")
-ylabel("Frequency")
-
-figure
-histogram(norm_wing_pos_frame_int, 70)
-xlabel("Encoder Ticks")
-ylabel("Frequency")
-
-% 50 for 2 Hz, 45 for 4 Hz, 45 for 6 Hz, 23 for 8 Hz
-% num_bins = 50;
-keys = {2, 4, 6, 8};
-num_bins_opts = [50, 45, 45, 23];
-bins_dict = containers.Map(keys, num_bins_opts);
-num_bins = bins_dict(wing_freq);
-
-num_bins = 70;
-
-disp("Using " + num_bins + " bins")
-% num_bins = 25; % for 4 Hz
-bins = linspace(0,1,num_bins+1);
-bin_ind_arr = discretize(norm_wing_pos_frame, bins);
-num_cycles = length(find(diff(bin_ind_arr) < 0)); % back to beginning of a cycle
-disp("Number of cycles: " + num_cycles)
-disp("Expected number of cycles: " + num_images / (200 / wing_freq))
-
-disp("Cropped off " + (length(bin_ind_arr) - num_images) + " extra laser pulses from beginning")
-% crop off last few extra pulses
-% bin_ind_arr = bin_ind_arr(1:num_images);
-% crop off first few extra pulses
-bin_ind_arr = bin_ind_arr(end-(num_images - 1):end);
-
-vortX_phase_avg = zeros(size(x,1), size(x,2), size(x,3), num_bins);
-vortY_phase_avg = zeros(size(vortX_phase_avg));
-vortZ_phase_avg = zeros(size(vortX_phase_avg));
-u_phase_avg = zeros(size(vortX_phase_avg));
-v_phase_avg = zeros(size(vortX_phase_avg));
-w_phase_avg = zeros(size(vortX_phase_avg));
-
-vort_phase_std = zeros(size(vortX_phase_avg));
-u_phase_std = zeros(size(vortX_phase_avg));
-v_phase_std = zeros(size(vortX_phase_avg));
-w_phase_std = zeros(size(vortX_phase_avg));
+phase_avg_bool = true;
+if phase_avg_bool
+disp("Phase Average: Loading file: " + file_path)
 
 bin_count = zeros(1,num_bins);
 bin_std = zeros(1,num_bins);
-% bin_indices_all = {};
+
 for i = 1:num_bins
     bin_indices = find(bin_ind_arr == i);
     % bin_indices_all{i} = bin_indices;
     bin_count(i) = length(bin_indices);
-    bin_std(i) = std(norm_wing_pos_frame(bin_indices));
+    % bin_std(i) = std(norm_wing_pos_frame(bin_indices)); % removed for
+    % turbine case
+    [x, y, z, u, v, w, vortX, vortY, vortZ, uncTot] = import_STB_data(file_path, nondim_bool, U, L, bin_indices);
 
-    vortX_phase_avg(:,:,:,i) = mean(vortX(:,:,:,bin_indices),4);
-    vortY_phase_avg(:,:,:,i) = mean(vortY(:,:,:,bin_indices),4);
-    vortZ_phase_avg(:,:,:,i) = mean(vortZ(:,:,:,bin_indices),4);
-    u_phase_avg(:,:,:,i) = mean(u(:,:,:,bin_indices),4);
-    v_phase_avg(:,:,:,i) = mean(v(:,:,:,bin_indices),4);
-    w_phase_avg(:,:,:,i) = mean(w(:,:,:,bin_indices),4);
+    if i == 1
+        vortX_phase_avg = zeros(size(x,1), size(x,2), size(x,3), num_bins);
+        vortY_phase_avg = zeros(size(vortX_phase_avg));
+        vortZ_phase_avg = zeros(size(vortX_phase_avg));
+        u_phase_avg = zeros(size(vortX_phase_avg));
+        v_phase_avg = zeros(size(vortX_phase_avg));
+        w_phase_avg = zeros(size(vortX_phase_avg));
 
-    % vort_phase_std(:,:,:,i) = std(vort(:,:,bin_indices), 0, 4);
-    % u_phase_std(:,:,:,i) = std(u(:,:,bin_indices), 0, 4);
-    % v_phase_std(:,:,:,i) = std(v(:,:,bin_indices), 0, 4);
-    % w_phase_std(:,:,:,i) = std(w(:,:,bin_indices), 0, 4);
+        % vort_phase_std = zeros(size(vortX_phase_avg));
+        % u_phase_std = zeros(size(vortX_phase_avg));
+        % v_phase_std = zeros(size(vortX_phase_avg));
+        % w_phase_std = zeros(size(vortX_phase_avg));
+    end
+
+    % Calculate average for this bin
+    vortX_phase_avg(:,:,:,i) = mean(vortX,4);
+    vortY_phase_avg(:,:,:,i) = mean(vortY,4);
+    vortZ_phase_avg(:,:,:,i) = mean(vortZ,4);
+    u_phase_avg(:,:,:,i) = mean(u,4);
+    v_phase_avg(:,:,:,i) = mean(v,4);
+    w_phase_avg(:,:,:,i) = mean(w,4);
+
+    if mod(i,5) == 0
+        disp(['processed ',num2str(i),'/',num2str(num_bins)])
+    end
 end
 
-[B, I] = sort(norm_wing_pos_frame_tr);
-vortZ_sorted = vortZ(:,:,:,I);
+% [B, I] = sort(norm_wing_pos_frame_tr);
+% vortZ_sorted = vortZ(:,:,:,I);
 
+net_u = zeros(1,num_bins);
+net_v = zeros(1,num_bins);
 net_w = zeros(1,num_bins);
 for i = 1:num_bins
+    net_u(i) = mean(u_phase_avg(:,:,:,i),"all");
+    net_v(i) = mean(v_phase_avg(:,:,:,i),"all");
     net_w(i) = mean(w_phase_avg(:,:,:,i),"all");
 end
 
@@ -244,10 +190,20 @@ end
 % save(save_filepath + "processed data\" + PIV_case_name + ".mat", "net_w")
 
 figure
+plot(net_u)
+xlabel("Time")
+ylabel("Average u velocity")
+
+figure
+plot(net_v)
+xlabel("Time")
+ylabel("Average v velocity")
+
+figure
 plot(net_w)
 xlabel("Time")
 ylabel("Average w velocity")
-
+end
 %% Plotting
 
 folder = save_filepath + PIV_case_name;
@@ -283,51 +239,55 @@ params.xlims = [-2.14 2.14]; % roughly -0.15 to 0.15 meters
 params.ylims = [-2.86 2.86]; % roughly -0.2 to 0.2 meters
 
 if phase_avg_plot_bool
+z_ind = 3;
 params.zero = 0;
 params.title = "Spanwise vorticity - phase averaged";
 params.folder = "vortX_avg";
 params.clims = [-1 1];
-make_movie(x(:,:,3), y(:,:,3), vortX_phase_avg(:,:,3,:), params)
+make_movie(x(:,:,z_ind), y(:,:,z_ind), vortX_phase_avg(:,:,z_ind,:), params)
 
+z_ind = 3;
 params.zero = 0;
-params.title = "Spanwise vorticity - phase averaged";
+params.title = "Vertical vorticity - phase averaged";
 params.folder = "vortY_avg";
 params.clims = [-1 1];
-make_movie(x(:,:,3), y(:,:,3), vortY_phase_avg(:,:,3,:), params)
+make_movie(x(:,:,z_ind), y(:,:,z_ind), vortY_phase_avg(:,:,z_ind,:), params)
 
+z_ind = 3;
 params.zero = 0;
 params.title = "Streamwise vorticity - phase averaged";
 params.folder = "vortZ_avg";
 params.clims = [-1 1];
-make_movie(x(:,:,3), y(:,:,3), vortZ_phase_avg(:,:,3,:), params)
+make_movie(x(:,:,z_ind), y(:,:,z_ind), vortZ_phase_avg(:,:,z_ind,:), params)
 
-params.zero = 0;
-params.title = "Streamwise vorticity - sorted";
-params.folder = "vortZ_sorted";
-params.clims = [-1 1];
-params.num_bins = num_images;
-make_movie(x(:,:,3), y(:,:,3), vortZ_sorted(:,:,3,:), params)
+% params.zero = 0;
+% params.title = "Streamwise vorticity - sorted";
+% params.folder = "vortZ_sorted";
+% params.clims = [-1 1];
+% params.num_bins = num_images;
+% make_movie(x(:,:,3), y(:,:,3), vortZ_sorted(:,:,3,:), params)
 
-params.title = "Streamwise vorticity - Standard Deviation";
-params.folder = "vort_std";
-params.clims = [0 1];
-make_movie(x, y, vort_phase_std, params)
+% params.title = "Streamwise vorticity - Standard Deviation";
+% params.folder = "vort_std";
+% params.clims = [0 1];
+% make_movie(x, y, vort_phase_std, params)
 
 params.title = "Spanwise velocity - Average";
 params.folder = "u_avg";
 params.clims = [-0.2 0.2];
-make_movie(x, y, u_phase_avg, params)
+make_movie(x(:,:,z_ind), y(:,:,z_ind), u_phase_avg(:,:,z_ind,:), params)
 
 params.title = "Vertical velocity - Average";
 params.folder = "v_avg";
 params.clims = [-0.2 0.2];
-make_movie(x, y, v_phase_avg, params)
+make_movie(x(:,:,z_ind), y(:,:,z_ind), v_phase_avg(:,:,z_ind,:), params)
 
 params.zero = 1;
 params.title = "Streamwise velocity - Average";
 params.folder = "w_avg";
 params.clims = [0.9 1.1];
-make_movie(x, y, w_phase_avg, params)
+% params.clims = [0.5 1.1];
+make_movie(x(:,:,z_ind), y(:,:,z_ind), w_phase_avg(:,:,z_ind,:), params)
 end
 
 % params.title = "2D Q";

@@ -212,6 +212,13 @@ for optionNum = 1:length(varargin)
                         error('Value of "frameRange" must be a numerical integer array.');
                     end
                     skip_next = 1;
+
+                case 'frameSelect' % to extract specific frames
+                    sel_frames = varargin{optionNum+1};
+                    if ~isnumeric(sel_frames)
+                        error('Value of "frameRange" must be a numerical integer array.');
+                    end
+                    skip_next = 1;
     
                 case 'nondim' % non-dimensionalize data option
                     nondim = 1;
@@ -276,18 +283,18 @@ end
 
 % Check for Field of View characteristics
 if ~exist('fovCenter','Var')
-    disp('WARNING: "fovCenter" not specified.')
+    % disp('WARNING: "fovCenter" not specified.')
     fovCenter = [0,0];
 end
 
 if ~exist('fovRot','Var')
-    disp('WARNING: "fovRot" not specified.')
+    % disp('WARNING: "fovRot" not specified.')
     fovRot = 0;
 end
 
 % Check for n_camFields variable
 if ~exist('n_camField','Var')
-    warning('"numCamField" not specified. Default to numCamField = 1.')
+    % warning('"numCamField" not specified. Default to numCamField = 1.')
     n_camField = 1;
 end
 
@@ -322,6 +329,11 @@ if ~exist('frameRange','Var') || isempty(frameRange)
     frameRange = 1:length(files);
 end
 
+% Determine range of frames to be processed
+if ~exist('sel_frames','Var') || isempty(sel_frames)
+    sel_frames = 1:length(files);
+end
+
 %% Add path of IMX executable
 if exist('readimx', 'file') ~= 3  % check if function is not yet defined
     if ismac
@@ -336,15 +348,19 @@ if exist('readimx', 'file') ~= 3  % check if function is not yet defined
 end
 
 %% Read in the files
-fnum = 0;
+counter = 0;
 N = length(frameRange);
 
 % Loop through each file
-for file = frameRange
-    fnum = fnum + 1;
+for ii = 1:length(sel_frames)
+    file_ind = sel_frames(ii);
+    counter = counter + 1;
+    % fnum = fnum + 1;
+    % get frame number from filename
+    fnum = str2double(regexp(files(file_ind).name, '\d+', 'match','once'));
 
     % Read DaVis file
-    fname = readimx(fullfile(folderPIV,files(file).name));
+    fname = readimx(fullfile(folderPIV,files(file_ind).name));
     
     % Extract attributes --------------------------------------------------
     if nargout  == 2
@@ -371,11 +387,11 @@ for file = frameRange
     out1 = extractData(fname, CorrelationThreshold,n_camField);
 
     % Initialize variables
-    if fnum == 1
+    if counter == 1
         if out1.dimNum > 3
             error('Data structure constains unrecognized data structure, number of dimensions exceeds 3D data structure. Review data structure');
         end
-        disp([num2str(out1.dimNum),'-dimensional data available.'])
+        % disp([num2str(out1.dimNum),'-dimensional data available.'])
 
         %% Rotate coordinate system if needed
         D.x = ( (out1.xRaw-fovCenter(1)).*cos(fovRot) - (out1.yRaw-fovCenter(2)).*sin(fovRot) );
@@ -388,7 +404,9 @@ for file = frameRange
            D.w = nan(size(out1.wRaw));
         end
 
-        D.vort = nan(size(out1.uRaw));
+        D.vortZ(:,:,:,counter) = nan(size(out1.uRaw));
+        D.vortX(:,:,:,counter) = nan(size(out1.uRaw));
+        D.vortY(:,:,:,counter) = nan(size(out1.uRaw));
 
         if eav == 1
             % D.corr = nan([size(D.x),N]);
@@ -401,44 +419,48 @@ for file = frameRange
     end
 
     % Store data into arrays with rotation
-    D.u(:,:,:,fnum) = ( out1.uRaw.*cos(fovRot) - out1.vRaw.*sin(fovRot) );
-    D.v(:,:,:,fnum) = ( out1.uRaw.*sin(fovRot) + out1.vRaw.*cos(fovRot) );
+    D.u(:,:,:,counter) = ( out1.uRaw.*cos(fovRot) - out1.vRaw.*sin(fovRot) );
+    D.v(:,:,:,counter) = ( out1.uRaw.*sin(fovRot) + out1.vRaw.*cos(fovRot) );
 
-    D.vortZ(:,:,:,fnum) = out1.vortZRaw;
-    D.vortX(:,:,:,fnum) = out1.vortXRaw;
-    D.vortY(:,:,:,fnum) = out1.vortYRaw;
+    D.vortZ(:,:,:,counter) = out1.vortZRaw;
+    D.vortX(:,:,:,counter) = out1.vortXRaw;
+    D.vortY(:,:,:,counter) = out1.vortYRaw;
 
     if eav == 1
         % D.corr(:,:,fnum) = out1.corrRaw;
         tmp = out1.uncURaw;
         tmp(tmp == 0) = NaN;
-        D.uncU(:,:,:,fnum) = tmp;
+        D.uncU(:,:,:,counter) = tmp;
 
         tmp = out1.uncVRaw;
         tmp(tmp == 0) = NaN;
-        D.uncV(:,:,:,fnum) = tmp;
+        D.uncV(:,:,:,counter) = tmp;
     end
 
     % For 3-dimensional data
     if out1.dimNum == 3
-        D.w(:,:,:,fnum) = out1.wRaw;
+        D.w(:,:,:,counter) = out1.wRaw;
         if eav == 1
             tmp = out1.uncWRaw;
             tmp(tmp == 0) = NaN;
-            D.uncW(:,:,:,fnum) = tmp;
+            D.uncW(:,:,:,counter) = tmp;
         end
     end
 
     % Progress update
-    if mod(fnum,100) == 0
-        disp(['processed ',num2str(fnum),'/',num2str(length(frameRange))])
+    if mod(counter,100) == 0
+        disp(['processed ',num2str(counter),'/',num2str(length(sel_frames))])
     end
 end
 
 %% Non-dimesionalize
 D.u = D.u/U;
 D.v = D.v/U;
-D.vort = D.vort*L/U;
+
+D.vortZ = D.vortZ * L/U;
+D.vortX = D.vortX * L/U;
+D.vortY = D.vortY * L/U;
+
 D.x = D.x/L;
 D.y = D.y/L;
 
@@ -468,7 +490,9 @@ end
 
 % Return to main folder
 cd(folderMain)
-disp('Done')
+if length(sel_frames) > 100
+    disp('Done')
+end
 
 end
 
