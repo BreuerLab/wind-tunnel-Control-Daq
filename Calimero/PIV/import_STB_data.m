@@ -35,6 +35,8 @@ end
 uncTot = (uncU.^2 + uncV.^2 + uncW.^2).^(1/2);
 % corr = D.corr;
 
+trim_bool = false;
+if trim_bool
 % Trimming data down
 xbounds = [-2.14 2.14]; % roughly -0.15 to 0.15 meters
 % ybounds = [-2.86 2.86]; % roughly -0.2 to 0.2 meters
@@ -56,6 +58,18 @@ vortX = vort_x_full(y_idx, x_idx,2:end-1,:);
 vortY = vort_y_full(y_idx, x_idx,2:end-1,:);
 uncTot = uncTot(y_idx, x_idx,2:end-1,:);
 % corr = corr(y_idx, x_idx,:);
+else
+x = x_full;
+y = y_full;
+z = z_full;
+u = u_full;
+v = v_full;
+w = w_full;
+vortZ = vort_z_full;
+vortX = vort_x_full;
+vortY = vort_y_full;
+uncTot = uncTot;
+end
 
 fin_W = round((max(x,[],"all") - min(x,[],"all")) * L * 100);
 fin_L = round((max(y,[],"all") - min(y,[],"all")) * L * 100);

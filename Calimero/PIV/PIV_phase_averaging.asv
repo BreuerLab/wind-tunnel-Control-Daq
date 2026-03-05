@@ -17,9 +17,7 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB'))
 % PIV_case_name = 'turbine';
 PIV_case_name = 'flexible_20deg_6Hz';
 L = 0.07; % characteristic length, guess of mean aerodynamic chord
-U = 6; % characteristic windspeed, freestream
-% L = 0.07; % characteristic length, guess of mean aerodynamic chord
-% U = 4; % characteristic windspeed, freestream
+U = 4; % characteristic windspeed, freestream
 save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
 num_images = 2500;
 
@@ -56,7 +54,7 @@ movie_plot_bool = false;
 file_path = get_PIV_paths(PIV_case_name);
 files = dir(fullfile(file_path,'*.vc7'));
 num_files = length(files);
-time_avg_bool = false;
+time_avg_bool = true;
 
 if time_avg_bool
 disp("Time Average: Loading file: " + file_path)
@@ -108,7 +106,7 @@ params.zero = 1;
 params.clims = [0.9 1.1];
 params.y_lab = '\boldmath$\frac{w}{U_{\infty}}$';
 params.title = "Streamwise velocity";
-PIV_plot(x(:,:,3), y(:,:,3), mean_w(:,:,3), params)
+PIV_plot(x(:,:,3), y(:,:,3), -mean_w(:,:,3), params)
 
 params.zero = 0;
 params.clims = [-0.5 0.5];
@@ -130,7 +128,7 @@ PIV_plot(x(:,:,3), y(:,:,3), mean_vortZ(:,:,3), params)
 end
 
 % get bin number associated with each frame from DAQ measurements
-[bin_ind_arr, num_bins] = frame_to_bin(PIV_case_name, num_images);
+[norm_frame_pos, bin_ind_arr, num_bins] = frame_to_bin(PIV_case_name, num_images);
 
 phase_avg_bool = true;
 if phase_avg_bool
@@ -143,8 +141,8 @@ for i = 1:num_bins
     bin_indices = find(bin_ind_arr == i);
     % bin_indices_all{i} = bin_indices;
     bin_count(i) = length(bin_indices);
-    % bin_std(i) = std(norm_wing_pos_frame(bin_indices)); % removed for
-    % turbine case
+    bin_std(i) = std(norm_frame_pos(bin_indices)); % removed for turbine case
+  
     [x, y, z, u, v, w, vortX, vortY, vortZ, uncTot] = import_STB_data(file_path, nondim_bool, U, L, bin_indices);
 
     if i == 1
@@ -226,9 +224,11 @@ exportgraphics(gcf, folder + "\phase_avg_bin_variability.png", 'Resolution', 300
 
 %% Vorticity
 
-% dx = abs(x(1,2) - x(1,1));
-% dy = abs(y(2,1) - y(1,1));
+dx = abs(x(1,2,1) - x(1,1,1));
+dy = abs(y(2,1,1) - y(1,1,1));
+dz = abs(z(1,1,2) - z(1,1,1));
 % Q_phase_avg = calQlate(u_phase_avg, v_phase_avg, dx, dy);
+% [Qx,Qy,Qz,Q] = calQlate3D(u_phase_avg,v_phase_avg,w_phase_avg,dx,dy,dz);
 
 params.PIV_case_name = PIV_case_name;
 params.save_filepath = save_filepath;
@@ -338,7 +338,8 @@ params.movie = false;
 params.L = L;
 params.shift = -7;
 params.isoValue = 0.05; % 0.05
-stack_vortices(x_tr, y_tr, vort_phase_avg_tr, Q_phase_avg_tr, wing_freq, params);
+% stack_vortices(x_tr, y_tr, vort_phase_avg_tr, Q_phase_avg_tr, wing_freq, params);
+stack_vortices_3D(x, y, z, C_phase_avg, Q_phase_avg, wing_freq, params)
 
 ax = gca;
 ax.XAxisLocation = 'bottom';   % 'left' or 'right'

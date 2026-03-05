@@ -512,6 +512,7 @@ S = dataStructure.Frames{n_camField, 1}.Scales;
 G = dataStructure.Frames{n_camField, 1}.Grids;
 
 % Find field names by search (not hard-coded)
+field_names = cell(1,length(C));
 for i=1:length(C)
     field_names{i} = C{i,1}.Name;
 end
@@ -520,8 +521,8 @@ idu = find(strcmp(field_names, 'U0'),1); % First (and only) index where matches 
 idv = find(strcmp(field_names, 'V0'),1);
 idw = find(strcmp(field_names, 'W0'),1);
 % idcorr = find(strcmp(field_names, 'TS:Correlation value'),1);
-idParticle_Size = find(strcmp(field_names, 'TS:Particle size'),1);
-idPeak_Ratio = find(strcmp(field_names, 'TS:Peak ratio'),1);
+% idParticle_Size = find(strcmp(field_names, 'TS:Particle size'),1);
+% idPeak_Ratio = find(strcmp(field_names, 'TS:Peak ratio'),1);
 iduncU = find(strcmp(field_names, 'TS:Uncertainty Vx'),1);
 iduncV = find(strcmp(field_names, 'TS:Uncertainty Vy'),1);
 iduncW = find(strcmp(field_names, 'TS:Uncertainty Vz'),1);
@@ -555,16 +556,28 @@ end
 % define size of u, v, w matrices
 numPlanes = length(C{1, 1}.Planes);
 sizeXY = size(C{1, 1}.Planes{1, 1});
-out1.uRaw = nan([sizeXY numPlanes]);
+
+trim_bool = true;
+if trim_bool
+    planesList = 2:numPlanes-1;
+    numPlanesTr = numPlanes - 2;
+else
+    planesList = 1:numPlanes;
+    numPlanesTr = numPlanes;
+end
+
+out1.uRaw = nan([sizeXY numPlanesTr]);
 out1.vRaw = nan(size(out1.uRaw));
 out1.wRaw = nan(size(out1.uRaw));
 
-for i = 1:numPlanes
+count = 0;
+for i = planesList
+    count = count + 1;
     % Extract vector data
-    out1.uRaw(:,:,i) = C{idu, 1}.Planes{i, 1} * S.I.Slope + C{idu, 1}.Scale.Offset;
-    out1.vRaw(:,:,i) = C{idv, 1}.Planes{i, 1} * S.I.Slope + C{idv, 1}.Scale.Offset;
+    out1.uRaw(:,:,count) = C{idu, 1}.Planes{i, 1} * S.I.Slope + C{idu, 1}.Scale.Offset;
+    out1.vRaw(:,:,count) = C{idv, 1}.Planes{i, 1} * S.I.Slope + C{idv, 1}.Scale.Offset;
     if out1.dimNum == 3
-        out1.wRaw(:,:,i) = C{idw, 1}.Planes{i, 1} * S.I.Slope + C{idw, 1}.Scale.Offset;
+        out1.wRaw(:,:,count) = C{idw, 1}.Planes{i, 1} * S.I.Slope + C{idw, 1}.Scale.Offset;
     end
 end
 
@@ -589,7 +602,11 @@ end
 % Generate grids
 xr = ( (1:size(out1.uRaw,1)) - 0.5 );
 yr = ( (1:size(out1.uRaw,2)) - 0.5 );
-zr = ( (1:size(out1.uRaw,3)) - 0.5 );
+zr = ( (1:numPlanes) - 0.5 );
+
+if trim_bool
+    zr = zr(2:end-1);
+end
 
 [out1.xRaw, out1.yRaw, out1.zRaw] = ndgrid((xr * G.X * S.X.Slope + S.X.Offset)/1000,...
     (yr * G.Y * S.Y.Slope + S.Y.Offset)/1000,...
@@ -599,26 +616,35 @@ zr = ( (1:size(out1.uRaw,3)) - 0.5 );
 % x - negative to positive (left to right)
 % y - negative to positive (bottom to top)
 % out1.xRaw =  flip(out1.xRaw');
-out1.xRaw =  flip(-permute(out1.xRaw, [2 1 3]),2); % NEW
-% out1.yRaw =  flip(out1.yRaw');
-out1.yRaw =  flip(permute(out1.yRaw, [2 1 3]),2); % NEW
-out1.zRaw =  flip(permute(out1.zRaw, [2 1 3]),2); % NEW
-% out1.uRaw =  flip(out1.uRaw');
-% out1.uRaw =  flip(out1.uRaw',2); % NEW
-out1.uRaw = flip(permute(out1.uRaw, [2 1 3]), 2); % NEW NEW
-% out1.vRaw = -flip(out1.vRaw');
-% out1.vRaw = flip(-out1.vRaw',2); % NEW
-out1.vRaw = flip(permute(-out1.vRaw, [2 1 3]), 2); % NEW NEW
-if out1.dimNum == 3
-    % out1.wRaw = flip(out1.wRaw');
-    out1.wRaw = flip(permute(out1.wRaw, [2 1 3]), 2);
-end
+% out1.xRaw =  flip(-out1.xRaw,2); % NEW
+% % out1.yRaw =  flip(out1.yRaw');
+% out1.yRaw =  out1.yRaw;
+% out1.zRaw =  flip(-out1.zRaw,3); % NEW
+% % out1.uRaw =  flip(out1.uRaw');
+% % out1.uRaw =  flip(out1.uRaw',2); % NEW
+% out1.uRaw = flip(flip(-out1.uRaw, 2),3); % NEW NEW
+% % out1.vRaw = -flip(out1.vRaw');
+% % out1.vRaw = flip(-out1.vRaw',2); % NEW
+% out1.vRaw = flip(flip(out1.vRaw, 2),3); % NEW NEW
+% if out1.dimNum == 3
+%     % out1.wRaw = flip(out1.wRaw');
+%     out1.wRaw = flip(flip(-out1.wRaw, 2),3);
+% end
+
+rot180 = @(data) flip(flip(flip(data, 2), 3),1); % just removed flip(xxx,1)
+
+% Apply to all components
+out1.xRaw = rot180(-out1.xRaw);
+out1.yRaw = rot180(out1.yRaw);
+out1.zRaw = rot180(-out1.zRaw);
+
+out1.uRaw = rot180(-out1.uRaw);
+out1.vRaw = rot180(-out1.vRaw); % just removed negative sign
+out1.wRaw = rot180(-out1.wRaw);
 
 % Compute vorticity
-out1.vortZRaw = calculateVorticity(out1.xRaw, out1.yRaw, out1.zRaw, out1.uRaw, out1.vRaw, out1.wRaw, 3);
-% out1.vortXRaw = calculateVorticityX(out1.yRaw, out1.zRaw, out1.vRaw, out1.wRaw);
-out1.vortXRaw = calculateVorticity(out1.xRaw, out1.yRaw, out1.zRaw, out1.uRaw, out1.vRaw, out1.wRaw, 1);
-out1.vortYRaw = calculateVorticity(out1.xRaw, out1.yRaw, out1.zRaw, out1.uRaw, out1.vRaw, out1.wRaw, 2);
+[out1.vortXRaw, out1.vortYRaw, out1.vortZRaw] = ...
+    calculateVorticity(out1.xRaw, out1.yRaw, out1.zRaw, out1.uRaw, out1.vRaw, out1.wRaw);
 
 % Save data
 if isvalid_exists
@@ -630,7 +656,7 @@ end
 out1.uncURaw = nan([sizeXY numPlanes]);
 out1.uncVRaw = nan(size(out1.uncURaw));
 out1.uncWRaw = nan(size(out1.uncURaw));
-for i = 1:numPlanes
+for i = planesList
     % Uncertainties
     out1.uncURaw(:,:,i) = C{iduncU, 1}.Planes{i, 1};
     out1.uncVRaw(:,:,i) = C{iduncV, 1}.Planes{i, 1};
@@ -648,70 +674,171 @@ end
 end
 
 % Compute vorticity -------------------------------------------------------
-function omega_z = calculateVorticity(xRaw,yRaw,zRaw,uRaw,vRaw,wRaw,dim)
+function [omega_x, omega_y, omega_z] = calculateVorticity(xRaw,yRaw,zRaw,uRaw,vRaw,wRaw)
 
 % A: ALGORITHM TAKEN FROM RAFFEL'S PIV HANDBOOK
 % 6.4 Estimation of Differential Quantities, page 195
+omega_x = nan(size(uRaw));
+omega_y = nan(size(uRaw));
 omega_z = nan(size(uRaw));
 
-dx = abs(xRaw(1,1,1) - xRaw(1,2,1));
-dy = abs(yRaw(1,1,1) - yRaw(2,1,1));
-dz = abs(zRaw(1,1,1) - zRaw(1,1,2));
+dx = abs(xRaw(2,1,1) - xRaw(1,1,1));
+dy = abs(yRaw(1,2,1) - yRaw(1,1,1));
+dz = abs(zRaw(1,1,2) - zRaw(1,1,1));
 
-if (dim == 3)
+%     C = 1 / (8 * dx * dy);
+% 
+%     i = 2:size(xRaw,1)-1; 
+%     j = 2:size(xRaw,2)-1;
+%     k = 1:size(xRaw,3);
+% 
+%     omega_z(i,j,k) = C * (...
+%     -dx * (vRaw(i-1,j-1,k) + 2*vRaw(i,j-1,k) + vRaw(i+1,j-1,k)) ...
+%     -dy * (uRaw(i+1,j-1,k) + 2*uRaw(i+1,j,k) + uRaw(i+1,j+1,k)) ...
+%     +dx * (vRaw(i+1,j+1,k) + 2*vRaw(i,j+1,k) + vRaw(i-1,j+1,k)) ...
+%     +dy * (uRaw(i-1,j+1,k) + 2*uRaw(i-1,j,k) + uRaw(i-1,j-1,k)) ...
+% );
+
+% 1. Define the Kernels
+% Note: In MATLAB convolution, the kernel is effectively "flipped" 
+% during the operation, but for symmetric stencils like this, 
+% we just map the coefficients directly.
+
+Ku = [ -1,   0,  1;
+       -2,  0, 2;
+       -1,   0,  1 ] * dx;
+
+Kv = [ 1, 2, 1;
+        0,    0,    0;
+        -1,  -2,  -1 ] * dy;
+
+% kernels flipped since convn flips them again before applying them
+
+% 2. Apply Convolution
+% 'same' keeps the output the same size as input.
+% convn handles the 3rd dimension (k) automatically by applying 
+% the 2D kernel to every slice.
+C = 1 / (8 * dx * dy);
+omega_z = C * (convn(uRaw, Ku, 'same') + convn(vRaw, Kv, 'same'));
+
+% C = 1 / (8 * dx * dy);
+% 
+% i = 2:size(xRaw,1)-1; 
+% j = 2:size(xRaw,2)-1;
+% k = 1:size(xRaw,3);
+% 
+% omega_z(i,j,k) = C * (...
+%             dx*(uRaw(i-1,j-1,k) + 2*uRaw(i,j-1,k) + uRaw(i+1,j-1,k)) ...
+%             + dy*(vRaw(i+1,j-1,k) + 2*vRaw(i+1,j,k) + vRaw(i+1,j+1,k)) ...
+%             - dx*(uRaw(i+1,j+1,k) + 2*uRaw(i,j+1,k) + uRaw(i-1,j+1,k)) ...
+%             - dy*(vRaw(i-1,j+1,k) + 2*vRaw(i-1,j,k) + vRaw(i-1,j-1,k)) ...
+% );
 % Dont compute the edge vorticity
-for k = 1:size(xRaw,dim)
-    for i = 2:size(xRaw,1)-1
-        for j = 2:size(xRaw,2)-1
-            omega_z(i,j,k) = ...
-                ( ...
-                - (1/2)*dx*(vRaw(i-1,j-1,k) + 2*vRaw(i,j-1,k) + vRaw(i+1,j-1,k)) ...
-                - (1/2)*dy*(uRaw(i+1,j-1,k) + 2*uRaw(i+1,j,k) + uRaw(i+1,j+1,k)) ...
-                + (1/2)*dx*(vRaw(i+1,j+1,k) + 2*vRaw(i,j+1,k) + vRaw(i-1,j+1,k)) ...
-                + (1/2)*dy*(uRaw(i-1,j+1,k) + 2*uRaw(i-1,j,k) + uRaw(i-1,j-1,k)) ...
-                ) ...
-                / (4*dx*dy);
-            % omega_z(i,j) = ((1/2) / (4*dx*dy))*...
-            %     ( ...
-            %     dx*(uRaw(i-1,j-1) + 2*uRaw(i,j-1) + uRaw(i+1,j-1)) ...
-            %     + dy*(vRaw(i+1,j-1) + 2*vRaw(i+1,j) + vRaw(i+1,j+1)) ...
-            %     - dx*(uRaw(i+1,j+1) + 2*uRaw(i,j+1) + uRaw(i-1,j+1)) ...
-            %     - dy*(vRaw(i-1,j+1) + 2*vRaw(i-1,j) + vRaw(i-1,j-1)) ...
-            %     );
-        end
-    end
-end
-elseif (dim == 2)
-for k = 1:size(xRaw,dim)
-    for i = 2:size(xRaw,1)-1
-        for j = 2:size(xRaw,3)-1
-            omega_z(i,k,j) = ...
-                ( ...
-                - (1/2)*dz*(uRaw(i-1,k,j-1) + 2*uRaw(i,k,j-1) + uRaw(i+1,k,j-1)) ...
-                - (1/2)*dx*(wRaw(i+1,k,j-1) + 2*wRaw(i+1,k,j) + wRaw(i+1,k,j+1)) ...
-                + (1/2)*dz*(uRaw(i+1,k,j+1) + 2*uRaw(i,k,j+1) + uRaw(i-1,k,j+1)) ...
-                + (1/2)*dx*(wRaw(i-1,k,j+1) + 2*wRaw(i-1,k,j) + wRaw(i-1,k,j-1)) ...
-                ) ...
-                / (4*dx*dy);
-        end
-    end
-end
-elseif (dim == 1)
-for k = 1:size(xRaw,dim)
-    for i = 2:size(xRaw,2)-1
-        for j = 2:size(xRaw,3)-1
-            omega_z(k,i,j) = ...
-                ( ...
-                - (1/2)*dy*(wRaw(k,i-1,j-1) + 2*wRaw(k,i,j-1) + wRaw(k,i+1,j-1)) ...
-                - (1/2)*dz*(vRaw(k,i+1,j-1) + 2*vRaw(k,i+1,j) + vRaw(k,i+1,j+1)) ...
-                + (1/2)*dy*(wRaw(k,i+1,j+1) + 2*wRaw(k,i,j+1) + wRaw(k,i-1,j+1)) ...
-                + (1/2)*dz*(vRaw(k,i-1,j+1) + 2*vRaw(k,i-1,j) + vRaw(k,i-1,j-1)) ...
-                ) ...
-                / (4*dy*dz);
-        end
-    end
-end
-end
+% C = 1 / (8 * dx * dy);
+% for k = 1:size(xRaw,3)
+%     for i = 2:size(xRaw,1)-1
+%         for j = 2:size(xRaw,2)-1
+%             omega_z(i,j,k) = ...
+%                 C * ( ...
+%                 + dx*(uRaw(i-1,j-1,k) + 2*uRaw(i,j-1,k) + uRaw(i+1,j-1,k)) ...
+%                 + dy*(vRaw(i+1,j-1,k) + 2*vRaw(i+1,j,k) + vRaw(i+1,j+1,k)) ...
+%                 - dx*(uRaw(i+1,j+1,k) + 2*uRaw(i,j+1,k) + uRaw(i-1,j+1,k)) ...
+%                 - dy*(vRaw(i-1,j+1,k) + 2*vRaw(i-1,j,k) + vRaw(i-1,j-1,k)) ...
+%                 );
+% 
+%             % - (1/2)*dx*(vRaw(i-1,j-1,k) + 2*vRaw(i,j-1,k) + vRaw(i+1,j-1,k)) ...
+%             %     - (1/2)*dy*(uRaw(i+1,j-1,k) + 2*uRaw(i+1,j,k) + uRaw(i+1,j+1,k)) ...
+%             %     + (1/2)*dx*(vRaw(i+1,j+1,k) + 2*vRaw(i,j+1,k) + vRaw(i-1,j+1,k)) ...
+%             %     + (1/2)*dy*(uRaw(i-1,j+1,k) + 2*uRaw(i-1,j,k) + uRaw(i-1,j-1,k)) ...
+% 
+%             % omega_z(i,j) = ((1/2) / (4*dx*dy))*...
+%             %     ( ...
+%             %     dx*(uRaw(i-1,j-1) + 2*uRaw(i,j-1) + uRaw(i+1,j-1)) ...
+%             %     + dy*(vRaw(i+1,j-1) + 2*vRaw(i+1,j) + vRaw(i+1,j+1)) ...
+%             %     - dx*(uRaw(i+1,j+1) + 2*uRaw(i,j+1) + uRaw(i-1,j+1)) ...
+%             %     - dy*(vRaw(i-1,j+1) + 2*vRaw(i-1,j) + vRaw(i-1,j-1)) ...
+%             %     );
+%         end
+%     end
+% end
+
+% We define this as a 3D array: [Rows x Cols x Slices]
+% Since k (Cols) doesn't change, the second dimension size is 1.
+Kw = zeros(3, 1, 3);
+Kw(1, 1, :) = [ -1,  -2,  -1]; % i-1 terms
+Kw(2, 1, :) = [0,  0,  0]; % i terms
+Kw(3, 1, :) = [ 1,  2, 1]; % i+1 terms
+Kw = Kw * dz;
+
+% Kernel for uRaw: Operations on Dim 1 (j) and Dim 3 (i)
+Ku = zeros(3, 1, 3);
+Ku(:, 1, 3) = [-1, -2,  -1]; % j-1 terms
+Ku(:, 1, 2) = [0, 0, 0]; % j terms (middle)
+Ku(:, 1, 1) = [1, 2,  1]; % j+1 terms
+Ku = Ku * dx;
+
+C = 1 / (8 * dx * dy);
+omega_y = C * (convn(wRaw, Kw, 'same') + convn(uRaw, Ku, 'same'));
+
+% C = 1 / (8 * dx * dz);
+% 
+% i = 2:size(xRaw,3)-1; 
+% j = 2:size(xRaw,1)-1;
+% k = 1:size(xRaw,2);
+% 
+% omega_y(j,k,i) = C * (...
+%             dz*(wRaw(j-1,k,i-1) + 2*wRaw(j-1,k,i) + wRaw(j-1,k,i+1)) ...
+%             + dx*(uRaw(j-1,k,i+1) + 2*uRaw(j,k,i+1) + uRaw(j+1,k,i+1)) ...
+%             - dz*(wRaw(j+1,k,i+1) + 2*wRaw(j+1,k,i) + wRaw(j+1,k,i-1)) ...
+%             - dx*(uRaw(j+1,k,i-1) + 2*uRaw(j,k,i-1) + uRaw(j-1,k,i-1)) ...
+% );
+
+% for k = 1:size(xRaw,2)
+%     for i = 2:size(xRaw,1)-1
+%         for j = 2:size(xRaw,3)-1
+%             omega_z(i,k,j) = ...
+%                 ( ...
+%                 - (1/2)*dz*(uRaw(i-1,k,j-1) + 2*uRaw(i-1,k,j) + uRaw(i-1,k,j+1)) ...
+%                 - (1/2)*dx*(wRaw(i-1,k,j+1) + 2*wRaw(i,k,j+1) + wRaw(i+1,k,j+1)) ...
+%                 + (1/2)*dz*(uRaw(i+1,k,j+1) + 2*uRaw(i+1,k,j) + uRaw(i+1,k,j-1)) ...
+%                 + (1/2)*dx*(wRaw(i+1,k,j-1) + 2*wRaw(i,k,j-1) + wRaw(i-1,k,j-1)) ...
+%                 ) ...
+%                 / (4*dx*dy);
+%             % - (1/2)*dz*(uRaw(i-1,k,j-1) + 2*uRaw(i,k,j-1) + uRaw(i+1,k,j-1)) ...
+%             %     - (1/2)*dx*(wRaw(i+1,k,j-1) + 2*wRaw(i+1,k,j) + wRaw(i+1,k,j+1)) ...
+%             %     + (1/2)*dz*(uRaw(i+1,k,j+1) + 2*uRaw(i,k,j+1) + uRaw(i-1,k,j+1)) ...
+%             %     + (1/2)*dx*(wRaw(i-1,k,j+1) + 2*wRaw(i-1,k,j) + wRaw(i-1,k,j-1)) ...
+%         end
+%     end
+% end
+% elseif (dim == 1)
+C = 1 / (8 * dy * dz);
+
+i = 2:size(xRaw,2)-1; 
+j = 2:size(xRaw,3)-1;
+k = 1:size(xRaw,1);
+
+omega_x(k,i,j) = C * (...
+            dy*(vRaw(k,i-1,j-1) + 2*vRaw(k,i,j-1) + vRaw(k,i+1,j-1)) ...
+            + dz*(wRaw(k,i+1,j-1) + 2*wRaw(k,i+1,j) + wRaw(k,i+1,j+1)) ...
+            - dy*(vRaw(k,i+1,j+1) + 2*vRaw(k,i,j+1) + vRaw(k,i-1,j+1)) ...
+            - dz*(wRaw(k,i-1,j+1) + 2*wRaw(k,i-1,j) + wRaw(k,i-1,j-1)) ...
+);
+
+% for k = 1:size(xRaw,1)
+%     for i = 2:size(xRaw,2)-1
+%         for j = 2:size(xRaw,3)-1
+%             omega_z(k,i,j) = ...
+%                 ( ...
+%                 - (1/2)*dy*(wRaw(k,i-1,j-1) + 2*wRaw(k,i,j-1) + wRaw(k,i+1,j-1)) ...
+%                 - (1/2)*dz*(vRaw(k,i+1,j-1) + 2*vRaw(k,i+1,j) + vRaw(k,i+1,j+1)) ...
+%                 + (1/2)*dy*(wRaw(k,i+1,j+1) + 2*wRaw(k,i,j+1) + wRaw(k,i-1,j+1)) ...
+%                 + (1/2)*dz*(vRaw(k,i-1,j+1) + 2*vRaw(k,i-1,j) + vRaw(k,i-1,j-1)) ...
+%                 ) ...
+%                 / (4*dy*dz);
+%         end
+%     end
+% end
 
 % NOTE: ADD COMPUTATION OF EDGES (USE MATLAB'S IMPLEMENTATION IN "curl")
 

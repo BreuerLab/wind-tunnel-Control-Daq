@@ -5,7 +5,7 @@ close all
 cd(fileparts(mfilename('fullpath')));
 addpath(genpath('../../'))
 addpath(genpath('.'))
-addpath(genpath('C:\Users\rgissler\Documents\MATLAB'))
+addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -17,9 +17,7 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB'))
 % PIV_case_name = 'turbine';
 PIV_case_name = 'flexible_20deg_6Hz';
 L = 0.07; % characteristic length, guess of mean aerodynamic chord
-U = 6; % characteristic windspeed, freestream
-% L = 0.07; % characteristic length, guess of mean aerodynamic chord
-% U = 4; % characteristic windspeed, freestream
+U = 4; % characteristic windspeed, freestream
 save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
 num_images = 2500;
 
@@ -60,7 +58,7 @@ time_avg_bool = false;
 
 if time_avg_bool
 disp("Time Average: Loading file: " + file_path)
-num_files = 1000; % TEMPORARY LINE ---- DELETE
+num_files = 200; % TEMPORARY LINE ---- DELETE
 for i = 1:num_files
     [x, y, z, u, v, w, vortX, vortY, vortZ, uncTot] = import_STB_data(file_path, nondim_bool, U, L, i);
 
@@ -108,7 +106,7 @@ params.zero = 1;
 params.clims = [0.9 1.1];
 params.y_lab = '\boldmath$\frac{w}{U_{\infty}}$';
 params.title = "Streamwise velocity";
-PIV_plot(x(:,:,3), y(:,:,3), mean_w(:,:,3), params)
+PIV_plot(x(:,:,3), y(:,:,3), -mean_w(:,:,3), params)
 
 params.zero = 0;
 params.clims = [-0.5 0.5];
@@ -230,7 +228,7 @@ dx = abs(x(1,2,1) - x(1,1,1));
 dy = abs(y(2,1,1) - y(1,1,1));
 dz = abs(z(1,1,2) - z(1,1,1));
 % Q_phase_avg = calQlate(u_phase_avg, v_phase_avg, dx, dy);
-[Qx,Qy,Qz,Q] = calQlate3D(u_phase_avg,v_phase_avg,w_phase_avg,dx,dy,dz);
+% [Qx,Qy,Qz,Q] = calQlate3D(u_phase_avg,v_phase_avg,w_phase_avg,dx,dy,dz);
 
 params.PIV_case_name = PIV_case_name;
 params.save_filepath = save_filepath;
