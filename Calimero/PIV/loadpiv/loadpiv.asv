@@ -765,20 +765,20 @@ omega_z = C * (convn(uRaw, Ku, 'same') + convn(vRaw, Kv, 'same'));
 % We define this as a 3D array: [Rows x Cols x Slices]
 % Since k (Cols) doesn't change, the second dimension size is 1.
 Kw = zeros(3, 1, 3);
-Kw(1, 1, :) = [ 1;  2;  1]; % i-1 terms
-Kw(2, 1, :) = [0;  0;  0]; % i terms
-Kw(3, 1, :) = [ -1;  -2; -1]; % i+1 terms
+Kw(1, 1, :) = [ -1,  -2,  -1]; % i-1 terms
+Kw(2, 1, :) = [0,  0,  0]; % i terms
+Kw(3, 1, :) = [ 1,  2, 1]; % i+1 terms
 Kw = Kw * dz;
 
 % Kernel for uRaw: Operations on Dim 1 (j) and Dim 3 (i)
 Ku = zeros(3, 1, 3);
-Ku(1, 1, :) = [-dx, 0,  dx]; % j-1 terms
-Ku(2, 1, :) = [-2*dx, 0, 2*dx]; % j terms (middle)
-Ku(3, 1, :) = [-dx, 0,  dx]; % j+1 terms
+Ku(:, 1, 3) = [-1, -2,  -1]; % j-1 terms
+Ku(:, 1, 2) = [0, 0, 0]; % j terms (middle)
+Ku(:, 1, 1) = [1, 2,  1]; % j+1 terms
 Ku = Ku * dx;
 
-C = 1 / (8 * dx * dy);
-omega_y = C * (convn(wRaw, Kw, 'same') + convn(vRaw, Kv, 'same'));
+C = 1 / (8 * dx * dz);
+omega_y = C * (convn(wRaw, Kw, 'same') + convn(uRaw, Ku, 'same'));
 
 % C = 1 / (8 * dx * dz);
 % 
@@ -812,18 +812,34 @@ omega_y = C * (convn(wRaw, Kw, 'same') + convn(vRaw, Kv, 'same'));
 %     end
 % end
 % elseif (dim == 1)
+Kv = zeros(3, 1, 3);
+Kv(1, :, 1) = [ -1,  -2,  -1]; % i-1 terms
+Kv(1, :, 2) = [0,  0,  0]; % i terms
+Kv(1, :, 3) = [ 1,  2, 1]; % i+1 terms
+Kv = Kv * dy;
+
+% Kernel for uRaw: Operations on Dim 1 (j) and Dim 3 (i)
+Kw = zeros(3, 1, 3);
+Kw(1, 1, :) = [-1, -2,  -1]; % j-1 terms
+Kw(1, 2, :) = [0, 0, 0]; % j terms (middle)
+Kw(1, 3, :) = [1, 2,  1]; % j+1 terms
+Kw = Kw * dz;
+
 C = 1 / (8 * dy * dz);
+omega_x = C * (convn(vRaw, Kv, 'same') + convn(wRaw, Kw, 'same'));
 
-i = 2:size(xRaw,2)-1; 
-j = 2:size(xRaw,3)-1;
-k = 1:size(xRaw,1);
-
-omega_x(k,i,j) = C * (...
-            dy*(vRaw(k,i-1,j-1) + 2*vRaw(k,i,j-1) + vRaw(k,i+1,j-1)) ...
-            + dz*(wRaw(k,i+1,j-1) + 2*wRaw(k,i+1,j) + wRaw(k,i+1,j+1)) ...
-            - dy*(vRaw(k,i+1,j+1) + 2*vRaw(k,i,j+1) + vRaw(k,i-1,j+1)) ...
-            - dz*(wRaw(k,i-1,j+1) + 2*wRaw(k,i-1,j) + wRaw(k,i-1,j-1)) ...
-);
+% C = 1 / (8 * dy * dz);
+% 
+% i = 2:size(xRaw,2)-1; 
+% j = 2:size(xRaw,3)-1;
+% k = 1:size(xRaw,1);
+% 
+% omega_x(k,i,j) = C * (...
+%             dy*(vRaw(k,i-1,j-1) + 2*vRaw(k,i,j-1) + vRaw(k,i+1,j-1)) ...
+%             + dz*(wRaw(k,i+1,j-1) + 2*wRaw(k,i+1,j) + wRaw(k,i+1,j+1)) ...
+%             - dy*(vRaw(k,i+1,j+1) + 2*vRaw(k,i,j+1) + vRaw(k,i-1,j+1)) ...
+%             - dz*(wRaw(k,i-1,j+1) + 2*wRaw(k,i-1,j) + wRaw(k,i-1,j-1)) ...
+% );
 
 % for k = 1:size(xRaw,1)
 %     for i = 2:size(xRaw,2)-1

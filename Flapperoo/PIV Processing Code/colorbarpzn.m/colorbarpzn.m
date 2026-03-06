@@ -878,7 +878,7 @@ function varargout = colorbarpzn(varargin)
         end
         % output
         colormap(ax, cmap)
-        caxis([cmin, cmax])
+        clim(ax, [cmin, cmax])
         if nargout == 2
             error(['[h, cmap] = colorbarpzn(' axmsg 'caxis1, caxis2, ''off''): cannot return colarbar handle h with input argument ''off''.'])
         elseif nargout == 1
@@ -888,7 +888,7 @@ function varargout = colorbarpzn(varargin)
     % output
     if ~offflag
         colormap(ax, cmap)
-        caxis([cmin, cmax])
+        clim(ax, [cmin, cmax])
         cb = colorbar(ax);
         cb.Label.Interpreter = 'latex';
         if labelflag

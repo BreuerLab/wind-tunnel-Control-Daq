@@ -1,4 +1,5 @@
 function [Qx,Qy,Qz,Q] = calQlate3D(u,v,w,dx,dy,dz,order,wdw)
+disp("Calculating Q...")
 % A Q-te function to calculate 2D-Q: the second (not first) invariant of the velocity gradient tensor.
 % sgolay filter of order = 3 and window length = 9
 
@@ -31,54 +32,86 @@ g = fetch_coeff(order,wdw);
 switch numel(size(u))
     case 3 % For a single frame
         % x-derivative
-        for i = size(u,1):-1:1
-            dudx(i,:,:) = conv(u(i,:,:), 1/(-dx)*g,'same');
-            dvdx(i,:,:) = conv(v(i,:,:), 1/(-dx)*g,'same');
-            dwdx(i,:,:) = conv(w(i,:,:), 1/(-dx)*g,'same');
+        for i = size(u,2):-1:1
+        for j = size(u,3):-1:1
+            dudx(:,i,j) = conv(u(:,i,j), 1/(-dx)*g,'same');
+            dvdx(:,i,j) = conv(v(:,i,j), 1/(-dx)*g,'same');
+            dwdx(:,i,j) = conv(w(:,i,j), 1/(-dx)*g,'same');
+        end
         end
         % y-derivative
-        for j = size(u,2):-1:1
-            dudy(:,j,:) = conv(u(:,j,:), 1/(-dy)*g,'same');
-            dvdy(:,j,:) = conv(v(:,j,:), 1/(-dy)*g,'same');
-            dwdy(:,j,:) = conv(w(:,j,:), 1/(-dy)*g,'same');
+        for i = size(u,1):-1:1
+        for j = size(u,3):-1:1
+            dudy(i,:,j) = conv(u(i,:,j), 1/(-dy)*g,'same');
+            dvdy(i,:,j) = conv(v(i,:,j), 1/(-dy)*g,'same');
+            dwdy(i,:,j) = conv(w(i,:,j), 1/(-dy)*g,'same');
+        end
         end
         % z-derivative
-        for j = size(u,3):-1:1
-            dudz(:,:,k) = conv(u(:,:,k), 1/(-dz)*g,'same');
-            dvdz(:,:,k) = conv(v(:,:,k), 1/(-dz)*g,'same');
-            dwdz(:,:,k) = conv(w(:,:,k), 1/(-dz)*g,'same');
+        for i = size(u,1):-1:1
+        for j = size(u,2):-1:1
+            dudz(i,j,:) = conv(u(i,j,:), 1/(-dz)*g,'same');
+            dvdz(i,j,:) = conv(v(i,j,:), 1/(-dz)*g,'same');
+            dwdz(i,j,:) = conv(w(i,j,:), 1/(-dz)*g,'same');
+        end
         end
 
     case 4 % For multiple frames
-        for m = size(u,4):-1:1
-            % x-derivative
-            for i = size(u,1):-1:1
-                dudx(i,:,:,m) = conv(u(i,:,:,m), 1/(-dx)*g,'same');
-                dvdx(i,:,:,m) = conv(v(i,:,:,m), 1/(-dx)*g,'same');
-                dwdx(i,:,:,m) = conv(w(i,:,:,m), 1/(-dx)*g,'same');
-            end
-            % y-derivative
-            for j = size(u,2):-1:1
-                dudy(:,j,:,m) = conv(u(:,j,:,m), 1/(-dy)*g,'same');
-                dvdy(:,j,:,m) = conv(v(:,j,:,m), 1/(-dy)*g,'same');
-                dwdy(:,j,:,m) = conv(w(:,j,:,m), 1/(-dy)*g,'same');
-            end
-             % z-derivative
-            for j = size(u,3):-1:1
-                dudz(:,:,k,m) = conv(u(:,:,k,m), 1/(-dz)*g,'same');
-                dvdz(:,:,k,m) = conv(v(:,:,k,m), 1/(-dz)*g,'same');
-                dwdz(:,:,k,m) = conv(w(:,:,k,m), 1/(-dz)*g,'same');
-            end
-        end
+        % Pre-reshape the kernel for each dimension
+        gx = reshape(1/(-dx)*g, [], 1, 1, 1); % Vertical kernel
+        gy = reshape(1/(-dy)*g, 1, [], 1, 1); % Horizontal kernel
+        gz = reshape(1/(-dz)*g, 1, 1, [], 1); % Depth kernel
+
+        % X-derivatives (First dimension)
+        dudx = convn(u, gx, 'same');
+        dvdx = convn(v, gx, 'same');
+        dwdx = convn(w, gx, 'same');
+
+        % Y-derivatives (Second dimension)
+        dudy = convn(u, gy, 'same');
+        dvdy = convn(v, gy, 'same');
+        dwdy = convn(w, gy, 'same');
+
+        % Z-derivatives (Third dimension)
+        dudz = convn(u, gz, 'same');
+        dvdz = convn(v, gz, 'same');
+        dwdz = convn(w, gz, 'same');
+
+        % for m = size(u,4):-1:1
+        %     % x-derivative
+        %     for i = size(u,2):-1:1
+        %     for j = size(u,3):-1:1
+        %         dudx(:,i,j,m) = conv(squeeze(u(:,i,j,m)), 1/(-dx)*g,'same');
+        %         dvdx(:,i,j,m) = conv(squeeze(v(:,i,j,m)), 1/(-dx)*g,'same');
+        %         dwdx(:,i,j,m) = conv(squeeze(w(:,i,j,m)), 1/(-dx)*g,'same');
+        %     end
+        %     end
+        %     % y-derivative
+        %     for i = size(u,1):-1:1
+        %     for j = size(u,3):-1:1
+        %         dudy(i,:,j,m) = conv(squeeze(u(i,:,j,m)), 1/(-dy)*g,'same');
+        %         dvdy(i,:,j,m) = conv(squeeze(v(i,:,j,m)), 1/(-dy)*g,'same');
+        %         dwdy(i,:,j,m) = conv(squeeze(w(i,:,j,m)), 1/(-dy)*g,'same');
+        %     end
+        %     end
+        %      % z-derivative
+        %     for i = size(u,1):-1:1
+        %     for j = size(u,2):-1:1
+        %         dudz(i,j,:,m) = conv(squeeze(u(i,j,:,m)), 1/(-dz)*g,'same');
+        %         dvdz(i,j,:,m) = conv(squeeze(v(i,j,:,m)), 1/(-dz)*g,'same');
+        %         dwdz(i,j,:,m) = conv(squeeze(w(i,j,:,m)), 1/(-dz)*g,'same');
+        %     end
+        %     end
+        % end
 end
 
 % Compute Q
 % 2D variants calculated using second invariant for symmetric tensor
 % (Wikipedia). This is equivalent to expression used by Banko & Eaton for Q
 % where the divergence is added to the common expression for Q
-Qx = dudx.*dvdy - dudy.*dvdx;
+Qz = dudx.*dvdy - dudy.*dvdx;
 Qy = dudx.*dwdz - dudz.*dwdz;
-Qz = dvdy.*dwdz - dvdz.*dwdy;
+Qx = dvdy.*dwdz - dvdz.*dwdy;
 Q = Qx + Qy + Qz;
 
     function g = fetch_coeff(order, wdw)

@@ -653,22 +653,24 @@ end
 
 % out1.corrRaw = flip(out1.corrRaw');
 
-out1.uncURaw = nan([sizeXY numPlanes]);
+out1.uncURaw = nan([sizeXY numPlanesTr]);
 out1.uncVRaw = nan(size(out1.uncURaw));
 out1.uncWRaw = nan(size(out1.uncURaw));
+count = 0;
 for i = planesList
+    count = count + 1;
     % Uncertainties
-    out1.uncURaw(:,:,i) = C{iduncU, 1}.Planes{i, 1};
-    out1.uncVRaw(:,:,i) = C{iduncV, 1}.Planes{i, 1};
+    out1.uncURaw(:,:,count) = C{iduncU, 1}.Planes{i, 1};
+    out1.uncVRaw(:,:,count) = C{iduncV, 1}.Planes{i, 1};
     if out1.dimNum == 3
-        out1.uncWRaw(:,:,i) = C{iduncW, 1}.Planes{i, 1};
+        out1.uncWRaw(:,:,count) = C{iduncW, 1}.Planes{i, 1};
     end
 end
 
-out1.uncURaw = flip(permute(out1.uncURaw, [2 1 3]));
-out1.uncVRaw = flip(permute(out1.uncVRaw, [2 1 3]));
+out1.uncURaw = rot180(out1.uncURaw);
+out1.uncVRaw = rot180(out1.uncVRaw);
 if out1.dimNum == 3
-    out1.uncWRaw = flip(permute(out1.uncWRaw, [2 1 3]));
+    out1.uncWRaw = rot180(out1.uncWRaw);
 end
 
 end
@@ -777,7 +779,7 @@ Ku(:, 1, 2) = [0, 0, 0]; % j terms (middle)
 Ku(:, 1, 1) = [1, 2,  1]; % j+1 terms
 Ku = Ku * dx;
 
-C = 1 / (8 * dx * dy);
+C = 1 / (8 * dx * dz);
 omega_y = C * (convn(wRaw, Kw, 'same') + convn(uRaw, Ku, 'same'));
 
 % C = 1 / (8 * dx * dz);
@@ -812,18 +814,34 @@ omega_y = C * (convn(wRaw, Kw, 'same') + convn(uRaw, Ku, 'same'));
 %     end
 % end
 % elseif (dim == 1)
+Kv = zeros(1, 3, 3);
+Kv(1, :, 1) = [ -1,  -2,  -1]; % i-1 terms
+Kv(1, :, 2) = [0,  0,  0]; % i terms
+Kv(1, :, 3) = [ 1,  2, 1]; % i+1 terms
+Kv = Kv * dy;
+
+% Kernel for uRaw: Operations on Dim 1 (j) and Dim 3 (i)
+Kw = zeros(1, 3, 3);
+Kw(1, 3, :) = [-1, -2,  -1]; % j-1 terms
+Kw(1, 2, :) = [0, 0, 0]; % j terms (middle)
+Kw(1, 1, :) = [1, 2,  1]; % j+1 terms
+Kw = Kw * dz;
+
 C = 1 / (8 * dy * dz);
+omega_x = C * (convn(vRaw, Kv, 'same') + convn(wRaw, Kw, 'same'));
 
-i = 2:size(xRaw,2)-1; 
-j = 2:size(xRaw,3)-1;
-k = 1:size(xRaw,1);
-
-omega_x(k,i,j) = C * (...
-            dy*(vRaw(k,i-1,j-1) + 2*vRaw(k,i,j-1) + vRaw(k,i+1,j-1)) ...
-            + dz*(wRaw(k,i+1,j-1) + 2*wRaw(k,i+1,j) + wRaw(k,i+1,j+1)) ...
-            - dy*(vRaw(k,i+1,j+1) + 2*vRaw(k,i,j+1) + vRaw(k,i-1,j+1)) ...
-            - dz*(wRaw(k,i-1,j+1) + 2*wRaw(k,i-1,j) + wRaw(k,i-1,j-1)) ...
-);
+% C = 1 / (8 * dy * dz);
+% 
+% i = 2:size(xRaw,2)-1; 
+% j = 2:size(xRaw,3)-1;
+% k = 1:size(xRaw,1);
+% 
+% omega_x(k,i,j) = C * (...
+%             dy*(vRaw(k,i-1,j-1) + 2*vRaw(k,i,j-1) + vRaw(k,i+1,j-1)) ...
+%             + dz*(wRaw(k,i+1,j-1) + 2*wRaw(k,i+1,j) + wRaw(k,i+1,j+1)) ...
+%             - dy*(vRaw(k,i+1,j+1) + 2*vRaw(k,i,j+1) + vRaw(k,i-1,j+1)) ...
+%             - dz*(wRaw(k,i-1,j+1) + 2*wRaw(k,i-1,j) + wRaw(k,i-1,j-1)) ...
+% );
 
 % for k = 1:size(xRaw,1)
 %     for i = 2:size(xRaw,2)-1

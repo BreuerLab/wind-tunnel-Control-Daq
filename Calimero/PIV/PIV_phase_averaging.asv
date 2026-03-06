@@ -5,7 +5,7 @@ close all
 cd(fileparts(mfilename('fullpath')));
 addpath(genpath('../../'))
 addpath(genpath('.'))
-addpath(genpath('C:\Users\rgissler\Documents\MATLAB'))
+addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -14,10 +14,15 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB'))
 %         '2Hz_A10_10AoA','4Hz_A10_10AoA','6Hz_A10_10AoA', '8Hz_A10_10AoA',...
 %         'r_2Hz_A10_10AoA', 'r_4Hz_A10_10AoA', 'r_6Hz_A10_10AoA', 'r_8Hz_A10_10AoA'};
 
+turbine_bool = false;
 % PIV_case_name = 'turbine';
 PIV_case_name = 'flexible_20deg_6Hz';
 L = 0.07; % characteristic length, guess of mean aerodynamic chord
-U = 4; % characteristic windspeed, freestream
+if turbine_bool
+    U = 6;
+else
+    U = 4; % characteristic windspeed, freestream
+end
 save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
 num_images = 2500;
 
@@ -54,11 +59,11 @@ movie_plot_bool = false;
 file_path = get_PIV_paths(PIV_case_name);
 files = dir(fullfile(file_path,'*.vc7'));
 num_files = length(files);
-time_avg_bool = true;
+time_avg_bool = false;
 
 if time_avg_bool
 disp("Time Average: Loading file: " + file_path)
-num_files = 1000; % TEMPORARY LINE ---- DELETE
+num_files = 200; % TEMPORARY LINE ---- DELETE
 for i = 1:num_files
     [x, y, z, u, v, w, vortX, vortY, vortZ, uncTot] = import_STB_data(file_path, nondim_bool, U, L, i);
 
@@ -128,7 +133,7 @@ PIV_plot(x(:,:,3), y(:,:,3), mean_vortZ(:,:,3), params)
 end
 
 % get bin number associated with each frame from DAQ measurements
-[norm_frame_pos, bin_ind_arr, num_bins] = frame_to_bin(PIV_case_name, num_images);
+[norm_frame_pos, bin_ind_arr, num_bins, cycle_freq] = frame_to_bin(PIV_case_name, num_images, turbine_bool);
 
 phase_avg_bool = true;
 if phase_avg_bool
@@ -172,6 +177,16 @@ for i = 1:num_bins
     end
 end
 
+dx = abs(x(2,1,1) - x(1,1,1));
+dy = abs(y(1,2,1) - y(1,1,1));
+dz = abs(z(1,1,2) - z(1,1,1));
+% Q_phase_avg = calQlate(u_phase_avg, v_phase_avg, dx, dy);
+[Qx,Qy,Qz,Q] = calQlate3D(u_phase_avg,v_phase_avg,w_phase_avg,dx,dy,dz);
+
+% Save phase averaged data to .mat file
+vars = {}
+
+
 % [B, I] = sort(norm_wing_pos_frame_tr);
 % vortZ_sorted = vortZ(:,:,:,I);
 
@@ -210,25 +225,19 @@ if ~exist(folder, 'dir')
     mkdir(folder);
 end
 
-figure
-bar(bin_count)
-xlabel("Bin number", FontSize=16)
-ylabel("Number of frames per bin", FontSize=16)
-exportgraphics(gcf, folder + "\phase_avg_bin_histogram.png", 'Resolution', 300);
-
-figure
-bar(bin_std)
-xlabel("Bin number", FontSize=16)
-ylabel("Phase variability per bin", FontSize=16)
-exportgraphics(gcf, folder + "\phase_avg_bin_variability.png", 'Resolution', 300);
+% figure
+% bar(bin_count)
+% xlabel("Bin number", FontSize=16)
+% ylabel("Number of frames per bin", FontSize=16)
+% exportgraphics(gcf, folder + "\phase_avg_bin_histogram.png", 'Resolution', 300);
+% 
+% figure
+% bar(bin_std)
+% xlabel("Bin number", FontSize=16)
+% ylabel("Phase variability per bin", FontSize=16)
+% exportgraphics(gcf, folder + "\phase_avg_bin_variability.png", 'Resolution', 300);
 
 %% Vorticity
-
-dx = abs(x(1,2,1) - x(1,1,1));
-dy = abs(y(2,1,1) - y(1,1,1));
-dz = abs(z(1,1,2) - z(1,1,1));
-% Q_phase_avg = calQlate(u_phase_avg, v_phase_avg, dx, dy);
-% [Qx,Qy,Qz,Q] = calQlate3D(u_phase_avg,v_phase_avg,w_phase_avg,dx,dy,dz);
 
 params.PIV_case_name = PIV_case_name;
 params.save_filepath = save_filepath;
@@ -237,28 +246,45 @@ params.num_bins = num_bins;
 % params.ylims = [-0.2 0.2];
 params.xlims = [-2.14 2.14]; % roughly -0.15 to 0.15 meters
 params.ylims = [-2.86 2.86]; % roughly -0.2 to 0.2 meters
+z_ind = 3;
+
 
 if phase_avg_plot_bool
-z_ind = 3;
 params.zero = 0;
 params.title = "Spanwise vorticity - phase averaged";
 params.folder = "vortX_avg";
 params.clims = [-1 1];
 make_movie(x(:,:,z_ind), y(:,:,z_ind), vortX_phase_avg(:,:,z_ind,:), params)
 
-z_ind = 3;
 params.zero = 0;
 params.title = "Vertical vorticity - phase averaged";
 params.folder = "vortY_avg";
 params.clims = [-1 1];
 make_movie(x(:,:,z_ind), y(:,:,z_ind), vortY_phase_avg(:,:,z_ind,:), params)
 
-z_ind = 3;
 params.zero = 0;
 params.title = "Streamwise vorticity - phase averaged";
 params.folder = "vortZ_avg";
 params.clims = [-1 1];
 make_movie(x(:,:,z_ind), y(:,:,z_ind), vortZ_phase_avg(:,:,z_ind,:), params)
+
+params.zero = 0;
+params.title = "Spanwise Q - phase averaged";
+params.folder = "Qx_avg";
+params.clims = [0.01 0.1];
+make_movie(x(:,:,z_ind), y(:,:,z_ind), Qx(:,:,z_ind,:), params)
+
+params.zero = 0;
+params.title = "Vertical Q - phase averaged";
+params.folder = "Qy_avg";
+params.clims = [0.01 0.1];
+make_movie(x(:,:,z_ind), y(:,:,z_ind), Qy(:,:,z_ind,:), params)
+
+params.zero = 0;
+params.title = "Streamwise Q - phase averaged";
+params.folder = "Qz_avg";
+params.clims = [0.01 0.1];
+make_movie(x(:,:,z_ind), y(:,:,z_ind), Qz(:,:,z_ind,:), params)
 
 % params.zero = 0;
 % params.title = "Streamwise vorticity - sorted";
@@ -272,11 +298,13 @@ make_movie(x(:,:,z_ind), y(:,:,z_ind), vortZ_phase_avg(:,:,z_ind,:), params)
 % params.clims = [0 1];
 % make_movie(x, y, vort_phase_std, params)
 
+params.zero = 0;
 params.title = "Spanwise velocity - Average";
 params.folder = "u_avg";
 params.clims = [-0.2 0.2];
 make_movie(x(:,:,z_ind), y(:,:,z_ind), u_phase_avg(:,:,z_ind,:), params)
 
+params.zero = 0;
 params.title = "Vertical velocity - Average";
 params.folder = "v_avg";
 params.clims = [-0.2 0.2];
@@ -287,7 +315,7 @@ params.title = "Streamwise velocity - Average";
 params.folder = "w_avg";
 params.clims = [0.9 1.1];
 % params.clims = [0.5 1.1];
-make_movie(x(:,:,z_ind), y(:,:,z_ind), w_phase_avg(:,:,z_ind,:), params)
+make_movie(x(:,:,z_ind), y(:,:,z_ind), -w_phase_avg(:,:,z_ind,:), params)
 end
 
 % params.title = "2D Q";
@@ -301,16 +329,16 @@ end
 
 % Trimming everything but tip vortex
 % x_idx = find(x(1,:) > 0.4 & x(1,:) < 2.14);  % columns
-x_idx = find(x(1,:) > -1 & x(1,:) < 2.14);  % columns
-y_idx = find(y(:,1) > -2.86 & y(:,1) < 2.86);  % rows
-
-x_tr = x(y_idx, x_idx);
-y_tr = y(y_idx, x_idx);
-u_tr = u_phase_avg(y_idx, x_idx,:);
-v_tr = v_phase_avg(y_idx, x_idx,:);
-vort_phase_avg_tr = vort_phase_avg(y_idx, x_idx,:);
-Q_phase_avg_tr = Q_phase_avg(y_idx, x_idx,:);
-w_phase_avg_tr = w_phase_avg(y_idx, x_idx,:);
+% x_idx = find(x(1,:) > -1 & x(1,:) < 2.14);  % columns
+% y_idx = find(y(:,1) > -2.86 & y(:,1) < 2.86);  % rows
+% 
+% x_tr = x(y_idx, x_idx);
+% y_tr = y(y_idx, x_idx);
+% u_tr = u_phase_avg(y_idx, x_idx,:);
+% v_tr = v_phase_avg(y_idx, x_idx,:);
+% vort_phase_avg_tr = vort_phase_avg(y_idx, x_idx,:);
+% Q_phase_avg_tr = Q_phase_avg(y_idx, x_idx,:);
+% w_phase_avg_tr = w_phase_avg(y_idx, x_idx,:);
 
 % ----------------------------------------------------------------
 
@@ -330,6 +358,15 @@ if ~exist(folder, 'dir')
 end
 
 % ------------------------------------------------------------------
+figure
+params.clims = [-1 1];
+params.zero = 0;
+params.movie = false;
+params.L = L;
+params.shift = -7;
+params.isoValue = 0.05; % 0.05
+% stack_vortices(x_tr, y_tr, vort_phase_avg_tr, Q_phase_avg_tr, wing_freq, params);
+stack_vortices_3D(x(:,:,z_ind), y(:,:,z_ind), vortZ_phase_avg(:,:,z_ind,:), Qz(:,:,z_ind,:), cycle_freq, params)
 
 figure
 params.clims = [-1 1];
@@ -339,7 +376,17 @@ params.L = L;
 params.shift = -7;
 params.isoValue = 0.05; % 0.05
 % stack_vortices(x_tr, y_tr, vort_phase_avg_tr, Q_phase_avg_tr, wing_freq, params);
-stack_vortices_3D(x, y, z, C_phase_avg, Q_phase_avg, wing_freq, params)
+stack_vortices_3D(x(:,:,z_ind), y(:,:,z_ind), vortY_phase_avg(:,:,z_ind,:), Qy(:,:,z_ind,:), cycle_freq, params)
+
+figure
+params.clims = [-1 1];
+params.zero = 0;
+params.movie = false;
+params.L = L;
+params.shift = -7;
+params.isoValue = 0.05; % 0.05
+% stack_vortices(x_tr, y_tr, vort_phase_avg_tr, Q_phase_avg_tr, wing_freq, params);
+stack_vortices_3D(x(:,:,z_ind), y(:,:,z_ind), vortX_phase_avg(:,:,z_ind,:), Qx(:,:,z_ind,:), cycle_freq, params)
 
 ax = gca;
 ax.XAxisLocation = 'bottom';   % 'left' or 'right'
@@ -349,7 +396,7 @@ ax.YAxisLocation = 'right';   % 'left' or 'right'
 view([0 -1 0])   % camera along +Y direction
 % camup([1 0 0])  % keep Z vertical
 
-file_name = "phase_avg_stacked_XZ_vort";
+file_name = "phase_avg_stacked_XZ_vortZ";
 saveas(gcf, folder + "\" + file_name + ".fig")
 exportgraphics(gcf, folder + "\" + file_name + ".png", 'Resolution', 300);
 

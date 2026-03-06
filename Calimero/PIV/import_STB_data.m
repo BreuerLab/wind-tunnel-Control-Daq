@@ -13,7 +13,7 @@ if nondim_bool % Non-dimensionalize variables
     vort_y_full = D.vortY*(L/U);
     x_full = D.x/L;
     y_full = D.y/L;
-    z_full = D.z; %D.z/L
+    z_full = D.z/L;
     uncU = D.uncU/U;
     uncV = D.uncV/U;
     uncW = D.uncW/U;
@@ -35,28 +35,26 @@ end
 uncTot = (uncU.^2 + uncV.^2 + uncW.^2).^(1/2);
 % corr = D.corr;
 
-trim_bool = false;
+trim_bool = true;
 if trim_bool
 % Trimming data down
-xbounds = [-2.14 2.14]; % roughly -0.15 to 0.15 meters
+xbounds = [-2.5 2.5]; % roughly -0.15 to 0.15 meters
 % ybounds = [-2.86 2.86]; % roughly -0.2 to 0.2 meters
-ybounds = [-2.48 2.48]; % roughly -0.2 to 0.2 meters
+ybounds = [-2.3 2.45]; % roughly -0.2 to 0.2 meters
 
-x_idx = find(x_full(1,:,1) > xbounds(1) & x_full(1,:,1) < xbounds(2));  % columns
-y_idx = find(y_full(:,1,1) > ybounds(1) & y_full(:,1,1) < ybounds(2));  % rows
+x_idx = find(x_full(:,1,1) > xbounds(1) & x_full(:,1,1) < xbounds(2));  % columns
+y_idx = find(y_full(1,:,1) > ybounds(1) & y_full(1,:,1) < ybounds(2));  % rows
 
-% swapped x and y indices
-% Trim off first and last plane too
-x = x_full(y_idx, x_idx,2:end-1);
-y = y_full(y_idx, x_idx,2:end-1);
-z = z_full(y_idx, x_idx,2:end-1);
-u = u_full(y_idx, x_idx,2:end-1,:);
-v = v_full(y_idx, x_idx,2:end-1,:);
-w = w_full(y_idx, x_idx,2:end-1,:);
-vortZ = vort_z_full(y_idx, x_idx,2:end-1,:);
-vortX = vort_x_full(y_idx, x_idx,2:end-1,:);
-vortY = vort_y_full(y_idx, x_idx,2:end-1,:);
-uncTot = uncTot(y_idx, x_idx,2:end-1,:);
+x = x_full(x_idx,y_idx,:);
+y = y_full(x_idx,y_idx,:);
+z = z_full(x_idx,y_idx,:);
+u = u_full(x_idx,y_idx,:,:);
+v = v_full(x_idx,y_idx,:,:);
+w = w_full(x_idx,y_idx,:,:);
+vortZ = vort_z_full(x_idx,y_idx,:,:);
+vortX = vort_x_full(x_idx,y_idx,:,:);
+vortY = vort_y_full(x_idx,y_idx,:,:);
+uncTot = uncTot(x_idx,y_idx,:,:);
 % corr = corr(y_idx, x_idx,:);
 else
 x = x_full;
