@@ -1,4 +1,4 @@
-function [x, y, z, u, v, w, vortX, vortY, vortZ, uncTot] = import_STB_data(file_path, nondim_bool, U, L, sel_frames)
+function [x, y, z, u, v, w, Utot, vortX, vortY, vortZ, vortTot, uncU, uncV, uncW, uncTot] = import_STB_data(file_path, nondim_bool, U, L, sel_frames)
 D = loadpiv(file_path,"extractAllVariables","frameSelect",sel_frames); % "Validate", minCorrelationValue
 
 init_W = round((max(D.x,[],"all") - min(D.x,[],"all"))*100);
@@ -14,9 +14,9 @@ if nondim_bool % Non-dimensionalize variables
     x_full = D.x/L;
     y_full = D.y/L;
     z_full = D.z/L;
-    uncU = D.uncU/U;
-    uncV = D.uncV/U;
-    uncW = D.uncW/U;
+    uncU_full = D.uncU/U;
+    uncV_full = D.uncV/U;
+    uncW_full = D.uncW/U;
 else
     u_full = D.u;
     v_full = D.v;
@@ -27,12 +27,12 @@ else
     x_full = D.x;
     y_full = D.y;
     z_full = D.z;
-    uncU = D.uncU;
-    uncV = D.uncV;
-    uncW = D.uncW;
+    uncU_full = D.uncU;
+    uncV_full = D.uncV;
+    uncW_full = D.uncW;
 end
 
-uncTot = (uncU.^2 + uncV.^2 + uncW.^2).^(1/2);
+% uncTot = (uncU.^2 + uncV.^2 + uncW.^2).^(1/2);
 % corr = D.corr;
 
 trim_bool = true;
@@ -40,7 +40,8 @@ if trim_bool
 % Trimming data down
 xbounds = [-2.5 2.5]; % roughly -0.15 to 0.15 meters
 % ybounds = [-2.86 2.86]; % roughly -0.2 to 0.2 meters
-ybounds = [-2.3 2.45]; % roughly -0.2 to 0.2 meters
+% ybounds = [-2.3 2.45]; % roughly -0.2 to 0.2 meters
+ybounds = [-2.2 2.3]; % roughly -0.2 to 0.2 meters
 
 x_idx = find(x_full(:,1,1) > xbounds(1) & x_full(:,1,1) < xbounds(2));  % columns
 y_idx = find(y_full(1,:,1) > ybounds(1) & y_full(1,:,1) < ybounds(2));  % rows
@@ -54,7 +55,9 @@ w = w_full(x_idx,y_idx,:,:);
 vortZ = vort_z_full(x_idx,y_idx,:,:);
 vortX = vort_x_full(x_idx,y_idx,:,:);
 vortY = vort_y_full(x_idx,y_idx,:,:);
-uncTot = uncTot(x_idx,y_idx,:,:);
+uncU = uncU_full(x_idx,y_idx,:,:);
+uncV = uncV_full(x_idx,y_idx,:,:);
+uncW = uncW_full(x_idx,y_idx,:,:);
 % corr = corr(y_idx, x_idx,:);
 else
 x = x_full;
@@ -66,8 +69,15 @@ w = w_full;
 vortZ = vort_z_full;
 vortX = vort_x_full;
 vortY = vort_y_full;
-uncTot = uncTot;
+uncU = uncU_full;
+uncV = uncV_full;
+uncW = uncW_full;
 end
+
+% Calculate totals using vector sum
+Utot = (u.^2 + v.^2 + w.^2).^(1/2);
+vortTot = (vortX.^2 + vortY.^2 + vortZ.^2).^(1/2);
+uncTot = (uncU.^2 + uncV.^2 + uncW.^2).^(1/2);
 
 fin_W = round((max(x,[],"all") - min(x,[],"all")) * L * 100);
 fin_L = round((max(y,[],"all") - min(y,[],"all")) * L * 100);

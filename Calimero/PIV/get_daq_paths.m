@@ -46,12 +46,13 @@ daq_data_paths = ["R:\ENG_Breuer_Shared\rgissler\Calimero Force Data\STB_02_12_2
                   "R:\ENG_Breuer_Shared\rgissler\Calimero Force Data\STB_02_11_2026\data\experiment data\",...
                   "R:\ENG_Breuer_Shared\group\Wind turbine\Turbine_STB\DAQ Data\"];
 
-keys = {'UP_one_flexible_20deg_6Hz', 'flexible_20deg_6Hz', 'turbine'};
+keys = {'UP_one_flexible_20deg_6Hz', 'flexible_20deg_2Hz', 'flexible_20deg_6Hz', 'turbine'};
 files = ["UP_one_PIV_flexible_20_4m.s_10deg_6Hz_2026-02-12 11-57-03_experiment_2026_02_12_11_58_20.mat",...
+         "PIV_flexible_20_4m.s_10deg_2Hz_2026-02-11 17-46-16_experiment_2026_02_11_17_48_26.mat",...
          "PIV_flexible_20_4m.s_10deg_6Hz_2026-02-11 18-43-27_experiment_2026_02_11_18_44_44.mat",...
          "turbine_6ms_S_2026_02_16_16_15_13.mat"];
 
-folders = [daq_data_paths(1) daq_data_paths(2) daq_data_paths(3)];
+folders = [daq_data_paths(1) daq_data_paths(2) daq_data_paths(2) daq_data_paths(3)];
 
 daq_file_dict = containers.Map(keys, files);
 daq_folder_dict = containers.Map(keys, folders);

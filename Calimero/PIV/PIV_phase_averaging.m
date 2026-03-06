@@ -16,8 +16,9 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 
 turbine_bool = false;
 % PIV_case_name = 'turbine';
-% PIV_case_name = 'flexible_20deg_6Hz';
-PIV_case_name = 'UP_one_flexible_20deg_6Hz';
+% PIV_case_name = 'flexible_20deg_2Hz';
+PIV_case_name = 'flexible_20deg_6Hz';
+% PIV_case_name = 'UP_one_flexible_20deg_6Hz';
 L = 0.07; % characteristic length, guess of mean aerodynamic chord
 if turbine_bool
     U = 6;
@@ -150,15 +151,23 @@ for i = 1:num_bins
     bin_count(i) = length(bin_indices);
     bin_std(i) = std(norm_frame_pos(bin_indices)); % removed for turbine case
   
-    [x, y, z, u, v, w, vortX, vortY, vortZ, uncTot] = import_STB_data(file_path, nondim_bool, U, L, bin_indices);
+    [x, y, z, u, v, w, Utot, vortX, vortY, vortZ, vortTot, uncU, uncV, uncW, uncTot] = import_STB_data(file_path, nondim_bool, U, L, bin_indices);
 
     if i == 1
         vortX_phase_avg = zeros(size(x,1), size(x,2), size(x,3), num_bins);
         vortY_phase_avg = zeros(size(vortX_phase_avg));
         vortZ_phase_avg = zeros(size(vortX_phase_avg));
+        vortTot_phase_avg = zeros(size(vortX_phase_avg));
+
         u_phase_avg = zeros(size(vortX_phase_avg));
         v_phase_avg = zeros(size(vortX_phase_avg));
         w_phase_avg = zeros(size(vortX_phase_avg));
+        Utot_phase_avg = zeros(size(vortX_phase_avg));
+
+        uncU_phase_avg = zeros(size(vortX_phase_avg));
+        uncV_phase_avg = zeros(size(vortX_phase_avg));
+        uncW_phase_avg = zeros(size(vortX_phase_avg));
+        uncTot_phase_avg = zeros(size(vortX_phase_avg));
 
         % vort_phase_std = zeros(size(vortX_phase_avg));
         % u_phase_std = zeros(size(vortX_phase_avg));
@@ -170,9 +179,18 @@ for i = 1:num_bins
     vortX_phase_avg(:,:,:,i) = mean(vortX,4);
     vortY_phase_avg(:,:,:,i) = mean(vortY,4);
     vortZ_phase_avg(:,:,:,i) = mean(vortZ,4);
+    vortTot_phase_avg(:,:,:,i) = mean(vortTot,4);
+
     u_phase_avg(:,:,:,i) = mean(u,4);
     v_phase_avg(:,:,:,i) = mean(v,4);
     w_phase_avg(:,:,:,i) = mean(w,4);
+    Utot_phase_avg(:,:,:,i) = mean(Utot,4);
+
+    uncU_phase_avg(:,:,:,i) = mean(uncU,4);
+    uncV_phase_avg(:,:,:,i) = mean(uncV,4);
+    uncW_phase_avg(:,:,:,i) = mean(uncW,4);
+    uncTot_phase_avg(:,:,:,i) = mean(uncTot,4);
+
 
     if mod(i,5) == 0
         disp(['processed ',num2str(i),'/',num2str(num_bins)])
@@ -186,9 +204,10 @@ dz = abs(z(1,1,2) - z(1,1,1));
 [Qx,Qy,Qz,Q] = calQlate3D(u_phase_avg,v_phase_avg,w_phase_avg,dx,dy,dz);
 
 % Save phase averaged data to .mat file
-vars = {"L","U","cycle_freq","PIV_case_name","bin_ind_arr","bin_count","bin_std",...
-    "x","y","z","u_phase_avg","v_phase_avg","w_phase_avg",...
-    "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg","Qx","Qy","Qz","Q"};
+vars = {"L","U","cycle_freq","PIV_case_name","num_bins","bin_ind_arr","bin_count","bin_std",...
+    "x","y","z","u_phase_avg","v_phase_avg","w_phase_avg","Utot_phase_avg",...
+    "uncU_phase_avg","uncV_phase_avg","uncW_phase_avg","uncTot_phase_avg",...
+    "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg","vortTot_phase_avg","Qx","Qy","Qz","Q"};
 save(save_filepath_local + PIV_case_name + ".mat", vars{:})
 
 % [B, I] = sort(norm_wing_pos_frame_tr);

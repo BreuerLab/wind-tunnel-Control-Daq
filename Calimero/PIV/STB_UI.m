@@ -23,7 +23,7 @@ properties
     variable_name_dict;
     clims; % color limits for each variable
 
-    s; % slider object
+    slider; % slider object
     
 end
 
@@ -37,28 +37,36 @@ methods
         obj.variable_name = "";
         obj.file_path = "Y:\Processed Results\";
 
-        obj.num_bins = 70;
+        obj.num_bins = 5;
         obj.frame_ind = 1;
         obj.play = false;
 
         obj.plot_types = ["movie","3D","histogram","2D"];
 
-        obj.case_name_list = ["flexible_20deg_6Hz","UP_one_flexible_20deg_6Hz"];
-        obj.variable_name_list = ["u","v","w","ω_x","ω_y","ω_z","Q_x","Q_y","Q_z"];
+        obj.case_name_list = ["flexible_20deg_2Hz","flexible_20deg_6Hz","UP_one_flexible_20deg_6Hz"];
+        obj.variable_name_list = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
+                    "Q_x","Q_y","Q_z","|Q|","u_unc","v_unc","w_unc","|unc|"];
         obj.clims = [-0.2, 0.2;...
                      -0.2, 0.2;...
                       -1.1, -0.9;...
-                      -1, 1;
-                      -1, 1;
-                      -1, 1;
-                      0.01, 0.1;
-                      0.01, 0.1;
-                      0.01, 0.1];
+                      -1.1, -0.9;...
+                      -1, 1;...
+                      -1, 1;...
+                      -1, 1;...
+                      -1, 1;...
+                      0.01, 0.1;...
+                      0.01, 0.1;...
+                      0.01, 0.1;...
+                      0.01, 0.1;...
+                      0, 0.05;...
+                      0, 0.05;...
+                      0, 0.05;...
+                      0, 0.05];
 
         keys = cellstr(obj.variable_name_list);
-        values = ["u_phase_avg","v_phase_avg","w_phase_avg",...
-                "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg",...
-                "Qx","Qy","Qz"];
+        values = ["u_phase_avg","v_phase_avg","w_phase_avg","Utot_phase_avg",...
+                "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg","vortTot_phase_avg",...
+                "Qx","Qy","Qz","Q","uncU_phase_avg","uncV_phase_avg","uncW_phase_avg","uncTot_phase_avg"];
         obj.variable_name_dict = containers.Map(keys, values);
     end
 
@@ -67,14 +75,14 @@ methods
     function dynamic_plotting(obj)
         % Create a GUI figure with a grid layout
         [option_panel, plot_panel, screen_size] = setupFig(obj.mon_num);
-        pause(1) % wait until GUI opened
+        pause(1.5) % wait until GUI opened
 
         screen_height = screen_size(4);
         unit_height = round(0.03*screen_height);
         unit_spacing = round(0.005*screen_height);
 
         % Dropdown box for which cases axes to display
-        drop_y1 = screen_height - 600;
+        drop_y1 = screen_height*0.85 - 30;
         d1 = uidropdown(option_panel);
         d1.Position = [10 drop_y1 180 30];
         d1.Items = obj.case_name_list;
@@ -100,19 +108,19 @@ methods
         s_w = panel_width * (3/4);
         s_x = (panel_width - s_w)/2; % end of right monitor around 1690
         s_y = 0.05*screen_height;
-        obj.s = uislider(plot_panel);
-        obj.s.Position = [s_x s_y s_w 3];
-        obj.s.Limits = [1 obj.num_bins];
-        obj.s.Value = obj.frame_ind;
-        obj.s.MajorTicks = 1:5:obj.num_bins;
-        obj.s.MinorTicks = 1:obj.num_bins;
-        obj.s.ValueChangedFcn = @(src, event) frame_change(src, event, plot_panel);
+        obj.slider = uislider(plot_panel);
+        obj.slider.Position = [s_x s_y s_w 3];
+        obj.slider.Limits = [1 obj.num_bins];
+        obj.slider.Value = obj.frame_ind;
+        obj.slider.MajorTicks = 1:5:obj.num_bins;
+        obj.slider.MinorTicks = 1:obj.num_bins;
+        obj.slider.ValueChangedFcn = @(src, event) frame_change(src, event, plot_panel);
 
         button1_y = s_y + 50;
         b1 = uibutton(plot_panel,"state");
         b1.Text = "Play";
         b1.FontSize = 18;
-        b1.Position = [60 button1_y 160 unit_height];
+        b1.Position = [30 button1_y 160 unit_height];
         b1.BackgroundColor = [1 1 1];
         b1.ValueChangedFcn = @(src, event) playStop_change(src, event, plot_panel);
 
@@ -185,14 +193,56 @@ methods (Access = private)
         % Find only children that are of type 'axes'
         axesToDelete = findobj(plot_panel.Children, 'Type', 'axes');
 
-        % Delete them
-        delete(axesToDelete);
+        % Delete the axes to prepare for new plotting unless
+        % plot is 3D and plot_type 3D, then just adjust colors on plot
+        if is2D(axesToDelete)
+            delete(axesToDelete);
+        else
+            p = findobj(axesToDelete, 'Type', 'patch');
+        end
 
         % load in variables to plot
         var_name = obj.variable_name_dict(obj.variable_name);
         var_idx = find(obj.variable_name == obj.variable_name_list);
-        vars = {"x","y",var_name};
+        
+        vars = {"L","num_bins","cycle_freq","x","y",var_name};
+        if obj.plot_type == "3D"
+            full_Q_bool = true;
+            if full_Q_bool
+                Q_var_name = "Q";
+                vars{end+1} = Q_var_name;
+            else
+                % get corresponding Q value
+                Q_var_name = obj.variable_name_dict(obj.variable_name_list(var_idx+4));
+                vars{end+1} = Q_var_name;
+            end
+        end
         d = load(obj.file_path + obj.case_name, vars{:});
+
+        % Adjust slider for number of bins
+        if d.num_bins ~= obj.num_bins
+            obj.num_bins = d.num_bins;
+            obj.slider.Limits = [1 d.num_bins];
+            obj.slider.MajorTicks = 1:5:d.num_bins;
+            obj.slider.MinorTicks = 1:d.num_bins;
+        end
+
+        x = d.x(:,:,3);
+        y = d.y(:,:,3);
+        val = d.(var_name);
+        val = squeeze(val(:,:,3,:));
+        if obj.plot_type == "3D"
+            Q = d.(Q_var_name);
+            Q = squeeze(Q(:,:,3,:));
+        end
+        
+        % Make axes for plot
+        % empty - first run, not valid - empty (no values)
+        if isempty(axesToDelete) || ~isvalid(axesToDelete)
+            ax = axes(plot_panel);
+        else
+            ax = axesToDelete;
+        end
 
         if obj.plot_type == "movie"
         if min(obj.clims(var_idx,:)) < -1
@@ -209,12 +259,6 @@ methods (Access = private)
         % params.clims = [-0.2 0.2];
         % make_movie(x(:,:,z_ind), y(:,:,z_ind), u_phase_avg(:,:,z_ind,:), params)
 
-        x = d.x(:,:,3);
-        y = d.y(:,:,3);
-        val = d.(var_name);
-        val = squeeze(val(:,:,3,:));
-
-        ax = axes(plot_panel);
         params.zero = zero;
         params.title = "Spanwise velocity - Average";
         params.clims = obj.clims(var_idx,:);
@@ -224,7 +268,7 @@ methods (Access = private)
         while(obj.play)
             while (obj.frame_ind < obj.num_bins)
                 obj.frame_ind = obj.frame_ind + 1;
-                obj.s.Value = obj.frame_ind;
+                obj.slider.Value = obj.frame_ind;
 
                 % 1. Cap the data so it doesn't exceed clims
                 tmp_data = val(:,:,obj.frame_ind);
@@ -237,10 +281,26 @@ methods (Access = private)
         
                 drawnow;
 
-                % pause(0.2);
+                pause(0.05);
             end
             obj.frame_ind = 1;
         end
+        elseif obj.plot_type == "3D"
+            params.num_bins = d.num_bins;
+            params.clims = [-1 1];
+            params.zero = 0;
+            params.movie = false;
+            params.L = d.L;
+            params.shift = -7;
+            params.isoValue = 0.05; % 0.05
+            if isvalid(axesToDelete) && ~is2D(axesToDelete)
+                [~,cData] = stack_vortices_3D(x, y, val, Q, d.cycle_freq, params);
+                p.FaceVertexCData = cData;
+            else
+            % stack_vortices(x_tr, y_tr, vort_phase_avg_tr, Q_phase_avg_tr, wing_freq, params);
+            [s,cData] = stack_vortices_3D(x, y, val, Q, d.cycle_freq, params);
+            plot_3D(ax, s, cData, params)
+            end
         end
     end
 end

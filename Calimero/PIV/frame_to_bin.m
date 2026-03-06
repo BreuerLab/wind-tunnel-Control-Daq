@@ -101,7 +101,11 @@ las_rep_rate = diff(whole_idx);
 laser_ind = whole_idx + mid_indices_adj(1);
 wing_pos_frame = wing_pos(laser_ind);
 norm_frame_pos = mod(wing_pos_frame,1);
-norm_wing_pos_frame_tr = norm_frame_pos(end-(num_images - 1):end);
+
+disp("Cropped off " + (length(norm_frame_pos) - num_images) + " extra laser pulses from beginning")
+% crop off first few extra pulses
+norm_frame_pos = norm_frame_pos(end-(num_images - 1):end);
+
 norm_wing_pos_frame_int = round(norm_frame_pos * (ticksPerRev / OC_pulse_step),3);
 full_cycle = 0.5:1:(ticksPerRev / OC_pulse_step)+0.5;
 % edges = (min(norm_wing_pos_frame_int)-0.5):(max(norm_wing_pos_frame_int)+0.5);
@@ -110,24 +114,53 @@ cam_fire_idx = find(results(:,13) == 2, 1, "first");
 laser_pulse_at_cam_fire = results(cam_fire_idx,12);
 disp("Laser pulses by camera fire: " + laser_pulse_at_cam_fire)
 
+bins_list = 40:1:150;
+best_num_bins = 0;
+best_bin_count = [];
+for num_bins = bins_list
+    bins = linspace(0,1,num_bins+1);
+    bin_ind_arr = discretize(norm_frame_pos, bins);
+
+    bin_count = zeros(1,num_bins);
+    bin_std = zeros(1,num_bins);
+
+    for j = 1:num_bins
+        bin_indices = find(bin_ind_arr == j);
+        % bin_indices_all{i} = bin_indices;
+        bin_count(j) = length(bin_indices);
+        bin_std(j) = std(norm_frame_pos(bin_indices));
+    end
+
+    % ensure at least 10 images per bin and number of bins is divis by 5
+    if min(bin_count) > 10 && mod(num_bins,5) == 0
+        best_num_bins = num_bins;
+        best_bin_count = bin_count;
+    end
+end
+
+num_bins = best_num_bins;
+
 figure
 histogram(norm_wing_pos_frame_int, full_cycle)
 xlabel("Encoder Ticks")
 ylabel("Frequency")
 
 figure
-histogram(norm_wing_pos_frame_int, 70)
+histogram(norm_frame_pos, num_bins);
 xlabel("Encoder Ticks")
 ylabel("Frequency")
 
+figure
+bar(best_bin_count)
+xlabel("Bin number", FontSize=16)
+ylabel("Number of frames per bin", FontSize=16)
+
 % 50 for 2 Hz, 45 for 4 Hz, 45 for 6 Hz, 23 for 8 Hz
 % num_bins = 50;
-keys = {2, 4, 6, 8};
-num_bins_opts = [50, 45, 45, 23];
-bins_dict = containers.Map(keys, num_bins_opts);
-num_bins = bins_dict(wing_freq);
-
-num_bins = 70;
+% keys = {2, 4, 6, 8};
+% num_bins_opts = [50, 45, 45, 23];
+% bins_dict = containers.Map(keys, num_bins_opts);
+% num_bins = bins_dict(wing_freq);
 
 disp("Using " + num_bins + " bins")
 % num_bins = 25; % for 4 Hz
@@ -136,11 +169,9 @@ bin_ind_arr = discretize(norm_frame_pos, bins);
 num_cycles = length(find(diff(bin_ind_arr) < 0)); % back to beginning of a cycle
 disp("Number of cycles: " + num_cycles)
 disp("Expected number of cycles: " + num_images / (200 / wing_freq))
-
-disp("Cropped off " + (length(bin_ind_arr) - num_images) + " extra laser pulses from beginning")
 % crop off last few extra pulses
 % bin_ind_arr = bin_ind_arr(1:num_images);
 % crop off first few extra pulses
-bin_ind_arr = bin_ind_arr(end-(num_images - 1):end);
+% bin_ind_arr = bin_ind_arr(end-(num_images - 1):end);
 end
 end

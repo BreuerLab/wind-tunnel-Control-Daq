@@ -1,4 +1,4 @@
-function stack_vortices_3D(x, y, C_phase_avg, Q_phase_avg, wing_freq, params)
+function [s,cData] = stack_vortices_3D(x, y, C_phase_avg, Q_phase_avg, wing_freq, params)
 % ------------------------------------------------------------------
 mirror_bool = false;
 if mirror_bool
@@ -132,44 +132,4 @@ else
     % cData = interp3(Y_fin, X_fin, Z_fin, C_fin, ...
     %              s.vertices(:,1), s.vertices(:,2), s.vertices(:,3));
 end
-
-p = patch('vertices', s.vertices, 'faces', s.faces, ...
-          'FaceVertexCData', cData, 'FaceColor', 'interp', 'EdgeColor', 'none');
-
-view(3);
-if params.zero ~= 0
-    cb = colorbarpzn(params.clims(1), params.clims(2), 'full', 1, 'dft', 'pwg');
-else
-    cb = colorbarpzn(params.clims(1), params.clims(2)); % , 'level', 21
-end
-if ~params.movie
-    ylabel(cb,'\boldmath$\frac{\omega c}{U_{\infty}}$','Interpreter','Latex','FontSize',18,'Rotation',0)
-    % xlabel("x/c", FontSize=16)
-    xlabel("t/T", FontSize=16)
-    ylabel("y/c", FontSize=16)
-    zlabel("z/c", FontSize=16)
-else
-    cb.Visible = 'off';
-    ax = gca;
-    ax.XTick = [];
-    ax.YTick = [];
-    ax.ZTick = [];
-    ax.XTickLabel = [];
-    ax.YTickLabel = [];
-    ax.ZTickLabel = [];
-    ax.Box = 'off';
-    ax.XColor = 'none'; % hides axis line
-    ax.YColor = 'none';
-    ax.ZColor = 'none';
-end
-
-% Zoom out
-% ax = gca;
-% ax.XLim = ax.XLim * 2;   % doubles the range in x
-% ax.YLim = ax.YLim * 2;   % doubles the range in y
-% ax.ZLim = ax.ZLim * 2;   % doubles the range in z
-
-% xlabel("y [m]")
-% ylabel("z [m]")
-% zlabel("x [m]")
 end

@@ -449,7 +449,7 @@ for ii = 1:length(sel_frames)
 
     % Progress update
     if mod(counter,100) == 0
-        disp(['processed ',num2str(counter),'/',num2str(length(sel_frames))])
+        disp(['loadPIV: processed ',num2str(counter),'/',num2str(length(sel_frames))])
     end
 end
 
