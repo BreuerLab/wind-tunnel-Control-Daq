@@ -38,10 +38,10 @@ end
 trim_bool = true;
 if trim_bool
 % Trimming data down
-xbounds = [-2.5 2.5]; % roughly -0.15 to 0.15 meters
+xbounds = [-2.4 2.4]; % roughly -0.15 to 0.15 meters
 % ybounds = [-2.86 2.86]; % roughly -0.2 to 0.2 meters
-ybounds = [-2.3 2.45]; % roughly -0.2 to 0.2 meters
-% ybounds = [-2 2]; % roughly -0.2 to 0.2 meters
+% ybounds = [-2.3 2.45]; % roughly -0.2 to 0.2 meters
+ybounds = [-2.1 2.]; % roughly -0.2 to 0.2 meters
 
 x_idx = find(x_full(:,1,1) > xbounds(1) & x_full(:,1,1) < xbounds(2));  % columns
 y_idx = find(y_full(1,:,1) > ybounds(1) & y_full(1,:,1) < ybounds(2));  % rows

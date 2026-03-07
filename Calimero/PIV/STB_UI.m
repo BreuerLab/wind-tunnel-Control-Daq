@@ -25,6 +25,11 @@ properties
 
     slider; % slider object
     
+    % properties related to 3D plot
+
+    plot_hold_bool;
+    Q_iso;
+    mirror_bool;
 end
 
 methods
@@ -42,6 +47,9 @@ methods
         obj.play = false;
 
         obj.plot_types = ["movie","3D","histogram","2D"];
+        obj.plot_hold_bool = false;
+        obj.Q_iso = 0.05;
+        obj.mirror_bool = false;
 
         obj.case_name_list = ["flexible_20deg_2Hz","flexible_20deg_6Hz","UP_one_flexible_20deg_6Hz"];
         obj.variable_name_list = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
@@ -54,10 +62,10 @@ methods
                       -1, 1;...
                       -1, 1;...
                       -1, 1;...
-                      0.01, 0.1;...
-                      0.01, 0.1;...
-                      0.01, 0.1;...
-                      0.01, 0.1;...
+                      0, 0.1;...
+                      0, 0.1;...
+                      0, 0.1;...
+                      0, 0.1;...
                       0, 0.05;...
                       0, 0.05;...
                       0, 0.05;...
@@ -120,9 +128,59 @@ methods
         b1 = uibutton(plot_panel,"state");
         b1.Text = "Play";
         b1.FontSize = 18;
-        b1.Position = [30 button1_y 160 unit_height];
+        b1.Position = [30 button1_y 120 unit_height];
         b1.BackgroundColor = [1 1 1];
         b1.ValueChangedFcn = @(src, event) playStop_change(src, event, plot_panel);
+
+        editField_y = drop_y3 - 70;
+        l1_x = 30;
+        l1_w = 70;
+        l1 = uilabel(option_panel);
+        l1.HorizontalAlignment = 'right';
+        l1.Position = [l1_x editField_y l1_w unit_height];
+        l1.Text = 'Q isovalue:';
+
+        f1 = uieditfield(option_panel, 'numeric');
+        f1.Position = [l1_x+l1_w+5 editField_y 50 unit_height];
+        f1.Value = obj.Q_iso;
+        f1.Limits = [0, 1];
+        f1.LowerLimitInclusive = 'on';
+        f1.ValueChangedFcn = @(src, event) Q_iso_change(src, event, plot_panel);
+
+        button2_y = editField_y - 35;
+        b2 = uibutton(option_panel,"state");
+        b2.Text = "Mirror";
+        % b2.FontSize = 14;
+        b2.Position = [30 button2_y 120 unit_height];
+        b2.BackgroundColor = [1 1 1];
+        b2.ValueChangedFcn = @(src, event) mirror_change(src, event, plot_panel);
+
+        button3_y = button2_y - 40;
+        % 1. Create the Button Group (the container)
+        bg = uibuttongroup(option_panel, ...
+            'Position', [30 button3_y 124 unit_height+5], ...
+            'BorderType', 'none', ...
+            'BackgroundColor', option_panel.BackgroundColor, ...
+            'SelectionChangedFcn', @(bg, event) view_change_handler(event, plot_panel));
+        
+        % Dimensions for buttons relative to the group
+        b_w = 32;
+        b_s = (120 - 3*b_w)/2;
+        pad = 2;
+
+        % 2. Add Toggle Buttons to the group
+        % Note: Position is now relative to the 'bg' container [Left Bottom Width Height]
+        b3 = uitogglebutton(bg, 'Text', 'xy', 'Position', [pad pad b_w unit_height], 'BackgroundColor', [1 1 1]);
+        b4 = uitogglebutton(bg, 'Text', 'yz', 'Position', [pad + b_w + b_s pad b_w unit_height], 'BackgroundColor', [1 1 1]);
+        b5 = uitogglebutton(bg, 'Text', 'xz', 'Position', [pad + 2*(b_w + b_s) pad b_w unit_height], 'BackgroundColor', [1 1 1]);
+
+        button4_y = 0.05*screen_height;
+        b6 = uibutton(option_panel,"state");
+        b6.Text = "Save Figure";
+        b6.FontSize = 18;
+        b6.Position = [30 button4_y 120 unit_height];
+        b6.BackgroundColor = [1 1 1];
+        b6.ValueChangedFcn = @(src, event) save_figure(src, event, plot_panel);
 
         % Set up plot titles and axes
         obj.update_plot(plot_panel);
@@ -142,12 +200,14 @@ methods
         % User selected new desired force/moment axes
         function case_change(src, ~, plot_panel)
             obj.case_name = src.Value;
+            obj.plot_hold_bool = false;
             obj.update_plot(plot_panel);
         end
 
         % User selected new desired plot type
         function type_change(src, ~, plot_panel)
             obj.plot_type = src.Value;
+            obj.plot_hold_bool = false;
             obj.update_plot(plot_panel);
         end
 
@@ -170,6 +230,67 @@ methods
             end
 
             obj.update_plot(plot_panel);
+        end
+
+        function Q_iso_change(src, ~, plot_panel)
+            obj.Q_iso = src.Value;
+            obj.plot_hold_bool = false;
+            obj.clims(9:12,2) = obj.Q_iso;
+            obj.update_plot(plot_panel);
+        end
+
+        % User pressed mirror button to mirror 3D wake to reconstruct left
+        % wing
+        function mirror_change(src, ~, plot_panel)
+            obj.plot_hold_bool = false;
+            if (src.Value)
+                obj.mirror_bool = true;
+                src.BackgroundColor = [0.3010 0.7450 0.9330];
+            else
+                obj.mirror_bool = false;
+                src.BackgroundColor = [1 1 1];
+            end
+
+            obj.update_plot(plot_panel);
+        end
+
+        % 3. The Single Callback Handler
+        function view_change_handler(event, plot_panel)
+            % event.NewValue is the handle of the button that was just selected
+            selected_text = event.NewValue.Text;
+
+            % Find only children that are of type 'axes'
+            ax = findobj(plot_panel.Children, 'Type', 'axes');
+            
+            switch selected_text
+                case "xz"
+                    view(ax, [0 1 0])
+                case "xy"
+                    view(ax, [0 0 1])
+                case "yz"
+                    view(ax, [1 0 0])
+            end
+            fprintf('View changed to: %s\n', selected_text);
+        end
+
+        function save_figure(~, ~, plot_panel)
+            ax = findobj(plot_panel.Children, 'Type', 'axes');
+            cb = findobj(plot_panel.Children, 'Type', 'colorbar');
+
+            filename = "saved_figure.fig";
+            fignew = figure('Visible','off'); % Invisible figure
+            % if (exist("l", "var"))
+            %     copyobj([l ax], fignew); % Copy the appropriate axes
+            % elseif (exist("cb", "var"))
+                copyobj([ax cb], fignew); % Copy the appropriate axes
+            % else
+            %     copyobj(ax, fignew); % Copy the appropriate axes
+            % end
+
+            % set(fignew, 'Position', [200 200 800 600])
+            set(fignew,'CreateFcn','set(gcbf,''Visible'',''on'')'); % Make it visible upon loading
+            savefig(fignew,filename);
+            delete(fignew);
         end
 
         function frame_change(src, ~, plot_panel)
@@ -195,10 +316,10 @@ methods (Access = private)
 
         % Delete the axes to prepare for new plotting unless
         % plot is 3D and plot_type 3D, then just adjust colors on plot
-        if is2D(axesToDelete)
-            delete(axesToDelete);
-        else
+        if obj.plot_hold_bool
             p = findobj(axesToDelete, 'Type', 'patch');
+        else
+            delete(axesToDelete);
         end
 
         % load in variables to plot
@@ -238,20 +359,21 @@ methods (Access = private)
         
         % Make axes for plot
         % empty - first run, not valid - empty (no values)
-        if isempty(axesToDelete) || ~isvalid(axesToDelete)
-            ax = axes(plot_panel);
-        else
+        if obj.plot_hold_bool
             ax = axesToDelete;
+        else
+            ax = axes(plot_panel);
+        end
+
+        if min(obj.clims(var_idx,:)) < -1
+            params.zero = -1;
+        elseif min(obj.clims(var_idx,:)) < 0.5
+            params.zero = 0;
+        else
+            params.zero = 1;
         end
 
         if obj.plot_type == "movie"
-        if min(obj.clims(var_idx,:)) < -1
-            zero = -1;
-        elseif min(obj.clims(var_idx,:)) < 0.5
-            zero = 0;
-        else
-            zero = 1;
-        end
 
         % params.zero = 0;
         % params.title = "Spanwise velocity - Average";
@@ -259,7 +381,6 @@ methods (Access = private)
         % params.clims = [-0.2 0.2];
         % make_movie(x(:,:,z_ind), y(:,:,z_ind), u_phase_avg(:,:,z_ind,:), params)
 
-        params.zero = zero;
         params.title = "Spanwise velocity - Average";
         params.clims = obj.clims(var_idx,:);
 
@@ -287,19 +408,22 @@ methods (Access = private)
         end
         elseif obj.plot_type == "3D"
             params.num_bins = d.num_bins;
-            params.clims = [-1 1];
-            params.zero = 0;
+            params.clims = obj.clims(var_idx,:);
             params.movie = false;
             params.L = d.L;
             params.shift = -7;
-            params.isoValue = 0.05; % 0.05
-            if isvalid(axesToDelete) && ~is2D(axesToDelete)
+            params.isoValue = obj.Q_iso; % 0.05
+            params.mirror = obj.mirror_bool;
+            if obj.plot_hold_bool
                 [~,cData] = stack_vortices_3D(x, y, val, Q, d.cycle_freq, params);
+                setColorBar(ax, params)
                 p.FaceVertexCData = cData;
             else
             % stack_vortices(x_tr, y_tr, vort_phase_avg_tr, Q_phase_avg_tr, wing_freq, params);
             [s,cData] = stack_vortices_3D(x, y, val, Q, d.cycle_freq, params);
+            setColorBar(ax, params)
             plot_3D(ax, s, cData, params)
+            obj.plot_hold_bool = true;
             end
         end
     end

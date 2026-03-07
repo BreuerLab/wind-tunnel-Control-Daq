@@ -7,7 +7,6 @@ addpath(genpath('../../'))
 addpath(genpath('.'))
 addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 
-tic
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % keys = {'2Hz_A20_10AoA', '4Hz_A20_10AoA', '6Hz_A20_10AoA', '8Hz_A20_10AoA',...

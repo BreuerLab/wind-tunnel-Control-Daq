@@ -4,13 +4,7 @@ p = patch(ax,'vertices', s.vertices, 'faces', s.faces, ...
           'FaceVertexCData', cData, 'FaceColor', 'interp', 'EdgeColor', 'none');
 
 view(ax, 3);
-if params.zero ~= 0
-    cb = colorbarpzn(ax, params.clims(1), params.clims(2), 'full', 1, 'dft', 'pwg');
-else
-    cb = colorbarpzn(ax, params.clims(1), params.clims(2)); % , 'level', 21
-end
 if ~params.movie
-    ylabel(cb,'\boldmath$\frac{\omega c}{U_{\infty}}$','Interpreter','Latex','FontSize',18,'Rotation',0)
     % xlabel("x/c", FontSize=16)
     xlabel(ax, "t/T", FontSize=16)
     ylabel(ax, "y/c", FontSize=16)

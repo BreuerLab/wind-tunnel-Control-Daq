@@ -7,7 +7,7 @@ function [h,t] = phase_avg_plot(x, y, val, params, ax, ind)
     levels = linspace(params.clims(1), params.clims(2), 71);
     [~,h] = contourf(ax, x, y, val_tr, levels,'linestyle','none');
 
-    axis(ax, 'equal');
+    % axis(ax, 'equal');
     % shading(ax, 'interp');
     % xlim(params.xlims)
     % ylim(params.ylims)

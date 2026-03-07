@@ -7,5 +7,5 @@ addpath(genpath('../../'))
 addpath(genpath('.'))
 
 % Set up basic UI as demo for this kind of tool
-c = STB_UI(1);
+c = STB_UI(2);
 c.dynamic_plotting();
