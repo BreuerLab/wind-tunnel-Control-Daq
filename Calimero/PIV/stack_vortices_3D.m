@@ -89,6 +89,31 @@ zv = squeeze(Z(1,1,:));    % Nz
 % X_fin = X; Y_fin = Y; Z_fin = Z; Q_fin = Q_phase_avg_s; C_fin = C_phase_avg_s;
 X_fin = X2; Y_fin = Y2; Z_fin = Z2; Q_fin = Q2; C_fin = C2;
 
+if params.num_cycles > 1   
+%% Stack 3 wingbeats together
+
+z_step = max(Z_fin(1,:,1)) + (Z_fin(1,2,1) - Z_fin(1,1,1));
+rep_n = params.num_cycles;
+
+% Repeat data along 3rd dimension
+X_big = repmat(X_fin, [1, rep_n, 1]);
+Y_big = repmat(Y_fin, [1, rep_n, 1]);
+Z_big = repmat(Z_fin, [1, rep_n, 1]);
+Q_big = repmat(Q_fin, [1, rep_n, 1]);
+C_big = repmat(C_fin, [1, rep_n, 1]);
+
+offsets = repelem((0:rep_n-1) * z_step, 1, size(Z_fin,2));
+
+% Apply the offsets using implicit expansion
+% Z_big is [100 x (75*N) x 20], offsets is [1 x (75*N)]
+Z_big = Z_big + offsets;
+
+% Q_big = circshift(Q_big, [0 0 params.shift]);  % shift along the 3rd dimension (Z)
+% C_big = circshift(C_big, [0 0 params.shift]);  % shift along the 3rd dimension (Z)
+
+X_fin = X_big; Y_fin = Y_big; Z_fin = Z_big; Q_fin = Q_big; C_fin = C_big;
+end
+
 %% Interpolate onto finer scale
 if params.movie
 % choose upsampling factor

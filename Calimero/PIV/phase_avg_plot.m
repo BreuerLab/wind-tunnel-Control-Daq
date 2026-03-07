@@ -13,8 +13,10 @@ function [h,t] = phase_avg_plot(x, y, val, params, ax, ind)
     % ylim(params.ylims)
     % xlabel("x [m]")
     % ylabel("y [m]")
-    xlabel(ax, "y/c", FontSize=16)
-    ylabel(ax, "z/c", FontSize=16)
+    % xlabel(ax, "y/c", FontSize=16)
+    % ylabel(ax, "z/c", FontSize=16)
+    xlabel(ax, "x/c", FontSize=16)
+    ylabel(ax, "y/c", FontSize=16)
 
     % Xiaowei color map
     % min_vort = min(vort_phase_avg,[],'all');
@@ -22,12 +24,9 @@ function [h,t] = phase_avg_plot(x, y, val, params, ax, ind)
     % vort_scale = max(abs([min_vort max_vort]));
     if params.zero ~= 0
     cb = colorbarpzn(ax, params.clims(1), params.clims(2), 'full', params.zero, 'dft', 'gwp','level',71);
-    % y_lab = '\boldmath$\frac{w}{U_{\infty}}$';
-    y_lab = '\boldmath$\frac{u}{U_{\infty}}$';
     else
     cb = colorbarpzn(ax, params.clims(1), params.clims(2),'level',71); % , 'level', 21
-    y_lab = '\boldmath$\frac{\omega c}{U_{\infty}}$';
     end
-    ylabel(cb, y_lab,'Interpreter','Latex','FontSize',18,'Rotation',0)
+    ylabel(cb, params.cb_lab,'Interpreter','Latex','FontSize',18,'Rotation',0)
     t = title(ax, [params.title "Bin number: " + ind], FontSize=18);
 end
