@@ -30,7 +30,6 @@ properties
 
     plot_hold_bool;
     Q_iso;
-    old_Q_iso;
     mirror_bool;
     num_cycles;
     cam;
@@ -53,11 +52,12 @@ methods
         obj.plot_types = ["movie","3D","histogram","2D"];
         obj.plot_hold_bool = false;
         obj.Q_iso = 0.05;
-        obj.old_Q_iso = obj.Q_iso;
         obj.mirror_bool = false;
         obj.num_cycles = 1;
 
-        obj.case_name_list = ["flexible_20deg_2Hz","flexible_20deg_6Hz","UP_one_flexible_20deg_6Hz"];
+        files = dir(obj.file_path + "*.mat");
+
+        obj.case_name_list = extractBefore(string({files.name}),".mat");
         obj.variable_name_list = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
                     "Q_x","Q_y","Q_z","|Q|","u_unc","v_unc","w_unc","|unc|"];
         obj.clims = [-0.2, 0.2;...
@@ -151,22 +151,24 @@ methods
         b1.BackgroundColor = [1 1 1];
         b1.ValueChangedFcn = @(src, event) playStop_change(src, event, plot_panel);
 
-        editField_y = drop_y3 - 70;
-        l1_x = 30;
+        l1_y = drop_y3 - 150;
+        l1_x = 55;
         l1_w = 70;
         l1 = uilabel(option_panel);
-        l1.HorizontalAlignment = 'right';
-        l1.Position = [l1_x editField_y l1_w unit_height];
+        l1.HorizontalAlignment = 'center';
+        l1.Position = [l1_x l1_y l1_w unit_height];
         l1.Text = 'Q isovalue:';
 
-        f1 = uieditfield(option_panel, 'numeric');
-        f1.Position = [l1_x+l1_w+5 editField_y 50 unit_height];
-        f1.Value = obj.Q_iso;
-        f1.Limits = [0, 1];
-        f1.LowerLimitInclusive = 'on';
-        f1.ValueChangedFcn = @(src, event) Q_iso_change(src, event, plot_panel);
+        s2_y = l1_y - 5;
+        s2 = uislider(option_panel);
+        s2.Position = [15 s2_y 170 3];
+        s2.Limits = [0.005 0.2];
+        s2.Value = obj.Q_iso;
+        s2.MajorTicks = 0:0.05:0.5;
+        s2.MinorTicks = 0.01:0.01:0.5;
+        s2.ValueChangedFcn = @(src, event) Q_iso_change(src, event, plot_panel);
 
-        button2_y = editField_y - 35;
+        button2_y = s2_y - 70;
         b2 = uibutton(option_panel,"state");
         b2.Text = "Mirror";
         % b2.FontSize = 14;
@@ -174,10 +176,10 @@ methods
         b2.BackgroundColor = [1 1 1];
         b2.ValueChangedFcn = @(src, event) mirror_change(src, event, plot_panel);
 
-        button3_y = button2_y - 40;
+        button3_y = button2_y - 80;
         % 1. Create the Button Group (the container)
         bg = uibuttongroup(option_panel, ...
-            'Position', [30 button3_y 124 unit_height+5], ...
+            'Position', [30 button3_y 124 2*(unit_height+5)], ...
             'BorderType', 'none', ...
             'BackgroundColor', option_panel.BackgroundColor, ...
             'SelectionChangedFcn', @(bg, event) view_change_handler(event, plot_panel));
@@ -186,40 +188,39 @@ methods
         b_w = 32;
         b_s = (120 - 3*b_w)/2;
         pad = 2;
+        v_sep = (unit_height+5);
 
         % 2. Add Toggle Buttons to the group
         % Note: Position is now relative to the 'bg' container [Left Bottom Width Height]
-        b3 = uitogglebutton(bg, 'Text', 'xy', 'Position', [pad pad b_w unit_height], 'BackgroundColor', [1 1 1]);
-        b4 = uitogglebutton(bg, 'Text', 'yz', 'Position', [pad + b_w + b_s pad b_w unit_height], 'BackgroundColor', [1 1 1]);
-        b5 = uitogglebutton(bg, 'Text', 'xz', 'Position', [pad + 2*(b_w + b_s) pad b_w unit_height], 'BackgroundColor', [1 1 1]);
+        b3 = uitogglebutton(bg, 'Text', '+xy', 'Position', [pad pad+v_sep b_w unit_height], 'BackgroundColor', [1 1 1]);
+        b4 = uitogglebutton(bg, 'Text', '+yz', 'Position', [pad + b_w + b_s pad+v_sep b_w unit_height], 'BackgroundColor', [1 1 1]);
+        b5 = uitogglebutton(bg, 'Text', '+xz', 'Position', [pad + 2*(b_w + b_s) pad+v_sep b_w unit_height], 'BackgroundColor', [1 1 1]);
+        b6 = uitogglebutton(bg, 'Text', '-xy', 'Position', [pad pad b_w unit_height], 'BackgroundColor', [1 1 1]);
+        b7 = uitogglebutton(bg, 'Text', '-yz', 'Position', [pad + b_w + b_s pad b_w unit_height], 'BackgroundColor', [1 1 1]);
+        b8 = uitogglebutton(bg, 'Text', '-xz', 'Position', [pad + 2*(b_w + b_s) pad b_w unit_height], 'BackgroundColor', [1 1 1]);
 
-        % panel_width = plot_panel.Position(3);
-        % s_w = panel_width * (3/4);
-        % s_x = (panel_width - s_w)/2; % end of right monitor around 1690
-        % s_y = 0.05*screen_height;
-
-        l_y = button3_y - 35;
+        l2_y = button3_y - 35;
         l2 = uilabel(option_panel);
         l2.HorizontalAlignment = 'center';
-        l2.Position = [l1_x l_y 120 unit_height];
+        l2.Position = [30 l2_y 120 unit_height];
         l2.Text = 'Number of Wingbeats';
 
-        s_y = l_y - 10;
-        s2 = uislider(option_panel);
-        s2.Position = [30 s_y 120 3];
-        s2.Limits = [1 5];
-        s2.Value = obj.num_cycles;
-        s2.MajorTicks = 1:5;
-        s2.MinorTicks = [];
-        s2.ValueChangedFcn = @(src, event) num_cycles_change(src, event, plot_panel);
+        s3_y = l2_y - 10;
+        s3 = uislider(option_panel);
+        s3.Position = [30 s3_y 120 3];
+        s3.Limits = [1 5];
+        s3.Value = obj.num_cycles;
+        s3.MajorTicks = 1:5;
+        s3.MinorTicks = [];
+        s3.ValueChangedFcn = @(src, event) num_cycles_change(src, event, plot_panel);
 
         button4_y = 0.05*screen_height;
-        b6 = uibutton(option_panel,"state");
-        b6.Text = "Save Figure";
-        b6.FontSize = 18;
-        b6.Position = [30 button4_y 120 unit_height];
-        b6.BackgroundColor = [1 1 1];
-        b6.ValueChangedFcn = @(src, event) save_figure(src, event, plot_panel);
+        b9 = uibutton(option_panel,"state");
+        b9.Text = "Save Figure";
+        b9.FontSize = 18;
+        b9.Position = [30 button4_y 120 unit_height];
+        b9.BackgroundColor = [1 1 1];
+        b9.ValueChangedFcn = @(src, event) save_figure(src, event, plot_panel);
 
         % Set up plot titles and axes
         obj.update_plot(plot_panel);
@@ -239,7 +240,7 @@ methods
         % User selected new desired force/moment axes
         function case_change(src, ~, plot_panel)
             obj.case_name = src.Value;
-            obj.plot_hold_bool = false;
+            % obj.plot_hold_bool = false;
             obj.update_plot(plot_panel);
         end
 
@@ -272,9 +273,10 @@ methods
         end
 
         function Q_iso_change(src, ~, plot_panel)
-            obj.old_Q_iso = obj.Q_iso;
+            % Force the slider value to the nearest integer immediately
+            src.Value = round(src.Value,2);
+
             obj.Q_iso = src.Value;
-            obj.plot_hold_bool = false;
             obj.clims(9:12,2) = obj.Q_iso;
             obj.update_plot(plot_panel);
         end
@@ -282,7 +284,6 @@ methods
         % User pressed mirror button to mirror 3D wake to reconstruct left
         % wing
         function mirror_change(src, ~, plot_panel)
-            obj.plot_hold_bool = false;
             if (src.Value)
                 obj.mirror_bool = true;
                 src.BackgroundColor = [0.3010 0.7450 0.9330];
@@ -303,11 +304,17 @@ methods
             ax = findobj(plot_panel.Children, 'Type', 'axes');
             
             switch selected_text
-                case "xz"
+                case "+xz"
                     view(ax, [0 0 1])
-                case "xy"
+                case "+xy"
                     view(ax, [1 0 0])
-                case "yz"
+                case "+yz"
+                    view(ax, [0 1 0])
+                case "+xz"
+                    view(ax, [0 0 1])
+                case "+xy"
+                    view(ax, [1 0 0])
+                case "+yz"
                     view(ax, [0 1 0])
             end
             fprintf('View changed to: %s\n', selected_text);
@@ -338,7 +345,6 @@ methods
             src.Value = round(src.Value);
 
             obj.num_cycles = src.Value;
-            obj.plot_hold_bool = false;
             obj.update_plot(plot_panel);
         end
 
@@ -363,18 +369,13 @@ methods (Access = private)
         % Find only children that are of type 'axes'
         ax = findobj(plot_panel.Children, 'Type', 'axes');
 
-        % Grab the exact 3D coordinates of the camera
-        obj.cam.savedPos = get(ax, 'CameraPosition');
-        obj.cam.savedTarget = get(ax, 'CameraTarget');
-        obj.cam.savedUp = get(ax, 'CameraUpVector');
-
         % Delete the axes to prepare for new plotting unless
         % plot is 3D and plot_type 3D, then just adjust colors on plot
-        % if obj.plot_hold_bool
-        %     p = findobj(ax, 'Type', 'patch');
-        % else
+        if obj.plot_hold_bool
+            p = findobj(ax, 'Type', 'patch');
+        else
             delete(ax);
-        % end
+        end
 
         % load in variables to plot
         var_name = obj.variable_name_dict(obj.variable_name);
@@ -413,9 +414,9 @@ methods (Access = private)
         
         % Make axes for plot
         % empty - first run, not valid - empty (no values)
-        % if ~obj.plot_hold_bool
+        if ~obj.plot_hold_bool
             ax = axes(plot_panel);
-        % end
+        end
 
         if min(obj.clims(var_idx,:)) < -1
             params.zero = -1;
@@ -428,12 +429,6 @@ methods (Access = private)
         params.cb_lab = obj.legend_entries(var_idx);
 
         if obj.plot_type == "movie"
-
-        % params.zero = 0;
-        % params.title = "Spanwise velocity - Average";
-        % params.folder = "u_avg";
-        % params.clims = [-0.2 0.2];
-        % make_movie(x(:,:,z_ind), y(:,:,z_ind), u_phase_avg(:,:,z_ind,:), params)
 
         params.title = "Spanwise velocity - Average";
         params.clims = obj.clims(var_idx,:);
@@ -469,20 +464,16 @@ methods (Access = private)
             params.isoValue = obj.Q_iso; % 0.05
             params.mirror = obj.mirror_bool;
             params.num_cycles = obj.num_cycles;
-            if obj.plot_hold_bool
-                [s,cData] = stack_vortices_3D(x, y, val, Q, d.cycle_freq, params);
-                setColorBar(ax, params)
-                if obj.old_Q_iso !
-                p.FaceVertexCData = cData;
-            else
-            % stack_vortices(x_tr, y_tr, vort_phase_avg_tr, Q_phase_avg_tr, wing_freq, params);
+
             [s,cData] = stack_vortices_3D(x, y, val, Q, d.cycle_freq, params);
             setColorBar(ax, params)
-            plot_3D(ax, s, cData, params)
-            % Restore view
-            set(ax, 'CameraPosition', obj.cam.savedPos, 'CameraTarget',...
-                obj.cam.savedTarget, 'CameraUpVector', obj.cam.savedUp);
-            obj.plot_hold_bool = true;
+            if obj.plot_hold_bool
+                p.Vertices = s.vertices;
+                p.Faces = s.faces;
+                p.FaceVertexCData = cData;
+            else
+                plot_3D(ax, s, cData, params)
+                obj.plot_hold_bool = true;
             end
         end
     end

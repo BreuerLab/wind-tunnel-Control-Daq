@@ -18,8 +18,11 @@ tic
 turbine_bool = false;
 % PIV_case_name = 'turbine';
 % PIV_case_name = 'flexible_20deg_2Hz';
-PIV_case_name = 'flexible_20deg_6Hz';
+% PIV_case_name = 'flexible_20deg_6Hz';
+PIV_case_name = 'flexible_30deg_6Hz';
 % PIV_case_name = 'UP_one_flexible_20deg_6Hz';
+% PIV_case_name = 'UP_one_flexible_30deg_2Hz';
+% PIV_case_name = 'UP_one_flexible_20deg_2Hz';
 L = 0.07; % characteristic length, guess of mean aerodynamic chord
 if turbine_bool
     U = 6;
