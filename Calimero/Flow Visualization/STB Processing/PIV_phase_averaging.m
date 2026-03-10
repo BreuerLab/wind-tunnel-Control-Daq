@@ -17,9 +17,10 @@ tic
 
 turbine_bool = false;
 % PIV_case_name = 'turbine';
-% PIV_case_name = 'flexible_20deg_2Hz';
+PIV_case_name = 'flexible_20deg_2Hz';
 % PIV_case_name = 'flexible_20deg_6Hz';
-PIV_case_name = 'flexible_30deg_6Hz';
+% PIV_case_name = 'flexible_20deg_8Hz';
+% PIV_case_name = 'flexible_30deg_6Hz';
 % PIV_case_name = 'UP_one_flexible_20deg_6Hz';
 % PIV_case_name = 'UP_one_flexible_30deg_2Hz';
 % PIV_case_name = 'UP_one_flexible_20deg_2Hz';
@@ -140,7 +141,13 @@ PIV_plot(x(:,:,3), y(:,:,3), mean_vortZ(:,:,3), params)
 end
 
 % get bin number associated with each frame from DAQ measurements
-[norm_frame_pos, bin_ind_arr, num_bins, cycle_freq] = frame_to_bin(PIV_case_name, num_images, turbine_bool);
+[norm_frame_pos, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_freq]...
+    = frame_to_bin(PIV_case_name, num_images, turbine_bool);
+
+if ~turbine_bool
+% Calculate phase averaged speed
+[norm_time_speed, phase_avg_speed, phase_std_speed, bin_count_speed, bin_std_speed] = speed_phase_avg(PIV_case_name);
+end
 
 phase_avg_bool = true;
 if phase_avg_bool
@@ -153,9 +160,10 @@ for i = 1:num_bins
     bin_indices = find(bin_ind_arr == i);
     % bin_indices_all{i} = bin_indices;
     bin_count(i) = length(bin_indices);
-    bin_std(i) = std(norm_frame_pos(bin_indices)); % removed for turbine case
+    bin_std(i) = std(norm_frame_pos(bin_indices))*100;
   
-    [x, y, z, u, v, w, Utot, vortX, vortY, vortZ, vortTot, uncU, uncV, uncW, uncTot] = import_STB_data(file_path, nondim_bool, U, L, bin_indices);
+    [x, y, z, u, v, w, Utot, vortX, vortY, vortZ, vortTot, uncU, uncV, uncW, uncTot] ...
+        = import_STB_data(file_path, nondim_bool, U, L, bin_indices);
 
     if i == 1
         vortX_phase_avg = zeros(size(x,1), size(x,2), size(x,3), num_bins);
@@ -208,10 +216,13 @@ dz = abs(z(1,1,2) - z(1,1,1));
 [Qx,Qy,Qz,Q] = calQlate3D(u_phase_avg,v_phase_avg,w_phase_avg,dx,dy,dz);
 
 % Save phase averaged data to .mat file
-vars = {"L","U","cycle_freq","PIV_case_name","num_bins","bin_ind_arr","bin_count","bin_std",...
+vars = {"L","U","cycle_freq","PIV_case_name","num_bins",...
+    "tick_frame_pos","full_cycle","bin_ind_arr","bin_count","bin_std",...
     "x","y","z","u_phase_avg","v_phase_avg","w_phase_avg","Utot_phase_avg",...
     "uncU_phase_avg","uncV_phase_avg","uncW_phase_avg","uncTot_phase_avg",...
-    "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg","vortTot_phase_avg","Qx","Qy","Qz","Q"};
+    "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg","vortTot_phase_avg",...
+    "Qx","Qy","Qz","Q",...
+    "norm_time_speed", "phase_avg_speed", "phase_std_speed", "bin_count_speed", "bin_std_speed"};
 save(save_filepath_local + PIV_case_name + ".mat", vars{:})
 
 elapsedTime = toc;

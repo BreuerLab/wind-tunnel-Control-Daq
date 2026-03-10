@@ -1,29 +1,9 @@
-function [norm_frame_pos, bin_ind_arr, num_bins, cycle_freq] = frame_to_bin(PIV_case_name, num_images, turbine_bool)
+function [norm_frame_pos, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_freq] = frame_to_bin(PIV_case_name, num_images, turbine_bool)
+
 [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name);
 
-% exp_data_folder = daq_data_path + "experiment data\";
-% offsets_data_folder = daq_data_path + "offsets data\";
-
-% [case_name, time_stamp, type, wing_freq, AoA, wind_speed, amp, file_type] = parse_filename(daq_data_filename);
-% 
-% % Find matching offsets file
-% offsets_string = "before_offsets";
-% calibration_filepath = "../DAQ/Calibration Files/Mini40/FT52907.cal";
-% cal_mat = obtain_cal(calibration_filepath);
-% 
-% % Get a list of all files in the folder with the desired file name pattern.
-% filePattern = fullfile(offsets_data_folder, '*.mat');
-% offsets_files = dir(filePattern);
-% 
-% % try
-% [offsets, offsets_filename] = findMatchingOffset...
-%     (offsets_files, offsets_string, wing_freq, amp, AoA, wind_speed, type, time_stamp);
-% % catch
-% %     error("Oops, no offsets found. Did you check that daq_data_path is correct?")
-% % end
-
 % Get raw data from file
-load([daq_data_path daq_data_filename]); % load in results var
+load([daq_data_path daq_data_filename]);
 
 if turbine_bool
 num_bins = 210;
@@ -84,7 +64,7 @@ cycle_freq = wing_freq;
 
 ticksPerRev = 18432;
 OC_pulse_step = 4;
-% [time_data, force_data, voltAdj, curAdj, speed, OC_pulse_count] = process_data(results, offsets, cal_mat, ticksPerRev, OC_pulse_step, true);
+
 OC_pulse_count = results(:,11);
 wing_pos = OC_pulse_count / (ticksPerRev / OC_pulse_step);
 
@@ -106,7 +86,7 @@ disp("Cropped off " + (length(norm_frame_pos) - num_images) + " extra laser puls
 % crop off first few extra pulses
 norm_frame_pos = norm_frame_pos(end-(num_images - 1):end);
 
-norm_wing_pos_frame_int = round(norm_frame_pos * (ticksPerRev / OC_pulse_step),3);
+tick_frame_pos = round(norm_frame_pos * (ticksPerRev / OC_pulse_step),3);
 full_cycle = 0.5:1:(ticksPerRev / OC_pulse_step)+0.5;
 % edges = (min(norm_wing_pos_frame_int)-0.5):(max(norm_wing_pos_frame_int)+0.5);
 
@@ -114,7 +94,7 @@ cam_fire_idx = find(results(:,13) == 2, 1, "first");
 laser_pulse_at_cam_fire = results(cam_fire_idx,12);
 disp("Laser pulses by camera fire: " + laser_pulse_at_cam_fire)
 
-bins_list = 40:1:150;
+bins_list = 10:5:150;
 best_num_bins = 0;
 best_bin_count = [];
 for num_bins = bins_list
@@ -141,7 +121,7 @@ end
 num_bins = best_num_bins;
 
 figure
-histogram(norm_wing_pos_frame_int, full_cycle)
+histogram(tick_frame_pos, full_cycle)
 xlabel("Encoder Ticks")
 ylabel("Frequency")
 
@@ -173,5 +153,6 @@ disp("Expected number of cycles: " + num_images / (200 / wing_freq))
 % bin_ind_arr = bin_ind_arr(1:num_images);
 % crop off first few extra pulses
 % bin_ind_arr = bin_ind_arr(end-(num_images - 1):end);
+
 end
 end
