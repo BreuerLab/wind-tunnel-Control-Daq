@@ -54,12 +54,12 @@ end
 methods
     % Constructor Function
     % Defines constants and default values for parameters
-    function obj = STB_UI(mon_num)
+    function obj = STB_UI(mon_num, file_path)
         obj.mon_num = mon_num;
         obj.norm = false;
         obj.case_name = "";
         obj.variable_name = "";
-        obj.file_path = "Y:\Processed Results\";
+        obj.file_path = file_path;
 
         obj.num_bins = 5;
         obj.frame_ind = 1;
@@ -190,7 +190,7 @@ methods
         obj.play_button.BackgroundColor = [1 1 1];
         obj.play_button.ValueChangedFcn = @(src, event) playStop_change(src, event, plot_panel);
 
-        param_panel_height = 0.32*screen_height;
+        param_panel_height = 380;
         param_panel_width = 180;
         param_panel_y = drop_y3 - 150 - param_panel_height;
         obj.param_panel = uipanel(option_panel);
