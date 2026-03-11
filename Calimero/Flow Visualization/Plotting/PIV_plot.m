@@ -1,10 +1,9 @@
-function [h,t] = phase_avg_plot(x, y, val, params, ax, ind)
+function h = PIV_plot(x, y, val_tr, params, ax)
     % 1. Cap the data so it doesn't exceed clims
-    val_tr = val(:,:,ind);
     val_tr(val_tr < params.clims(1)) = params.clims(1);
     val_tr(val_tr > params.clims(2)) = params.clims(2);
 
-    levels = linspace(params.clims(1), params.clims(2), 71);
+    levels = linspace(params.clims(1), params.clims(2), 100);
     [~,h] = contourf(ax, x, y, val_tr, levels,'linestyle','none');
 
     % axis(ax, 'equal');
@@ -28,5 +27,4 @@ function [h,t] = phase_avg_plot(x, y, val, params, ax, ind)
     cb = colorbarpzn(ax, params.clims(1), params.clims(2),'level',71); % , 'level', 21
     end
     ylabel(cb, params.cb_lab,'Interpreter','Latex','FontSize',18,'Rotation',0)
-    t = title(ax, [params.title "Bin number: " + ind], FontSize=18);
 end

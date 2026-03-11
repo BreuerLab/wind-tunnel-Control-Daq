@@ -34,7 +34,12 @@ x = x - min(x, [], "all");
 % x goes from positive to negative from left to right
 x_add = flip(-x,1);
 y_add = flip(y,1);
-C_add = flip(-C_phase_avg,1);
+% flip only if C_phase_avg is streamwise vorticity
+if params.cFlip
+    C_add = flip(-C_phase_avg,1);
+else
+    C_add = flip(C_phase_avg,1);
+end
 Q_add = flip(Q_phase_avg,1);
 
 % trimming 2:end to exclude double counting of zero

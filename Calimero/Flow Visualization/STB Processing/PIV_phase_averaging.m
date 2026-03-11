@@ -17,13 +17,14 @@ tic
 
 turbine_bool = false;
 % PIV_case_name = 'turbine';
+PIV_case_name = 'flexible_10deg_6Hz';
 % PIV_case_name = 'flexible_20deg_2Hz';
 % PIV_case_name = 'flexible_20deg_6Hz';
 % PIV_case_name = 'flexible_20deg_8Hz';
 % PIV_case_name = 'flexible_30deg_6Hz';
 % PIV_case_name = 'UP_one_flexible_20deg_6Hz';
 % PIV_case_name = 'UP_one_flexible_30deg_2Hz';
-PIV_case_name = 'UP_one_flexible_20deg_2Hz';
+% PIV_case_name = 'UP_one_flexible_20deg_2Hz';
 L = 0.07; % characteristic length, guess of mean aerodynamic chord
 if turbine_bool
     U = 6;
@@ -39,6 +40,9 @@ nondim_bool = true;
 phase_avg_plot_bool = true;
 circ_plot_bool = false;
 movie_plot_bool = false;
+
+time_avg_bool = true;
+phase_avg_bool = false;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -67,28 +71,44 @@ movie_plot_bool = false;
 file_path = get_PIV_paths(PIV_case_name);
 files = dir(fullfile(file_path,'*.vc7'));
 num_files = length(files);
-time_avg_bool = false;
 
 if time_avg_bool
 disp("Time Average: Loading file: " + file_path)
 num_files = 200; % TEMPORARY LINE ---- DELETE
 for i = 1:num_files
-    [x, y, z, u, v, w, vortX, vortY, vortZ, uncTot] = import_STB_data(file_path, nondim_bool, U, L, i);
+    [x, y, z, u, v, w, Utot, vortX, vortY, vortZ, vortTot, uncU, uncV, uncW, uncTot]...
+        = import_STB_data(file_path, nondim_bool, U, L, i);
 
     if i == 1
         mean_u = zeros(size(x));
         mean_v = zeros(size(x));
         mean_w = zeros(size(x));
+        mean_Utot = zeros(size(x));
+
         mean_vortX = zeros(size(x));
         mean_vortY = zeros(size(x));
         mean_vortZ = zeros(size(x));
+        mean_vortTot = zeros(size(x));
+
+        mean_uncU = zeros(size(x));
+        mean_uncV = zeros(size(x));
+        mean_uncW = zeros(size(x));
+        mean_uncTot = zeros(size(x));
     end
     mean_u = mean_u + u;
     mean_v = mean_v + v;
     mean_w = mean_w + w;
+    mean_Utot = mean_Utot + Utot;
+
     mean_vortX = mean_vortX + vortX;
     mean_vortY = mean_vortY + vortY;
     mean_vortZ = mean_vortZ + vortZ;
+    mean_vortTot = mean_vortTot + vortTot;
+
+    mean_uncU = mean_uncU + uncU;
+    mean_uncV = mean_uncV + uncV;
+    mean_uncW = mean_uncW + uncW;
+    mean_uncTot = mean_uncTot + uncTot;
 
     if mod(i,100) == 0
         disp(['processed ',num2str(i),'/',num2str(num_files)])
@@ -102,6 +122,18 @@ mean_w = mean_w / num_files;
 mean_vortX = mean_vortX / num_files;
 mean_vortY = mean_vortY / num_files;
 mean_vortZ = mean_vortZ / num_files;
+
+% Save phase averaged data to .mat file
+vars = {"L","U","PIV_case_name",...
+    "x","y","z","mean_u","mean_v","mean_w","mean_Utot",...
+    "mean_uncU","mean_uncV","mean_uncW","mean_uncTot",...
+    "mean_vortX","mean_vortY","mean_vortZ","mean_vortTot"};
+save(save_filepath_local + PIV_case_name + "_time_avg.mat", vars{:})
+
+elapsedTime = toc;
+fprintf('Processing and saving data took %.4f seconds.\n', elapsedTime);
+
+return
 
 params.zero = 0;
 params.clims = [-0.1 0.1];
@@ -149,7 +181,6 @@ if ~turbine_bool
 [norm_time_speed, phase_avg_speed, phase_std_speed, bin_count_speed, bin_std_speed] = speed_phase_avg(PIV_case_name);
 end
 
-phase_avg_bool = true;
 if phase_avg_bool
 disp("Phase Average: Loading file: " + file_path)
 
@@ -164,6 +195,18 @@ for i = 1:num_bins
   
     [x, y, z, u, v, w, Utot, vortX, vortY, vortZ, vortTot, uncU, uncV, uncW, uncTot] ...
         = import_STB_data(file_path, nondim_bool, U, L, bin_indices);
+
+    % origSize = [size(u,1), size(u,2), 1, size(u,4)];
+    % % RPCA filtering
+    % X_mat = reshape(u(:,:,3,:), [], size(u, 4)); % each column one frame
+    % [L_mat, S_mat] = RPCA(X_mat);
+    % 
+    % % reshaping data back to original size
+    % u_filt_plane = reshape(L_mat, origSize);
+    % u_noise_plane = reshape(S_mat, origSize);
+    % 
+    % u_filt = u;
+    % u_filt(:,:,3,:) = u_filt_plane;
 
     if i == 1
         vortX_phase_avg = zeros(size(x,1), size(x,2), size(x,3), num_bins);
@@ -194,6 +237,7 @@ for i = 1:num_bins
     vortTot_phase_avg(:,:,:,i) = mean(vortTot,4);
 
     u_phase_avg(:,:,:,i) = mean(u,4);
+    % u_phase_avg(:,:,:,i) = mean(u_filt,4);
     v_phase_avg(:,:,:,i) = mean(v,4);
     w_phase_avg(:,:,:,i) = mean(w,4);
     Utot_phase_avg(:,:,:,i) = mean(Utot,4);
@@ -207,6 +251,7 @@ for i = 1:num_bins
     if mod(i,5) == 0
         disp(['processed ',num2str(i),'/',num2str(num_bins)])
     end
+    % disp(['processed ',num2str(i),'/',num2str(num_bins)])
 end
 
 dx = abs(x(2,1,1) - x(1,1,1));
@@ -223,10 +268,13 @@ vars = {"L","U","cycle_freq","PIV_case_name","num_bins",...
     "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg","vortTot_phase_avg",...
     "Qx","Qy","Qz","Q",...
     "norm_time_speed", "phase_avg_speed", "phase_std_speed", "bin_count_speed", "bin_std_speed"};
-save(save_filepath_local + PIV_case_name + ".mat", vars{:})
+save(save_filepath_local + PIV_case_name + "_phase_avg.mat", vars{:})
+% + "_filt"
 
 elapsedTime = toc;
 fprintf('Processing and saving data took %.4f seconds.\n', elapsedTime);
+
+return
 
 % [B, I] = sort(norm_wing_pos_frame_tr);
 % vortZ_sorted = vortZ(:,:,:,I);

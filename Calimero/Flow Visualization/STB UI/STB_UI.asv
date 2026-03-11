@@ -35,7 +35,9 @@ properties
 
     clims; % color limits for each variable
 
+    param_panel; % panel of 3D plot parameters
     var_dropdown; % drop down box object for variable selection
+    clim_slider; % slider for color limits on plots
     slider; % slider object
     play_button;
     
@@ -46,6 +48,7 @@ properties
     iso_var;
     iso_var_list;
     mirror_bool;
+    filter_bool;
     num_cycles;
     cam;
 end
@@ -53,22 +56,23 @@ end
 methods
     % Constructor Function
     % Defines constants and default values for parameters
-    function obj = STB_UI(mon_num)
+    function obj = STB_UI(mon_num, file_path)
         obj.mon_num = mon_num;
         obj.norm = false;
         obj.case_name = "";
         obj.variable_name = "";
-        obj.file_path = "Y:\Processed Results\";
+        obj.file_path = file_path;
 
         obj.num_bins = 5;
         obj.frame_ind = 1;
         obj.play = false;
 
-        obj.plot_types = ["movie","3D plot","image wingbeat phase", "wingbeat frequency"];
+        obj.plot_types = ["time avg","phase avg: movie","phase avg: 3D plot","image wingbeat phase", "wingbeat frequency"];
         obj.plot_hold_bool = false;
         obj.iso_var_list = ["Q","Qx","Qy","Qz"];
         obj.Q_iso = 0.05;
         obj.mirror_bool = false;
+        obj.filter_bool = false;
         obj.num_cycles = 1;
 
         files = dir(obj.file_path + "*.mat");
@@ -102,10 +106,10 @@ methods
                       0, 0.1;...
                       0, 0.1;...
                       0, 0.1;...
-                      0, 0.05;...
-                      0, 0.05;...
-                      0, 0.05;...
-                      0, 0.05];
+                      0, 0.02;...
+                      0, 0.02;...
+                      0, 0.02;...
+                      0, 0.02];
         movie_3D_labels = ["\boldmath$\frac{u c}{U_{\infty}}$",...
                             "\boldmath$\frac{v c}{U_{\infty}}$",...
                             "\boldmath$\frac{w c}{U_{\infty}}$",...
@@ -169,6 +173,15 @@ methods
         obj.variable_name = obj.var_dropdown.Value; % use current value in box
         obj.var_dropdown.ValueChangedFcn = @(src, event) variable_change(src, event, plot_panel);
 
+        clim_y = drop_y3 - 35;
+        obj.clim_slider = uislider(option_panel,"range");
+        obj.clim_slider.Position = [10 clim_y 180 3];
+        obj.clim_slider.Limits = obj.clims(1,:);
+        obj.clim_slider.Value = obj.clims(1,:);
+        % s.MajorTicks = [-16 -12 -8 -4 0 4 8 12 16];
+        % s.MinorTicks = [-14.5 -13 -11:1:-9 -7.5:0.5:-4.5 -3.5:0.5:-0.5 0.5:0.5:3.5 4.5:0.5:7.5 9:1:11 13 14.5];
+        obj.clim_slider.ValueChangedFcn = @(src, event) clim_change(src, event, plot_panel);
+
         panel_width = plot_panel.Position(3);
         s_w = panel_width * (3/4);
         s_x = (panel_width - s_w)/2; % end of right monitor around 1690
@@ -189,55 +202,66 @@ methods
         obj.play_button.BackgroundColor = [1 1 1];
         obj.play_button.ValueChangedFcn = @(src, event) playStop_change(src, event, plot_panel);
 
-        model_panel_height = 0.35*screen_height;
-        model_panel_y = drop_y3 - 150 - model_panel_height;
-        model_panel = uipanel(option_panel);
-        model_panel.Title = "3D Plot Parameters";
-        model_panel.TitlePosition = 'centertop';
-        model_panel.Position = [10 model_panel_y 200 model_panel_height];
+        param_panel_height = 380;
+        param_panel_width = 180;
+        param_panel_y = drop_y3 - 150 - param_panel_height;
+        obj.param_panel = uipanel(option_panel);
+        obj.param_panel.Visible = "off";
+        obj.param_panel.Title = "3D Plot Parameters";
+        obj.param_panel.TitlePosition = 'centertop';
+        obj.param_panel.Position = [10 param_panel_y param_panel_width param_panel_height];
 
         % l1_y = drop_y3 - 150;
-        l1_y = model_panel_height - 50;
+        l1_y = param_panel_height - 50;
         l1_x = 55;
         l1_w = 70;
-        l1 = uilabel(model_panel);
+        l1 = uilabel(obj.param_panel);
         l1.HorizontalAlignment = 'center';
         l1.Position = [l1_x l1_y l1_w unit_height];
         l1.Text = 'Q isovalue:';
 
         s2_y = l1_y - 5;
-        s2 = uislider(model_panel);
-        s2.Position = [15 s2_y 170 3];
-        s2.Limits = [0.005 0.2];
+        s2_w = param_panel_width - 2*10;
+        s2 = uislider(obj.param_panel);
+        s2.Position = [5 s2_y s2_w 3];
+        s2.Limits = [0.005 0.1];
         s2.Value = obj.Q_iso;
-        s2.MajorTicks = 0:0.05:0.5;
-        s2.MinorTicks = 0.01:0.01:0.5;
+        s2.MajorTicks = 0:0.025:0.1; % 0:0.05:0.5
+        s2.MinorTicks = 0.005:0.005:0.1; % 0.01:0.01:0.5
         s2.ValueChangedFcn = @(src, event) Q_iso_change(src, event, plot_panel);
 
         % Dropdown box for which variables to display
         drop_y4 = s2_y - 70;
-        d4 = uidropdown(model_panel);
+        d4 = uidropdown(obj.param_panel);
         d4.Position = [30 drop_y4 120 30];
         d4.Items = obj.iso_var_list;
         obj.iso_var = d4.Value; % use current value in box
         d4.ValueChangedFcn = @(src, event) iso_var_change(src, event, plot_panel);
 
         button2_y = drop_y4 - 40;
-        b2 = uibutton(model_panel,"state");
+        b2 = uibutton(obj.param_panel,"state");
         b2.Text = "Mirror";
         % b2.FontSize = 14;
         b2.Position = [30 button2_y 120 unit_height];
         b2.BackgroundColor = [1 1 1];
         b2.ValueChangedFcn = @(src, event) mirror_change(src, event, plot_panel);
 
-        l2_y = button2_y - 35;
-        l2 = uilabel(model_panel);
+        button3_y = button2_y - 35;
+        b3 = uibutton(obj.param_panel,"state");
+        b3.Text = "Filter";
+        % b2.FontSize = 14;
+        b3.Position = [30 button3_y 120 unit_height];
+        b3.BackgroundColor = [1 1 1];
+        b3.ValueChangedFcn = @(src, event) filter_change(src, event, plot_panel);
+
+        l2_y = button3_y - 35;
+        l2 = uilabel(obj.param_panel);
         l2.HorizontalAlignment = 'center';
         l2.Position = [30 l2_y 120 unit_height];
         l2.Text = 'Number of Wingbeats';
 
         s3_y = l2_y - 10;
-        s3 = uislider(model_panel);
+        s3 = uislider(obj.param_panel);
         s3.Position = [30 s3_y 120 3];
         s3.Limits = [1 5];
         s3.Value = obj.num_cycles;
@@ -245,10 +269,10 @@ methods
         s3.MinorTicks = [];
         s3.ValueChangedFcn = @(src, event) num_cycles_change(src, event, plot_panel);
 
-        button3_y = s3_y - 120;
+        button4_y = s3_y - 120;
         % 1. Create the Button Group (the container)
-        bg = uibuttongroup(model_panel, ...
-            'Position', [30 button3_y 124 2*(unit_height+5)], ...
+        bg_2 = uibuttongroup(obj.param_panel, ...
+            'Position', [30 button4_y 124 2*(unit_height+5)], ...
             'BorderType', 'none', ...
             'BackgroundColor', option_panel.BackgroundColor, ...
             'SelectionChangedFcn', @(bg, event) view_change_handler(event, plot_panel));
@@ -261,18 +285,18 @@ methods
 
         % 2. Add Toggle Buttons to the group
         % Note: Position is now relative to the 'bg' container [Left Bottom Width Height]
-        b3 = uitogglebutton(bg, 'Text', '+xy', 'Position', [pad pad+v_sep b_w unit_height], 'BackgroundColor', [1 1 1]);
-        b4 = uitogglebutton(bg, 'Text', '+yz', 'Position', [pad + b_w + b_s pad+v_sep b_w unit_height], 'BackgroundColor', [1 1 1]);
-        b5 = uitogglebutton(bg, 'Text', '+xz', 'Position', [pad + 2*(b_w + b_s) pad+v_sep b_w unit_height], 'BackgroundColor', [1 1 1]);
-        b6 = uitogglebutton(bg, 'Text', '-xy', 'Position', [pad pad b_w unit_height], 'BackgroundColor', [1 1 1]);
-        b7 = uitogglebutton(bg, 'Text', '-yz', 'Position', [pad + b_w + b_s pad b_w unit_height], 'BackgroundColor', [1 1 1]);
-        b8 = uitogglebutton(bg, 'Text', '-xz', 'Position', [pad + 2*(b_w + b_s) pad b_w unit_height], 'BackgroundColor', [1 1 1]);
+        b4_1 = uitogglebutton(bg_2, 'Text', '+xy', 'Position', [pad pad+v_sep b_w unit_height], 'BackgroundColor', [1 1 1]);
+        b4_2 = uitogglebutton(bg_2, 'Text', '+yz', 'Position', [pad + b_w + b_s pad+v_sep b_w unit_height], 'BackgroundColor', [1 1 1]);
+        b4_3 = uitogglebutton(bg_2, 'Text', '+xz', 'Position', [pad + 2*(b_w + b_s) pad+v_sep b_w unit_height], 'BackgroundColor', [1 1 1]);
+        b4_4 = uitogglebutton(bg_2, 'Text', '-xy', 'Position', [pad pad b_w unit_height], 'BackgroundColor', [1 1 1]);
+        b4_5 = uitogglebutton(bg_2, 'Text', '-yz', 'Position', [pad + b_w + b_s pad b_w unit_height], 'BackgroundColor', [1 1 1]);
+        b4_6 = uitogglebutton(bg_2, 'Text', '-xz', 'Position', [pad + 2*(b_w + b_s) pad b_w unit_height], 'BackgroundColor', [1 1 1]);
 
-        button4_y = 0.05*screen_height;
+        button5_y = 0.05*screen_height;
         b9 = uibutton(option_panel,"state");
         b9.Text = "Save Figure";
         b9.FontSize = 18;
-        b9.Position = [30 button4_y 120 unit_height];
+        b9.Position = [30 button5_y 120 unit_height];
         b9.BackgroundColor = [1 1 1];
         b9.ValueChangedFcn = @(src, event) save_figure(src, event, plot_panel);
 
@@ -305,11 +329,11 @@ methods
             obj.plot_hold_bool = false;
 
             % not changing from movie to 3D plot or vice versa
-            if ~((strcmp(tmp,"movie") || strcmp(tmp,"3D plot")) &&...
-               (strcmp(src.Value,"movie") || strcmp(src.Value,"3D plot")))
-            if strcmp(obj.plot_type, obj.plot_types(3))
+            if ~((strcmp(tmp,obj.plot_types(2)) || strcmp(tmp,obj.plot_types(3))) &&...
+               (strcmp(src.Value,obj.plot_types(2)) || strcmp(src.Value,obj.plot_types(3))))
+            if strcmp(obj.plot_type, obj.plot_types(4))
                 obj.var_name_list = obj.hist_vars;
-            elseif strcmp(obj.plot_type, obj.plot_types(4))
+            elseif strcmp(obj.plot_type, obj.plot_types(5))
                 obj.var_name_list = obj.freq_vars;
             else
                 obj.var_name_list = obj.movie_3D_vars;
@@ -318,12 +342,47 @@ methods
             obj.variable_name = obj.var_dropdown.Value;
             end
 
+            % update color limit slider
+            var_idx = find(obj.variable_name == obj.var_name_list);
+            obj.clim_slider.Limits = obj.clims(var_idx,:);
+            obj.clim_slider.Value = obj.clims(var_idx,:);
+
+            if strcmp(src.Value,obj.plot_types(3)) % 3D plot, show params
+                obj.param_panel.Visible = "on";
+            else
+                obj.param_panel.Visible = "off";
+            end
+
             obj.update_plot(plot_panel);
         end
 
         % User selected new desired force/moment axes
         function variable_change(src, ~, plot_panel)
             obj.variable_name = src.Value;
+            
+            % update color limit slider
+            var_idx = find(obj.variable_name == obj.var_name_list);
+            obj.clim_slider.Limits = obj.clims(var_idx,:);
+            obj.clim_slider.Value = obj.clims(var_idx,:);
+
+            obj.update_plot(plot_panel);
+        end
+
+        function clim_change(src, ~, plot_panel)
+            ticks = obj.clim_slider.MinorTicks;
+
+            % ensure that slider snapped to minor tick value
+            newMin = interp1(ticks, ticks, src.Value(1), 'nearest', 'extrap');
+            newMax = interp1(ticks, ticks, src.Value(2), 'nearest', 'extrap');
+            
+            % Update the slider to the snapped positions
+            src.Value = [newMin, newMax];
+    
+            var_idx = find(obj.variable_name == obj.var_name_list);
+
+            % update color limits
+            obj.clims(var_idx,:) = [src.Value(1) src.Value(2)];
+    
             obj.update_plot(plot_panel);
         end
 
@@ -343,8 +402,9 @@ methods
         end
 
         function Q_iso_change(src, ~, plot_panel)
+            precision = 0.005;
             % Force the slider value to the nearest integer immediately
-            src.Value = round(src.Value,2);
+            src.Value = round(src.Value / precision) * precision;
 
             obj.Q_iso = src.Value;
             obj.clims(9:12,2) = obj.Q_iso;
@@ -365,6 +425,18 @@ methods
                 src.BackgroundColor = [0.3010 0.7450 0.9330];
             else
                 obj.mirror_bool = false;
+                src.BackgroundColor = [1 1 1];
+            end
+
+            obj.update_plot(plot_panel);
+        end
+
+        function filter_change(src, ~, plot_panel)
+            if (src.Value)
+                obj.filter_bool = true;
+                src.BackgroundColor = [0.3010 0.7450 0.9330];
+            else
+                obj.filter_bool = false;
                 src.BackgroundColor = [1 1 1];
             end
 
@@ -453,7 +525,10 @@ methods (Access = private)
             delete(ax);
         end
 
-        if obj.plot_type == obj.plot_types(1) || obj.plot_type == obj.plot_types(2)
+        plot_idx = find(obj.plot_types == obj.plot_type);
+
+        % movie or 3D plot
+        if ismember(plot_idx, [1, 2, 3])
             % load in variables to plot
             var_name = obj.variable_name_dict(obj.variable_name);
             var_idx = find(obj.variable_name == obj.var_name_list);
@@ -461,9 +536,9 @@ methods (Access = private)
             vars = {"L","num_bins","cycle_freq","x","y",var_name};
         end
         
-        if obj.plot_type == obj.plot_types(2)
+        if plot_idx == 3 % 3D plot
             vars{end+1} = obj.iso_var;
-        elseif obj.plot_type == obj.plot_types(3)
+        elseif plot_idx == 4
             % load in variables to plot
             var_name = obj.hist_var_name_dict(obj.variable_name);
 
@@ -472,7 +547,7 @@ methods (Access = private)
                 x_var_name = "full_cycle";
                 vars{end+1} = x_var_name;
             end
-        elseif obj.plot_type == obj.plot_types(4)
+        elseif plot_idx == 5
             var_name = obj.freq_var_name_dict(obj.variable_name);
 
             vars = {var_name};
@@ -485,7 +560,7 @@ methods (Access = private)
         end
         d = load(obj.file_path + obj.case_name, vars{:});
 
-        if obj.plot_type == "movie"
+        if plot_idx == 2
             obj.slider.Visible = "on";
             obj.play_button.Visible = "on";
             % Adjust slider for number of bins
@@ -501,7 +576,9 @@ methods (Access = private)
         end
 
         val = d.(var_name);
-        if obj.plot_type == "movie" || obj.plot_type == "3D plot"
+
+        % movie or 3D plot
+        if ismember(plot_idx, [1, 2, 3])
             x = d.x(:,:,3);
             y = d.y(:,:,3);
             val = squeeze(val(:,:,3,:));
@@ -516,7 +593,8 @@ methods (Access = private)
     
             params.cb_lab = obj.label_dict(obj.variable_name);
         end
-        if obj.plot_type == "3D plot"
+
+        if plot_idx == 3
             Q = d.(obj.iso_var);
             Q = squeeze(Q(:,:,3,:));
         end
@@ -527,12 +605,19 @@ methods (Access = private)
             ax = axes(plot_panel);
         end
 
-        if obj.plot_type == "movie"
+        if plot_idx == 1
+            params.clims = obj.clims(var_idx,:);
 
-        params.title = "Spanwise velocity - Average";
+            mean_val = mean(val,3);
+            h = PIV_plot(x, y, mean_val, params, ax);
+        elseif plot_idx == 2
+
+        % params.title = "Spanwise velocity - Average";
         params.clims = obj.clims(var_idx,:);
 
-        [h,t] = phase_avg_plot(x, y, val, params, ax, obj.frame_ind);
+        val_tr = val(:,:,obj.frame_ind);
+        h = PIV_plot(x, y, val_tr, params, ax);
+        t = title(ax, ["Bin number: " + obj.frame_ind], FontSize=18);
 
         while(obj.play)
             while (obj.frame_ind < obj.num_bins)
@@ -546,7 +631,7 @@ methods (Access = private)
         
                 % UPDATE the existing objects instead of recreating them
                 set(h, 'ZData', tmp_data); 
-                set(t, 'String', [params.title "Bin number: " + obj.frame_ind]);
+                set(t, 'String', ["Bin number: " + obj.frame_ind]);
         
                 drawnow;
 
@@ -554,7 +639,7 @@ methods (Access = private)
             end
             obj.frame_ind = 1;
         end
-        elseif obj.plot_type == "3D plot"
+        elseif plot_idx == 3
             params.num_bins = d.num_bins;
             params.clims = obj.clims(var_idx,:);
             params.movie = false;
@@ -564,8 +649,35 @@ methods (Access = private)
             params.mirror = obj.mirror_bool;
             params.num_cycles = obj.num_cycles;
 
+            if any(contains(["u","ω_y","ω_z"],obj.variable_name))
+                params.cFlip = true;
+            else
+                params.cFlip = false;
+            end
+
+            if obj.filter_bool
+                % median filter approach
+                Q = medfilt3(Q);
+                val = medfilt3(val);
+
+
+                % % 1. Create a binary mask of where the data exceeds your threshold
+                % % This defines the "solid" parts of your volume
+                % BW = Q >= params.isoValue;
+                % 
+                % % 2. Remove "islands" smaller than P voxels
+                % % Adjust P (e.g., 50, 100, 500) based on the size of the noise you want to kill
+                % P = 300; 
+                % BW_clean = bwareaopen(BW, P);
+                % 
+                % % 3. Mask the original Q_fin data
+                % % Set noisy regions to a value below the isoValue so they aren't rendered
+                % Q(~BW_clean) = 0;
+            end
+
             [s,cData] = stack_vortices_3D(x, y, val, Q, d.cycle_freq, params);
             setColorBar(ax, params)
+
             if obj.plot_hold_bool
                 p.Vertices = s.vertices;
                 p.Faces = s.faces;
@@ -574,7 +686,7 @@ methods (Access = private)
                 plot_3D(ax, s, cData, params)
                 obj.plot_hold_bool = true;
             end
-        elseif obj.plot_type == obj.plot_types(3)
+        elseif plot_idx == 4
             if (obj.variable_name == obj.hist_vars(3))
                 histogram(ax, val, d.(x_var_name))
                 xlabel(ax, "Tick number", FontSize=16)
@@ -584,7 +696,7 @@ methods (Access = private)
                 xlabel(ax, "Bin number", FontSize=16)
                 ylabel(ax, obj.hist_label_dict(obj.variable_name), FontSize=16)
             end
-        elseif obj.plot_type == obj.plot_types(4)
+        elseif plot_idx == 5
             if (obj.variable_name == obj.freq_vars(1))
                 phase_avg_speed = val;
                 phase_std_speed = d.(std_name);
