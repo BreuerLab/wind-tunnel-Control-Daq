@@ -15,9 +15,10 @@ tic
 %         '2Hz_A10_10AoA','4Hz_A10_10AoA','6Hz_A10_10AoA', '8Hz_A10_10AoA',...
 %         'r_2Hz_A10_10AoA', 'r_4Hz_A10_10AoA', 'r_6Hz_A10_10AoA', 'r_8Hz_A10_10AoA'};
 
-turbine_bool = false;
-% PIV_case_name = 'turbine';
-PIV_case_name = 'flexible_10deg_6Hz';
+turbine_bool = true;
+PIV_case_name = 'turbine';
+% PIV_case_name = 'turbine_ext';
+% PIV_case_name = 'flexible_10deg_6Hz';
 % PIV_case_name = 'flexible_20deg_2Hz';
 % PIV_case_name = 'flexible_20deg_6Hz';
 % PIV_case_name = 'flexible_20deg_8Hz';
@@ -25,6 +26,7 @@ PIV_case_name = 'flexible_10deg_6Hz';
 % PIV_case_name = 'UP_one_flexible_20deg_6Hz';
 % PIV_case_name = 'UP_one_flexible_30deg_2Hz';
 % PIV_case_name = 'UP_one_flexible_20deg_2Hz';
+PIV_case_name = 'UP_two_flexible_20deg_6Hz';
 L = 0.07; % characteristic length, guess of mean aerodynamic chord
 if turbine_bool
     U = 6;
@@ -41,8 +43,8 @@ phase_avg_plot_bool = true;
 circ_plot_bool = false;
 movie_plot_bool = false;
 
-time_avg_bool = true;
-phase_avg_bool = false;
+time_avg_bool = false;
+phase_avg_bool = true;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -196,18 +198,6 @@ for i = 1:num_bins
     [x, y, z, u, v, w, Utot, vortX, vortY, vortZ, vortTot, uncU, uncV, uncW, uncTot] ...
         = import_STB_data(file_path, nondim_bool, U, L, bin_indices);
 
-    % origSize = [size(u,1), size(u,2), 1, size(u,4)];
-    % % RPCA filtering
-    % X_mat = reshape(u(:,:,3,:), [], size(u, 4)); % each column one frame
-    % [L_mat, S_mat] = RPCA(X_mat);
-    % 
-    % % reshaping data back to original size
-    % u_filt_plane = reshape(L_mat, origSize);
-    % u_noise_plane = reshape(S_mat, origSize);
-    % 
-    % u_filt = u;
-    % u_filt(:,:,3,:) = u_filt_plane;
-
     if i == 1
         vortX_phase_avg = zeros(size(x,1), size(x,2), size(x,3), num_bins);
         vortY_phase_avg = zeros(size(vortX_phase_avg));
@@ -231,13 +221,27 @@ for i = 1:num_bins
     end
 
     % Calculate average for this bin
+    % vortX_phase_avg(:,:,:,i) = median(vortX,4);
+    % vortY_phase_avg(:,:,:,i) = median(vortY,4);
+    % vortZ_phase_avg(:,:,:,i) = median(vortZ,4);
+    % vortTot_phase_avg(:,:,:,i) = median(vortTot,4);
+    % 
+    % u_phase_avg(:,:,:,i) = median(u,4);
+    % v_phase_avg(:,:,:,i) = median(v,4);
+    % w_phase_avg(:,:,:,i) = median(w,4);
+    % Utot_phase_avg(:,:,:,i) = median(Utot,4);
+    % 
+    % uncU_phase_avg(:,:,:,i) = median(uncU,4);
+    % uncV_phase_avg(:,:,:,i) = median(uncV,4);
+    % uncW_phase_avg(:,:,:,i) = median(uncW,4);
+    % uncTot_phase_avg(:,:,:,i) = median(uncTot,4);
+
     vortX_phase_avg(:,:,:,i) = mean(vortX,4);
     vortY_phase_avg(:,:,:,i) = mean(vortY,4);
     vortZ_phase_avg(:,:,:,i) = mean(vortZ,4);
     vortTot_phase_avg(:,:,:,i) = mean(vortTot,4);
 
     u_phase_avg(:,:,:,i) = mean(u,4);
-    % u_phase_avg(:,:,:,i) = mean(u_filt,4);
     v_phase_avg(:,:,:,i) = mean(v,4);
     w_phase_avg(:,:,:,i) = mean(w,4);
     Utot_phase_avg(:,:,:,i) = mean(Utot,4);
@@ -266,9 +270,11 @@ vars = {"L","U","cycle_freq","PIV_case_name","num_bins",...
     "x","y","z","u_phase_avg","v_phase_avg","w_phase_avg","Utot_phase_avg",...
     "uncU_phase_avg","uncV_phase_avg","uncW_phase_avg","uncTot_phase_avg",...
     "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg","vortTot_phase_avg",...
-    "Qx","Qy","Qz","Q",...
-    "norm_time_speed", "phase_avg_speed", "phase_std_speed", "bin_count_speed", "bin_std_speed"};
-save(save_filepath_local + PIV_case_name + "_phase_avg.mat", vars{:})
+    "Qx","Qy","Qz","Q"};
+if ~turbine_bool
+    vars = [vars, {"norm_time_speed", "phase_avg_speed", "phase_std_speed", "bin_count_speed", "bin_std_speed"}];
+end
+save(save_filepath_local + PIV_case_name + "_time_phase_avg.mat", vars{:})
 % + "_filt"
 
 elapsedTime = toc;

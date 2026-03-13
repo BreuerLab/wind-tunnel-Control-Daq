@@ -1,4 +1,4 @@
-function [s,cData] = stack_vortices_3D(x, y, C_phase_avg, Q_phase_avg, wing_freq, params)
+function [xlims,s,cData] = stack_vortices_3D(x, y, C_phase_avg, Q_phase_avg, wing_freq, params)
 %% trim data (if trimmed before calculating Q, Q-isosurfaces always exist at
 % boundaries)
 
@@ -13,7 +13,7 @@ y = y(x_idx, y_idx);
 C_phase_avg = C_phase_avg(x_idx,y_idx,:);
 Q_phase_avg = Q_phase_avg(x_idx,y_idx,:);
 
-%%
+%% Mirror data from right wing to show predicted left wing
 if params.mirror
 % Mirror in x-direction across y-axis at centerpoint of robot/ellipse
 
@@ -51,8 +51,8 @@ end
 % ------------------------------------------------------------------
 
 % ------------------------------------------------------------------
-% Use frozen flow assumption, i.e. convection of vortices, to get z-axis
-wind_speed = 4;
+%% Use frozen flow assumption, i.e. convection of vortices, to get z-axis
+wind_speed = params.U;
 dt = 1 / (wing_freq * params.num_bins);
 z = zeros(1, params.num_bins);
 for k = 1:params.num_bins
@@ -175,4 +175,5 @@ else
     % cData = interp3(Y_fin, X_fin, Z_fin, C_fin, ...
     %              s.vertices(:,1), s.vertices(:,2), s.vertices(:,3));
 end
+xlims = [min(Z_fin,[],"all") max(Z_fin,[],"all")];
 end

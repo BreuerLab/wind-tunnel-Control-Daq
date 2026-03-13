@@ -110,7 +110,7 @@ end
 % (Wikipedia). This is equivalent to expression used by Banko & Eaton for Q
 % where the divergence is added to the common expression for Q
 Qz = dudx.*dvdy - dudy.*dvdx;
-Qy = dudx.*dwdz - dudz.*dwdz;
+Qy = dudx.*dwdz - dudz.*dwdx;
 Qx = dvdy.*dwdz - dvdz.*dwdy;
 Q = Qx + Qy + Qz;
 

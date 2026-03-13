@@ -1,4 +1,4 @@
-function [norm_signal, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_freq] = frame_to_bin(PIV_case_name, num_images, turbine_bool)
+function [norm_frame_pos, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_freq] = frame_to_bin(PIV_case_name, num_images, turbine_bool)
 
 [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name);
 
@@ -25,11 +25,9 @@ norm_frame_pos = enc_pos / ticksPerRev;
 norm_frame_pos = mod(norm_frame_pos, 1);
 tick_frame_pos = round(norm_frame_pos * ticksPerRev);
 
-cycle_freq = mean(speed(mid_indices(1):mid_indices(end)));
-
 time_frame = time(laser_ind);
 time_frame = time_frame(end-(num_images - 1):end); % cropping time array
-norm_time = mod((time_frame - time_frame(1)) * cycle_freq, 1);
+% norm_time = mod((time_frame - time_frame(1)) * wing_freq, 1);
 
 disp("Cropped off " + (length(norm_frame_pos) - num_images) + " extra laser pulses from beginning")
 % crop off last few extra pulses
@@ -37,13 +35,10 @@ disp("Cropped off " + (length(norm_frame_pos) - num_images) + " extra laser puls
 % crop off first few extra pulses
 norm_frame_pos = norm_frame_pos(end-(num_images - 1):end);
 
-% norm_signal = norm_frame_pos;
-norm_signal = norm_time;
-
 disp("Using " + num_bins + " bins")
 % num_bins = 25; % for 4 Hz
 bins = linspace(0,1,num_bins+1);
-bin_ind_arr = discretize(norm_signal, bins);
+bin_ind_arr = discretize(norm_frame_pos, bins);
 
 num_cycles = length(find(diff(bin_ind_arr) < 0)); % back to beginning of a cycle
 disp("Number of cycles: " + num_cycles)
@@ -58,7 +53,7 @@ for i = 1:num_bins
 
     % Account for cases at overlap which would otherwise artificially raise
     % the apparent standard deviation
-    adj_norm_frame_pos = norm_signal(bin_indices);
+    adj_norm_frame_pos = norm_frame_pos(bin_indices);
     if sum(adj_norm_frame_pos < 0.2) > 0 && sum(adj_norm_frame_pos > 0.8) > 0
         adj_norm_frame_pos(adj_norm_frame_pos < 0.2) = adj_norm_frame_pos(adj_norm_frame_pos < 0.2) + 1;
     end
@@ -81,19 +76,21 @@ bar(bin_std)
 xlabel("Bin number", FontSize=16)
 ylabel("Phase variability per bin", FontSize=16)
 
-% CPR = 500;
-% trigger_int = 80;
-% 
-% % Encoder phase for each frame
-% phase = mod((0:num_images-1) * trigger_int, CPR);
-% 
-% % Unique phase bins (sorted)
-% sortIndex = sort(unique(phase));
-% num_bins = length(sortIndex);
-% 
-% % Assign each frame to a phase bin
-% [~, bin_ind_arr] = ismember(phase, sortIndex);
-% disp("used Taylor phase average code")
+cycle_freq = mean(speed(mid_indices(1):mid_indices(end)));
+
+CPR = 500;
+trigger_int = 80;
+
+% Encoder phase for each frame
+phase = mod((0:num_images-1) * trigger_int, CPR);
+
+% Unique phase bins (sorted)
+sortIndex = sort(unique(phase));
+num_bins = length(sortIndex);
+
+% Assign each frame to a phase bin
+[~, bin_ind_arr] = ismember(phase, sortIndex);
+disp("ok")
 
 else
 [case_name, time_stamp, type, wing_freq, AoA, wind_speed, amp, file_type] = parse_filename(daq_data_filename);
@@ -136,34 +133,27 @@ cam_fire_idx = find(results(:,13) == 2, 1, "first");
 laser_pulse_at_cam_fire = results(cam_fire_idx,12);
 disp("Laser pulses by camera fire: " + laser_pulse_at_cam_fire)
 
-% norm_signal = norm_frame_pos;
-% [num_bins, bin_ind_arr, bin_count] = findBestNumBins(norm_signal);
+[best_num_bins, best_bin_ind_arr, best_bin_count] = findBestNumBins(norm_frame_pos);
 
-norm_signal = norm_time;
-[num_bins, bin_ind_arr, bin_count] = findBestNumBins(norm_signal);
+[best_num_bins, best_bin_ind_arr, best_bin_count] = findBestNumBins(norm_time);
 
 disp("Using " + num_bins + " bins")
 % num_bins = 25; % for 4 Hz
 bins = linspace(0,1,num_bins+1);
-bin_ind_arr = discretize(norm_signal, bins);
-
-num_cycles = length(find(diff(bin_ind_arr) < 0)); % back to beginning of a cycle
-disp("Number of cycles: " + num_cycles)
-disp("Expected number of cycles: " + num_images / (200 / wing_freq))
+bin_ind_arr = discretize(norm_frame_pos, bins);
 
 figure
 histogram(tick_frame_pos, full_cycle)
 xlabel("Encoder Ticks")
 ylabel("Frequency")
 
-% figure
-% histogram(norm_signal, num_bins);
-% xlabel("Encoder Ticks")
-% ylabel("Frequency")
-
-% Should show the same as the above plot
 figure
-bar(bin_count)
+histogram(norm_frame_pos, num_bins);
+xlabel("Encoder Ticks")
+ylabel("Frequency")
+
+figure
+bar(best_bin_count)
 xlabel("Bin number", FontSize=16)
 ylabel("Number of frames per bin", FontSize=16)
 

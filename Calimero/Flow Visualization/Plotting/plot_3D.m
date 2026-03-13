@@ -1,6 +1,6 @@
 function plot_3D(ax, s, cData, params)
 
-p = patch(ax,'vertices', s.vertices, 'faces', s.faces, ...
+patch(ax,'vertices', s.vertices, 'faces', s.faces, ...
           'FaceVertexCData', cData, 'FaceColor', 'interp', 'EdgeColor', 'none');
 
 view(ax, 3);

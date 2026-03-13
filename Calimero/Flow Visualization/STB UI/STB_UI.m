@@ -34,6 +34,7 @@ properties
     freq_label_dict;
 
     clims; % color limits for each variable
+    clim_scale;
 
     param_panel; % panel of 3D plot parameters
     var_dropdown; % drop down box object for variable selection
@@ -110,6 +111,7 @@ methods
                       0, 0.02;...
                       0, 0.02;...
                       0, 0.02];
+        obj.clim_scale = 2;
         movie_3D_labels = ["\boldmath$\frac{u c}{U_{\infty}}$",...
                             "\boldmath$\frac{v c}{U_{\infty}}$",...
                             "\boldmath$\frac{w c}{U_{\infty}}$",...
@@ -176,7 +178,9 @@ methods
         clim_y = drop_y3 - 35;
         obj.clim_slider = uislider(option_panel,"range");
         obj.clim_slider.Position = [10 clim_y 180 3];
-        obj.clim_slider.Limits = obj.clims(1,:);
+        clim_center = mean(obj.clims(1,:));
+        clim_range = (obj.clim_scale/2)*diff(obj.clims(1,:));
+        obj.clim_slider.Limits = [clim_center - clim_range, clim_center + clim_range];
         obj.clim_slider.Value = obj.clims(1,:);
         % s.MajorTicks = [-16 -12 -8 -4 0 4 8 12 16];
         % s.MinorTicks = [-14.5 -13 -11:1:-9 -7.5:0.5:-4.5 -3.5:0.5:-0.5 0.5:0.5:3.5 4.5:0.5:7.5 9:1:11 13 14.5];
@@ -344,7 +348,9 @@ methods
 
             % update color limit slider
             var_idx = find(obj.variable_name == obj.var_name_list);
-            obj.clim_slider.Limits = obj.clims(var_idx,:);
+            center = mean(obj.clims(var_idx,:));
+            range = (obj.clim_scale/2)*diff(obj.clims(var_idx,:));
+            obj.clim_slider.Limits = [center - range, center + range];
             obj.clim_slider.Value = obj.clims(var_idx,:);
 
             if strcmp(src.Value,obj.plot_types(3)) % 3D plot, show params
@@ -362,7 +368,9 @@ methods
             
             % update color limit slider
             var_idx = find(obj.variable_name == obj.var_name_list);
-            obj.clim_slider.Limits = obj.clims(var_idx,:);
+            center = mean(obj.clims(var_idx,:));
+            range = (obj.clim_scale/2)*diff(obj.clims(var_idx,:));
+            obj.clim_slider.Limits = [center - range, center + range];
             obj.clim_slider.Value = obj.clims(var_idx,:);
 
             obj.update_plot(plot_panel);
@@ -533,7 +541,7 @@ methods (Access = private)
             var_name = obj.variable_name_dict(obj.variable_name);
             var_idx = find(obj.variable_name == obj.var_name_list);
 
-            vars = {"L","num_bins","cycle_freq","x","y",var_name};
+            vars = {"L","U","num_bins","cycle_freq","x","y",var_name};
         end
         
         if plot_idx == 3 % 3D plot
@@ -560,7 +568,7 @@ methods (Access = private)
         end
         d = load(obj.file_path + obj.case_name, vars{:});
 
-        if plot_idx == 2
+        if plot_idx == 2 || plot_idx == 3
             obj.slider.Visible = "on";
             obj.play_button.Visible = "on";
             % Adjust slider for number of bins
@@ -582,6 +590,7 @@ methods (Access = private)
             x = d.x(:,:,3);
             y = d.y(:,:,3);
             val = squeeze(val(:,:,3,:));
+            params.U = d.U;
 
             if min(obj.clims(var_idx,:)) < -1
                 params.zero = -1;
@@ -619,32 +628,32 @@ methods (Access = private)
         h = PIV_plot(x, y, val_tr, params, ax);
         t = title(ax, ["Bin number: " + obj.frame_ind], FontSize=18);
 
-        while(obj.play)
-            while (obj.frame_ind < obj.num_bins)
-                obj.frame_ind = obj.frame_ind + 1;
-                obj.slider.Value = obj.frame_ind;
-
-                % 1. Cap the data so it doesn't exceed clims
-                tmp_data = val(:,:,obj.frame_ind);
-                tmp_data(tmp_data < params.clims(1)) = params.clims(1);
-                tmp_data(tmp_data > params.clims(2)) = params.clims(2);
-        
-                % UPDATE the existing objects instead of recreating them
-                set(h, 'ZData', tmp_data); 
-                set(t, 'String', ["Bin number: " + obj.frame_ind]);
-        
-                drawnow;
-
-                pause(0.05);
+            while(obj.play)
+                while (obj.frame_ind < obj.num_bins)
+                    obj.frame_ind = obj.frame_ind + 1;
+                    obj.slider.Value = obj.frame_ind;
+    
+                    % 1. Cap the data so it doesn't exceed clims
+                    tmp_data = val(:,:,obj.frame_ind);
+                    tmp_data(tmp_data < params.clims(1)) = params.clims(1);
+                    tmp_data(tmp_data > params.clims(2)) = params.clims(2);
+            
+                    % UPDATE the existing objects instead of recreating them
+                    set(h, 'ZData', tmp_data); 
+                    set(t, 'String', ["Bin number: " + obj.frame_ind]);
+            
+                    drawnow;
+    
+                    pause(0.05);
+                end
+                obj.frame_ind = 0; % reset for next loop iteration
             end
-            obj.frame_ind = 1;
-        end
         elseif plot_idx == 3
             params.num_bins = d.num_bins;
             params.clims = obj.clims(var_idx,:);
             params.movie = false;
             params.L = d.L;
-            params.shift = -7;
+            params.shift = obj.frame_ind;
             params.isoValue = obj.Q_iso; % 0.05
             params.mirror = obj.mirror_bool;
             params.num_cycles = obj.num_cycles;
@@ -666,7 +675,7 @@ methods (Access = private)
                 % 
                 % % 2. Remove "islands" smaller than P voxels
                 % % Adjust P (e.g., 50, 100, 500) based on the size of the noise you want to kill
-                % P = 300; 
+                % P = 100; 
                 % BW_clean = bwareaopen(BW, P);
                 % 
                 % % 3. Mask the original Q_fin data
@@ -674,15 +683,33 @@ methods (Access = private)
                 % Q(~BW_clean) = 0;
             end
 
-            [s,cData] = stack_vortices_3D(x, y, val, Q, d.cycle_freq, params);
+            [xlims,s,cData] = stack_vortices_3D(x, y, val, Q, d.cycle_freq, params);
             setColorBar(ax, params)
+            xlim(ax,xlims) % otherwise when plotting multiple wingbeats awkward extra space added
+
+            while (obj.frame_ind < obj.num_bins) && obj.play
+                obj.frame_ind = obj.frame_ind + 1;
+                obj.slider.Value = obj.frame_ind;
+                params.shift = obj.frame_ind;
+        
+                [~,s,cData] = stack_vortices_3D(x, y, val, Q, d.cycle_freq, params);
+                p.Vertices = s.vertices;
+                p.Faces = s.faces;
+                p.FaceVertexCData = cData;
+        
+                pause(0.1);
+
+                if obj.frame_ind == obj.num_bins
+                    obj.frame_ind = 0; % reset for next loop iteration
+                end
+            end
 
             if obj.plot_hold_bool
                 p.Vertices = s.vertices;
                 p.Faces = s.faces;
                 p.FaceVertexCData = cData;
             else
-                plot_3D(ax, s, cData, params)
+                plot_3D(ax, s, cData, params);
                 obj.plot_hold_bool = true;
             end
         elseif plot_idx == 4

@@ -1,6 +1,36 @@
 function [x, y, z, u, v, w, Utot, vortX, vortY, vortZ, vortTot, uncU, uncV, uncW, uncTot] = import_STB_data(file_path, nondim_bool, U, L, sel_frames)
 D = loadpiv(file_path,"extractAllVariables","frameSelect",sel_frames); % "Validate", minCorrelationValue
 
+RPCA_bool = false;
+if RPCA_bool
+tic
+% RPCA filtering for velocities only near plane of interest
+% 1. Filter uRaw
+origSize = [size(D.u,1), size(D.u,2), 3, size(D.u,4)];
+X_u = reshape(D.u(:,:,3:5,:), [], size(D.u, 4)); 
+[L_u, ~] = RPCA(X_u);
+D.u(:,:,3:5,:) = reshape(L_u, origSize);
+disp("u filtering complete")
+
+% 2. Filter vRaw
+X_v = reshape(D.v(:,:,3:5,:), [], size(D.v, 4)); 
+[L_v, ~] = RPCA(X_v);
+D.v(:,:,3:5,:) = reshape(L_v, origSize);
+disp("v filtering complete")
+
+% 3. Filter wRaw
+X_w = reshape(D.w(:,:,3:5,:), [], size(D.w, 4)); 
+[L_w, ~] = RPCA(X_w);
+D.w(:,:,3:5,:) = reshape(L_w, origSize);
+toc
+
+disp("RPCA complete, calculating vorticity...")
+for i = 1:size(D.u, 4)
+[D.vortX(:,:,:,i), D.vortY(:,:,:,i), D.vortZ(:,:,:,i)] = ...
+    calculateVorticity(D.x, D.y, D.z, D.u(:,:,:,i), D.v(:,:,:,i), D.w(:,:,:,i));
+end
+end
+
 init_W = round((max(D.x,[],"all") - min(D.x,[],"all"))*100);
 init_L = round((max(D.y,[],"all") - min(D.y,[],"all"))*100);
 
