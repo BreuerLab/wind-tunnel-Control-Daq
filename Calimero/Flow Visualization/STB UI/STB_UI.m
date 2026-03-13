@@ -41,11 +41,12 @@ properties
     clim_slider; % slider for color limits on plots
     slider; % slider object
     play_button;
+    iso_slider;
     
     % properties related to 3D plot
 
     plot_hold_bool;
-    Q_iso;
+    iso_val;
     iso_var;
     iso_var_list;
     mirror_bool;
@@ -70,8 +71,10 @@ methods
 
         obj.plot_types = ["time avg","phase avg: movie","phase avg: 3D plot","image wingbeat phase", "wingbeat frequency"];
         obj.plot_hold_bool = false;
-        obj.iso_var_list = ["Q","Qx","Qy","Qz"];
-        obj.Q_iso = 0.05;
+        obj.iso_var_list = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
+                            "Q_x","Q_y","Q_z","|Q|"];
+        obj.iso_var = "|Q|";
+        obj.iso_val = 0.05;
         obj.mirror_bool = false;
         obj.filter_bool = false;
         obj.num_cycles = 1;
@@ -111,6 +114,7 @@ methods
                       0, 0.02;...
                       0, 0.02;...
                       0, 0.02];
+        % obj.iso_vals = [];
         obj.clim_scale = 2;
         movie_3D_labels = ["\boldmath$\frac{u c}{U_{\infty}}$",...
                             "\boldmath$\frac{v c}{U_{\infty}}$",...
@@ -224,22 +228,22 @@ methods
         l1.Position = [l1_x l1_y l1_w unit_height];
         l1.Text = 'Q isovalue:';
 
-        s2_y = l1_y - 5;
-        s2_w = param_panel_width - 2*10;
-        s2 = uislider(obj.param_panel);
-        s2.Position = [5 s2_y s2_w 3];
-        s2.Limits = [0.005 0.1];
-        s2.Value = obj.Q_iso;
-        s2.MajorTicks = 0:0.025:0.1; % 0:0.05:0.5
-        s2.MinorTicks = 0.005:0.005:0.1; % 0.01:0.01:0.5
-        s2.ValueChangedFcn = @(src, event) Q_iso_change(src, event, plot_panel);
+        iso_slider_y = l1_y - 5;
+        iso_slider_w = param_panel_width - 2*10;
+        obj.iso_slider = uislider(obj.param_panel);
+        obj.iso_slider.Position = [5 iso_slider_y iso_slider_w 3];
+        obj.iso_slider.Limits = [0.005 0.1];
+        obj.iso_slider.Value = obj.iso_val;
+        obj.iso_slider.MajorTicks = 0:0.025:0.1; % 0:0.05:0.5
+        obj.iso_slider.MinorTicks = 0.005:0.005:0.1; % 0.01:0.01:0.5
+        obj.iso_slider.ValueChangedFcn = @(src, event) iso_change(src, event, plot_panel);
 
         % Dropdown box for which variables to display
-        drop_y4 = s2_y - 70;
+        drop_y4 = iso_slider_y - 70;
         d4 = uidropdown(obj.param_panel);
         d4.Position = [30 drop_y4 120 30];
         d4.Items = obj.iso_var_list;
-        obj.iso_var = d4.Value; % use current value in box
+        d4.Value = obj.iso_var;
         d4.ValueChangedFcn = @(src, event) iso_var_change(src, event, plot_panel);
 
         button2_y = drop_y4 - 40;
@@ -409,19 +413,50 @@ methods
             obj.update_plot(plot_panel);
         end
 
-        function Q_iso_change(src, ~, plot_panel)
+        function iso_change(src, ~, plot_panel)
             precision = 0.005;
             % Force the slider value to the nearest integer immediately
             src.Value = round(src.Value / precision) * precision;
 
-            obj.Q_iso = src.Value;
-            obj.clims(9:12,2) = obj.Q_iso;
+            obj.iso_val = src.Value;
+            % obj.clims(9:12,2) = obj.iso_val;
             obj.update_plot(plot_panel);
         end
 
         % User selected new desired isosurface variable for 3D plot
         function iso_var_change(src, ~, plot_panel)
             obj.iso_var = src.Value;
+
+            var_idx = find(obj.iso_var == obj.var_name_list);
+
+            % obj.iso_slider.Limits = obj.clims(var_idx,:);
+            % obj.iso_val = mean(obj.clims(var_idx,:));
+            % obj.iso_slider.Value = obj.iso_val;
+            % obj.iso_slider.MajorTicks = 0:0.025:0.1; % 0:0.05:0.5
+            % obj.iso_slider.MinorTicks = 0.005:0.005:0.1; % 0.01:0.01:0.5
+
+            % 1. Set the basic properties
+            new_limits = obj.clims(var_idx, :);
+            range_width = new_limits(2) - new_limits(1);
+
+            obj.iso_slider.Limits = new_limits;
+            obj.iso_val = mean(new_limits) + range_width/4;
+            obj.iso_slider.Value = obj.iso_val;
+            
+            % Aim for roughly 5 to 10 major ticks
+            % We use 'round' and 'log10' to find a nice power-of-ten interval
+            raw_step = range_width / 5;
+            magnitude = 10^floor(log10(raw_step));
+            clean_step = round(raw_step / magnitude) * magnitude;
+            
+            % 3. Apply the Ticks
+            % Ensure the ticks start at a multiple of the step
+            first_tick = ceil(new_limits(1) / clean_step) * clean_step;
+            obj.iso_slider.MajorTicks = first_tick : clean_step : new_limits(2);
+            
+            % Optional: Set Minor Ticks to be 1/5th or 1/2 of Major Ticks
+            obj.iso_slider.MinorTicks = first_tick : (clean_step / 5) : new_limits(2);
+
             obj.update_plot(plot_panel);
         end
 
@@ -545,7 +580,8 @@ methods (Access = private)
         end
         
         if plot_idx == 3 % 3D plot
-            vars{end+1} = obj.iso_var;
+            iso_var_name = obj.variable_name_dict(obj.iso_var);
+            vars{end+1} = iso_var_name;
         elseif plot_idx == 4
             % load in variables to plot
             var_name = obj.hist_var_name_dict(obj.variable_name);
@@ -604,7 +640,7 @@ methods (Access = private)
         end
 
         if plot_idx == 3
-            Q = d.(obj.iso_var);
+            Q = d.(iso_var_name);
             Q = squeeze(Q(:,:,3,:));
         end
         
@@ -655,7 +691,7 @@ methods (Access = private)
             params.movie = false;
             params.L = d.L;
             params.shift = obj.frame_ind;
-            params.isoValue = obj.Q_iso; % 0.05
+            params.isoValue = obj.iso_val; % 0.05
             params.mirror = obj.mirror_bool;
             params.num_cycles = obj.num_cycles;
 
