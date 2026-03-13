@@ -15,8 +15,8 @@ tic
 %         '2Hz_A10_10AoA','4Hz_A10_10AoA','6Hz_A10_10AoA', '8Hz_A10_10AoA',...
 %         'r_2Hz_A10_10AoA', 'r_4Hz_A10_10AoA', 'r_6Hz_A10_10AoA', 'r_8Hz_A10_10AoA'};
 
-turbine_bool = true;
-PIV_case_name = 'turbine';
+turbine_bool = false;
+% PIV_case_name = 'turbine';
 % PIV_case_name = 'turbine_ext';
 % PIV_case_name = 'flexible_10deg_6Hz';
 % PIV_case_name = 'flexible_20deg_2Hz';

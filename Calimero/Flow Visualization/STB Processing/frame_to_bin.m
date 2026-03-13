@@ -136,9 +136,11 @@ cam_fire_idx = find(results(:,13) == 2, 1, "first");
 laser_pulse_at_cam_fire = results(cam_fire_idx,12);
 disp("Laser pulses by camera fire: " + laser_pulse_at_cam_fire)
 
+% disp("Using motor position for phase")
 % norm_signal = norm_frame_pos;
 % [num_bins, bin_ind_arr, bin_count] = findBestNumBins(norm_signal);
 
+disp("Using time for phase")
 norm_signal = norm_time;
 [num_bins, bin_ind_arr, bin_count] = findBestNumBins(norm_signal);
 

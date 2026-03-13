@@ -618,7 +618,7 @@ methods (Access = private)
             params.clims = obj.clims(var_idx,:);
 
             mean_val = mean(val,3);
-            h = PIV_plot(x, y, mean_val, params, ax);
+            PIV_plot(x, y, mean_val, params, ax);
         elseif plot_idx == 2
 
         % params.title = "Spanwise velocity - Average";
@@ -628,25 +628,26 @@ methods (Access = private)
         h = PIV_plot(x, y, val_tr, params, ax);
         t = title(ax, ["Bin number: " + obj.frame_ind], FontSize=18);
 
-            while(obj.play)
-                while (obj.frame_ind < obj.num_bins)
-                    obj.frame_ind = obj.frame_ind + 1;
-                    obj.slider.Value = obj.frame_ind;
-    
-                    % 1. Cap the data so it doesn't exceed clims
-                    tmp_data = val(:,:,obj.frame_ind);
-                    tmp_data(tmp_data < params.clims(1)) = params.clims(1);
-                    tmp_data(tmp_data > params.clims(2)) = params.clims(2);
-            
-                    % UPDATE the existing objects instead of recreating them
-                    set(h, 'ZData', tmp_data); 
-                    set(t, 'String', ["Bin number: " + obj.frame_ind]);
-            
-                    drawnow;
-    
-                    pause(0.05);
-                end
+            while obj.play && (obj.frame_ind < obj.num_bins)
+                obj.frame_ind = obj.frame_ind + 1;
+                obj.slider.Value = obj.frame_ind;
+
+                % 1. Cap the data so it doesn't exceed clims
+                tmp_data = val(:,:,obj.frame_ind);
+                tmp_data(tmp_data < params.clims(1)) = params.clims(1);
+                tmp_data(tmp_data > params.clims(2)) = params.clims(2);
+        
+                % UPDATE the existing objects instead of recreating them
+                set(h, 'ZData', tmp_data); 
+                set(t, 'String', ["Bin number: " + obj.frame_ind]);
+        
+                drawnow;
+
+                pause(0.05);
+
+                if obj.frame_ind == obj.num_bins
                 obj.frame_ind = 0; % reset for next loop iteration
+                end
             end
         elseif plot_idx == 3
             params.num_bins = d.num_bins;
@@ -687,7 +688,7 @@ methods (Access = private)
             setColorBar(ax, params)
             xlim(ax,xlims) % otherwise when plotting multiple wingbeats awkward extra space added
 
-            while (obj.frame_ind < obj.num_bins) && obj.play
+            while obj.play && (obj.frame_ind < obj.num_bins)
                 obj.frame_ind = obj.frame_ind + 1;
                 obj.slider.Value = obj.frame_ind;
                 params.shift = obj.frame_ind;
