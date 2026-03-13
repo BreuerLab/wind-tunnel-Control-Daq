@@ -70,6 +70,7 @@ end
 
 % Save the entire structure
 save_path = fullfile(save_filepath_local, [PIV_case_name, '_phase_avg.mat']);
+disp("Saving data to: " + save_path)
 save(save_path, '-struct', 'S');
 
 fprintf('Processing and saving data took %.4f seconds.\n', toc);

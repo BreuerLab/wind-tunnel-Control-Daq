@@ -1,8 +1,9 @@
-function [best_num_bins, best_bin_ind_arr, best_bin_count] = findBestNumBins(norm_signal)
+function [best_num_bins, best_bin_ind_arr, best_bin_count, best_bin_std] = findBestNumBins(norm_signal)
     bins_list = 10:5:150;
     best_num_bins = 0;
     best_bin_count = [];
     best_bin_ind_arr = [];
+    best_bin_std = [];
     for num_bins = bins_list
         bins = linspace(0,1,num_bins+1);
         bin_ind_arr = discretize(norm_signal, bins);
@@ -22,6 +23,7 @@ function [best_num_bins, best_bin_ind_arr, best_bin_count] = findBestNumBins(nor
             best_num_bins = num_bins;
             best_bin_count = bin_count;
             best_bin_ind_arr = bin_ind_arr;
+            best_bin_std = bin_std*100; % rescale to percent
         end
     end
 end

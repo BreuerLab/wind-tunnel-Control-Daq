@@ -9,6 +9,7 @@ properties
     % cases/files selected by user
     file_path;
     case_name;
+    file_suffix;
     case_name_list;
 
     num_bins;
@@ -81,7 +82,8 @@ methods
 
         files = dir(obj.file_path + "*.mat");
 
-        obj.case_name_list = extractBefore(string({files.name}),".mat");
+        obj.file_suffix = "_phase_avg.mat";
+        obj.case_name_list = extractBefore(string({files.name}), obj.file_suffix);
 
         obj.movie_3D_vars = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
                     "Q_x","Q_y","Q_z","|Q|","u_unc","v_unc","w_unc","|unc|"];
@@ -602,7 +604,7 @@ methods (Access = private)
                 vars{end+1} = std_name;
             end
         end
-        d = load(obj.file_path + obj.case_name, vars{:});
+        d = load(obj.file_path + obj.case_name + obj.file_suffix, vars{:});
 
         if plot_idx == 2 || plot_idx == 3
             obj.slider.Visible = "on";

@@ -23,6 +23,7 @@ function [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name)
     % Feb 11th Data
     cases.flexible_10deg_6Hz = {'PIV_flexible_10_4m.s_10deg_6Hz_2026-02-11 14-55-06_experiment_2026_02_11_14_56_23.mat', d11};
     cases.flexible_20deg_2Hz = {'PIV_flexible_20_4m.s_10deg_2Hz_2026-02-11 17-46-16_experiment_2026_02_11_17_48_26.mat', d11};
+    cases.flexible_20deg_4Hz = {'PIV_flexible_20_4m.s_10deg_4Hz_2026-02-11 18-15-29_experiment_2026_02_11_18_16_57.mat', d11};
     cases.flexible_20deg_6Hz = {'PIV_flexible_20_4m.s_10deg_6Hz_2026-02-11 18-43-27_experiment_2026_02_11_18_44_44.mat', d11};
     cases.flexible_20deg_8Hz = {'PIV_flexible_20_4m.s_10deg_8Hz_2026-02-11 19-11-05_experiment_2026_02_11_19_12_18.mat', d11};
     cases.flexible_30deg_6Hz = {'PIV_flexible_30_4m.s_10deg_6Hz_2026-02-11 17-16-55_experiment_2026_02_11_17_18_14.mat', d11};

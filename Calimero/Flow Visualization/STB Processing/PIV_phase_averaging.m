@@ -13,7 +13,7 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 
 % Want to know what case names are available?
 % Call "  case_names = get_case_names();  "
-PIV_case_name = 'UP_two_flexible_20deg_6Hz';
+PIV_case_name = 'flexible_20deg_6Hz';
 
 save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
 save_filepath_local = "Y:\Processed Results\";
@@ -24,7 +24,7 @@ nondim_bool = true; % non-dimensionalize data
 
 % If you want to make plots here, you can. However, it is NOT recommended.
 % Intead, use main_analysis to produce plots easily in a GUI interface.
-plot_bool = true;
+plot_bool = false;
 
 circ_plot_bool = false;
 movie_plot_bool = false;

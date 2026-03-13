@@ -15,6 +15,7 @@ function file_path = get_PIV_paths(PIV_case_name)
         'UP_one_flexible_30deg_2Hz',  "UP_one_flexible_30deg_2Hz" + BIN
         'flexible_10deg_6Hz',          "flexible_10deg_6Hz" + BIN
         'flexible_20deg_2Hz',          "flexible_20deg_2Hz" + BIN
+        'flexible_20deg_4Hz',          "flexible_20deg_4Hz" + BIN
         'flexible_20deg_6Hz',          "flexible_20deg_6Hz" + BIN
         'flexible_20deg_8Hz',          "flexible_20deg_8Hz" + BIN
         'flexible_30deg_6Hz',          "flexible_30deg_6Hz" + BIN
