@@ -67,6 +67,33 @@ switch avg_type
         disp("Phase Average: Loading file: " + file_path)
         S = phase_avg_STB(file_path, nondim_bool, U, L, save_filepath_local, PIV_case_name, turbine_bool);
 
+        dx = abs(S.x(2,1,1) - S.x(1,1,1)) * L;
+        dy = abs(S.y(1,2,1) - S.y(1,1,1)) * L;
+        dA = dx*dy;
+
+        % First trim data about center point
+        x_cen = -0.142 / L;
+        
+        x_idx = find(S.x(:,1,1) > x_cen);  % columns
+        
+        z_ind = 3;
+
+        x = squeeze(S.x(x_idx, :, z_ind)) * L;
+        y = squeeze(S.y(x_idx, :, z_ind)) * L;
+        v = squeeze(S.v_phase_avg(x_idx,:,z_ind,:)) * U;
+        w = squeeze(S.w_phase_avg(x_idx,:,z_ind,:)) * U;
+        vortZ = squeeze(S.vortZ_phase_avg(x_idx,:,z_ind,:)) * (U/L);
+        
+        % shift axis so that min point is now considered as origin
+        x = x - min(x, [], "all");
+
+        term1 = -U * dA * x(1,:) .* vortZ; 
+        term2 = (w + U) .* v .* dA;
+        lift_mat = term1 - term2;
+
+        rho = 1.225; % air density kg/m^3
+        lift = 2 * rho * squeeze(sum(lift_mat, [1, 2]));
+
         if plot_bool
             error("Plotting phase averaged results not currently supported")
             phase_avg_plots(S);
