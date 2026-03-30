@@ -48,9 +48,26 @@ end
 dx = abs(x(2,1,1) - x(1,1,1));
 dy = abs(y(1,2,1) - y(1,1,1));
 dz = abs(z(1,1,2) - z(1,1,1));
+% dx = abs(x(1,1,2) - x(1,1,1));
+% dy = abs(y(2,1,1) - y(1,1,1));
+% dz = abs(z(1,2,1) - z(1,1,1));
 
 % Compute Q-Criterion
 [Qx,Qy,Qz,Q] = calQlate3D(S.u_phase_avg, S.v_phase_avg, S.w_phase_avg,dx,dy,dz);
+
+% Compute Lift force
+avg_type = 1;
+y_cen = -0.142 / L;
+z_cen = -0.03 / L;
+[lift_vel, lift, drag_vel, drag] = get_wake_lift(U, L, y, z, S, avg_type, y_cen, z_cen);
+
+% TEMP CODE
+% positions = -2.5:0.1:1;
+% lift_vals = [];
+% for i = 1:length(positions)
+%     [lift_vel, lift, drag_vel, drag] = get_wake_lift(U, L, y, z, S, avg_type, positions(i), z_cen);
+%     lift_vals(i) = mean(lift_vel);
+% end
 
 % Add metadata to the struct
 S.x = x; S.y = y; S.z = z; S.L = L; S.U = U; S.cycle_freq = cycle_freq;
@@ -58,18 +75,23 @@ S.num_bins = num_bins; S.tick_frame_pos = tick_frame_pos; S.full_cycle = full_cy
 S.bin_ind_arr = bin_ind_arr; S.bin_count = bin_count; S.bin_std = bin_std;
 S.Qx = Qx; S.Qy = Qy; S.Qz = Qz; S.Q = Q;
 S.PIV_case_name = PIV_case_name;
+S.lift = lift; S.drag = drag; S.lift_vel = lift_vel; S.drag_vel = drag_vel;
 
 if ~turbine_bool
     % Calculate phase averaged speed
-    [norm_time_speed, phase_avg_speed, phase_std_speed, bin_count_speed, bin_std_speed] = speed_phase_avg(PIV_case_name);
+    [norm_time_speed, phase_avg_speed, phase_std_speed, bin_count_speed, bin_std_speed,...
+     phase_avg_volt, phase_std_volt, phase_avg_cur, phase_std_cur] = speed_phase_avg(PIV_case_name);
 
     S.norm_time_speed = norm_time_speed; S.phase_avg_speed = phase_avg_speed;
     S.phase_std_speed = phase_std_speed; S.bin_count_speed = bin_count_speed;
     S.bin_std_speed = bin_std_speed;
+
+    S.phase_avg_volt = phase_avg_volt; S.phase_std_volt = phase_std_volt;
+    S.phase_avg_cur = phase_avg_cur; S.phase_std_cur = phase_std_cur;
 end
 
 % Save the entire structure
-save_path = fullfile(save_filepath_local, [PIV_case_name, '_phase_avg.mat']);
+save_path = fullfile(save_filepath_local, [PIV_case_name, '_RPCA_phase_avg.mat']);
 disp("Saving data to: " + save_path)
 save(save_path, '-struct', 'S');
 

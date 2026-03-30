@@ -3,26 +3,24 @@ D = loadpiv(file_path,"extractAllVariables","frameSelect",sel_frames); % "Valida
 
 RPCA_bool = false;
 if RPCA_bool
-tic
 % RPCA filtering for velocities only near plane of interest
 % 1. Filter uRaw
 origSize = [size(D.u,1), size(D.u,2), 3, size(D.u,4)];
 X_u = reshape(D.u(:,:,3:5,:), [], size(D.u, 4)); 
 [L_u, ~] = RPCA(X_u);
 D.u(:,:,3:5,:) = reshape(L_u, origSize);
-disp("u filtering complete")
+% disp("u filtering complete")
 
 % 2. Filter vRaw
 X_v = reshape(D.v(:,:,3:5,:), [], size(D.v, 4)); 
 [L_v, ~] = RPCA(X_v);
 D.v(:,:,3:5,:) = reshape(L_v, origSize);
-disp("v filtering complete")
+% disp("v filtering complete")
 
 % 3. Filter wRaw
 X_w = reshape(D.w(:,:,3:5,:), [], size(D.w, 4)); 
 [L_w, ~] = RPCA(X_w);
 D.w(:,:,3:5,:) = reshape(L_w, origSize);
-toc
 
 disp("RPCA complete, calculating vorticity...")
 for i = 1:size(D.u, 4)
@@ -65,29 +63,29 @@ end
 % uncTot = (uncU.^2 + uncV.^2 + uncW.^2).^(1/2);
 % corr = D.corr;
 
-trim_bool = true;
+trim_bool = false;
 if trim_bool
 % Trimming data down
-xbounds = [-2.5 2.5]; % roughly -0.15 to 0.15 meters
+ybounds = [-2.5 2.5]; % roughly -0.15 to 0.15 meters
 % ybounds = [-2.86 2.86]; % roughly -0.2 to 0.2 meters
-ybounds = [-2.3 2.45]; % roughly -0.2 to 0.2 meters
+zbounds = [-2.3 2.45]; % roughly -0.2 to 0.2 meters
 % ybounds = [-2 2]; % roughly -0.2 to 0.2 meters
 
-x_idx = find(x_full(:,1,1) > xbounds(1) & x_full(:,1,1) < xbounds(2));  % columns
-y_idx = find(y_full(1,:,1) > ybounds(1) & y_full(1,:,1) < ybounds(2));  % rows
+y_idx = find(y_full(1,:,1) > ybounds(1) & y_full(1,:,1) < ybounds(2));  % columns
+z_idx = find(z_full(1,1,:) > zbounds(1) & z_full(1,1,:) < zbounds(2));  % rows
 
-x = x_full(x_idx,y_idx,:);
-y = y_full(x_idx,y_idx,:);
-z = z_full(x_idx,y_idx,:);
-u = u_full(x_idx,y_idx,:,:);
-v = v_full(x_idx,y_idx,:,:);
-w = w_full(x_idx,y_idx,:,:);
-vortZ = vort_z_full(x_idx,y_idx,:,:);
-vortX = vort_x_full(x_idx,y_idx,:,:);
-vortY = vort_y_full(x_idx,y_idx,:,:);
-uncU = uncU_full(x_idx,y_idx,:,:);
-uncV = uncV_full(x_idx,y_idx,:,:);
-uncW = uncW_full(x_idx,y_idx,:,:);
+x = x_full(:,y_idx,z_idx);
+y = y_full(:,y_idx,z_idx);
+z = z_full(:,y_idx,z_idx);
+u = u_full(:,y_idx,z_idx,:);
+v = v_full(:,y_idx,z_idx,:);
+w = w_full(:,y_idx,z_idx,:);
+vortZ = vort_z_full(:,y_idx,z_idx,:);
+vortX = vort_x_full(:,y_idx,z_idx,:);
+vortY = vort_y_full(:,y_idx,z_idx,:);
+uncU = uncU_full(:,y_idx,z_idx,:);
+uncV = uncV_full(:,y_idx,z_idx,:);
+uncW = uncW_full(:,y_idx,z_idx,:);
 % corr = corr(y_idx, x_idx,:);
 else
 x = x_full;

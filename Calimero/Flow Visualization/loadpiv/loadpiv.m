@@ -612,6 +612,26 @@ end
     (yr * G.Y * S.Y.Slope + S.Y.Offset)/1000,...
     (zr * G.Z * S.Z.Slope + S.Z.Offset)/1000);
 
+% DY IS NEGATIVE, MAYBE THIS ALAWYS HAPPENS
+% % Check the direction of each axis
+% dx = out1.xRaw(2,1,1) - out1.xRaw(1,1,1); % Change in X along Dim 1
+% dy = out1.yRaw(1,2,1) - out1.yRaw(1,1,1); % Change in Y along Dim 2
+% dz = out1.zRaw(1,1,2) - out1.zRaw(1,1,1); % Change in Z along Dim 3
+% 
+% % Calculate the Triple Scalar Product
+% isRightHanded = dot(cross([dx,0,0], [0,dy,0]), [0,0,dz]) > 0;
+% 
+% if isRightHanded
+%     disp('Your raw DaVis data is Right-Handed.');
+% else
+%     disp('Your raw DaVis data is Left-Handed (Mirrored).');
+%     % y and v should be mirrored, only v needs to be inverted since y
+%     % already inverted
+% end
+
+
+
+
 % Reorient to compute vorticity
 % x - negative to positive (left to right)
 % y - negative to positive (bottom to top)
@@ -631,7 +651,8 @@ end
 %     out1.wRaw = flip(flip(-out1.wRaw, 2),3);
 % end
 
-rot180 = @(data) flip(flip(flip(data, 2), 3),1); % just removed flip(xxx,1)
+% data flipped to correct for mirroring of data structure
+rot180 = @(data) flip(flip(flip(data, 2), 3),1); 
 
 % Apply to all components
 out1.xRaw = rot180(-out1.xRaw);
@@ -639,17 +660,39 @@ out1.yRaw = rot180(out1.yRaw);
 out1.zRaw = rot180(-out1.zRaw);
 
 out1.uRaw = rot180(-out1.uRaw);
-out1.vRaw = rot180(-out1.vRaw); % just removed negative sign
+out1.vRaw = rot180(-out1.vRaw);
 out1.wRaw = rot180(-out1.wRaw);
+
+% Define the permutation order for dimensions
+pOrder = [3, 1, 2];
+
+% Swap the data fields directly (Replaces the Rotation Matrix)
+% Mapping: Old Z->X, Old X->Y, Old Y->Z
+xTmp = out1.zRaw;
+yTmp = out1.xRaw;
+zTmp = out1.yRaw;
+
+uTmp = out1.wRaw;
+vTmp = out1.uRaw;
+wTmp = out1.vRaw;
+
+% Permute the underlying array dimensions
+out1.xRaw = permute(xTmp, pOrder);
+out1.yRaw = permute(yTmp, pOrder);
+out1.zRaw = permute(zTmp, pOrder);
+
+out1.uRaw = permute(uTmp, pOrder);
+out1.vRaw = permute(vTmp, pOrder);
+out1.wRaw = permute(wTmp, pOrder);
 
 % Compute vorticity
 [out1.vortXRaw, out1.vortYRaw, out1.vortZRaw] = ...
     calculateVorticity(out1.xRaw, out1.yRaw, out1.zRaw, out1.uRaw, out1.vRaw, out1.wRaw);
 
-% Save data
-if isvalid_exists
-    out1.isValidRaw = single(flip(isValid'));
-end
+% % Save data
+% if isvalid_exists
+%     out1.isValidRaw = single(flip(isValid'));
+% end
 
 % out1.corrRaw = flip(out1.corrRaw');
 
@@ -673,4 +716,12 @@ if out1.dimNum == 3
     out1.uncWRaw = rot180(out1.uncWRaw);
 end
 
+u_uncTmp = out1.uncWRaw;
+v_uncTmp = out1.uncURaw;
+w_uncTmp = out1.uncVRaw;
+
+% Permute the underlying array dimensions
+out1.uncURaw = permute(u_uncTmp, pOrder);
+out1.uncVRaw = permute(v_uncTmp, pOrder);
+out1.uncWRaw = permute(w_uncTmp, pOrder);
 end

@@ -14,8 +14,8 @@ function h = PIV_plot(x, y, val_tr, params, ax)
     % ylabel("y [m]")
     % xlabel(ax, "y/c", FontSize=16)
     % ylabel(ax, "z/c", FontSize=16)
-    xlabel(ax, "x/c", FontSize=16)
-    ylabel(ax, "y/c", FontSize=16)
+    xlabel(ax, "y/c", FontSize=16)
+    ylabel(ax, "z/c", FontSize=16)
 
     % Xiaowei color map
     % min_vort = min(vort_phase_avg,[],'all');

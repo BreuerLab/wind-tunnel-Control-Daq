@@ -2,8 +2,11 @@ function [xlims,s,cData] = stack_vortices_3D(x, y, C_phase_avg, Q_phase_avg, win
 %% trim data (if trimmed before calculating Q, Q-isosurfaces always exist at
 % boundaries)
 
-xbounds = [-2.4 2.4]; % roughly -0.15 to 0.15 meters
-ybounds = [-2.1 2.3]; % roughly -0.2 to 0.2 meters
+trim_bool = true;
+
+if trim_bool
+xbounds = [-2.7 2.45]; % roughly -0.15 to 0.15 meters
+ybounds = [-2.36 2.55]; % roughly -0.2 to 0.2 meters
 
 x_idx = find(x(:,1) > xbounds(1) & x(:,1) < xbounds(2));  % columns
 y_idx = find(y(1,:) > ybounds(1) & y(1,:) < ybounds(2));  % rows
@@ -12,13 +15,14 @@ x = x(x_idx, y_idx);
 y = y(x_idx, y_idx);
 C_phase_avg = C_phase_avg(x_idx,y_idx,:);
 Q_phase_avg = Q_phase_avg(x_idx,y_idx,:);
+end
 
 %% Mirror data from right wing to show predicted left wing
 if params.mirror
 % Mirror in x-direction across y-axis at centerpoint of robot/ellipse
 
 % First trim data about center point
-x_cen = -0.142 / params.L;
+x_cen = -2.16;
 
 x_idx = find(x(:,1) > x_cen);  % columns
 

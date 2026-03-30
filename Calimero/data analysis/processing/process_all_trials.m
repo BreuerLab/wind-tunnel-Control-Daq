@@ -20,8 +20,8 @@ DELIM = string(filesep);
 
 % Data stored in Dataset Name -> speed -> type + date
 
-slack_bool = true;
-user = "Z"; % "Z": Zachary or "R": Ronan
+slack_bool = false;
+user = "R"; % "Z": Zachary or "R": Ronan
 
 % separating this for Windows vs Mac
 if ispc && strcmp(user,"Z") % For Zachary's PC

@@ -1,4 +1,5 @@
-function [norm_time_speed, phase_avg_speed, phase_std_speed, bin_count_speed, bin_std_speed] = speed_phase_avg(PIV_case_name)
+function [norm_time_speed, phase_avg_speed, phase_std_speed, bin_count_speed, bin_std_speed,...
+    phase_avg_volt, phase_std_volt, phase_avg_cur, phase_std_cur] = speed_phase_avg(PIV_case_name)
 
 [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name);
 
@@ -26,6 +27,8 @@ mid_indices_adj = [mid_indices(1) - 1; mid_indices; mid_indices(end) + 1];
 wing_pos_tr = wing_pos(mid_indices_adj);
 time_tr = time_data(mid_indices_adj);
 speed_tr = speed(mid_indices_adj);
+volt_tr = voltAdj(mid_indices_adj);
+cur_tr = curAdj(mid_indices_adj);
 
 % figure
 % plot(time_tr,wing_pos_tr)
@@ -65,12 +68,23 @@ bin_count_speed = zeros(1,num_bins_speed);
 bin_std_speed = zeros(1,num_bins_speed);
 phase_avg_speed = zeros(1,num_bins_speed);
 phase_std_speed = zeros(1,num_bins_speed);
+phase_avg_volt = zeros(1,num_bins_speed);
+phase_std_volt = zeros(1,num_bins_speed);
+phase_avg_cur = zeros(1,num_bins_speed);
+phase_std_cur = zeros(1,num_bins_speed);
 for j = 1:num_bins_speed
     bin_indices_speed = find(bin_ind_arr_speed == j);
     bin_count_speed(j) = length(bin_indices_speed);
     bin_std_speed(j) = std(norm_frame_pos_full(bin_indices_speed))*100;
+
     phase_avg_speed(j) = mean(speed_tr(bin_indices_speed));
     phase_std_speed(j) = std(speed_tr(bin_indices_speed));
+
+    phase_avg_volt(j) = mean(volt_tr(bin_indices_speed));
+    phase_std_volt(j) = std(volt_tr(bin_indices_speed));
+
+    phase_avg_cur(j) = mean(cur_tr(bin_indices_speed));
+    phase_std_cur(j) = std(cur_tr(bin_indices_speed));
 end
 
 norm_time_speed = linspace(0,1,num_bins_speed);
@@ -85,8 +99,8 @@ bar(bin_std_speed)
 xlabel("Bin number", FontSize=16)
 ylabel("Phase variability per bin (% cycle)", FontSize=16)
 
-% Phase averaged speed with band around showing variability at each phase
-% point
+%% Plot phase averaged speed
+%  band around shows variability at each phasepoint
 
 lower_results = phase_avg_speed - phase_std_speed;
 upper_results = phase_avg_speed + phase_std_speed;
@@ -109,6 +123,52 @@ l.Color = original_color;
 l.LineWidth = 2;
 
 yline(mean(speed_tr),LineWidth=2)
+
+xlabel("Time over a wingbeat (t/T)")
+ylabel("Speed (Hz)")
+
+%% Plot phase averaged voltage
+lower_results = phase_avg_volt - phase_std_volt;
+upper_results = phase_avg_volt + phase_std_volt;
+
+xconf = [norm_time_speed, norm_time_speed(end:-1:1)];
+yconf = [upper_results, lower_results(end:-1:1)];
+
+figure
+hold on
+
+p = fill(xconf, yconf, lighter_color);
+p.HandleVisibility = 'off';
+p.EdgeColor = 'none';
+
+l = plot(norm_time_speed, phase_avg_volt);
+l.Color = original_color;
+l.LineWidth = 2;
+
+yline(mean(volt_tr),LineWidth=2)
+
+xlabel("Time over a wingbeat (t/T)")
+ylabel("Speed (Hz)")
+
+%% Plot phase averaged current
+lower_results = phase_avg_cur - phase_std_cur;
+upper_results = phase_avg_cur + phase_std_cur;
+
+xconf = [norm_time_speed, norm_time_speed(end:-1:1)];
+yconf = [upper_results, lower_results(end:-1:1)];
+
+figure
+hold on
+
+p = fill(xconf, yconf, lighter_color);
+p.HandleVisibility = 'off';
+p.EdgeColor = 'none';
+
+l = plot(norm_time_speed, phase_avg_cur);
+l.Color = original_color;
+l.LineWidth = 2;
+
+yline(mean(cur_tr),LineWidth=2)
 
 xlabel("Time over a wingbeat (t/T)")
 ylabel("Speed (Hz)")

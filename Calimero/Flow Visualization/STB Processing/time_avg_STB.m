@@ -99,9 +99,14 @@ function S = time_avg_STB(file_path, nondim_bool, U, L, num_files, save_filepath
         S.(avg_fields{f}) = S.(avg_fields{f}) / num_files;
     end
 
+    % Compute Lift force
+    avg_type = 0;
+    [lift_vel, lift, drag_vel, drag] = get_wake_lift(U, L, y, z, S, avg_type);
+
     % Add metadata to the struct
     S.x = x; S.y = y; S.z = z; S.L = L; S.U = U;
     S.PIV_case_name = PIV_case_name;
+    S.lift = lift; S.drag = drag; S.lift_vel = lift_vel; S.drag_vel = drag_vel;
 
     % Save the entire structure
     save_path = fullfile(save_filepath_local, [PIV_case_name, '_time_avg.mat']);

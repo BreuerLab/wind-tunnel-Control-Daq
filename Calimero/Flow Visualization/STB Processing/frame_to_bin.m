@@ -94,6 +94,7 @@ else
 
 ticksPerRev = 18432;
 OC_pulse_step = 4;
+pulsesPerRev = ticksPerRev / OC_pulse_step;
 rate = 15000;
 
 % Find indices where a laser fire has been recorded, each time this
@@ -121,39 +122,17 @@ cam_fire_idx = find(results(:,13) == 2, 1, "first");
 laser_count_at_cam_fire = las_count(cam_fire_idx);
 disp("Laser pulses by camera fire: " + laser_count_at_cam_fire)
 
-switch phase_type
-    case 0
-        disp("Using motor position for phase")
+norm_signal = get_norm_signal(results, phase_type, pulsesPerRev, cycle_freq, laser_ind, num_images);
+norm_pos = get_norm_signal(results, 0, pulsesPerRev, cycle_freq, laser_ind, num_images);
 
-        % motor position is recorded using OC pulses sent by galil
-        % 1 revolution of the motor corresponds to (ticksPerRev / OC_pulse_step)
-        % pulses
-        OC_pulse_count = results(:,11);
-        
-        % normalized signal where 1 now represents 1 full rotation/wingbeat
-        norm_signal = OC_pulse_count / (ticksPerRev / OC_pulse_step);
-    case 1
-        disp("Using time for phase")
-
-        time = results(:,1);
-
-        % normalized signal where 1 now represents 1 full rotation/wingbeat
-        norm_signal = time * cycle_freq;
-end
-
-% find signal value corresponding to laser pulse
-norm_signal = norm_signal(laser_ind);
-
-disp("Cropped off " + (length(norm_signal) - num_images) + " extra laser pulses from beginning")
-% crop off first few extra pulses
-norm_signal = norm_signal(end-(num_images - 1):end);
-
-% wrap values so only expressed between 0 and 1
-norm_signal = mod(norm_signal, 1);
+[M,I] = min(norm_pos);
+t_phase_zero = norm_signal(I);
+norm_signal(norm_signal < t_phase_zero) = norm_signal(norm_signal < t_phase_zero) + 1;
+norm_signal = norm_signal - t_phase_zero;
 
 if phase_type == 0
-    tick_frame_pos = round(norm_signal * (ticksPerRev / OC_pulse_step),3);
-    full_cycle = 0.5:1:(ticksPerRev / OC_pulse_step)+0.5;
+    tick_frame_pos = round(norm_signal * pulsesPerRev,3);
+    full_cycle = 0.5:1:pulsesPerRev + 0.5;
 else
     tick_frame_pos = zeros(size(norm_signal));
     full_cycle = zeros(size(norm_signal));

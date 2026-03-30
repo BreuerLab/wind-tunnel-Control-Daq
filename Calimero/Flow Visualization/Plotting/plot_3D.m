@@ -9,8 +9,8 @@ if ~params.movie
     xlabel(ax, "t/T", FontSize=16)
     % ylabel(ax, "y/c", FontSize=16)
     % zlabel(ax, "z/c", FontSize=16)
-    ylabel(ax, "x/c", FontSize=16)
-    zlabel(ax, "y/c", FontSize=16)
+    ylabel(ax, "y/c", FontSize=16)
+    zlabel(ax, "z/c", FontSize=16)
 else
     cb.Visible = 'off';
     ax = gca;

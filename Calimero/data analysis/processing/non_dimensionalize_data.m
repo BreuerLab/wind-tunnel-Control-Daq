@@ -21,7 +21,7 @@ function [norm_data, norm_factors, St, Re] = non_dimensionalize_data(path, resul
     
     % Constant values based on geometry of wings and robot design
 
-    switch lower(string(type))  % Case-insensitive, converts to string
+switch lower(string(type))  % Case-insensitive, converts to string
     case {"default", "bodydefault"}
         wing_span = 0.177; % meters, length of single wing
         wing_chord = 0.073; % meters
@@ -34,6 +34,10 @@ function [norm_data, norm_factors, St, Re] = non_dimensionalize_data(path, resul
         wing_span = 0.0885;
         wing_chord = 0.073;
         wing_length = 0.1125;
+    case {"flexible","body"}
+        wing_span = 0.12;
+        wing_chord = 0.07;
+        wing_length = wing_span + 0.024;
     otherwise
         error('Oops, wing type "%s" not found', type); % throw error and stop execution
 end

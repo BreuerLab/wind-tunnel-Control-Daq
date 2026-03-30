@@ -24,6 +24,7 @@ properties
     movie_3D_vars;
     hist_vars;
     freq_vars
+    force_vars;
 
     variable_name_dict;
     label_dict;
@@ -33,6 +34,9 @@ properties
 
     freq_var_name_dict;
     freq_label_dict;
+
+    force_var_name_dict;
+    force_label_dict;
 
     clims; % color limits for each variable
     clim_scale;
@@ -70,7 +74,8 @@ methods
         obj.frame_ind = 1;
         obj.play = false;
 
-        obj.plot_types = ["time avg","phase avg: movie","phase avg: 3D plot","image wingbeat phase", "wingbeat frequency"];
+        obj.plot_types = ["time avg","phase avg: movie","phase avg: 3D plot",...
+            "image wingbeat phase", "wingbeat frequency","wake forces"];
         obj.plot_hold_bool = false;
         obj.iso_var_list = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
                             "Q_x","Q_y","Q_z","|Q|"];
@@ -83,7 +88,17 @@ methods
         files = dir(obj.file_path + "*.mat");
 
         obj.file_suffix = "_phase_avg.mat";
-        obj.case_name_list = extractBefore(string({files.name}), obj.file_suffix);
+
+        % Convert file names to a string array
+        fileNames = string({files.name});
+        
+        % Create a logical mask: true where the suffix exists
+        hasSuffix = contains(fileNames, obj.file_suffix);
+        
+        % Only apply extractBefore to the matching files
+        fileNames(hasSuffix) = extractBefore(fileNames(hasSuffix), obj.file_suffix);
+
+        obj.case_name_list = fileNames;
 
         obj.movie_3D_vars = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
                     "Q_x","Q_y","Q_z","|Q|","u_unc","v_unc","w_unc","|unc|"];
@@ -99,10 +114,30 @@ methods
         freq_vals = ["phase_avg_speed", "bin_count_speed", "bin_std_speed"];
         freq_labels = ["Wingbeat Frequency (Hz)", "Number of samples per bin", "Phase variability per bin (% cycle)"];
 
+        obj.force_vars = ["lift", "drag"];
+        force_vals = ["lift_vel", "drag_vel"];
+        force_labels = ["Lift (N)", "Drag (N)"];
+
         obj.var_name_list = obj.movie_3D_vars;
-        obj.clims = [-0.2, 0.2;...
+        % obj.clims = [-0.2, 0.2;...
+        %              -0.2, 0.2;...
+        %               -1.1, -0.9;...
+        %               -1.1, -0.9;...
+        %               -1, 1;...
+        %               -1, 1;...
+        %               -1, 1;...
+        %               -1, 1;...
+        %               0, 0.1;...
+        %               0, 0.1;...
+        %               0, 0.1;...
+        %               0, 0.1;...
+        %               0, 0.02;...
+        %               0, 0.02;...
+        %               0, 0.02;...
+        %               0, 0.02];
+        obj.clims = [-1.1, -0.9;...
                      -0.2, 0.2;...
-                      -1.1, -0.9;...
+                      -0.2, 0.2;...
                       -1.1, -0.9;...
                       -1, 1;...
                       -1, 1;...
@@ -145,6 +180,10 @@ methods
         freq_keys = cellstr(obj.freq_vars);
         obj.freq_var_name_dict = containers.Map(freq_keys, freq_vals);
         obj.freq_label_dict = containers.Map(freq_keys, freq_labels);
+
+        force_keys = cellstr(obj.force_vars);
+        obj.force_var_name_dict = containers.Map(force_keys, force_vals);
+        obj.force_label_dict = containers.Map(force_keys, force_labels);
     end
 
     % Builds figure with all UI elements and defines all callback
@@ -152,7 +191,7 @@ methods
     function dynamic_plotting(obj)
         % Create a GUI figure with a grid layout
         [option_panel, plot_panel, screen_size] = setupFig(obj.mon_num);
-        pause(1.5) % wait until GUI opened
+        pause(1.8) % wait until GUI opened
 
         screen_height = screen_size(4);
         unit_height = round(0.03*screen_height);
@@ -345,6 +384,8 @@ methods
                 obj.var_name_list = obj.hist_vars;
             elseif strcmp(obj.plot_type, obj.plot_types(5))
                 obj.var_name_list = obj.freq_vars;
+            elseif strcmp(obj.plot_type, obj.plot_types(6)) % wake forces
+                obj.var_name_list = obj.force_vars;
             else
                 obj.var_name_list = obj.movie_3D_vars;
             end
@@ -510,7 +551,7 @@ methods
                 case "-yz"
                     view(ax, [0 -1 0])
             end
-            fprintf('View changed to: %s\n', selected_text);
+            % fprintf('View changed to: %s\n', selected_text);
         end
 
         function save_figure(~, ~, plot_panel)
@@ -578,7 +619,8 @@ methods (Access = private)
             var_name = obj.variable_name_dict(obj.variable_name);
             var_idx = find(obj.variable_name == obj.var_name_list);
 
-            vars = {"L","U","num_bins","cycle_freq","x","y",var_name};
+            % vars = {"L","U","num_bins","cycle_freq","x","y",var_name};
+            vars = {"L","U","num_bins","cycle_freq","z","y",var_name};
         end
         
         if plot_idx == 3 % 3D plot
@@ -603,6 +645,10 @@ methods (Access = private)
                 std_name = "phase_std_speed";
                 vars{end+1} = std_name;
             end
+        elseif plot_idx == 6
+            var_name = obj.force_var_name_dict(obj.variable_name);
+            vars = {"L","U","y","z","u_phase_avg","w_phase_avg",...
+                "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg"};
         end
         d = load(obj.file_path + obj.case_name + obj.file_suffix, vars{:});
 
@@ -621,13 +667,15 @@ methods (Access = private)
             obj.play_button.Visible = "off";
         end
 
-        val = d.(var_name);
+        if plot_idx ~= 6
+            val = d.(var_name);
+        end
 
         % movie or 3D plot
         if ismember(plot_idx, [1, 2, 3])
-            x = d.x(:,:,3);
-            y = d.y(:,:,3);
-            val = squeeze(val(:,:,3,:));
+            y = squeeze(d.y(3,:,:));
+            z = squeeze(d.z(3,:,:));
+            val = squeeze(val(3,:,:,:));
             params.U = d.U;
 
             if min(obj.clims(var_idx,:)) < -1
@@ -643,7 +691,7 @@ methods (Access = private)
 
         if plot_idx == 3
             Q = d.(iso_var_name);
-            Q = squeeze(Q(:,:,3,:));
+            Q = squeeze(Q(3,:,:,:));
         end
         
         % Make axes for plot
@@ -656,14 +704,15 @@ methods (Access = private)
             params.clims = obj.clims(var_idx,:);
 
             mean_val = mean(val,3);
-            PIV_plot(x, y, mean_val, params, ax);
+            % PIV_plot(x, y, mean_val, params, ax);
+            PIV_plot(y, z, mean_val, params, ax); % new 3/19
         elseif plot_idx == 2
 
         % params.title = "Spanwise velocity - Average";
         params.clims = obj.clims(var_idx,:);
 
         val_tr = val(:,:,obj.frame_ind);
-        h = PIV_plot(x, y, val_tr, params, ax);
+        h = PIV_plot(y, z, val_tr, params, ax);
         t = title(ax, ["Bin number: " + obj.frame_ind], FontSize=18);
 
             while obj.play && (obj.frame_ind < obj.num_bins)
@@ -692,12 +741,13 @@ methods (Access = private)
             params.clims = obj.clims(var_idx,:);
             params.movie = false;
             params.L = d.L;
-            params.shift = obj.frame_ind;
+            params.shift = obj.frame_ind - 1;
             params.isoValue = obj.iso_val; % 0.05
             params.mirror = obj.mirror_bool;
             params.num_cycles = obj.num_cycles;
 
-            if any(contains(["u","ω_y","ω_z"],obj.variable_name))
+            % "u","ω_y","ω_z"
+            if any(contains(["v","ω_z","ω_x"],obj.variable_name))
                 params.cFlip = true;
             else
                 params.cFlip = false;
@@ -722,7 +772,7 @@ methods (Access = private)
                 % Q(~BW_clean) = 0;
             end
 
-            [xlims,s,cData] = stack_vortices_3D(x, y, val, Q, d.cycle_freq, params);
+            [xlims,s,cData] = stack_vortices_3D(y, z, val, Q, d.cycle_freq, params);
             setColorBar(ax, params)
             xlim(ax,xlims) % otherwise when plotting multiple wingbeats awkward extra space added
 
@@ -793,6 +843,28 @@ methods (Access = private)
                 xlabel(ax, "Bin number", FontSize=16)
                 ylabel(ax, obj.freq_label_dict(obj.variable_name), FontSize=16)
             end
+        elseif plot_idx == 6
+            % Compute Lift force
+            avg_type = 1;
+            y_cen = -0.142 / d.L;
+            z_cen = -0.03 / d.L;
+
+            % 1. Capture all outputs into a cell array
+            [outputs{1:4}] = get_wake_lift(d.U, d.L, d.y, d.z, d, avg_type, y_cen, z_cen);
+            
+            % 2. Define your field names
+            fields = {'lift_vel', 'lift', 'drag_vel', 'drag'};
+            
+            % 3. Convert to a struct
+            F = cell2struct(outputs, fields, 2);
+
+            val = F.(var_name);
+
+            plot(ax, val)
+            hold(ax, "on")
+            yline(ax, mean(val))
+            xlabel(ax, "Time", FontSize=16)
+            ylabel(ax, obj.force_label_dict(obj.variable_name), FontSize=16)
         end
     end
 end
