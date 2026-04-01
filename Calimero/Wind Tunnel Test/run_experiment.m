@@ -5,7 +5,7 @@ time_now.Format = 'yyyy-MM-dd HH-mm-ss';
 diary("data\output logs\" + speed + "ms_" + string(time_now) + ".txt")
 
 % DAQ Parameters
-rate = 12000; % measurement rate of NI DAQ, in Hz
+rate = 15000; % measurement rate of NI DAQ, in Hz
 offset_duration = 6; % in seconds
 calibration_filepath = "../DAQ/Calibration Files/Mini40/FT52907.cal"; 
 voltage = 5; % 5 or 10 volts for load cell
@@ -106,7 +106,7 @@ diary("data\output logs\" + speed + "ms_" + AoA_vals(j) + "deg.txt")
 % -----------------------------------------------
 % Tare measurement at desired angle with wind off
 % -----------------------------------------------
-offsets = initial_tare(flapper_obj, offset_duration, wing_type, speed, AoA_vals(j), automatic, amp);
+offsets = initial_tare(flapper_obj, offset_duration*2, wing_type, speed, AoA_vals(j), automatic, amp);
 
 % ------------------------------------------------
 % ---- Loop through wingbeat frequencies ---------

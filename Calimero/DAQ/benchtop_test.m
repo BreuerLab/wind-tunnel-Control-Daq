@@ -9,21 +9,23 @@ clc
 % Author: Ronan Gissler
 % Date: 09/12/2025
 
+% Change current working directory to the directory where this file is
+cd(fileparts(mfilename('fullpath')));
+
 addpath(genpath("../"))
 
 % case_name = wing_type + "_" + speed + "m.s_" + AoA_vals(j) + "deg_" + freq_vals(i) + "Hz";
 
 % Galil Setup
 galil_bool = true;
-
 galil_IP_address = "192.168.1.3";
 DR_bool = false; % false - store data in arrays (RA), true - data record packets (DR)
 ticksPerRev = 18432;
-freq = 8; % Hz
+freq = 0; % Hz
 acc = 3; % Hz
-measure_revs = 270;
-padding_revs = 4;
-hold_time = 15; % sec
+measure_revs = 100; % 270
+padding_revs = 2;
+hold_time = 40; % sec
 wait_time = 1000; % ms
 OC_pulse_step = 4; % in ticks
 % REMEMBER MOTOR WIRES NEED TO BE FLIPPED TOO WHEN CHANGING DIRECTION
@@ -35,15 +37,17 @@ else
 end
 dmc_hold_filename = "hold.dmc";
 
-case_name = "benchtop_" + 0 + "m.s_" + 0 + "deg_" + freq + "Hz_";
-% case_name = "PIV_flexible_30_" + 0 + "m.s_" + 0 + "deg_" + freq + "Hz_";
+% case_name = "benchtop_" + 0 + "m.s_" + 0 + "deg_" + freq + "Hz_";
+% case_name = "UP_two_PIV_flexible_20_" + 4 + "m.s_" + 10 + "deg_" + freq + "Hz_";
+case_name = "ringdown_" + 0 + "m.s_" + 10 + "deg_" + 0 + "Hz_";
 time_now = datetime;
 time_now.Format = 'yyyy-MM-dd HH-mm-ss';
 case_name = case_name + string(time_now);
 
 daq_bool = true;
 async = true; % run daq in asynchronous or synchronous mode
-force_bool = false; % plot force data or not
+force_bool = true; % plot force data or not
+laser_bool = false; 
 % DAQ Setup
 if daq_bool
 [f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4] = makeForceFigures();
@@ -105,7 +109,8 @@ catch
 end
 
 % Set wings to midstroke
-set_hold_position(galil, dmc_hold_filename, galil_direction)
+time = 8; % countdown time for setting wing position
+set_hold_position(galil, dmc_hold_filename, galil_direction, time)
 
 % ---------------------------
 if DR_bool
@@ -228,12 +233,23 @@ saveas(OC_f,'data\plots\' + case_name + "_OC.png")
 % cycle_frames = 96;
 % err_frames = err*(1/freq)*laser_freq;
 
+if laser_bool
 las_count = results(:,12);
+las_count_diff = diff(las_count);
+last_time = time(las_count_diff ~= 0);
+last_time = last_time(end);
+disp("-------------------------------------------------------------")
+disp("Final pulse fired at: " + last_time + " s")
+
 las_count = las_count(las_count ~= 0 & las_count ~= las_count(end));
 las_count_diff = diff(las_count);
 whole_idx = find(las_count_diff ~= 0);
 las_rep_rate = rate ./ diff(whole_idx);
-disp("Length of las_rep_rate: " + length(las_rep_rate) + ", with mean: " + mean(las_rep_rate)) 
+disp("Length of las_rep_rate: " + length(las_rep_rate) + ", with mean: " + mean(las_rep_rate))
+disp("-------------------------------------------------------------")
+
+cam_count = results(:,13);
+end
 
 % What's most important for phase averaging PIV is that a full cycle
 % has some repeatable time

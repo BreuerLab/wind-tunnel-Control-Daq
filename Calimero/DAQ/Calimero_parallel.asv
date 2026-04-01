@@ -260,7 +260,6 @@ function [offsets] = get_force_offsets(obj, case_name, tare_duration)
     % Preallocate offset matrix (mean and std for each channel)
     num_channels = min(size(cur_data));
     offsets = zeros(2, num_channels);
-    results = cur_data;
 
     for i = 1:num_channels
         offsets(1, i) = mean(cur_data(:, i));  % mean (offset)
@@ -272,8 +271,7 @@ function [offsets] = get_force_offsets(obj, case_name, tare_duration)
     currentDateTimeStr = char(currentDateTime);
     trial_name = strjoin([case_name, "offsets", currentDateTimeStr], "_");
     trial_file_name = "data\offsets data\" + trial_name + ".mat";
-    vars = {"offsets","results"};
-    save(trial_file_name, vars{:});
+    save(trial_file_name, {"offsets",});
 
     pause(1);
 end

@@ -54,8 +54,10 @@ function [force] = run_trial(flapper_obj, cal_matrix, case_name, offset_duration
     checkLimits(results);
 
     % Translate data from raw values into meaningful values
-    [time, force, voltAdj, curAdj, speed, OC_pulse_count] =...
-        process_data(results, offsets, cal_matrix,  ticksPerRev, OC_pulse_step, async);
+    [time, force, voltAdj, curAdj, enc_pulse, OC_pulse_count] = process_data(results, offsets, cal_matrix,  ticksPerRev, OC_pulse_step);
+    
+    [time, force, voltAdj, curAdj, speed, OC_pulse_count] = ...
+    process_data(results, offsets, cal_matrix, ticksPerRev, OC_pulse_step, async)
 
     pause(0.5);
 
@@ -93,8 +95,7 @@ function [force] = run_trial(flapper_obj, cal_matrix, case_name, offset_duration
     end
 
     fc = 100;  % cutoff frequency in Hz for filter
-    force_bool = true;
     % Display preliminary data
-    raw_plot(time, force, voltAdj, curAdj, speed, case_name, drift, flapper_obj.DAQ.Rate, fc,...
-        f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4, force_bool);
+    raw_plot(time, force, voltAdj, curAdj, spe, OC_pulse_count, case_name, drift, flapper_obj.DAQ.Rate, fc,...
+        f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4, async);
 end

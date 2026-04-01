@@ -1,15 +1,13 @@
-function set_hold_position(galil, dmc_hold_filename, galil_direction)
+function set_hold_position(galil, dmc_hold_filename, galil_direction, time)
     % Allow user to set wings at midstroke and then galil will hold that
     % position afterwards
-    % Define the total countdown time in seconds
-    totalTime = 10; 
     
     % Define the update interval in seconds (how frequently the display updates)
     interval = 2; 
     
     fprintf('Countdown starting...\n');
     
-    for i = totalTime:-interval:interval
+    for i = time:-interval:interval
         fprintf('Time remaining: %d seconds\n', i);
         pause(interval); 
     end
