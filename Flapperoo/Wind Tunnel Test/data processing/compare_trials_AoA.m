@@ -2,6 +2,7 @@
 % Last updated: October 2023
 clear
 close all
+cd(fileparts(mfilename('fullpath')));
 addpath 'general'
 addpath 'process_trial'
 addpath 'process_trial/functions'
@@ -16,11 +17,11 @@ addpath 'plotting'
 % wing_freq_sel = [0, 2, 3, 4, 5];
 % wing_freq_sel = [0, 0.1, 2, 2.5, 3, 3.5, 3.75, 4, 4.5, 5, 2, 4];
 wing_freq_sel = [0, 0.1, 2, 2.5, 3, 3.5, 3.75, 4, 2, 4];
-wind_speed_sel = [0];
-type_sel = ["no shoulders"];
+wind_speed_sel = [4];
+type_sel = ["blue wings half body"];
 % AoA_sel = [-12:1:-9 -8:0.5:8 9:1:12];
 AoA_sel = [-16:1.5:-13 -12:1:-9 -8:0.5:8 9:1:12 13:1.5:16];
-sub_strings = [];
+sub_strings = ["half body no wings"];
 
 % make type list from type and subtraction types to add all
 % associated folders to the search
@@ -56,6 +57,10 @@ for i = 3:(length(dir_names))
         processed_data_path = [processed_data_path filepath + "/processed data/"];
         offsets_path = [offsets_path filepath + "/raw data/offsets data/"];
     end
+end
+
+if isempty(processed_data_path)
+    error("No processed data path...")
 end
 
 % Get a list of all files in the folder with the desired file name pattern.

@@ -833,19 +833,20 @@ methods (Access = private)
             NP_positions = [];
             NP_pos_errs = [];
             NP_moms = [];
+            NP_mom_errs = [];
             COPs = [];
             COP_SDs = [];
             [init_NP_pos, ~, ~] = findNP(lim_avg_forces(:,:,1), lim_AoA_sel);
 
             % Added 02/28/20226, reduce number of lines
             % wing_freqs = wing_freqs([2,6,8,10]);
-            for ii = 1:length(wing_freqs)
-                St_nums(ii) = freqToSt(cur_bird.name, wing_freqs(ii), wind_speed, obj.data_path, -1);
-            end
-            ind_select = find(round(St_nums,3) == 0.515 | ...
-                    round(St_nums,3) == 0.360 | round(St_nums,3) == 0.206);
-            ind_select = [2,4,8,10];
-            % ind_select = 1:1:length(wing_freqs); % default 
+            % for ii = 1:length(wing_freqs)
+            %     St_nums(ii) = freqToSt(cur_bird.name, wing_freqs(ii), wind_speed, obj.data_path, -1);
+            % end
+            % ind_select = find(round(St_nums,3) == 0.515 | ...
+            %         round(St_nums,3) == 0.360 | round(St_nums,3) == 0.206);
+            % ind_select = [2,4,8,10];
+            ind_select = 1:1:length(wing_freqs); % default 
             % replaced k with cur_ind = ind_select(k);
 
             for k = 1:length(ind_select)
@@ -902,19 +903,30 @@ methods (Access = private)
 
                 if (obj.y_var == 3 || obj.y_var == 4 || obj.constSM)
                     [NP_pos, NP_pos_err, NP_mom] = findNP(lim_avg_forces(:,:,cur_ind), lim_AoA_sel);
+                    pitch_mom_err = mean(squeeze(lim_err_forces(5,:,cur_ind)));
+                    drag_err = mean(squeeze(lim_err_forces(1,:,cur_ind)));
+                    lift_err = mean(squeeze(lim_err_forces(3,:,cur_ind)));
+                    NP_mom_err = pitch_mom_err + abs(NP_pos * (drag_err + lift_err));
                 end
 
                 if (obj.y_var == 3 || obj.y_var == 4)
                     if (obj.norm)
-                        NP_mom = NP_mom / norm_factors(2);
+                        mom_norm = mean(norm_factors(2,:,:), "all");
+                        NP_mom = NP_mom / mom_norm;
+                        NP_mom_err = NP_mom_err / mom_norm;
+                        if NP_mom_err > 0.05
+                            disp("wait")
+                        end
                     end
                     % NP_pos_chord = (NP_pos / chord) * 100;
                     % Assuming lim_avg_forces fed into findNP was from LE
                     % Otherwise need, shift pitch moment to be off
                     [NP_pos_LE, NP_pos_chord] = posToChord(NP_pos, center_to_LE, chord);
+                    NP_pos_err_chord = (NP_pos_err / chord) * 100;
                     NP_positions = [NP_positions NP_pos_chord];
                     NP_moms = [NP_moms NP_mom];
-                    NP_pos_errs = [NP_pos_errs NP_pos_err];
+                    NP_mom_errs = [NP_mom_errs NP_mom_err];
+                    NP_pos_errs = [NP_pos_errs NP_pos_err_chord];
                 end
 
                 if (obj.constSM)
@@ -1181,12 +1193,12 @@ methods (Access = private)
                 y_vals_mod = mod_x_intercepts;
             elseif (obj.y_var == 3)
                 y_vals = NP_positions;
-                % err_vals = NP_pos_errs * 10^4;
-                err_vals = zeros(size(NP_pos_errs));
+                err_vals = NP_pos_errs;
+                % err_vals = zeros(size(NP_pos_errs));
                 y_vals_mod = mod_NPs;
             elseif (obj.y_var == 4)
                 y_vals = NP_moms;
-                err_vals = zeros(1,length(NP_moms));
+                err_vals = NP_mom_errs;
                 y_vals_mod = mod_NP_moms;
             elseif (obj.y_var == 5)
                 y_vals = COPs;
