@@ -57,7 +57,6 @@ properties
     mirror_bool;
     filter_bool;
     trim_bool;
-    interp_bool;
     num_cycles;
     cam;
 end
@@ -87,7 +86,6 @@ methods
         obj.filter_bool = false;
         obj.num_cycles = 1;
         obj.trim_bool = true;
-        obj.interp_bool = false;
 
         files = dir(obj.file_path + "*.mat");
 
@@ -244,15 +242,7 @@ methods
         b11.BackgroundColor = [0.3010 0.7450 0.9330];
         b11.ValueChangedFcn = @(src, event) trim_change(src, event, plot_panel);
 
-        button12_y = button11_y - 40;
-        b12 = uibutton(option_panel,"state");
-        b12.Text = "Interpolate";
-        b12.FontSize = 18;
-        b12.Position = [30 button12_y 120 unit_height];
-        b12.BackgroundColor = [1 1 1];
-        b12.ValueChangedFcn = @(src, event) interp_change(src, event, plot_panel);
-
-        button2_y = button12_y - 40;
+        button2_y = button11_y - 40;
         b2 = uibutton(option_panel,"state");
         b2.Text = "Mirror";
         b2.FontSize = 18;
@@ -484,18 +474,6 @@ methods
                 src.BackgroundColor = [0.3010 0.7450 0.9330];
             else
                 obj.trim_bool = false;
-                src.BackgroundColor = [1 1 1];
-            end
-
-            obj.update_plot(plot_panel);
-        end
-
-        function interp_change(src, ~, plot_panel)
-            if (src.Value)
-                obj.interp_bool = true;
-                src.BackgroundColor = [0.3010 0.7450 0.9330];
-            else
-                obj.interp_bool = false;
                 src.BackgroundColor = [1 1 1];
             end
 
@@ -787,32 +765,6 @@ methods (Access = private)
                 z = [z_add; z];
                 val = [val_add; val]; 
             end
-
-            if obj.interp_bool
-                factor = 5;
-                
-                y_vec = y(:,1);
-                z_vec = z(1,:);
-
-                F = griddedInterpolant({y_vec, z_vec}, val(:,:,1), 'linear');
-
-                % Create finer grids
-                yq = linspace(min(y_vec), max(y_vec), length(y_vec)*factor);
-                zq = linspace(min(z_vec), max(z_vec), length(z_vec)*factor);
-                
-                val_fine = zeros(length(y_vec)*factor, length(z_vec)*factor, size(val,3));
-                % Interpolate onto fine grid
-                for t = 1:size(val,3)
-                    F.Values = val(:,:,t);
-                    val_fine(:,:,t) = F({yq, zq});
-                end
-
-                [Yq, Zq] = ndgrid(yq, zq);
-
-                y = Yq;
-                z = Zq;
-                val = val_fine;
-            end
         end
 
         if plot_idx == 3
@@ -826,17 +778,6 @@ methods (Access = private)
                 Q = Q(y_idx_m,:,:);
                 Q_add = flip(Q(2:end,:,:),1);
                 Q = [Q_add; Q];
-            end
-            if obj.interp_bool
-                % Interpolate onto fine grid
-                F = griddedInterpolant({y_vec, z_vec}, Q(:,:,1), 'linear');
-
-                Q_fine = zeros(length(y_vec)*factor, length(z_vec)*factor, size(Q,3));
-                for t = 1:size(Q,3)
-                    F.Values = Q(:,:,t);
-                    Q_fine(:,:,t) = F({yq, zq});
-                end
-                Q = Q_fine;
             end
         end
         
