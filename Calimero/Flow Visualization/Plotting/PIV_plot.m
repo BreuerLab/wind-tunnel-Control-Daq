@@ -6,6 +6,8 @@ function h = PIV_plot(x, y, val_tr, params, ax)
     nlevels = 71;
     levels = linspace(params.clims(1), params.clims(2), nlevels);
     [~,h] = contourf(ax, x, y, val_tr, levels,'linestyle','none');
+    % imagesc(ax, x(:,1), y(1,:), val_tr')
+    % set(ax, 'YDir', 'normal'); % This is the crucial line
 
     % axis(ax, 'equal');
     % shading(ax, 'interp');

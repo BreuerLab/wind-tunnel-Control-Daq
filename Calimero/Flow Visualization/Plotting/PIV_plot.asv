@@ -1,46 +1,12 @@
 function h = PIV_plot(x, y, val_tr, params, ax)
-    %% Mirror data from right wing to show predicted left wing
-    if params.mirror
-    % Mirror in x-direction across y-axis at centerpoint of robot/ellipse
-    
-    % First trim data about center point
-    x_cen = -2.16;
-    
-    x_idx = find(x(:,1) > x_cen);  % columns
-    
-    x = x(x_idx, :);
-    y = y(x_idx, :);
-    val_tr = val_tr(x_idx,:,:);
-    
-    % shift axis so that min point is now considered as origin
-    x = x - min(x, [], "all");
-    
-    % Now reflect data
-    % x goes from positive to negative from left to right
-    x_add = flip(-x,1);
-    y_add = flip(y,1);
-    % flip only if C_phase_avg is streamwise vorticity
-    if params.cFlip
-        val_add = flip(-val_tr,1);
-    else
-        val_add = flip(val_tr,1);
-    end
-    Q_add = flip(Q_phase_avg,1);
-    
-    % trimming 2:end to exclude double counting of zero
-    x = [x_add(1:end-1, :); x];
-    y = [y_add(1:end-1,:); y];
-    C_phase_avg = [val_add(1:end-1,:,:); C_phase_avg];
-    Q_phase_avg = [Q_add(1:end-1,:,:); Q_phase_avg];
-    end
-
-    %%
     % Cap the data so it doesn't exceed clims
     val_tr(val_tr < params.clims(1)) = params.clims(1);
     val_tr(val_tr > params.clims(2)) = params.clims(2);
 
-    levels = linspace(params.clims(1), params.clims(2), 100);
+    nlevels = 71;
+    levels = linspace(params.clims(1), params.clims(2), nlevels);
     [~,h] = contourf(ax, x, y, val_tr, levels,'linestyle','none');
+    imagesc
 
     % axis(ax, 'equal');
     % shading(ax, 'interp');
@@ -59,12 +25,12 @@ function h = PIV_plot(x, y, val_tr, params, ax)
     % vort_scale = max(abs([min_vort max_vort]));
 
     if params.zero ~= 0 % freestream velocity plot
-        cb = colorbarpzn(ax, params.clims(1), params.clims(2), 'full', params.zero, 'dft', 'gwp','level',71);
+        cb = colorbarpzn(ax, params.clims(1), params.clims(2), 'full', params.zero, 'dft', 'gwp','level',nlevels);
     elseif params.clims(1) == 0 % uncertainty plots
         colormap(ax, jet);
         cb = colorbar(ax);
     else % vorticity plots
-        cb = colorbarpzn(ax, params.clims(1), params.clims(2),'level',71); % , 'level', 21
+        cb = colorbarpzn(ax, params.clims(1), params.clims(2),'level', nlevels); % , 'level', 21
     end
     ylabel(cb, params.cb_lab,'Interpreter','Latex','FontSize',18,'Rotation',0)
 end

@@ -57,6 +57,7 @@ properties
     mirror_bool;
     filter_bool;
     trim_bool;
+    interp_bool;
     num_cycles;
     cam;
 end
@@ -86,6 +87,7 @@ methods
         obj.filter_bool = false;
         obj.num_cycles = 1;
         obj.trim_bool = true;
+        obj.interp_bool = false;
 
         files = dir(obj.file_path + "*.mat");
 
@@ -242,7 +244,15 @@ methods
         b11.BackgroundColor = [0.3010 0.7450 0.9330];
         b11.ValueChangedFcn = @(src, event) trim_change(src, event, plot_panel);
 
-        button2_y = button11_y - 40;
+        button12_y = button11_y - 40;
+        b12 = uibutton(option_panel,"state");
+        b12.Text = "Interpolate";
+        b12.FontSize = 18;
+        b12.Position = [30 button12_y 120 unit_height];
+        b12.BackgroundColor = [1 1 1];
+        b12.ValueChangedFcn = @(src, event) interp_change(src, event, plot_panel);
+
+        button2_y = button12_y - 40;
         b2 = uibutton(option_panel,"state");
         b2.Text = "Mirror";
         b2.FontSize = 18;
@@ -474,6 +484,18 @@ methods
                 src.BackgroundColor = [0.3010 0.7450 0.9330];
             else
                 obj.trim_bool = false;
+                src.BackgroundColor = [1 1 1];
+            end
+
+            obj.update_plot(plot_panel);
+        end
+
+        function interp_change(src, ~, plot_panel)
+            if (src.Value)
+                obj.interp_bool = true;
+                src.BackgroundColor = [0.3010 0.7450 0.9330];
+            else
+                obj.interp_bool = false;
                 src.BackgroundColor = [1 1 1];
             end
 
@@ -715,11 +737,10 @@ methods (Access = private)
     
             params.cb_lab = obj.label_dict(obj.variable_name);
 
-            params.mirror = obj.mirror_bool;
             if any(contains(["v","ω_z","ω_x"],obj.variable_name))
-                params.cFlip = true;
+                cFlip = true;
             else
-                params.cFlip = false;
+                cFlip = false;
             end
 
             % Trim data
@@ -738,35 +759,58 @@ methods (Access = private)
             if obj.mirror_bool
                 % Mirror in x-direction across y-axis at centerpoint of robot/ellipse
 
-                % First trim data about center point
-                y_cen = -2.16;
+                % First trim data about center point 
+                y_cen = -2.55; % -2.16
                 
-                y_idx = find(y(:,1) > y_cen);  % columns
+                y_idx_m = find(y(:,1) > y_cen);  % columns
                 
-                y = y(y_idx, :);
-                z = z(y_idx, :);
-                val = val(x_idx,:,:);
+                y = y(y_idx_m, :);
+                z = z(y_idx_m, :);
+                val = val(y_idx_m,:,:);
                 
                 % shift axis so that min point is now considered as origin
                 y = y - min(y, [], "all");
                 
                 % Now reflect data
                 % x goes from positive to negative from left to right
-                y_add = flip(-y,1);
-                z_add = flip(z,1);
+                y_add = flip(-y(2:end,:),1);
+                z_add = flip(z(2:end,:),1);
                 % flip only if C_phase_avg is streamwise vorticity
-                if params.cFlip
-                    val_add = flip(-C_phase_avg,1);
+                if cFlip
+                    val_add = flip(-val(2:end,:,:),1);
                 else
-                    val_add = flip(C_phase_avg,1);
+                    val_add = flip(val(2:end,:,:),1);
                 end
-                Q_add = flip(Q_phase_avg,1);
                 
                 % trimming 2:end to exclude double counting of zero
-                y = [y_add(1:end-1, :); y];
-                z = [z_add(1:end-1,:); z];
-                C_phase_avg = [C_add(1:end-1,:,:); C_phase_avg];
-                Q_phase_avg = [Q_add(1:end-1,:,:); Q_phase_avg];
+                y = [y_add; y];
+                z = [z_add; z];
+                val = [val_add; val]; 
+            end
+
+            if obj.interp_bool
+                factor = 5;
+                
+                y_vec = y(:,1);
+                z_vec = z(1,:);
+
+                F = griddedInterpolant({y_vec, z_vec}, val(:,:,1), 'linear');
+
+                % Create finer grids
+                yq = linspace(min(y_vec), max(y_vec), length(y_vec)*factor);
+                zq = linspace(min(z_vec), max(z_vec), length(z_vec)*factor);
+                
+                val_fine = zeros(length(y_vec)*factor, length(z_vec)*factor, size(val,3));
+                % Interpolate onto fine grid
+                for t = 1:size(val,3)
+                    val_fine(:,:,t) = F({yq, zq});
+                end
+
+                [Yq, Zq] = ndgrid(yq, zq);
+
+                y = Yq;
+                z = Zq;
+                val = val_fine;
             end
         end
 
@@ -776,6 +820,21 @@ methods (Access = private)
 
             if obj.trim_bool
                 Q = Q(y_idx,z_idx,:);
+            end
+            if obj.mirror_bool
+                Q = Q(y_idx_m,:,:);
+                Q_add = flip(Q,1);
+                Q = [Q_add; Q];
+            end
+            if obj.interp_bool
+                % Interpolate onto fine grid
+                F = griddedInterpolant({y_vec, z_vec}, Q(:,:,1), 'linear');
+
+                Q_fine = zeros(length(y_vec)*factor, length(z_vec)*factor, size(Q,3));
+                for t = 1:size(Q,3)
+                    Q_fine(:,:,t) = F({yq, zq});
+                end
+                Q = Q_fine;
             end
         end
         
