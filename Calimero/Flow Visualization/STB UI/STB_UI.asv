@@ -56,7 +56,6 @@ properties
     iso_var_list;
     mirror_bool;
     filter_bool;
-    trim_bool;
     num_cycles;
     cam;
 end
@@ -85,7 +84,6 @@ methods
         obj.mirror_bool = false;
         obj.filter_bool = false;
         obj.num_cycles = 1;
-        obj.trim_bool = true;
 
         files = dir(obj.file_path + "*.mat");
 
@@ -233,14 +231,13 @@ methods
         % s.MinorTicks = [-14.5 -13 -11:1:-9 -7.5:0.5:-4.5 -3.5:0.5:-0.5 0.5:0.5:3.5 4.5:0.5:7.5 9:1:11 13 14.5];
         obj.clim_slider.ValueChangedFcn = @(src, event) clim_change(src, event, plot_panel);
 
-        button11_y = clim_y - 70;
-        b11 = uibutton(option_panel,"state");
-        b11.Value = true;
+        button11_y = drop_y3 - 35;
+        b11 = uibutton(plot_panel,"state");
         b11.Text = "Trim";
         b11.FontSize = 18;
         b11.Position = [30 button11_y 120 unit_height];
-        b11.BackgroundColor = [0.3010 0.7450 0.9330];
-        b11.ValueChangedFcn = @(src, event) trim_change(src, event, plot_panel);
+        b11.BackgroundColor = [1 1 1];
+        b11.ValueChangedFcn = @(src, event) playStop_change(src, event, plot_panel);
 
         panel_width = plot_panel.Position(3);
         s_w = panel_width * (3/4);
@@ -462,19 +459,6 @@ methods
                 obj.play = false;
                 src.BackgroundColor = [1 1 1];
                 src.Text = "Play";
-            end
-
-            obj.update_plot(plot_panel);
-        end
-
-        % User pressed normalization button
-        function trim_change(src, ~, plot_panel)
-            if (src.Value)
-                obj.trim_bool = true;
-                src.BackgroundColor = [0.3010 0.7450 0.9330];
-            else
-                obj.trim_bool = false;
-                src.BackgroundColor = [1 1 1];
             end
 
             obj.update_plot(plot_panel);
@@ -711,27 +695,11 @@ methods (Access = private)
             end
     
             params.cb_lab = obj.label_dict(obj.variable_name);
-
-            if obj.trim_bool
-                ybounds = [-2.7 2.45]; % roughly -0.15 to 0.15 meters
-                zbounds = [-2.36 2.55]; % roughly -0.2 to 0.2 meters
-                
-                y_idx = find(y(:,1) > ybounds(1) & y(:,1) < ybounds(2));  % columns
-                z_idx = find(z(1,:) > zbounds(1) & z(1,:) < zbounds(2));  % rows
-                
-                y = y(y_idx, z_idx);
-                z = z(y_idx, z_idx);
-                val = val(y_idx,z_idx,:);
-            end
         end
 
         if plot_idx == 3
             Q = d.(iso_var_name);
             Q = squeeze(Q(3,:,:,:));
-
-            if obj.trim_bool
-                Q = Q(y_idx,z_idx,:);
-            end
         end
         
         % Make axes for plot
