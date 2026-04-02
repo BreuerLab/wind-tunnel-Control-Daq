@@ -1,9 +1,10 @@
 function h = PIV_plot(x, y, val_tr, params, ax)
-    % 1. Cap the data so it doesn't exceed clims
+    % Cap the data so it doesn't exceed clims
     val_tr(val_tr < params.clims(1)) = params.clims(1);
     val_tr(val_tr > params.clims(2)) = params.clims(2);
 
-    levels = linspace(params.clims(1), params.clims(2), 100);
+    nlevels = 71;
+    levels = linspace(params.clims(1), params.clims(2), nlevels);
     [~,h] = contourf(ax, x, y, val_tr, levels,'linestyle','none');
 
     % axis(ax, 'equal');
@@ -23,12 +24,12 @@ function h = PIV_plot(x, y, val_tr, params, ax)
     % vort_scale = max(abs([min_vort max_vort]));
 
     if params.zero ~= 0 % freestream velocity plot
-        cb = colorbarpzn(ax, params.clims(1), params.clims(2), 'full', params.zero, 'dft', 'gwp','level',71);
+        cb = colorbarpzn(ax, params.clims(1), params.clims(2), 'full', params.zero, 'dft', 'gwp','level',nlevels);
     elseif params.clims(1) == 0 % uncertainty plots
         colormap(ax, jet);
         cb = colorbar(ax);
     else % vorticity plots
-        cb = colorbarpzn(ax, params.clims(1), params.clims(2),'level',71); % , 'level', 21
+        cb = colorbarpzn(ax, params.clims(1), params.clims(2),'level', nlevels); % , 'level', 21
     end
     ylabel(cb, params.cb_lab,'Interpreter','Latex','FontSize',18,'Rotation',0)
 end

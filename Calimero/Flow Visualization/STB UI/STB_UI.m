@@ -242,6 +242,14 @@ methods
         b11.BackgroundColor = [0.3010 0.7450 0.9330];
         b11.ValueChangedFcn = @(src, event) trim_change(src, event, plot_panel);
 
+        button2_y = button11_y - 40;
+        b2 = uibutton(option_panel,"state");
+        b2.Text = "Mirror";
+        b2.FontSize = 18;
+        b2.Position = [30 button2_y 120 unit_height];
+        b2.BackgroundColor = [1 1 1];
+        b2.ValueChangedFcn = @(src, event) mirror_change(src, event, plot_panel);
+
         panel_width = plot_panel.Position(3);
         s_w = panel_width * (3/4);
         s_x = (panel_width - s_w)/2; % end of right monitor around 1690
@@ -298,15 +306,7 @@ methods
         d4.Value = obj.iso_var;
         d4.ValueChangedFcn = @(src, event) iso_var_change(src, event, plot_panel);
 
-        button2_y = drop_y4 - 40;
-        b2 = uibutton(obj.param_panel,"state");
-        b2.Text = "Mirror";
-        % b2.FontSize = 14;
-        b2.Position = [30 button2_y 120 unit_height];
-        b2.BackgroundColor = [1 1 1];
-        b2.ValueChangedFcn = @(src, event) mirror_change(src, event, plot_panel);
-
-        button3_y = button2_y - 35;
+        button3_y = drop_y4 - 35;
         b3 = uibutton(obj.param_panel,"state");
         b3.Text = "Filter";
         % b2.FontSize = 14;
@@ -700,6 +700,9 @@ methods (Access = private)
             y = squeeze(d.y(3,:,:));
             z = squeeze(d.z(3,:,:));
             val = squeeze(val(3,:,:,:));
+
+            % Add values to params
+
             params.U = d.U;
 
             if min(obj.clims(var_idx,:)) < -1
@@ -712,6 +715,13 @@ methods (Access = private)
     
             params.cb_lab = obj.label_dict(obj.variable_name);
 
+            if any(contains(["v","ω_z","ω_x"],obj.variable_name))
+                cFlip = true;
+            else
+                cFlip = false;
+            end
+
+            % Trim data
             if obj.trim_bool
                 ybounds = [-2.7 2.45]; % roughly -0.15 to 0.15 meters
                 zbounds = [-2.36 2.55]; % roughly -0.2 to 0.2 meters
@@ -723,6 +733,42 @@ methods (Access = private)
                 z = z(y_idx, z_idx);
                 val = val(y_idx,z_idx,:);
             end
+            % Mirror data
+            if obj.mirror_bool
+                % Mirror in x-direction across y-axis at centerpoint of robot/ellipse
+
+                % First trim data about center point 
+                y_cen = -2.55; % -2.16
+                
+                y_idx_m = find(y(:,1) > y_cen);  % columns
+                
+                y = y(y_idx_m, :);
+                z = z(y_idx_m, :);
+                val = val(y_idx_m,:,:);
+                
+                % shift axis so that min point is now considered as origin
+                % dy added so it can be mirrored about zero,
+                % otherwise would have to trim off one of double zeros
+                % which results in discontinuous values for "val"
+                dy = y(2,1) - y(1,1);
+                y = y - min(y, [], "all") + dy/2;
+                
+                % Now reflect data
+                % x goes from positive to negative from left to right
+                y_add = flip(-y,1);
+                z_add = flip(z,1);
+                % flip only if C_phase_avg is streamwise vorticity
+                if cFlip
+                    val_add = flip(-val,1);
+                else
+                    val_add = flip(val,1);
+                end
+                
+                % trimming 2:end to exclude double counting of zero
+                y = [y_add; y];
+                z = [z_add; z];
+                val = [val_add; val];
+            end
         end
 
         if plot_idx == 3
@@ -731,6 +777,11 @@ methods (Access = private)
 
             if obj.trim_bool
                 Q = Q(y_idx,z_idx,:);
+            end
+            if obj.mirror_bool
+                Q = Q(y_idx_m,:,:);
+                Q_add = flip(Q,1);
+                Q = [Q_add; Q];
             end
         end
         
@@ -744,8 +795,7 @@ methods (Access = private)
             params.clims = obj.clims(var_idx,:);
 
             mean_val = mean(val,3);
-            % PIV_plot(x, y, mean_val, params, ax);
-            PIV_plot(y, z, mean_val, params, ax); % new 3/19
+            PIV_plot(y, z, mean_val, params, ax);
         elseif plot_idx == 2
 
         % params.title = "Spanwise velocity - Average";
@@ -755,27 +805,27 @@ methods (Access = private)
         h = PIV_plot(y, z, val_tr, params, ax);
         t = title(ax, ["Bin number: " + obj.frame_ind], FontSize=18);
 
-            while obj.play && (obj.frame_ind < obj.num_bins)
-                obj.frame_ind = obj.frame_ind + 1;
-                obj.slider.Value = obj.frame_ind;
+        while obj.play && (obj.frame_ind < obj.num_bins)
+            obj.frame_ind = obj.frame_ind + 1;
+            obj.slider.Value = obj.frame_ind;
 
-                % 1. Cap the data so it doesn't exceed clims
-                tmp_data = val(:,:,obj.frame_ind);
-                tmp_data(tmp_data < params.clims(1)) = params.clims(1);
-                tmp_data(tmp_data > params.clims(2)) = params.clims(2);
-        
-                % UPDATE the existing objects instead of recreating them
-                set(h, 'ZData', tmp_data); 
-                set(t, 'String', ["Bin number: " + obj.frame_ind]);
-        
-                drawnow;
+            % 1. Cap the data so it doesn't exceed clims
+            tmp_data = val(:,:,obj.frame_ind);
+            tmp_data(tmp_data < params.clims(1)) = params.clims(1);
+            tmp_data(tmp_data > params.clims(2)) = params.clims(2);
+    
+            % UPDATE the existing objects instead of recreating them
+            set(h, 'ZData', tmp_data); 
+            set(t, 'String', ["Bin number: " + obj.frame_ind]);
+    
+            drawnow;
 
-                pause(0.05);
+            pause(0.05);
 
-                if obj.frame_ind == obj.num_bins
-                obj.frame_ind = 0; % reset for next loop iteration
-                end
+            if obj.frame_ind == obj.num_bins
+            obj.frame_ind = 0; % reset for next loop iteration
             end
+        end
         elseif plot_idx == 3
             params.num_bins = d.num_bins;
             params.clims = obj.clims(var_idx,:);
@@ -783,15 +833,7 @@ methods (Access = private)
             params.L = d.L;
             params.shift = obj.frame_ind - 1;
             params.isoValue = obj.iso_val; % 0.05
-            params.mirror = obj.mirror_bool;
             params.num_cycles = obj.num_cycles;
-
-            % "u","ω_y","ω_z"
-            if any(contains(["v","ω_z","ω_x"],obj.variable_name))
-                params.cFlip = true;
-            else
-                params.cFlip = false;
-            end
 
             if obj.filter_bool
                 % median filter approach
