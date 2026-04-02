@@ -35,7 +35,7 @@ data_path = "F:\Final Force Data";
 % b.dynamic_plotting();
 
 % Sets up UI for comparing stability slope
-monitor_num = 2;
+monitor_num = 1;
 data_path = "F:\Final Force Data";
 c = compareStabilityUI(monitor_num, data_path);
 c.dynamic_plotting();

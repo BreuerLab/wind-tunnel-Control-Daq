@@ -1,7 +1,7 @@
-function [x, y, z, u, v, w, Utot, vortX, vortY, vortZ, vortTot, uncU, uncV, uncW, uncTot] = import_STB_data(file_path, nondim_bool, U, L, sel_frames)
+function [x, y, z, u, v, w, Utot, vortX, vortY, vortZ, vortTot, uncU, uncV, uncW, uncTot] = ...
+    import_STB_data(file_path, nondim_bool, U, L, sel_frames, RPCA_bool)
 D = loadpiv(file_path,"extractAllVariables","frameSelect",sel_frames); % "Validate", minCorrelationValue
 
-RPCA_bool = false;
 if RPCA_bool
 % RPCA filtering for velocities only near plane of interest
 % 1. Filter uRaw

@@ -21,10 +21,14 @@ function h = PIV_plot(x, y, val_tr, params, ax)
     % min_vort = min(vort_phase_avg,[],'all');
     % max_vort = max(vort_phase_avg,[],'all');
     % vort_scale = max(abs([min_vort max_vort]));
-    if params.zero ~= 0
-    cb = colorbarpzn(ax, params.clims(1), params.clims(2), 'full', params.zero, 'dft', 'gwp','level',71);
-    else
-    cb = colorbarpzn(ax, params.clims(1), params.clims(2),'level',71); % , 'level', 21
+
+    if params.zero ~= 0 % freestream velocity plot
+        cb = colorbarpzn(ax, params.clims(1), params.clims(2), 'full', params.zero, 'dft', 'gwp','level',71);
+    elseif params.clims(1) == 0 % uncertainty plots
+        colormap(ax, jet);
+        cb = colorbar(ax);
+    else % vorticity plots
+        cb = colorbarpzn(ax, params.clims(1), params.clims(2),'level',71); % , 'level', 21
     end
     ylabel(cb, params.cb_lab,'Interpreter','Latex','FontSize',18,'Rotation',0)
 end

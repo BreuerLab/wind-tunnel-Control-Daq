@@ -1,6 +1,7 @@
 function S = phase_avg_STB(file_path, nondim_bool, U, L, save_filepath_local, PIV_case_name, turbine_bool)
 tic
 
+RPCA_bool = false;
 num_images = 2500;
 disp("Assuming num images = " + num_images)
 % get bin number associated with each frame from DAQ measurements
@@ -22,7 +23,7 @@ for i = 1:num_bins
   
 
     % Import data (using a temporary struct or list)
-    [x, y, z, data{1:12}] = import_STB_data(file_path, nondim_bool, U, L, bin_indices);
+    [x, y, z, data{1:12}] = import_STB_data(file_path, nondim_bool, U, L, bin_indices, RPCA_bool);
         
     if i == 1
         % Initialize structure with zeros based on first file size
@@ -91,7 +92,13 @@ if ~turbine_bool
 end
 
 % Save the entire structure
-save_path = fullfile(save_filepath_local, [PIV_case_name, '_RPCA_phase_avg.mat']);
+if RPCA_bool
+    save_filename = [PIV_case_name, '_RPCA_phase_avg.mat'];
+else
+    save_filename = [PIV_case_name, '_phase_avg.mat'];
+end
+save_path = fullfile(save_filepath_local, save_filename);
+% _RPCA
 disp("Saving data to: " + save_path)
 save(save_path, '-struct', 'S');
 

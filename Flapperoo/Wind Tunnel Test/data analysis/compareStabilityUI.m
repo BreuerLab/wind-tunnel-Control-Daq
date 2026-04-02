@@ -771,7 +771,8 @@ methods (Access = private)
             norm_factors_filename = compareStabilityUI.get_norm_factors_name(norm_factors_path, cur_struct_match.dir_name);
 
             cur_file = norm_factors_path + norm_factors_filename;
-            disp("Loading " + cur_file)
+            disp("Loading norm factors from: ")
+            disp(cur_file)
             load(cur_file, "norm_factors")
 
             % Also strip norm from filename as we want to hand
@@ -792,6 +793,10 @@ methods (Access = private)
             load(cur_file, "avg_forces", "err_forces")
             lim_avg_forces = avg_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
             lim_err_forces = err_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
+            
+            % rescale error for gliding case, by using standard error of
+            % 180 chunks of signal (analagous to 180 wingbeats)
+            lim_err_forces(:,:,1) = lim_err_forces(:,:,1) / sqrt(180);
 
             if cur_bird.name == "Flapperoo"
                 if (wind_speed == 6)
