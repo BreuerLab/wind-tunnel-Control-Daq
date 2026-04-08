@@ -31,7 +31,8 @@ for i = 1:length(STB_files)
     selections(i,2) = amp;
     selections(i,3) = freq;
 
-    var_name = "lift";
+    % var_name = "lift";
+    var_name = "drag";
     d = load(STB_path + name + "_phase_avg.mat", var_name);
     var = d.(var_name);
 

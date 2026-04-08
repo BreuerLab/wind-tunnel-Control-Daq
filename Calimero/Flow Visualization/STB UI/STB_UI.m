@@ -738,7 +738,7 @@ methods (Access = private)
                 % Mirror in x-direction across y-axis at centerpoint of robot/ellipse
 
                 % First trim data about center point 
-                y_cen = -2.55; % -2.16
+                y_cen = -2.26; % -2.16, 2.55
                 
                 y_idx_m = find(y(:,1) > y_cen);  % columns
                 

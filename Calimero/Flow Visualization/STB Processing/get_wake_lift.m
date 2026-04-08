@@ -46,17 +46,17 @@ function [lift_vel, lift, drag_vel, drag] = get_wake_lift(U, L, y, z, S, avg_typ
 
     switch avg_type
         case 0
-            u = squeeze(u(x_ind, y_idx, :)) * U;
-            w = squeeze(w(x_ind, y_idx, :)) * U;
-            vortX = squeeze(vortX(x_ind, y_idx, :)) * (U/L);
-            vortY = squeeze(vortY(x_ind, y_idx, :)) * (U/L);
-            vortZ = squeeze(vortZ(x_ind, y_idx, :)) * (U/L);
+            u = squeeze(u(x_ind, y_idx, :));
+            w = squeeze(w(x_ind, y_idx, :));
+            vortX = squeeze(vortX(x_ind, y_idx, :));
+            vortY = squeeze(vortY(x_ind, y_idx, :));
+            vortZ = squeeze(vortZ(x_ind, y_idx, :));
         case 1
-            u = squeeze(u(x_ind, y_idx, :, :)) * U;
-            w = squeeze(w(x_ind, y_idx, :, :)) * U;
-            vortX = squeeze(vortX(x_ind, y_idx, :, :)) * (U/L);
-            vortY = squeeze(vortY(x_ind, y_idx, :, :)) * (U/L);
-            vortZ = squeeze(vortZ(x_ind, y_idx, :, :)) * (U/L);
+            u = squeeze(u(x_ind, y_idx, :, :));
+            w = squeeze(w(x_ind, y_idx, :, :));
+            vortX = squeeze(vortX(x_ind, y_idx, :, :));
+            vortY = squeeze(vortY(x_ind, y_idx, :, :));
+            vortZ = squeeze(vortZ(x_ind, y_idx, :, :));
     end
 
     % in my reference frame right wing produces positive vorticity, but

@@ -98,6 +98,10 @@ for i = 1:length(f_U)
     p.Color = interp1(zmap, cmap, f_U(i));
 end
 
+figure
+y = (1 - besselj(0, z)) ./ (besselj(1, z) .* z);
+plot(z,y)
+
 % Plot flapping number for data
 f = figure;
 f.Position = [100 100 800 600];

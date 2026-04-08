@@ -1,4 +1,4 @@
-function [x, y, z, u, v, w, Utot, vortX, vortY, vortZ, vortTot, uncU, uncV, uncW, uncTot] = ...
+function [x, y, z, u, v, w, Utot, vortX, vortY, vortZ, vortTot, uncU, uncV, uncW, uncTot, hel] = ...
     import_STB_data(file_path, nondim_bool, U, L, sel_frames, RPCA_bool)
 D = loadpiv(file_path,"extractAllVariables","frameSelect",sel_frames); % "Validate", minCorrelationValue
 
@@ -106,6 +106,8 @@ end
 Utot = (u.^2 + v.^2 + w.^2).^(1/2);
 vortTot = (vortX.^2 + vortY.^2 + vortZ.^2).^(1/2);
 uncTot = (uncU.^2 + uncV.^2 + uncW.^2).^(1/2);
+hel = (u .* vortX) + (v .* vortY) + (w .* vortZ);
+hel = hel ./ (vortTot .* Utot);
 
 fin_W = round((max(x,[],"all") - min(x,[],"all")) * L * 100);
 fin_L = round((max(y,[],"all") - min(y,[],"all")) * L * 100);
