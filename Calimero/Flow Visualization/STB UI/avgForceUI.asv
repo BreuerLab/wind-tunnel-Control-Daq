@@ -20,6 +20,7 @@ properties
 
     % boolean, normalization/non-dimensionalization on or off
     norm;
+    x_norm;
     % boolean, normalization for x-axis (divided by period)
     norm_period;
     % boolean, move pitch moment from center of transducer to LE
@@ -157,12 +158,28 @@ methods
 
         button4_y = drop_y4 - (unit_height + unit_spacing);
         b4 = uibutton(option_panel, "state");
-        b4.Text = "Show Force";
+        b4.Text = "Show PIV";
+        b4.Value = true;
         b4.FontSize = 18;
         b4.Position = [20 button4_y 160 unit_height];
-        b4.BackgroundColor = [1 1 1];
-        b4.ValueChangedFcn = @(src, event) force_bool_change(src, event, plot_panel);
-        
+        b4.BackgroundColor = [0.3010 0.7450 0.9330];
+        b4.ValueChangedFcn = @(src, event) PIV_bool_change(src, event, plot_panel);
+
+        button5_y = button4_y - (unit_height + unit_spacing);
+        b5 = uibutton(option_panel, "state");
+        b5.Text = "Show Force";
+        b5.FontSize = 18;
+        b5.Position = [20 button5_y 160 unit_height];
+        b5.BackgroundColor = [1 1 1];
+        b5.ValueChangedFcn = @(src, event) force_bool_change(src, event, plot_panel);
+
+        button6_y = button4_y - (unit_height + unit_spacing);
+        b6 = uibutton(option_panel, "state");
+        b6.Text = "Normalize X-axis";
+        b6.FontSize = 18;
+        b6.Position = [20 button6_y 160 unit_height];
+        b6.BackgroundColor = [1 1 1];
+        b6.ValueChangedFcn = @(src, event) x_norm_change(src, event, plot_panel);
 
         % Set up plot titles and axes
         obj.update_plot(plot_panel);
@@ -183,7 +200,35 @@ methods
         obj.update_plot(plot_panel);
     end
 
+    function PIV_bool_change(src, ~, plot_panel)
+        if (src.Value)
+            obj.PIV_bool = true;
+            src.BackgroundColor = [0.3010 0.7450 0.9330];
+            src.Text = "Hide PIV";
+        else
+            obj.PIV_bool = false;
+            src.BackgroundColor = [1 1 1];
+            src.Text = "Show PIV";
+        end
+
+        obj.update_plot(plot_panel);
+    end
+
     function force_bool_change(src, ~, plot_panel)
+        if (src.Value)
+            obj.force_bool = true;
+            src.BackgroundColor = [0.3010 0.7450 0.9330];
+            src.Text = "Hide Force";
+        else
+            obj.force_bool = false;
+            src.BackgroundColor = [1 1 1];
+            src.Text = "Show Force";
+        end
+
+        obj.update_plot(plot_panel);
+    end
+
+    function x_norm_change(src, ~, plot_panel)
         if (src.Value)
             obj.force_bool = true;
             src.BackgroundColor = [0.3010 0.7450 0.9330];
@@ -287,13 +332,17 @@ methods (Access = private)
                 
             end
 
+            Sts = freqToSt(freqs, 4, amp);
+            x_var = Sts;
+            % x_var = freqs;
+
             if obj.PIV_bool
-                s1 = scatter(ax, freqs, forces(1,:), 40, "filled");
+                s1 = scatter(ax, x_var, forces(1,:), 40, "filled");
                 s1.MarkerFaceColor = original_color;
                 s1.DisplayName = amp + " deg";
             end
             if obj.force_bool
-                s2 = scatter(ax, freqs, forces(2,:), 50,"filled");
+                s2 = scatter(ax, x_var, forces(2,:), 75,"filled");
                 s2.Marker = "p";
                 s2.MarkerFaceColor = original_color;
             end

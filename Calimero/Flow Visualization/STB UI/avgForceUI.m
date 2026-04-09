@@ -20,6 +20,7 @@ properties
 
     % boolean, normalization/non-dimensionalization on or off
     norm;
+    x_norm;
     % boolean, normalization for x-axis (divided by period)
     norm_period;
     % boolean, move pitch moment from center of transducer to LE
@@ -77,6 +78,7 @@ methods
         obj.filt_num = 3;
         obj.saveFig = false;
 
+        obj.x_norm = false;
         obj.force_bool = false;
         obj.PIV_bool = true;
         obj.force_var = "lift";
@@ -172,6 +174,14 @@ methods
         b5.BackgroundColor = [1 1 1];
         b5.ValueChangedFcn = @(src, event) force_bool_change(src, event, plot_panel);
 
+        button6_y = button5_y - (unit_height + unit_spacing);
+        b6 = uibutton(option_panel, "state");
+        b6.Text = "Normalize X-axis";
+        b6.FontSize = 18;
+        b6.Position = [20 button6_y 160 unit_height];
+        b6.BackgroundColor = [1 1 1];
+        b6.ValueChangedFcn = @(src, event) x_norm_change(src, event, plot_panel);
+
         % Set up plot titles and axes
         obj.update_plot(plot_panel);
 
@@ -214,6 +224,18 @@ methods
             obj.force_bool = false;
             src.BackgroundColor = [1 1 1];
             src.Text = "Show Force";
+        end
+
+        obj.update_plot(plot_panel);
+    end
+
+    function x_norm_change(src, ~, plot_panel)
+        if (src.Value)
+            obj.x_norm = true;
+            src.BackgroundColor = [0.3010 0.7450 0.9330];
+        else
+            obj.x_norm = false;
+            src.BackgroundColor = [1 1 1];
         end
 
         obj.update_plot(plot_panel);
@@ -309,9 +331,13 @@ methods (Access = private)
                 
             end
 
-            Sts = freqToSt(freqs, 4, amp);
-            x_var = Sts;
-            % x_var = freqs;
+            % x-axis is either wingbeat frequency or Strouhal number
+            if obj.x_norm
+                Sts = freqToSt(freqs, 4, amp);
+                x_var = Sts;
+            else
+                x_var = freqs;
+            end
 
             if obj.PIV_bool
                 s1 = scatter(ax, x_var, forces(1,:), 40, "filled");
