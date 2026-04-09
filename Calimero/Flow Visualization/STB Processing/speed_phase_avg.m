@@ -1,5 +1,5 @@
 function [norm_time_speed, phase_avg_speed, phase_std_speed, bin_count_speed, bin_std_speed,...
-    phase_avg_volt, phase_std_volt, phase_avg_cur, phase_std_cur] = speed_phase_avg(PIV_case_name)
+    phase_avg_volt, phase_std_volt, phase_avg_cur, phase_std_cur] = speed_phase_avg(PIV_case_name, plot_bool)
 
 [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name);
 
@@ -89,6 +89,7 @@ end
 
 norm_time_speed = linspace(0,1,num_bins_speed);
 
+if plot_bool
 figure
 bar(bin_count_speed)
 xlabel("Bin number", FontSize=16)
@@ -148,7 +149,7 @@ l.LineWidth = 2;
 yline(mean(volt_tr),LineWidth=2)
 
 xlabel("Time over a wingbeat (t/T)")
-ylabel("Speed (Hz)")
+ylabel("Voltage (V)")
 
 %% Plot phase averaged current
 lower_results = phase_avg_cur - phase_std_cur;
@@ -171,5 +172,6 @@ l.LineWidth = 2;
 yline(mean(cur_tr),LineWidth=2)
 
 xlabel("Time over a wingbeat (t/T)")
-ylabel("Speed (Hz)")
+ylabel("Current (mA)")
+end
 end

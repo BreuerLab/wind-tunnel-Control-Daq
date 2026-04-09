@@ -13,7 +13,7 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 
 % Want to know what case names are available?
 % Call "  case_names = get_case_names();  "
-PIV_case_name = 'UP_two_flexible_10deg_2Hz';
+PIV_case_name = 'flexible_20deg_6Hz';
 % PIV_case_name = 'ring';
 
 save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
@@ -25,6 +25,9 @@ nondim_bool = true; % non-dimensionalize data
 
 % If you want to make plots here, you can. However, it is NOT recommended.
 % Intead, use main_analysis to produce plots easily in a GUI interface.
+PIV_plot_bool = false;
+
+% Plot bin histograms, speed, current, voltage (small overhead, quick)
 plot_bool = false;
 
 circ_plot_bool = false;
@@ -61,16 +64,16 @@ switch avg_type
         num_files = 1000; % TEMPORARY LINE ---- DELETE
         S = time_avg_STB(file_path, nondim_bool, U, L, num_files, save_filepath_local, PIV_case_name);
         
-        if plot_bool
+        if PIV_plot_bool
             time_avg_plots(S);
         end
     case 1
         disp("Phase Average: Loading file: " + file_path)
         tic
-        S = phase_avg_STB(file_path, nondim_bool, U, L, save_filepath_local, PIV_case_name, turbine_bool);
+        S = phase_avg_STB(file_path, nondim_bool, U, L, save_filepath_local, PIV_case_name, turbine_bool, plot_bool);
         toc
 
-        if plot_bool
+        if PIV_plot_bool
             error("Plotting phase averaged results not currently supported")
             phase_avg_plots(S);
         end

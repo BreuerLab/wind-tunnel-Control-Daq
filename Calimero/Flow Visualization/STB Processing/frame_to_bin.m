@@ -1,4 +1,5 @@
-function [norm_signal, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_freq] = frame_to_bin(PIV_case_name, num_images, turbine_bool)
+function [norm_signal, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_freq] ...
+    = frame_to_bin(PIV_case_name, num_images, turbine_bool, plot_bool)
 
 [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name);
 
@@ -148,6 +149,7 @@ disp("Expected number of cycles: " + num_images / (200 / cycle_freq))
 
 end
 
+if plot_bool
 figure
 histogram(tick_frame_pos, full_cycle)
 xlabel("Encoder Ticks")
@@ -162,4 +164,5 @@ figure
 bar(bin_std)
 xlabel("Bin number", FontSize=16)
 ylabel("Phase variability per bin (% cycle)", FontSize=16)
+end
 end

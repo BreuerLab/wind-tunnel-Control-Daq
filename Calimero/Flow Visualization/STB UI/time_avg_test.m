@@ -31,8 +31,8 @@ for i = 1:length(STB_files)
     selections(i,2) = amp;
     selections(i,3) = freq;
 
-    % var_name = "lift";
-    var_name = "drag";
+    var_name = "drag_vel";
+    % var_name = "drag";
     d = load(STB_path + name + "_phase_avg.mat", var_name);
     var = d.(var_name);
 
@@ -91,7 +91,8 @@ amp_30 = selections(selections(:,2) == 30,:);
 
 cmap = colororder();
 sz = 40;
-figure
+f = figure;
+f.Position = [100 100 800 600];
 hold on
 scatter(amp_10(:,3), amp_10(:,4),sz,cmap(1,:),"filled", DisplayName="10 deg")
 scatter(amp_20(:,3), amp_20(:,4),sz,cmap(2,:),"filled", DisplayName="20 deg")

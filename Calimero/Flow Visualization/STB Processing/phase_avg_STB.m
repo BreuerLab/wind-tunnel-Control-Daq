@@ -1,4 +1,4 @@
-function S = phase_avg_STB(file_path, nondim_bool, U, L, save_filepath_local, PIV_case_name, turbine_bool)
+function S = phase_avg_STB(file_path, nondim_bool, U, L, save_filepath_local, PIV_case_name, turbine_bool, plot_bool)
 tic
 
 RPCA_bool = false;
@@ -6,7 +6,7 @@ num_images = 2500;
 disp("Assuming num images = " + num_images)
 % get bin number associated with each frame from DAQ measurements
 [norm_frame_pos, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_freq]...
-    = frame_to_bin(PIV_case_name, num_images, turbine_bool);
+    = frame_to_bin(PIV_case_name, num_images, turbine_bool, plot_bool);
 
 bin_count = zeros(1,num_bins);
 bin_std = zeros(1,num_bins);
@@ -81,7 +81,7 @@ S.lift = lift; S.drag = drag; S.lift_vel = lift_vel; S.drag_vel = drag_vel;
 if ~turbine_bool
     % Calculate phase averaged speed
     [norm_time_speed, phase_avg_speed, phase_std_speed, bin_count_speed, bin_std_speed,...
-     phase_avg_volt, phase_std_volt, phase_avg_cur, phase_std_cur] = speed_phase_avg(PIV_case_name);
+     phase_avg_volt, phase_std_volt, phase_avg_cur, phase_std_cur] = speed_phase_avg(PIV_case_name, plot_bool);
 
     S.norm_time_speed = norm_time_speed; S.phase_avg_speed = phase_avg_speed;
     S.phase_std_speed = phase_std_speed; S.bin_count_speed = bin_count_speed;
@@ -93,9 +93,9 @@ end
 
 % Save the entire structure
 if RPCA_bool
-    save_filename = [PIV_case_name, '_RPCA_phase_avg.mat'];
+    save_filename = PIV_case_name + "_RPCA_phase_avg.mat";
 else
-    save_filename = [PIV_case_name, '_phase_avg.mat'];
+    save_filename = PIV_case_name + "_phase_avg.mat";
 end
 save_path = fullfile(save_filepath_local, save_filename);
 % _RPCA

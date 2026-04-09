@@ -1,15 +1,13 @@
-function case_names = get_case_names()
-    case_names = {
-            'UP_two_flexible_20deg_6Hz'
-            'UP_one_flexible_20deg_2Hz'
-            'UP_one_flexible_20deg_6Hz'
-            'UP_one_flexible_30deg_2Hz'
-            'flexible_10deg_6Hz'
-            'flexible_20deg_2Hz'
-            'flexible_20deg_6Hz'
-            'flexible_20deg_8Hz'
-            'flexible_30deg_6Hz'
-            'turbine'
-            'turbine_ext'
-        };
+function case_names = get_case_names(path)
+    files = dir(path);
+
+    % Extract just the names
+    names = {files.name};
+
+    % Create full paths to check accurately
+    fullPaths = fullfile(path, names);
+
+    % Filter: Must be a folder AND not '.' or '..'
+    folders = names(isfolder(fullPaths) & ~ismember(names, {'.', '..'}));
+    case_names = string(folders);
 end
