@@ -10,9 +10,13 @@ data_file_path = "Y:\Processed Results\";
 % data_file_path = "/Volumes/ENG_Breuer_Shared/group/Ronan/STB Analysis/Processed Results/";
 
 % Set up basic UI as demo for this kind of tool
-c = STB_UI(1,data_file_path);
-c.dynamic_plotting();
+% c = STB_UI(1,data_file_path);
+% c.dynamic_plotting();
 
 % Set up basic UI as demo for this kind of tool
 % a = compareWingbeatUI(1,data_file_path);
 % a.dynamic_plotting();
+
+data_file_path = "Y:\";
+b = avgForceUI(1, data_file_path);
+b.dynamic_plotting();

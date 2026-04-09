@@ -13,17 +13,16 @@ bin_std = zeros(1,num_bins);
 
 % Define the field names we want to average (must be same order as
 % import_STB)
-fields = {'u', 'v', 'w', 'Utot', 'vortX', 'vortY', 'vortZ', 'vortTot', 'uncU', 'uncV', 'uncW', 'uncTot'};
+fields = {'u', 'v', 'w', 'Utot', 'vortX', 'vortY', 'vortZ', 'vortTot', 'uncU', 'uncV', 'uncW', 'uncTot', 'hel'};
 
 for i = 1:num_bins
     bin_indices = find(bin_ind_arr == i);
     % bin_indices_all{i} = bin_indices;
     bin_count(i) = length(bin_indices);
     bin_std(i) = std(norm_frame_pos(bin_indices))*100;
-  
 
     % Import data (using a temporary struct or list)
-    [x, y, z, data{1:12}] = import_STB_data(file_path, nondim_bool, U, L, bin_indices, RPCA_bool);
+    [x, y, z, data{1:13}] = import_STB_data(file_path, nondim_bool, U, L, bin_indices, RPCA_bool);
         
     if i == 1
         % Initialize structure with zeros based on first file size
