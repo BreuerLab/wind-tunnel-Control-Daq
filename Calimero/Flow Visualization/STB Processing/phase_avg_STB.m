@@ -59,7 +59,8 @@ dz = abs(z(1,1,2) - z(1,1,1));
 avg_type = 1;
 y_cen = -0.142 / L;
 z_cen = -0.03 / L;
-[lift_vel, lift, drag_vel, drag] = get_wake_lift(U, L, y, z, S, avg_type, y_cen, z_cen);
+[lift_vel, drag_vel] = get_wake_lift(U, L, y, z, S, avg_type, false, y_cen, z_cen);
+[lift, drag] = get_wake_lift(U, L, y, z, S, avg_type, true, y_cen, z_cen);
 
 % TEMP CODE
 % positions = -2.5:0.1:1;

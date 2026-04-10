@@ -94,7 +94,6 @@ methods
 
         obj.sel_type = obj.available_selections{1,1};
         obj.sel_amp = obj.available_selections{1,2};
-        obj.sel_freq = obj.available_selections{1,3};
 
         obj.plot_curves = [];
         % attachFileListsToBird(path, cur_bird);
@@ -114,15 +113,16 @@ methods
         drop_y1 = screen_height*0.85 - 30;
         d1 = uidropdown(option_panel);
         d1.Position = [10 drop_y1 180 30];
-        d1.Items = ("flexible");
+        cur_types = unique(string(obj.available_selections(:, 1)));
+        d1.Items = cur_types;
         d1.ValueChangedFcn = @(src, event) type_change(src, event);
 
         % Dropdown box for wingbeat amplitude selection
         drop_y3 = drop_y1 - (unit_height + unit_spacing);
         d3 = uidropdown(option_panel);
         d3.Position = [10 drop_y3 180 unit_height];
-        mask = cell2mat(obj.available_selections(:,3)) == obj.sel_freq;
-        cur_amps = obj.available_selections(mask, 2);
+        % mask = cell2mat(obj.available_selections(:,3)) == obj.sel_freq;
+        cur_amps = unique(cell2mat(obj.available_selections(:, 2)));
         d3.Items = string(cur_amps) + " deg";
 
         d3.ValueChangedFcn = @(src, event) amp_change(src, event);
@@ -299,6 +299,16 @@ methods (Access = private)
                    length(uniq_amps),...
                    length(obj.selection));
 
+        vort_bool = true;
+        if contains(obj.force_var, "vel")
+            vort_bool = false;
+        end
+
+        vars = {"L","U","y","z","u_phase_avg","w_phase_avg"};
+        if vort_bool
+            vars = [vars, "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg"];
+        end
+
         ax = axes(plot_panel);
         hold(ax, 'on');
         for i = 1:length(obj.selection) % Loop through each selection
@@ -313,11 +323,36 @@ methods (Access = private)
             for j = 1:length(freqs) % Loop through all wingbeat frequencies
                 if obj.PIV_bool
                     name = type + "_" + amp + "deg_" + freqs(j) + "Hz";
+                    file_name = obj.PIV_path + name + "_phase_avg.mat";
     
-                    d = load(obj.PIV_path + name + "_phase_avg.mat", obj.force_var);
+                    calc_force = false;
+                    if calc_force
+
+                    d = load(file_name, vars{:});
+    
+                    % Compute Lift force
+                    avg_type = 1;
+                    y_cen = -2.26; % -2.16, 2.55, -0.142 / d.L
+                    z_cen = -0.03 / d.L;
+        
+                    % 1. Capture all outputs into a cell array
+                    [outputs{1:2}] = get_wake_lift(d.U, d.L, d.y, d.z, d, avg_type, vort_bool, y_cen, z_cen);
+                    
+                    % 2. Define your field names
+                    fields = {'lift', 'drag'};
+                    
+                    % 3. Convert to a struct
+                    F = cell2struct(outputs, fields, 2);
+        
+                    force_var_name = extractBefore(obj.force_var, "_vel");
+                    var = F.(force_var_name);
+                    else
+                    d = load(file_name, obj.force_var);
                     var = d.(obj.force_var);
-    
+                    end
+                    % Calculate mean force and store in arr for plotting
                     forces(1,j) = mean(var);
+
                 end
 
                 if obj.force_bool

@@ -14,9 +14,9 @@ data_file_path = "Y:\Processed Results\";
 % c.dynamic_plotting();
 
 % Set up basic UI as demo for this kind of tool
-% a = compareWingbeatUI(1,data_file_path);
-% a.dynamic_plotting();
+a = compareWingbeatUI(1,data_file_path);
+a.dynamic_plotting();
 
-data_file_path = "Y:\";
-b = avgForceUI(1, data_file_path);
-b.dynamic_plotting();
+% root_path = "Y:\";
+% b = avgForceUI(1, root_path);
+% b.dynamic_plotting();

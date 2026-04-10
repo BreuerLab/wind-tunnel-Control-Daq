@@ -909,9 +909,9 @@ methods (Access = private)
             if ismember(obj.index,[1,2])
             dist = 0.9;
             if contains(type, "UP_two")
-                dist = dist + 0.76;
+                dist = dist + 0.8;
             elseif contains(type, "UP_one")
-                dist = dist + 0.37;
+                dist = dist + 0.4;
             end
             speed = 4;
             conv_time = dist / speed; % 0.9 m downstream, 4 m/s
@@ -921,10 +921,10 @@ methods (Access = private)
 
             % If first value less than mean value, shift array since we
             % must have started on the other midstroke position
-            if var(1) < min(var) + range(var)/3
-                var = circshift(var, 0.4*length(var));
-                disp("Shifted STB curve for " + cur_sel)
-            end
+            % if var(1) < min(var) + range(var)/3
+            %     var = circshift(var, 0.4*length(var));
+            %     disp("Shifted STB curve for " + cur_sel)
+            % end
 
             time = 1:length(var);
             time = time / length(var);
@@ -975,8 +975,6 @@ methods (Access = private)
             time_F = 1:length(force);
             time_F = time_F / length(force);
 
-            % THIS NEEDS SOME FIXING HERE, NOT ALWAYS SHIFTING AT THE
-            % CORRECT TIME
             if force(1) < mean(force)
                 force = circshift(force, round(0.4*length(force)));
                 disp("Shifted force curve for " + cur_sel)

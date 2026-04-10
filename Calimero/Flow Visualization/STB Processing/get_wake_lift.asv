@@ -1,4 +1,4 @@
-function [lift, drag] = get_wake_lift(U, L, y, z, S, avg_type, vort_bool, y_cen, z_cen)
+function [lift_vel, lift, drag_vel, drag] = get_wake_lift(U, L, y, z, S, avg_type, vort_bool, y_cen, z_cen)
     dy = abs(y(1,2,1) - y(1,1,1)) * L;
     dz = abs(z(1,1,2) - z(1,1,1)) * L;
     dA = dy*dz;
@@ -18,19 +18,15 @@ function [lift, drag] = get_wake_lift(U, L, y, z, S, avg_type, vort_bool, y_cen,
         case 0
             u = squeeze(S.mean_u(:, y_idx, z_idx)) * U;
             w = squeeze(S.mean_w(:, y_idx, z_idx)) * U;
-            if vort_bool
             vortX = squeeze(S.mean_vortX(:, y_idx, z_idx)) * (U/L);
             vortY = squeeze(S.mean_vortY(:, y_idx, z_idx)) * (U/L);
             vortZ = squeeze(S.mean_vortZ(:, y_idx, z_idx)) * (U/L);
-            end
         case 1
             u = squeeze(S.u_phase_avg(:, y_idx, z_idx, :)) * U;
             w = squeeze(S.w_phase_avg(:, y_idx, z_idx, :)) * U;
-            if vort_bool
             vortX = squeeze(S.vortX_phase_avg(:, y_idx, z_idx, :)) * (U/L);
             vortY = squeeze(S.vortY_phase_avg(:, y_idx, z_idx, :)) * (U/L);
             vortZ = squeeze(S.vortZ_phase_avg(:, y_idx, z_idx, :)) * (U/L);
-            end
     end
     end
 
@@ -52,19 +48,15 @@ function [lift, drag] = get_wake_lift(U, L, y, z, S, avg_type, vort_bool, y_cen,
         case 0
             u = squeeze(u(x_ind, y_idx, :));
             w = squeeze(w(x_ind, y_idx, :));
-            if vort_bool
             vortX = squeeze(vortX(x_ind, y_idx, :));
             vortY = squeeze(vortY(x_ind, y_idx, :));
             vortZ = squeeze(vortZ(x_ind, y_idx, :));
-            end
         case 1
             u = squeeze(u(x_ind, y_idx, :, :));
             w = squeeze(w(x_ind, y_idx, :, :));
-            if vort_bool
             vortX = squeeze(vortX(x_ind, y_idx, :, :));
             vortY = squeeze(vortY(x_ind, y_idx, :, :));
             vortZ = squeeze(vortZ(x_ind, y_idx, :, :));
-            end
     end
 
     % in my reference frame right wing produces positive vorticity, but
@@ -85,35 +77,33 @@ function [lift, drag] = get_wake_lift(U, L, y, z, S, avg_type, vort_bool, y_cen,
     %% Calculate lift
     rho = 1.225; % air density kg/m^3
 
+    % full form of expression before simplification to introduce vorticity
+    % lift_mat_full = -(w .* -v * dA);
+    lift_mat_full = -(u .* -w * dA);
+
     if vort_bool
-        % term1 = -U * dA * x .* -vortZ; 
-        % term2 = (w + U) .* -v .* dA; % effectively zero
-        term1 = -U * dA * y .* -vortX; 
-        term2 = (u + U) .* -w .* dA; % effectively zero
-        lift_mat = term1 - term2;
-    
-        lift = 2 * rho * squeeze(sum(lift_mat, [1, 2]));
-    else
-        % lift_mat_full = -(w .* -v * dA);
-        lift_mat_full = -(u .* -w * dA);
-        lift = 2 * rho * squeeze(sum(lift_mat_full, [1, 2]));
-    end
+    % term1 = -U * dA * x .* -vortZ; 
+    % term2 = (w + U) .* -v .* dA; % effectively zero
+    term1 = -U * dA * y .* -vortX; 
+    term2 = (u + U) .* -w .* dA; % effectively zero
+    lift_mat = term1 - term2;
+
+    lift_vel = 2 * rho * squeeze(sum(lift_mat_full, [1, 2]));
+    lift = 2 * rho * squeeze(sum(lift_mat, [1, 2]));
 
     %% Calculate drag
-    if vort_bool
-        % is y = 0 properly centered at body axis?
-        term1 = U^2 * dA;
-        % term2 = U * -z .* vortY * dA; % z flipped from paper, vortY also flipped
-        term2 = -U * -z .* vortY * dA; % z flipped from paper, vortY also flipped
-        term3 = U * y .* vortZ * dA;
-        term4 = (u + U).^2 * dA;
-        drag_mat = term2 + term3 + term4; % -term1
-        % terms 2 and 3 end up being much smaller, perhaps the other terms
-        % dropped in this analysis can't be dropped as before with lift
-        drag = 2 * rho * squeeze(sum(drag_mat, [1, 2]));
-    else
-        drag_mat_full = -u .* (u + U) .* dA; % If w > U in magnitude, should be -
-        drag = 2 * rho * squeeze(sum(drag_mat_full, [1, 2]));
-    end
-    
+    % is y = 0 properly centered at body axis?
+    term1 = U^2 * dA;
+    % term2 = U * -z .* vortY * dA; % z flipped from paper, vortY also flipped
+    term2 = -U * -z .* vortY * dA; % z flipped from paper, vortY also flipped
+    term3 = U * y .* vortZ * dA;
+    term4 = (u + U).^2 * dA;
+    drag_mat = term2 + term3 + term4; % -term1
+    % terms 2 and 3 end up being much smaller, perhaps the other terms
+    % dropped in this analysis can't be dropped as before with lift
+
+    drag_mat_full = -u .* (u + U) .* dA; % If w > U in magnitude, should be -
+
+    drag_vel = 2 * rho * squeeze(sum(drag_mat_full, [1, 2]));
+    drag = 2 * rho * squeeze(sum(drag_mat, [1, 2]));
 end
