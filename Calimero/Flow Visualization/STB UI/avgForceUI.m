@@ -43,6 +43,7 @@ properties
     force_bool;
     force_var;
     PIV_bool;
+    PIV_sub;
     method; % 1 - velocity, 2 - vorticity
     % used to calculate forces from vector field data
 
@@ -72,7 +73,7 @@ methods
         obj.y_labels = ["Lift (N)", "Drag (N)", "Speed (Hz)", "Voltage (V)", "Current (mA)"];
         obj.norm = false;
         obj.norm_period = true;
-        obj.sub = false;
+        obj.PIV_sub = false;
         obj.freq_scale = false;
         obj.log_scale = false;
         obj.filt_num = 3;
@@ -166,7 +167,15 @@ methods
         b4.BackgroundColor = [0.3010 0.7450 0.9330];
         b4.ValueChangedFcn = @(src, event) PIV_bool_change(src, event, plot_panel);
 
-        button5_y = button4_y - (unit_height + unit_spacing);
+        button44_y = button4_y - (unit_height + unit_spacing);
+        b44 = uibutton(option_panel, "state");
+        b44.Text = "PIV Body Sub";
+        b44.FontSize = 18;
+        b44.Position = [20 button44_y 160 unit_height];
+        b44.BackgroundColor = [1 1 1];
+        b44.ValueChangedFcn = @(src, event) PIV_sub_change(src, event, plot_panel);
+
+        button5_y = button44_y - (unit_height + unit_spacing);
         b5 = uibutton(option_panel, "state");
         b5.Text = "Show Force";
         b5.FontSize = 18;
@@ -210,6 +219,18 @@ methods
             obj.PIV_bool = false;
             src.BackgroundColor = [1 1 1];
             src.Text = "Show PIV";
+        end
+
+        obj.update_plot(plot_panel);
+    end
+
+    function PIV_sub_change(src, ~, plot_panel)
+        if (src.Value)
+            obj.PIV_sub = true;
+            src.BackgroundColor = [0.3010 0.7450 0.9330];
+        else
+            obj.PIV_sub = false;
+            src.BackgroundColor = [1 1 1];
         end
 
         obj.update_plot(plot_panel);
@@ -311,6 +332,11 @@ methods (Access = private)
 
         ax = axes(plot_panel);
         hold(ax, 'on');
+        legend(ax, Location="best")
+        xlabel(ax, "Wingbeat Frequency (Hz)")
+        ylabel(ax, "Average Force (N)")
+        set(ax, FontSize=18)
+
         for i = 1:length(obj.selection) % Loop through each selection
             [amp, type, ~] = parse_name(obj.selection(i));
 
@@ -320,6 +346,7 @@ methods (Access = private)
             mask = cell2mat(obj.available_selections(:,2)) == amp & strcmp(string(obj.available_selections(:,1)), type);
             freqs = cell2mat(obj.available_selections(mask,3));
             forces = zeros(2, length(freqs));
+            errors = zeros(1, length(freqs));
             for j = 1:length(freqs) % Loop through all wingbeat frequencies
                 if obj.PIV_bool
                     name = type + "_" + amp + "deg_" + freqs(j) + "Hz";
@@ -344,18 +371,36 @@ methods (Access = private)
                     % 3. Convert to a struct
                     F = cell2struct(outputs, fields, 2);
         
-                    force_var_name = extractBefore(obj.force_var, "_vel");
-                    var = F.(force_var_name);
+                    if contains(obj.force_var, "vel")
+                        force_var_name = extractBefore(obj.force_var, "_vel");
                     else
-                    d = load(file_name, obj.force_var);
+                        force_var_name = obj.force_var;
+                    end
+                    var = F.(force_var_name);
+                    err = 0;
+
+                    else
+                    vars = {obj.force_var, "bin_std"};
+                    d = load(file_name, vars{:});
                     var = d.(obj.force_var);
+
+
+                    if obj.PIV_sub
+                        % filename = "body_phase_avg.mat";
+                        filename = "ring_time_avg.mat";
+                        bod = load(obj.PIV_path + "time_avg/" + filename, obj.force_var);
+                        var = var - bod.(obj.force_var);
+                    end
+
+                    gain = 0.01;
+                    err = gain * mean(d.bin_std);
                     end
                     % Calculate mean force and store in arr for plotting
                     forces(1,j) = mean(var);
-
+                    errors(j) = err;
                 end
 
-                if obj.force_bool
+                if obj.force_bool && ~contains(type, "UP")
                     if contains(obj.force_var,"drag")
                         idx = 1;
                     elseif contains(obj.force_var, "lift")
@@ -375,14 +420,22 @@ methods (Access = private)
             end
 
             if obj.PIV_bool
-                s1 = scatter(ax, x_var, forces(1,:), 40, "filled");
+                s1 = errorbar(ax, x_var, forces(1,:), errors, 'o');
+                s1.MarkerSize = 10;
+                s1.Color = original_color;
+                s1.MarkerEdgeColor = original_color;
                 s1.MarkerFaceColor = original_color;
-                s1.DisplayName = amp + " deg";
+                s1.DisplayName = strrep(type,"_"," ") + ", " + amp + " deg";
+
+                % s1 = scatter(ax, x_var, forces(1,:), 40, "filled");
+                % s1.MarkerFaceColor = original_color;
+                % s1.DisplayName = amp + " deg";
             end
-            if obj.force_bool
-                s2 = scatter(ax, x_var, forces(2,:), 75,"filled");
+            if obj.force_bool && ~contains(type, "UP")
+                s2 = scatter(ax, x_var, forces(2,:), 125,"filled");
                 s2.Marker = "p";
                 s2.MarkerFaceColor = original_color;
+                s2.DisplayName = "Force: " + strrep(type,"_"," ") + ", " + amp + " deg";
             end
         end
 
