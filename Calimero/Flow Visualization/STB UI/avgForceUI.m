@@ -4,457 +4,390 @@
 % not in the callback function. I guess I always thought it was
 % pass by reference, but default is to pass a copy
 classdef avgForceUI < handle
-properties
-    mon_num; % 1 or 2, monitor to display plot on
-
-    root_path; % file path to data
-    PIV_path;
-    force_path;
-
-    % integer, 0-6, defines which force/moment axes to display
-    index;
-    % force and moment axes labels used in dropdown box
-    axes_labels;
-
-    y_labels;
-
-    % boolean, normalization/non-dimensionalization on or off
-    norm;
-    x_norm;
-    % boolean, normalization for x-axis (divided by period)
-    norm_period;
-    % boolean, move pitch moment from center of transducer to LE
-    pitch_shift;
-    % boolean, subtraction on or off
-    sub;
-    % boolean, spectrum plot overrides phase averaged plot
-    spectrum;
-    % boolean, scale frequencies of spectrum by wingbeat freq
-    freq_scale;
-    % boolean, log scale frequencies of spectrum when plotting
-    log_scale;
-    % 1, 2, or 3.
-    % 1 - Raw, no filter
-    % 2 - Filtered - 50 Hz cutoff frequency
-    % 3 - Filtered - 10*wingbeat frequency cutoff frequency
-    filt_num;
-    saveFig;
-
-    force_bool;
-    force_var;
-    PIV_bool;
-    PIV_sub;
-    force_sub;
-    method; % 1 - velocity, 2 - vorticity
-    % used to calculate forces from vector field data
-
-    % ------- Available parameters user can select from -------
-    available_selections;
-
-    selection; % list of selected cases
-    sel_type;
-    sel_freq;
-    sel_amp;
-
-    % Curves currently displayed on plot
-    plot_curves;
-end
-
-methods
-    % Constructor Function
-    % Defines constants and default values for parameters
-    function obj = avgForceUI(mon_num, data_path)
-        obj.mon_num = mon_num;
-        obj.root_path = data_path;
-        obj.PIV_path = obj.root_path + "Processed Results\";
-        obj.force_path = obj.root_path + "Force Measurements\";
-
-        obj.index = 1;
-        obj.axes_labels = ["Lift", "Drag", "Speed", "Voltage", "Current"];
-        obj.y_labels = ["Lift (N)", "Drag (N)", "Speed (Hz)", "Voltage (V)", "Current (mA)"];
-        obj.norm = false;
-        obj.norm_period = true;
-        obj.PIV_sub = false;
-        obj.force_sub = false;
-        obj.freq_scale = false;
-        obj.log_scale = false;
-        obj.filt_num = 3;
-        obj.saveFig = false;
-
-        obj.x_norm = false;
-        obj.force_bool = false;
-        obj.PIV_bool = true;
-        obj.force_var = "lift";
-        obj.method = 2;
-
-        % Search through files in path to get types and speeds
-
-        contents = dir(obj.PIV_path);
-        files = contents(~[contents.isdir]);
-
-        % Get amps, freqs, types from file names
-        obj.available_selections = get_sel_from_file(files);
-
-        obj.sel_type = obj.available_selections{1,1};
-        obj.sel_amp = obj.available_selections{1,2};
-
-        obj.plot_curves = [];
-        % attachFileListsToBird(path, cur_bird);
+    
+    properties (Constant)
+        COLOR_ACTIVE = [0.3010 0.7450 0.9330];
+        COLOR_INACTIVE = [1 1 1];
     end
 
-    % Builds figure with all UI elements and defines all callback
-    % functions to be used when user clicks on UI elements
-    function dynamic_plotting(obj)
-        % Create a GUI figure with a grid layout
-        [option_panel, plot_panel, screen_size] = setupFig(obj.mon_num);
+    properties
+        mon_num; % 1 or 2, monitor to display plot on
 
-        screen_height = screen_size(4);
-        unit_height = round(0.03*screen_height);
-        unit_spacing = round(0.005*screen_height);
+        root_path; % file path to data
+        PIV_path;
+        force_path;
 
-        % Dropdown box for flapper type selection
-        drop_y1 = screen_height*0.85 - 30;
-        d1 = uidropdown(option_panel);
-        d1.Position = [10 drop_y1 180 30];
-        cur_types = unique(string(obj.available_selections(:, 1)));
-        d1.Items = cur_types;
-        d1.ValueChangedFcn = @(src, event) type_change(src, event);
+        % integer, 0-6, defines which force/moment axes to display
+        index;
+        % force and moment axes labels used in dropdown box
+        axes_labels;
 
-        % Dropdown box for wingbeat amplitude selection
-        drop_y3 = drop_y1 - (unit_height + unit_spacing);
-        d3 = uidropdown(option_panel);
-        d3.Position = [10 drop_y3 180 unit_height];
-        % mask = cell2mat(obj.available_selections(:,3)) == obj.sel_freq;
-        cur_amps = unique(cell2mat(obj.available_selections(:, 2)));
-        d3.Items = string(cur_amps) + " deg";
+        y_labels;
 
-        d3.ValueChangedFcn = @(src, event) amp_change(src, event);
+        % boolean, normalization/non-dimensionalization on or off
+        norm;
+        x_norm;
 
-        % Button to add entry defined by selected type,
-        % frequency, angle, and speed to list of plotted cases
-        button2_y = drop_y3 - (unit_height + unit_spacing);
-        b2 = uibutton(option_panel);
-        b2.Position = [15 button2_y 80 unit_height];
-        b2.Text = "Add entry";
+        filt_num;
 
-        % Button to remove entry defined by selected type,
-        % frequency, angle, and speed from list of plotted cases
-        b3 = uibutton(option_panel);
-        b3.Position = [105 button2_y 80 unit_height];
-        b3.Text = "Delete entry";
+        force_bool;
+        force_var;
+        PIV_bool;
+        PIV_sub;
+        force_sub;
 
-        % List of cases currently displayed on the plots
-        list_h = 4*(unit_height + unit_spacing);
-        list_y = button2_y - (list_h + unit_spacing);
-        lbox = uilistbox(option_panel);
-        lbox.Items = strings(0);
-        lbox.Position = [10 list_y 180 list_h];
+        % ------- Available parameters user can select from -------
+        available_selections;
 
-        b2.ButtonPushedFcn = @(src, event) addToList(src, event, plot_panel, lbox);
-        b3.ButtonPushedFcn = @(src, event) removeFromList(src, event, plot_panel, lbox);
+        selection; % list of selected cases
+        sel_type;
+        sel_freq;
+        sel_amp;
 
-        % Dropdown box for flapper type selection
-        drop_y4 = list_y - 35;
-        d4 = uidropdown(option_panel);
-        d4.Position = [10 drop_y4 180 30];
-        d4.Items = ["lift", "lift_vel", "drag", "drag_vel"];
-        d4.ValueChangedFcn = @(src, event) force_var_change(src, event, plot_panel);
-
-        button4_y = drop_y4 - (unit_height + unit_spacing);
-        b4 = uibutton(option_panel, "state");
-        b4.Text = "Show PIV";
-        b4.Value = true;
-        b4.FontSize = 18;
-        b4.Position = [20 button4_y 160 unit_height];
-        b4.BackgroundColor = [0.3010 0.7450 0.9330];
-        b4.ValueChangedFcn = @(src, event) PIV_bool_change(src, event, plot_panel);
-
-        button44_y = button4_y - (unit_height + unit_spacing);
-        b44 = uibutton(option_panel, "state");
-        b44.Text = "PIV Body Sub";
-        b44.FontSize = 18;
-        b44.Position = [20 button44_y 160 unit_height];
-        b44.BackgroundColor = [1 1 1];
-        b44.ValueChangedFcn = @(src, event) PIV_sub_change(src, event, plot_panel);
-
-        button5_y = button44_y - (unit_height + unit_spacing);
-        b5 = uibutton(option_panel, "state");
-        b5.Text = "Show Force";
-        b5.FontSize = 18;
-        b5.Position = [20 button5_y 160 unit_height];
-        b5.BackgroundColor = [1 1 1];
-        b5.ValueChangedFcn = @(src, event) force_bool_change(src, event, plot_panel);
-
-        button55_y = button5_y - (unit_height + unit_spacing);
-        b55 = uibutton(option_panel, "state");
-        b55.Text = "Force Body Sub";
-        b55.FontSize = 18;
-        b55.Position = [20 button55_y 160 unit_height];
-        b55.BackgroundColor = [1 1 1];
-        b55.ValueChangedFcn = @(src, event) force_sub_change(src, event, plot_panel);
-
-        button6_y = button55_y - (unit_height + unit_spacing);
-        b6 = uibutton(option_panel, "state");
-        b6.Text = "Normalize X-axis";
-        b6.FontSize = 18;
-        b6.Position = [20 button6_y 160 unit_height];
-        b6.BackgroundColor = [1 1 1];
-        b6.ValueChangedFcn = @(src, event) x_norm_change(src, event, plot_panel);
-
-        % Set up plot titles and axes
-        obj.update_plot(plot_panel);
-
-     % update type variable with new value selected by user
-    function type_change(src, ~)
-        obj.sel_type = src.Value;
+        % Curves currently displayed on plot
+        plot_curves;
     end
 
+    methods
+        % Constructor Function
+        % Defines constants and default values for parameters
+        function obj = avgForceUI(mon_num, data_path)
+            obj.mon_num = mon_num;
+            obj.root_path = data_path;
+            obj.PIV_path = obj.root_path + "Processed Results\";
+            obj.force_path = obj.root_path + "Force Measurements\";
 
-    % update speed variable with new value selected by user
-    function amp_change(src, ~)
-        obj.sel_amp = str2double(regexp(src.Value, '\d+', 'match'));
-    end
-
-    function force_var_change(src, ~, plot_panel)
-        obj.force_var = src.Value;
-        obj.update_plot(plot_panel);
-    end
-
-    function PIV_bool_change(src, ~, plot_panel)
-        if (src.Value)
-            obj.PIV_bool = true;
-            src.BackgroundColor = [0.3010 0.7450 0.9330];
-            src.Text = "Hide PIV";
-        else
-            obj.PIV_bool = false;
-            src.BackgroundColor = [1 1 1];
-            src.Text = "Show PIV";
-        end
-
-        obj.update_plot(plot_panel);
-    end
-
-    function PIV_sub_change(src, ~, plot_panel)
-        if (src.Value)
-            obj.PIV_sub = true;
-            src.BackgroundColor = [0.3010 0.7450 0.9330];
-        else
+            obj.index = 1;
+            obj.axes_labels = ["Lift", "Drag", "Speed", "Voltage", "Current"];
+            obj.y_labels = ["Lift (N)", "Drag (N)", "Speed (Hz)", "Voltage (V)", "Current (mA)"];
+            obj.norm = false;
             obj.PIV_sub = false;
-            src.BackgroundColor = [1 1 1];
-        end
-
-        obj.update_plot(plot_panel);
-    end
-
-    function force_sub_change(src, ~, plot_panel)
-        if (src.Value)
-            obj.force_sub = true;
-            src.BackgroundColor = [0.3010 0.7450 0.9330];
-        else
             obj.force_sub = false;
-            src.BackgroundColor = [1 1 1];
-        end
+            obj.filt_num = 3;
 
-        obj.update_plot(plot_panel);
-    end
-
-    function force_bool_change(src, ~, plot_panel)
-        if (src.Value)
-            obj.force_bool = true;
-            src.BackgroundColor = [0.3010 0.7450 0.9330];
-            src.Text = "Hide Force";
-        else
-            obj.force_bool = false;
-            src.BackgroundColor = [1 1 1];
-            src.Text = "Show Force";
-        end
-
-        obj.update_plot(plot_panel);
-    end
-
-    function x_norm_change(src, ~, plot_panel)
-        if (src.Value)
-            obj.x_norm = true;
-            src.BackgroundColor = [0.3010 0.7450 0.9330];
-        else
             obj.x_norm = false;
-            src.BackgroundColor = [1 1 1];
+            obj.force_bool = false;
+            obj.PIV_bool = true;
+            obj.force_var = "lift";
+
+            % Search through files in path to get types and speeds
+            contents = dir(obj.PIV_path);
+            files = contents(~[contents.isdir]);
+
+            % Get amps, freqs, types from file names
+            obj.available_selections = get_sel_from_file(files);
+
+            obj.sel_type = obj.available_selections{1,1};
+            obj.sel_amp = obj.available_selections{1,2};
+
+            obj.plot_curves = [];
         end
 
-        obj.update_plot(plot_panel);
-    end
+        % Builds figure with all UI elements and defines all callback
+        % functions to be used when user clicks on UI elements
+        function dynamic_plotting(obj)
+            % Create a GUI figure with a grid layout
+            [option_panel, plot_panel, screen_size] = setupFig(obj.mon_num);
 
-    function addToList(~, ~, plot_panel, lbox)
+            screen_height = screen_size(4);
+            unit_height = round(0.03*screen_height);
+            unit_spacing = round(0.005*screen_height);
 
-        case_name = obj.sel_type + "_" + obj.sel_amp + "deg";
+            % Dropdown box for flapper type selection
+            drop_y1 = screen_height*0.85 - 30;
+            type_dropdown = uidropdown(option_panel);
+            type_dropdown.Position = [10 drop_y1 180 30];
+            cur_types = unique(string(obj.available_selections(:, 1)));
+            type_dropdown.Items = cur_types;
+            type_dropdown.ValueChangedFcn = @(src, event) type_change(src, event);
 
-        if (sum(strcmp(string(lbox.Items), case_name)) == 0)
-            lbox.Items = [lbox.Items, case_name];
-            obj.selection = [obj.selection, case_name];
-        end
+            % Dropdown box for wingbeat amplitude selection
+            drop_y3 = drop_y1 - (unit_height + unit_spacing);
+            amp_dropdown = uidropdown(option_panel);
+            amp_dropdown.Position = [10 drop_y3 180 unit_height];
+            cur_amps = unique(cell2mat(obj.available_selections(:, 2)));
+            amp_dropdown.Items = string(cur_amps) + " deg";
+            amp_dropdown.ValueChangedFcn = @(src, event) amp_change(src, event);
 
-        obj.update_plot(plot_panel);
-    end
+            % Button to add entry
+            button2_y = drop_y3 - (unit_height + unit_spacing);
+            add_button = uibutton(option_panel);
+            add_button.Position = [15 button2_y 80 unit_height];
+            add_button.Text = "Add entry";
 
-    function removeFromList(~, ~, plot_panel, lbox)
-        case_name = lbox.Value;
-        % removing value from list that's displayed
-        new_list_indices = string(lbox.Items) ~= case_name;
-        lbox.Items = lbox.Items(new_list_indices);
+            % Button to remove entry
+            delete_button = uibutton(option_panel);
+            delete_button.Position = [105 button2_y 80 unit_height];
+            delete_button.Text = "Delete entry";
 
-        % OLD CODE 10/07/2024 - CODE USED TO DISPLAY ST IN
-        % LBOX, RESULTED IN PROBLEMS WHEN CAME TO DELETE
-        % if (obj.norm)
-        %     [cur_type, cur_speed, cur_freq, cur_angle] = compareWingbeatUI.parseCases(case_name);
-        %     % Extract first number after 'St: '
-        %     St = sscanf(extractAfter(cur_freq, "St: "), '%g', 1);
-        %     abbr_freqs = str2double(extractBefore(obj.freqs(1:end-2), " Hz")); % remove v2 trials
-        %     sel_freq = compareWingbeatUI.stToFreq(St, cur_speed, abbr_freqs);
-        %     case_name = cur_type + " " + cur_speed + " m/s " + sel_freq + " Hz " + cur_angle + " deg";
-        % end
+            % List of cases currently displayed on the plots
+            list_h = 4*(unit_height + unit_spacing);
+            list_y = button2_y - (list_h + unit_spacing);
+            lbox = uilistbox(option_panel);
+            lbox.Items = strings(0);
+            lbox.Position = [10 list_y 180 list_h];
 
-        % removing value from list used for plotting
-        new_list_indices = obj.selection ~= case_name;
-        obj.selection = obj.selection(new_list_indices);
-        obj.update_plot(plot_panel);
-    end
-    end
-end
+            add_button.ButtonPushedFcn = @(src, event) addToList(src, event, plot_panel, lbox);
+            delete_button.ButtonPushedFcn = @(src, event) removeFromList(src, event, plot_panel, lbox);
 
-methods (Static, Access = private)
-    
-end
+            % Dropdown box for force variable selection
+            drop_y4 = list_y - 35;
+            force_var_dropdown = uidropdown(option_panel);
+            force_var_dropdown.Position = [10 drop_y4 180 30];
+            force_var_dropdown.Items = ["lift", "lift_vel", "drag", "drag_vel"];
+            force_var_dropdown.ValueChangedFcn = @(src, event) force_var_change(src, event, plot_panel);
 
-%% --------------------------------------------------------------
-%---------------------------------------------------------------%
-%---------------------------------------------------------------%
-% The only function contained in this section is update_plot
-methods (Access = private)
-    % update plot after user changes selected variables
-    function update_plot(obj, plot_panel)
-        delete(plot_panel.Children)
+            button4_y = drop_y4 - (unit_height + unit_spacing);
+            piv_button = uibutton(option_panel, "state");
+            piv_button.Text = "Show PIV";
+            piv_button.Value = true;
+            piv_button.FontSize = 18;
+            piv_button.Position = [20 button4_y 160 unit_height];
+            piv_button.BackgroundColor = obj.COLOR_ACTIVE;
+            piv_button.ValueChangedFcn = @(src, event) PIV_bool_change(src, event, plot_panel);
 
-        uniq_types = unique(string(obj.available_selections(:,1)));
-        uniq_amps = unique(cell2mat(obj.available_selections(:,2)));
+            button44_y = button4_y - (unit_height + unit_spacing);
+            piv_sub_button = uibutton(option_panel, "state");
+            piv_sub_button.Text = "PIV Body Sub";
+            piv_sub_button.FontSize = 18;
+            piv_sub_button.Position = [20 button44_y 160 unit_height];
+            piv_sub_button.BackgroundColor = obj.COLOR_INACTIVE;
+            piv_sub_button.ValueChangedFcn = @(src, event) PIV_sub_change(src, event, plot_panel);
 
-        colors = getColors(1,...
-                   length(uniq_types),...
-                   length(uniq_amps),...
-                   length(obj.selection));
+            button5_y = button44_y - (unit_height + unit_spacing);
+            force_button = uibutton(option_panel, "state");
+            force_button.Text = "Show Force";
+            force_button.FontSize = 18;
+            force_button.Position = [20 button5_y 160 unit_height];
+            force_button.BackgroundColor = obj.COLOR_INACTIVE;
+            force_button.ValueChangedFcn = @(src, event) force_bool_change(src, event, plot_panel);
 
-        vort_bool = true;
-        if contains(obj.force_var, "vel")
-            vort_bool = false;
-        end
+            button55_y = button5_y - (unit_height + unit_spacing);
+            force_sub_button = uibutton(option_panel, "state");
+            force_sub_button.Text = "Force Body Sub";
+            force_sub_button.FontSize = 18;
+            force_sub_button.Position = [20 button55_y 160 unit_height];
+            force_sub_button.BackgroundColor = obj.COLOR_INACTIVE;
+            force_sub_button.ValueChangedFcn = @(src, event) force_sub_change(src, event, plot_panel);
 
-        ax = axes(plot_panel);
-        hold(ax, 'on');
-        legend(ax, Location="best")
-        set(ax, FontSize=18)
+            button6_y = button55_y - (unit_height + unit_spacing);
+            x_norm_button = uibutton(option_panel, "state");
+            x_norm_button.Text = "Normalize X-axis";
+            x_norm_button.FontSize = 18;
+            x_norm_button.Position = [20 button6_y 160 unit_height];
+            x_norm_button.BackgroundColor = obj.COLOR_INACTIVE;
+            x_norm_button.ValueChangedFcn = @(src, event) x_norm_change(src, event, plot_panel);
 
-        for i = 1:length(obj.selection) % Loop through each selection
-            [amp, type, ~] = parse_name(obj.selection(i));
+            % Set up plot titles and axes
+            obj.update_plot(plot_panel);
 
-            original_color = colors(find(uniq_amps == amp), find(uniq_types == type)); % hex
-            lighter_color = getLightColor(original_color); % RGB
+            % ===== Nested Callback Functions =====
+            
+            function type_change(src, ~)
+                obj.sel_type = src.Value;
+            end
 
-            mask = cell2mat(obj.available_selections(:,2)) == amp & strcmp(string(obj.available_selections(:,1)), type);
-            freqs = cell2mat(obj.available_selections(mask,3));
-            forces = zeros(2, length(freqs));
-            errors = zeros(1, length(freqs));
-            for j = 1:length(freqs) % Loop through all wingbeat frequencies
-                if obj.PIV_bool
-                    name = type + "_" + amp + "deg_" + freqs(j) + "Hz";
-                    filepath = obj.PIV_path + name + "_phase_avg.mat";
-    
-                    calc_force = false;
-                    if calc_force
-                        [var, err] = get_PIV_force(filepath, obj.force_var, vort_bool, 1);
+            function amp_change(src, ~)
+                obj.sel_amp = str2double(regexp(src.Value, '\d+', 'match'));
+            end
 
-                        if obj.PIV_sub
-                        % filename = "body_phase_avg.mat";
-                        filename = "ring_time_avg.mat";
-                        bod_filepath = obj.PIV_path + "time_avg/" + filename;
-                        [bod_var, bod_err] = get_PIV_force(bod_filepath, obj.force_var, vort_bool, 0);
-                        
-                        var = var - bod_var;
-                        end
+            function force_var_change(src, ~, plot_panel)
+                obj.force_var = src.Value;
+                obj.update_plot(plot_panel);
+            end
 
-                    else
-                    vars = {obj.force_var, "bin_std"};
-                    d = load(filepath, vars{:});
-                    var = d.(obj.force_var);
+            function PIV_bool_change(src, ~, plot_panel)
+                obj.PIV_bool = src.Value;
+                src.BackgroundColor = obj.get_button_color(obj.PIV_bool);
+                src.Text = obj.get_button_text(obj.PIV_bool, "PIV");
+                obj.update_plot(plot_panel);
+            end
 
+            function PIV_sub_change(src, ~, plot_panel)
+                obj.PIV_sub = src.Value;
+                src.BackgroundColor = obj.get_button_color(obj.PIV_sub);
+                obj.update_plot(plot_panel);
+            end
 
-                    if obj.PIV_sub
-                        % filename = "body_phase_avg.mat";
-                        filename = "ring_time_avg.mat";
-                        bod = load(obj.PIV_path + "time_avg/" + filename, obj.force_var);
-                        var = var - bod.(obj.force_var);
-                    end
+            function force_sub_change(src, ~, plot_panel)
+                obj.force_sub = src.Value;
+                src.BackgroundColor = obj.get_button_color(obj.force_sub);
+                obj.update_plot(plot_panel);
+            end
 
-                    gain = 0.01;
-                    err = gain * mean(d.bin_std);
-                    end
-                    % Calculate mean force and store in arr for plotting
-                    forces(1,j) = mean(var);
-                    errors(j) = err;
+            function force_bool_change(src, ~, plot_panel)
+                obj.force_bool = src.Value;
+                src.BackgroundColor = obj.get_button_color(obj.force_bool);
+                src.Text = obj.get_button_text(obj.force_bool, "Force");
+                obj.update_plot(plot_panel);
+            end
+
+            function x_norm_change(src, ~, plot_panel)
+                obj.x_norm = src.Value;
+                src.BackgroundColor = obj.get_button_color(obj.x_norm);
+                obj.update_plot(plot_panel);
+            end
+
+            function addToList(~, ~, plot_panel, lbox)
+                case_name = obj.sel_type + "_" + obj.sel_amp + "deg";
+
+                if (sum(strcmp(string(lbox.Items), case_name)) == 0)
+                    lbox.Items = [lbox.Items, case_name];
+                    obj.selection = [obj.selection, case_name];
                 end
 
-                if obj.force_bool && ~contains(type, "UP")
-                    if contains(obj.force_var,"drag")
-                        idx = 1;
-                    elseif contains(obj.force_var, "lift")
-                        idx = 3;
-                    end
-                    forces(2,j) = mean(get_force(obj.force_path, type, amp, freqs(j), idx));
+                obj.update_plot(plot_panel);
+            end
 
-                    if obj.force_sub
-                    body_amp = amp;
-                    if body_amp == 30
-                        body_amp = 20;
+            function removeFromList(~, ~, plot_panel, lbox)
+                case_name = lbox.Value;
+                % removing value from list that's displayed
+                new_list_indices = string(lbox.Items) ~= case_name;
+                lbox.Items = lbox.Items(new_list_indices);
+
+                % removing value from list used for plotting
+                new_list_indices = obj.selection ~= case_name;
+                obj.selection = obj.selection(new_list_indices);
+                obj.update_plot(plot_panel);
+            end
+        end
+    end
+
+    methods (Access = private)
+        % Helper function to get button color based on state
+        function color = get_button_color(obj, is_active)
+            if is_active
+                color = obj.COLOR_ACTIVE;
+            else
+                color = obj.COLOR_INACTIVE;
+            end
+        end
+
+        % Helper function to get button text based on state
+        function text = get_button_text(obj, is_active, label)
+            if is_active
+                text = "Hide " + label;
+            else
+                text = "Show " + label;
+            end
+        end
+
+        % Update plot after user changes selected variables
+        function update_plot(obj, plot_panel)
+            delete(plot_panel.Children)
+
+            uniq_types = unique(string(obj.available_selections(:,1)));
+            uniq_amps = unique(cell2mat(obj.available_selections(:,2)));
+
+            colors = getColors(1,...
+                       length(uniq_types),...
+                       length(uniq_amps),...
+                       length(obj.selection));
+
+            vort_bool = true;
+            if contains(obj.force_var, "vel")
+                vort_bool = false;
+            end
+
+            ax = axes(plot_panel);
+            hold(ax, 'on');
+            legend(ax, Location="best")
+            set(ax, FontSize=18)
+
+            for i = 1:length(obj.selection) % Loop through each selection
+                [amp, type] = parse_name(obj.selection(i));
+
+                original_color = colors(find(uniq_amps == amp), find(uniq_types == type));
+
+                mask = cell2mat(obj.available_selections(:,2)) == amp & strcmp(string(obj.available_selections(:,1)), type);
+                freqs = cell2mat(obj.available_selections(mask,3));
+                forces = zeros(2, length(freqs));
+                errors = zeros(1, length(freqs));
+                
+                for j = 1:length(freqs) % Loop through all wingbeat frequencies
+                    if obj.PIV_bool
+                        name = type + "_" + amp + "deg_" + freqs(j) + "Hz";
+                        filepath = obj.PIV_path + name + "_phase_avg.mat";
+            
+                        calc_force = false;
+                        if calc_force
+                            [var, err] = get_PIV_force(filepath, obj.force_var, vort_bool, 1);
+
+                            if obj.PIV_sub
+                                filename = "ring_time_avg.mat";
+                                bod_filepath = obj.PIV_path + "time_avg/" + filename;
+                                [bod_var, ~] = get_PIV_force(bod_filepath, obj.force_var, vort_bool, 0);
+                                var = var - bod_var;
+                            end
+
+                        else
+                            vars = {obj.force_var, "bin_std"};
+                            d = load(filepath, vars{:});
+                            var = d.(obj.force_var);
+
+                            if obj.PIV_sub
+                                filename = "ring_time_avg.mat";
+                                bod = load(obj.PIV_path + "time_avg/" + filename, obj.force_var);
+                                var = var - bod.(obj.force_var);
+                            end
+
+                            gain = 0.01;
+                            err = gain * mean(d.bin_std);
+                        end                    
+                        
+                        % Calculate mean force and store in array for plotting
+                        forces(1,j) = mean(var);
+                        errors(j) = err;
                     end
-                    body_force = mean(get_force(obj.force_path, "body", body_amp, freqs(j), idx));
-                    forces(2,j) = forces(2,j) - body_force;
+
+                    if obj.force_bool && ~contains(type, "UP")
+                        if contains(obj.force_var,"drag")
+                            idx = 1;
+                        elseif contains(obj.force_var, "lift")
+                            idx = 3;
+                        end
+                        forces(2,j) = mean(get_force(obj.force_path, type, amp, freqs(j), idx));
+
+                        if obj.force_sub
+                            body_amp = amp;
+                            if body_amp == 30
+                                body_amp = 20;
+                            end
+                            body_force = mean(get_force(obj.force_path, "body", body_amp, freqs(j), idx));
+                            forces(2,j) = forces(2,j) - body_force;
+                        end
                     end
+                end
+
+                % x-axis is either wingbeat frequency or Strouhal number
+                if obj.x_norm
+                    Sts = freqToSt(freqs, 4, amp);
+                    x_var = Sts;
+                    x_label = "Strouhal Number";
+                else
+                    x_var = freqs;
+                    x_label = "Wingbeat Frequency (Hz)";
+                end
+
+                xlabel(ax, x_label)
+                ylabel(ax, "Average Force (N)")
+
+                if obj.PIV_bool
+                    s1 = errorbar(ax, x_var, forces(1,:), errors, 'o');
+                    s1.MarkerSize = 10;
+                    s1.Color = original_color;
+                    s1.MarkerEdgeColor = original_color;
+                    s1.MarkerFaceColor = original_color;
+                    s1.DisplayName = strrep(type,"_"," ") + ", " + amp + " deg";
                 end
                 
-            end
-
-            % x-axis is either wingbeat frequency or Strouhal number
-            if obj.x_norm
-                Sts = freqToSt(freqs, 4, amp);
-                x_var = Sts;
-                x_label = "Strouhal Number";
-            else
-                x_var = freqs;
-                x_label = "Wingbeat Frequency (Hz)";
-            end
-
-            xlabel(ax, x_label)
-            ylabel(ax, "Average Force (N)")
-
-            if obj.PIV_bool
-                s1 = errorbar(ax, x_var, forces(1,:), errors, 'o');
-                s1.MarkerSize = 10;
-                s1.Color = original_color;
-                s1.MarkerEdgeColor = original_color;
-                s1.MarkerFaceColor = original_color;
-                s1.DisplayName = strrep(type,"_"," ") + ", " + amp + " deg";
-
-                % s1 = scatter(ax, x_var, forces(1,:), 40, "filled");
-                % s1.MarkerFaceColor = original_color;
-                % s1.DisplayName = amp + " deg";
-            end
-            if obj.force_bool && ~contains(type, "UP")
-                s2 = scatter(ax, x_var, forces(2,:), 125,"filled");
-                s2.Marker = "p";
-                s2.MarkerFaceColor = original_color;
-                s2.DisplayName = "Force: " + strrep(type,"_"," ") + ", " + amp + " deg";
+                if obj.force_bool && ~contains(type, "UP")
+                    s2 = scatter(ax, x_var, forces(2,:), 125,"filled");
+                    s2.Marker = "p";
+                    s2.MarkerFaceColor = original_color;
+                    s2.DisplayName = "Force: " + strrep(type,"_"," ") + ", " + amp + " deg";
+                end
             end
         end
-
     end
-
-end
 end
