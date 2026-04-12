@@ -44,6 +44,7 @@ properties
     force_var;
     PIV_bool;
     PIV_sub;
+    force_sub;
     method; % 1 - velocity, 2 - vorticity
     % used to calculate forces from vector field data
 
@@ -74,6 +75,7 @@ methods
         obj.norm = false;
         obj.norm_period = true;
         obj.PIV_sub = false;
+        obj.force_sub = false;
         obj.freq_scale = false;
         obj.log_scale = false;
         obj.filt_num = 3;
@@ -183,7 +185,15 @@ methods
         b5.BackgroundColor = [1 1 1];
         b5.ValueChangedFcn = @(src, event) force_bool_change(src, event, plot_panel);
 
-        button6_y = button5_y - (unit_height + unit_spacing);
+        button55_y = button5_y - (unit_height + unit_spacing);
+        b55 = uibutton(option_panel, "state");
+        b55.Text = "Force Body Sub";
+        b55.FontSize = 18;
+        b55.Position = [20 button55_y 160 unit_height];
+        b55.BackgroundColor = [1 1 1];
+        b55.ValueChangedFcn = @(src, event) force_sub_change(src, event, plot_panel);
+
+        button6_y = button55_y - (unit_height + unit_spacing);
         b6 = uibutton(option_panel, "state");
         b6.Text = "Normalize X-axis";
         b6.FontSize = 18;
@@ -230,6 +240,18 @@ methods
             src.BackgroundColor = [0.3010 0.7450 0.9330];
         else
             obj.PIV_sub = false;
+            src.BackgroundColor = [1 1 1];
+        end
+
+        obj.update_plot(plot_panel);
+    end
+
+    function force_sub_change(src, ~, plot_panel)
+        if (src.Value)
+            obj.force_sub = true;
+            src.BackgroundColor = [0.3010 0.7450 0.9330];
+        else
+            obj.force_sub = false;
             src.BackgroundColor = [1 1 1];
         end
 
@@ -325,16 +347,9 @@ methods (Access = private)
             vort_bool = false;
         end
 
-        vars = {"L","U","y","z","u_phase_avg","w_phase_avg"};
-        if vort_bool
-            vars = [vars, "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg"];
-        end
-
         ax = axes(plot_panel);
         hold(ax, 'on');
         legend(ax, Location="best")
-        xlabel(ax, "Wingbeat Frequency (Hz)")
-        ylabel(ax, "Average Force (N)")
         set(ax, FontSize=18)
 
         for i = 1:length(obj.selection) % Loop through each selection
@@ -350,38 +365,24 @@ methods (Access = private)
             for j = 1:length(freqs) % Loop through all wingbeat frequencies
                 if obj.PIV_bool
                     name = type + "_" + amp + "deg_" + freqs(j) + "Hz";
-                    file_name = obj.PIV_path + name + "_phase_avg.mat";
+                    filepath = obj.PIV_path + name + "_phase_avg.mat";
     
                     calc_force = false;
                     if calc_force
+                        [var, err] = get_PIV_force(filepath, obj.force_var, vort_bool, 1);
 
-                    d = load(file_name, vars{:});
-    
-                    % Compute Lift force
-                    avg_type = 1;
-                    y_cen = -2.26; % -2.16, 2.55, -0.142 / d.L
-                    z_cen = -0.03 / d.L;
-        
-                    % 1. Capture all outputs into a cell array
-                    [outputs{1:2}] = get_wake_lift(d.U, d.L, d.y, d.z, d, avg_type, vort_bool, y_cen, z_cen);
-                    
-                    % 2. Define your field names
-                    fields = {'lift', 'drag'};
-                    
-                    % 3. Convert to a struct
-                    F = cell2struct(outputs, fields, 2);
-        
-                    if contains(obj.force_var, "vel")
-                        force_var_name = extractBefore(obj.force_var, "_vel");
-                    else
-                        force_var_name = obj.force_var;
-                    end
-                    var = F.(force_var_name);
-                    err = 0;
+                        if obj.PIV_sub
+                        % filename = "body_phase_avg.mat";
+                        filename = "ring_time_avg.mat";
+                        bod_filepath = obj.PIV_path + "time_avg/" + filename;
+                        [bod_var, bod_err] = get_PIV_force(bod_filepath, obj.force_var, vort_bool, 0);
+                        
+                        var = var - bod_var;
+                        end
 
                     else
                     vars = {obj.force_var, "bin_std"};
-                    d = load(file_name, vars{:});
+                    d = load(filepath, vars{:});
                     var = d.(obj.force_var);
 
 
@@ -407,6 +408,15 @@ methods (Access = private)
                         idx = 3;
                     end
                     forces(2,j) = mean(get_force(obj.force_path, type, amp, freqs(j), idx));
+
+                    if obj.force_sub
+                    body_amp = amp;
+                    if body_amp == 30
+                        body_amp = 20;
+                    end
+                    body_force = mean(get_force(obj.force_path, "body", body_amp, freqs(j), idx));
+                    forces(2,j) = forces(2,j) - body_force;
+                    end
                 end
                 
             end
@@ -415,9 +425,14 @@ methods (Access = private)
             if obj.x_norm
                 Sts = freqToSt(freqs, 4, amp);
                 x_var = Sts;
+                x_label = "Strouhal Number";
             else
                 x_var = freqs;
+                x_label = "Wingbeat Frequency (Hz)";
             end
+
+            xlabel(ax, x_label)
+            ylabel(ax, "Average Force (N)")
 
             if obj.PIV_bool
                 s1 = errorbar(ax, x_var, forces(1,:), errors, 'o');
