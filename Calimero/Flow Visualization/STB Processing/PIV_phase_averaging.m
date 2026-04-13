@@ -13,15 +13,14 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 
 % Want to know what case names are available?
 % Call "  case_names = get_case_names();  "
-PIV_case_name = 'flexible_20deg_6Hz';
+PIV_case_name = 'flexible_10deg_0Hz';
 % PIV_case_name = 'ring';
 
 save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
 save_filepath_local = "Y:\Processed Results\";
 
-avg_type = 1; % 0 - time average, 1 - phase average
-
 nondim_bool = true; % non-dimensionalize data
+RPCA_bool = false; % RPCA filtering of vector fields
 
 % If you want to make plots here, you can. However, it is NOT recommended.
 % Intead, use main_analysis to produce plots easily in a GUI interface.
@@ -50,6 +49,12 @@ else
     L = 0.07; % guess of mean aerodynamic chord
 end
 
+if ~contains(PIV_case_name, "Hz") || contains(PIV_case_name, "0Hz")
+    avg_type = 0; % 0 - time average
+else
+    avg_type = 1; % 1 - phase average
+end
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
@@ -62,7 +67,8 @@ switch avg_type
     case 0
         disp("Time Average: Loading file: " + file_path)
         num_files = 1000; % TEMPORARY LINE ---- DELETE
-        S = time_avg_STB(file_path, nondim_bool, U, L, num_files, save_filepath_local, PIV_case_name);
+        S = time_avg_STB(file_path, nondim_bool, U, L, num_files, save_filepath_local,...
+                PIV_case_name, RPCA_bool);
         
         if PIV_plot_bool
             time_avg_plots(S);
@@ -70,7 +76,8 @@ switch avg_type
     case 1
         disp("Phase Average: Loading file: " + file_path)
         tic
-        S = phase_avg_STB(file_path, nondim_bool, U, L, save_filepath_local, PIV_case_name, turbine_bool, plot_bool);
+        S = phase_avg_STB(file_path, nondim_bool, U, L, save_filepath_local, ...
+                PIV_case_name, turbine_bool, plot_bool, RPCA_bool);
         toc
 
         if PIV_plot_bool

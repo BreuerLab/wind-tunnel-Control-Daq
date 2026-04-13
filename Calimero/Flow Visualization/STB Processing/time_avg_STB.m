@@ -1,71 +1,4 @@
-% function [x, y, mean_u, mean_v, mean_w, mean_vortX, mean_vortY, mean_vortZ] = ...
-%     time_avg_STB(file_path, nondim_bool, U, L, num_files, save_filepath_local, PIV_case_name)
-% for i = 1:num_files
-%     [x, y, z, u, v, w, Utot, vortX, vortY, vortZ, vortTot, uncU, uncV, uncW, uncTot]...
-%         = import_STB_data(file_path, nondim_bool, U, L, i);
-% 
-%     if i == 1
-%         mean_u = zeros(size(x));
-%         mean_v = zeros(size(x));
-%         mean_w = zeros(size(x));
-%         mean_Utot = zeros(size(x));
-% 
-%         mean_vortX = zeros(size(x));
-%         mean_vortY = zeros(size(x));
-%         mean_vortZ = zeros(size(x));
-%         mean_vortTot = zeros(size(x));
-% 
-%         mean_uncU = zeros(size(x));
-%         mean_uncV = zeros(size(x));
-%         mean_uncW = zeros(size(x));
-%         mean_uncTot = zeros(size(x));
-%     end
-%     mean_u = mean_u + u;
-%     mean_v = mean_v + v;
-%     mean_w = mean_w + w;
-%     mean_Utot = mean_Utot + Utot;
-% 
-%     mean_vortX = mean_vortX + vortX;
-%     mean_vortY = mean_vortY + vortY;
-%     mean_vortZ = mean_vortZ + vortZ;
-%     mean_vortTot = mean_vortTot + vortTot;
-% 
-%     mean_uncU = mean_uncU + uncU;
-%     mean_uncV = mean_uncV + uncV;
-%     mean_uncW = mean_uncW + uncW;
-%     mean_uncTot = mean_uncTot + uncTot;
-% 
-%     if mod(i,100) == 0
-%         disp(['processed ',num2str(i),'/',num2str(num_files)])
-%     end
-% end
-% 
-% % Divide sum by length to calculate mean
-% mean_u = mean_u / num_files;
-% mean_v = mean_v / num_files;
-% mean_w = mean_w / num_files;
-% mean_vortX = mean_vortX / num_files;
-% mean_vortY = mean_vortY / num_files;
-% mean_vortZ = mean_vortZ / num_files;
-% mean_uncU = mean_uncU / num_files;
-% mean_uncV = mean_uncV / num_files;
-% mean_uncW = mean_uncW / num_files;
-% mean_uncTot = mean_uncTot / num_files;
-% 
-% % Save phase averaged data to .mat file
-% vars = {"L","U","PIV_case_name",...
-%     "x","y","z","mean_u","mean_v","mean_w","mean_Utot",...
-%     "mean_uncU","mean_uncV","mean_uncW","mean_uncTot",...
-%     "mean_vortX","mean_vortY","mean_vortZ","mean_vortTot"};
-% 
-% saved_file_name = save_filepath_local + PIV_case_name + "_time_avg.mat";
-% save(saved_file_name, vars{:})
-% 
-% elapsedTime = toc;
-% fprintf('Processing and saving data took %.4f seconds.\n', elapsedTime);
-% end
-
-function S = time_avg_STB(file_path, nondim_bool, U, L, num_files, save_filepath_local, PIV_case_name)
+function S = time_avg_STB(file_path, nondim_bool, U, L, num_files, save_filepath_local, PIV_case_name, RPCA_bool)
     tic;
     % Define the field names we want to average (must be same order as
     % import_STB)
@@ -73,7 +6,7 @@ function S = time_avg_STB(file_path, nondim_bool, U, L, num_files, save_filepath
     
     for i = 1:num_files
         % Import data (using a temporary struct or list)
-        [x, y, z, data{1:12}] = import_STB_data(file_path, nondim_bool, U, L, i);
+        [x, y, z, data{1:12}] = import_STB_data(file_path, nondim_bool, U, L, i, RPCA_bool);
         
         if i == 1
             % Initialize structure with zeros based on first file size
@@ -101,7 +34,10 @@ function S = time_avg_STB(file_path, nondim_bool, U, L, num_files, save_filepath
 
     % Compute Lift force
     avg_type = 0;
-    [lift_vel, lift, drag_vel, drag] = get_wake_lift(U, L, y, z, S, avg_type);
+    y_cen = -0.142 / L;
+    z_cen = -0.03 / L;
+    [lift_vel, drag_vel] = get_wake_lift(U, L, y, z, S, avg_type, false, y_cen, z_cen);
+    [lift, drag] = get_wake_lift(U, L, y, z, S, avg_type, true, y_cen, z_cen);
 
     % Add metadata to the struct
     S.x = x; S.y = y; S.z = z; S.L = L; S.U = U;

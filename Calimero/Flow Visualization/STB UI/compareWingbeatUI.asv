@@ -62,7 +62,7 @@ methods
 
         obj.index = 1;
         obj.axes_labels = ["Lift", "Drag", "Speed", "Voltage", "Current", "Power"];
-        obj.y_labels = ["Lift (N)", "Drag (N)", "Speed (Hz)", "Voltage (V)", "Current (mA)", "Power (mW)"];
+        obj.y_labels = ["Lift (N)", "Drag (N)", "Speed (Hz)", "Voltage (V)", "Current (mA)", "Watt (W)"];
         obj.norm = false;
         obj.norm_period = true;
         obj.sub = false;
@@ -864,11 +864,11 @@ methods (Access = private)
                             var_name = "drag";
                     end
                 case 3
-                    var_name = "phase_avg_speed";
+                    var = {"phase_avg_speed"};
                 case 4
-                    var_name = "phase_avg_volt";
+                    var = {"phase_avg_volt"};
                 case 5
-                    var_name = "phase_avg_cur";
+                    vars = {"phase_avg_cur"};
                 case 6
                     vars = {"phase_avg_volt", "phase_avg_cur"};
             end
@@ -892,11 +892,8 @@ methods (Access = private)
                 F = cell2struct(outputs, fields, 2);
     
                 var = F.(var_name);
-            elseif obj.index == 6
-                d = load(obj.data_path + filename, vars{:});
-                var = d.(vars{1}) .* d.(vars{2});
             else
-                d = load(obj.data_path + filename, var_name);
+                d = load(obj.data_path + filename, vars);
                 var = d.(var_name);
             end
             

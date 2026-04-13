@@ -23,7 +23,7 @@ classdef avgForceUI < handle
         axes_labels;
 
         box_labels;
-        var_names;
+        
         y_labels;
 
         % boolean, normalization/non-dimensionalization on or off
@@ -63,7 +63,7 @@ classdef avgForceUI < handle
             obj.index = 1;
             obj.box_labels = ["lift", "lift_vel", "drag", "drag_vel", "speed", "voltage", "current"];
             obj.var_names = ["lift", "lift_vel", "drag", "drag_vel", "phase_avg_speed", "phase_avg_volt", "phase_avg_cur"];
-            obj.y_labels = ["Lift (N)", "Lift (N)", "Drag (N)", "Drag (N)", "Speed (Hz)", "Voltage (V)", "Current (mA)"];
+            obj.y_labels = ["Lift (N)", "Drag (N)", "Speed (Hz)", "Voltage (V)", "Current (mA)"];
             obj.norm = false;
             obj.PIV_sub = false;
             obj.force_sub = false;
@@ -139,7 +139,7 @@ classdef avgForceUI < handle
             drop_y4 = list_y - 35;
             force_var_dropdown = uidropdown(option_panel);
             force_var_dropdown.Position = [10 drop_y4 180 30];
-            force_var_dropdown.Items = obj.box_labels;
+            force_var_dropdown.Items = ["lift", "lift_vel", "drag", "drag_vel", "phase_avg_speed", "phase_avg_volt", "phase_avg_cur"];
             force_var_dropdown.ValueChangedFcn = @(src, event) force_var_change(src, event, plot_panel);
 
             button4_y = drop_y4 - (unit_height + unit_spacing);
@@ -205,7 +205,7 @@ classdef avgForceUI < handle
             end
 
             function force_var_change(src, ~, plot_panel)
-                obj.force_var = obj.var_names(obj.box_labels == src.Value);
+                obj.force_var = src.Value;
                 obj.update_plot(plot_panel);
             end
 
@@ -402,7 +402,7 @@ classdef avgForceUI < handle
                 end
 
                 xlabel(ax, x_label)
-                ylabel(ax, obj.y_labels(obj.var_names == obj.force_var))
+                ylabel(ax, "Average Force (N)")
 
                 if obj.PIV_bool
                     s1 = errorbar(ax, x_var, forces(1,:), errors, 'o');

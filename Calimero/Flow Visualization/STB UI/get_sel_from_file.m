@@ -3,7 +3,7 @@ function available_selections = get_sel_from_file(files)
 
     for i = 1:length(files)
         name = files(i).name;
-        name = extractBefore(name, "_phase_avg");
+        name = erase(name, ["_time_avg.mat", "_phase_avg.mat"]);
 
         if ~contains(name, "Hz") % body or ring only case
             continue
