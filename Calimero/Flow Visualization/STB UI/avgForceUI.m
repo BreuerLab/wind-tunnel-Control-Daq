@@ -61,9 +61,12 @@ classdef avgForceUI < handle
             obj.force_path = obj.root_path + "Force Measurements\";
 
             obj.index = 1;
-            obj.box_labels = ["lift", "lift_vel", "drag", "drag_vel", "speed", "voltage", "current"];
-            obj.var_names = ["lift", "lift_vel", "drag", "drag_vel", "phase_avg_speed", "phase_avg_volt", "phase_avg_cur"];
-            obj.y_labels = ["Lift (N)", "Lift (N)", "Drag (N)", "Drag (N)", "Speed (Hz)", "Voltage (V)", "Current (mA)"];
+            obj.box_labels = ["lift", "lift_vel", "drag", "drag_vel",...
+                "speed", "voltage", "current", "KE", "enstrophy", "avg U"];
+            obj.var_names = ["lift", "lift_vel", "drag", "drag_vel",...
+                "phase_avg_speed", "phase_avg_volt", "phase_avg_cur", "KE", "enst", "u_avg"];
+            obj.y_labels = ["Lift (N)", "Lift (N)", "Drag (N)", "Drag (N)",...
+                "Speed (Hz)", "Voltage (V)", "Current (mA)", "KE", "Enstrophy", "Freestream Speed (m/s)"];
             obj.norm = false;
             obj.PIV_sub = false;
             obj.force_sub = false;
@@ -322,6 +325,7 @@ classdef avgForceUI < handle
                 freqs = cell2mat(obj.available_selections(mask,3));
                 forces = zeros(2, length(freqs));
                 errors = zeros(1, length(freqs));
+                measured_freqs = zeros(1, length(freqs));
                 
                 for j = 1:length(freqs) % Loop through all wingbeat frequencies
                     if obj.PIV_bool
@@ -348,6 +352,12 @@ classdef avgForceUI < handle
                             vars = {obj.force_var};
                             if freqs(j) ~= 0
                                 vars{end+1} = "bin_std";
+                                vars{end+1} = "phase_avg_speed";
+                            else
+                                % TEMP SKIP OF OTHERS VARS FOR GLIDING CASE
+                                % if ~contains(obj.force_var, "lift") && ~contains(obj.force_var, "drag")
+                                %     continue;
+                                % end
                             end
                             d = load(filepath, vars{:});
                             var = d.(obj.force_var);
@@ -361,15 +371,16 @@ classdef avgForceUI < handle
 
                             gain = 0.01;
                             if freqs(j) ~= 0
-                                err = gain * mean(d.bin_std);
+                                errors(j) = gain * mean(d.bin_std);
+                                measured_freqs(j) = mean(d.phase_avg_speed);
                             else
-                                err = 0;
+                                errors(j) = 0;
+                                measured_freqs(j) = 0;
                             end
                         end                    
                         
                         % Calculate mean force and store in array for plotting
                         forces(1,j) = mean(var);
-                        errors(j) = err;
                     end
 
                     if obj.force_bool && ~contains(type, "UP")
@@ -393,11 +404,11 @@ classdef avgForceUI < handle
 
                 % x-axis is either wingbeat frequency or Strouhal number
                 if obj.x_norm
-                    Sts = freqToSt(freqs, 4, amp);
+                    Sts = freqToSt(measured_freqs, 4, amp);
                     x_var = Sts;
                     x_label = "Strouhal Number";
                 else
-                    x_var = freqs;
+                    x_var = measured_freqs;
                     x_label = "Wingbeat Frequency (Hz)";
                 end
 

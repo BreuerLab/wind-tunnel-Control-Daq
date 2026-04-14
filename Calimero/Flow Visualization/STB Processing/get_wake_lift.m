@@ -88,32 +88,43 @@ function [lift, drag] = get_wake_lift(U, L, y, z, S, avg_type, vort_bool, y_cen,
     if vort_bool
         % term1 = -U * dA * x .* -vortZ; 
         % term2 = (w + U) .* -v .* dA; % effectively zero
-        term1 = -U * dA * y .* -vortX; 
-        term2 = (u + U) .* -w .* dA; % effectively zero
+        term1 = -U * y .* -vortX; 
+        term2 = (u + U) .* -w; % effectively zero
         lift_mat = term1 - term2;
     
-        lift = 2 * rho * squeeze(sum(lift_mat, [1, 2]));
+        lift_vec = trapz(y(:,1), lift_mat, 1);
+        lift = 2 * rho * trapz(z(1,:), lift_vec, 2);
+        lift = squeeze(lift);
     else
         % lift_mat_full = -(w .* -v * dA);
-        lift_mat_full = -(u .* -w * dA);
-        lift = 2 * rho * squeeze(sum(lift_mat_full, [1, 2]));
+        lift_mat_full = -(u .* -w);
+
+        lift_vec_full = trapz(y(:,1), lift_mat_full, 1);
+        lift = 2 * rho * trapz(z(1,:), lift_vec_full, 2);
+        lift = squeeze(lift);
     end
 
     %% Calculate drag
     if vort_bool
         % is y = 0 properly centered at body axis?
-        term1 = U^2 * dA;
+        term1 = U^2;
         % term2 = U * -z .* vortY * dA; % z flipped from paper, vortY also flipped
-        term2 = -U * -z .* vortY * dA; % z flipped from paper, vortY also flipped
-        term3 = U * y .* vortZ * dA;
-        term4 = (u + U).^2 * dA;
+        term2 = -U * -z .* vortY; % z flipped from paper, vortY also flipped
+        term3 = U * y .* vortZ;
+        term4 = (u + U).^2;
         drag_mat = term2 + term3 + term4; % -term1
         % terms 2 and 3 end up being much smaller, perhaps the other terms
         % dropped in this analysis can't be dropped as before with lift
-        drag = 2 * rho * squeeze(sum(drag_mat, [1, 2]));
+
+        drag_vec = trapz(y(:,1), drag_mat, 1);
+        drag = 2 * rho * trapz(z(1,:), drag_vec, 2);
+        drag = squeeze(drag);
     else
-        drag_mat_full = -u .* (u + U) .* dA; % If w > U in magnitude, should be -
-        drag = 2 * rho * squeeze(sum(drag_mat_full, [1, 2]));
+        drag_mat_full = -u .* (u + U); % If w > U in magnitude, should be -
+        
+        drag_vec_full = trapz(y(:,1), drag_mat_full, 1);
+        drag = 2 * rho * trapz(z(1,:), drag_vec_full, 2);
+        drag = squeeze(drag);
     end
     
 end

@@ -13,8 +13,8 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 
 % Want to know what case names are available?
 % Call "  case_names = get_case_names();  "
-PIV_case_name = 'flexible_10deg_0Hz';
-% PIV_case_name = 'ring';
+% PIV_case_name = 'flexible_10deg_0Hz';
+PIV_case_name = 'ring';
 
 save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
 save_filepath_local = "Y:\Processed Results\";

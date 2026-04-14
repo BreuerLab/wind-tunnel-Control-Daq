@@ -75,11 +75,7 @@ enst = squeeze(enst);
 
 u_avg = trapz(y_arr, squeeze(S.u_phase_avg(x_ind,:,:,:)), 1);
 u_avg = trapz(z_arr, u_avg, 2);
-
-Ly = y_arr(end) - y_arr(1);
-Lz = z_arr(end) - z_arr(1);
-
-u_avg = squeeze(u_avg) / (Ly * Lz);
+u_avg = squeeze(u_avg);
 
 % Add metadata to the struct
 S.x = x; S.y = y; S.z = z; S.L = L; S.U = U; S.cycle_freq = cycle_freq;

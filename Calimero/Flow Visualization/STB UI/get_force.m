@@ -1,4 +1,4 @@
-function force = get_force(path, type, amp, freq, idx)
+function force = get_force(path, type, amp, freq, idx, var_name_F)
     parentDir = path + type + "_" + amp + "deg" + "\4 m.s\";
     
     contents = dir(parentDir);
@@ -25,7 +25,7 @@ function force = get_force(path, type, amp, freq, idx)
 
     % var_name_F = "wingbeat_avg_forces_raw";
     % var_name_F = "wingbeat_avg_forces";
-    var_name_F = "filtered_data";
+    % var_name_F = "filtered_data";
     % var_name_F = "wingbeat_avg_forces_smoothest";
     % disp("Loading " + force_path + force_filename)
     c = load(force_path + force_filename, var_name_F);
