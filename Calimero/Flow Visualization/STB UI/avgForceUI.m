@@ -37,6 +37,7 @@ classdef avgForceUI < handle
         PIV_bool;
         PIV_sub;
         force_sub;
+        err_bool;
 
         % ------- Available parameters user can select from -------
         available_selections;
@@ -61,7 +62,7 @@ classdef avgForceUI < handle
             obj.force_path = obj.root_path + "Force Measurements\";
 
             obj.index = 1;
-            obj.box_labels = ["lift", "lift_vel", "drag", "drag_vel",...
+            obj.box_labels = ["lift_vort", "lift_vel", "drag_vort", "drag_vel",...
                 "speed", "voltage", "current", "KE", "enstrophy", "avg U"];
             obj.var_names = ["lift", "lift_vel", "drag", "drag_vel",...
                 "phase_avg_speed", "phase_avg_volt", "phase_avg_cur", "KE", "enst", "u_avg"];
@@ -77,6 +78,7 @@ classdef avgForceUI < handle
             obj.PIV_bool = true;
             obj.force_var = "lift";
             obj.saveFig = false;
+            obj.err_bool = false;
 
             % Search through files in path to get types and speeds
             contents = dir(obj.PIV_path);
@@ -186,6 +188,14 @@ classdef avgForceUI < handle
             x_norm_button.BackgroundColor = obj.COLOR_INACTIVE;
             x_norm_button.ValueChangedFcn = @(src, event) x_norm_change(src, event, plot_panel);
 
+            button7_y = button6_y - (unit_height + unit_spacing);
+            err_button = uibutton(option_panel, "state");
+            err_button.Text = "Error";
+            err_button.FontSize = 18;
+            err_button.Position = [20 button7_y 160 unit_height];
+            err_button.BackgroundColor = obj.COLOR_INACTIVE;
+            err_button.ValueChangedFcn = @(src, event) err_change(src, event, plot_panel);
+
             save_fig_button_y = (unit_height + unit_spacing);
             save_fig_button = uibutton(option_panel);
             save_fig_button.Text = "Save Fig";
@@ -241,6 +251,12 @@ classdef avgForceUI < handle
             function x_norm_change(src, ~, plot_panel)
                 obj.x_norm = src.Value;
                 src.BackgroundColor = obj.get_button_color(obj.x_norm);
+                obj.update_plot(plot_panel);
+            end
+
+            function err_change(src, ~, plot_panel)
+                obj.err_bool = src.Value;
+                src.BackgroundColor = obj.get_button_color(obj.err_bool);
                 obj.update_plot(plot_panel);
             end
 
@@ -349,7 +365,7 @@ classdef avgForceUI < handle
                             errors(j) = gain * mean(d.bin_std);
                         end
             
-                        calc_force = false;
+                        calc_force = true;
                         if calc_force
                             [var, err] = get_PIV_force(filepath, name, obj.force_var, vort_bool, avg_type);
 
@@ -364,8 +380,8 @@ classdef avgForceUI < handle
                             var = d.(obj.force_var);
 
                             if obj.PIV_sub
-                                filename = "body_time_avg.mat";
-                                % filename = "ring_time_avg.mat";
+                                % filename = "body_time_avg.mat";
+                                filename = "ring_time_avg.mat";
                                 bod = load(obj.PIV_path + "time_avg/" + filename, obj.force_var);
                                 var = var - bod.(obj.force_var);
                             end  
@@ -411,6 +427,19 @@ classdef avgForceUI < handle
                 end
 
                 xlabel(ax, x_label)
+
+                if obj.err_bool
+                    ylabel(ax, "Error (N)")
+
+                    error = (forces(1,:) - forces(2,:));
+                    % error = abs((forces(1,:) - forces(2,:)) ./ forces(2,:)) * 100;
+                    s1 = errorbar(ax, x_var, error, errors*0.1, 'o');
+                    s1.MarkerSize = 10;
+                    s1.Color = original_color;
+                    s1.MarkerEdgeColor = original_color;
+                    s1.MarkerFaceColor = original_color;
+                    s1.DisplayName = strrep(type,"_"," ") + ", " + amp + " deg";
+                else
                 ylabel(ax, obj.y_labels(obj.var_names == obj.force_var))
 
                 if obj.PIV_bool
@@ -427,6 +456,7 @@ classdef avgForceUI < handle
                     s2.Marker = "p";
                     s2.MarkerFaceColor = original_color;
                     s2.DisplayName = "Force: " + strrep(type,"_"," ") + ", " + amp + " deg";
+                end
                 end
             end
 

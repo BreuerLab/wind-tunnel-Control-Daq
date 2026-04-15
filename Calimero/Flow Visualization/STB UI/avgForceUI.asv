@@ -61,7 +61,7 @@ classdef avgForceUI < handle
             obj.force_path = obj.root_path + "Force Measurements\";
 
             obj.index = 1;
-            obj.box_labels = ["lift", "lift_vel", "drag", "drag_vel",...
+            obj.box_labels = ["lift_vort", "lift_vel", "drag_vort", "drag_vel",...
                 "speed", "voltage", "current", "KE", "enstrophy", "avg U"];
             obj.var_names = ["lift", "lift_vel", "drag", "drag_vel",...
                 "phase_avg_speed", "phase_avg_volt", "phase_avg_cur", "KE", "enst", "u_avg"];
@@ -77,6 +77,7 @@ classdef avgForceUI < handle
             obj.PIV_bool = true;
             obj.force_var = "lift";
             obj.saveFig = false;
+            
 
             % Search through files in path to get types and speeds
             contents = dir(obj.PIV_path);
@@ -186,6 +187,14 @@ classdef avgForceUI < handle
             x_norm_button.BackgroundColor = obj.COLOR_INACTIVE;
             x_norm_button.ValueChangedFcn = @(src, event) x_norm_change(src, event, plot_panel);
 
+            button7_y = button6_y - (unit_height + unit_spacing);
+            err_button = uibutton(option_panel, "state");
+            err_button.Text = "Error";
+            err_button.FontSize = 18;
+            err_button.Position = [20 button7_y 160 unit_height];
+            err_button.BackgroundColor = obj.COLOR_INACTIVE;
+            err_button.ValueChangedFcn = @(src, event) err_change(src, event, plot_panel);
+
             save_fig_button_y = (unit_height + unit_spacing);
             save_fig_button = uibutton(option_panel);
             save_fig_button.Text = "Save Fig";
@@ -241,6 +250,12 @@ classdef avgForceUI < handle
             function x_norm_change(src, ~, plot_panel)
                 obj.x_norm = src.Value;
                 src.BackgroundColor = obj.get_button_color(obj.x_norm);
+                obj.update_plot(plot_panel);
+            end
+
+            function err_change(src, ~, plot_panel)
+                obj.err = src.Value;
+                src.BackgroundColor = obj.get_button_color(obj.err);
                 obj.update_plot(plot_panel);
             end
 
@@ -332,18 +347,22 @@ classdef avgForceUI < handle
                         name = type + "_" + amp + "deg_" + freqs(j) + "Hz";
                         if freqs(j) == 0
                             suffix = "_time_avg.mat";
+                        else
+                            suffix = "_phase_avg.mat";
+                        end
+                        filepath = obj.PIV_path + name + suffix;
+
+                        if freqs(j) == 0
                             avg_type = 0;
                             measured_freqs(j) = 0;
                             errors(j) = 0;
                         else
-                            suffix = "_phase_avg.mat";
                             avg_type = 1;
-
                             d = load(filepath, "bin_std", "phase_avg_speed");
                             measured_freqs(j) = mean(d.phase_avg_speed);
+                            gain = 0.01;
                             errors(j) = gain * mean(d.bin_std);
                         end
-                        filepath = obj.PIV_path + name + suffix;
             
                         calc_force = true;
                         if calc_force
@@ -352,7 +371,7 @@ classdef avgForceUI < handle
                             if obj.PIV_sub
                                 filename = "ring_time_avg.mat";
                                 bod_filepath = obj.PIV_path + "time_avg/" + filename;
-                                [bod_var, ~] = get_PIV_force(bod_filepath, obj.force_var, vort_bool, 0);
+                                [bod_var, ~] = get_PIV_force(bod_filepath, "", obj.force_var, vort_bool, 0);
                                 var = var - bod_var;
                             end
                         else
@@ -360,20 +379,11 @@ classdef avgForceUI < handle
                             var = d.(obj.force_var);
 
                             if obj.PIV_sub
-                                filename = "body_time_avg.mat";
-                                % filename = "ring_time_avg.mat";
+                                % filename = "body_time_avg.mat";
+                                filename = "ring_time_avg.mat";
                                 bod = load(obj.PIV_path + "time_avg/" + filename, obj.force_var);
                                 var = var - bod.(obj.force_var);
-                            end
-
-                            gain = 0.01;
-                            if freqs(j) ~= 0
-                                errors(j) = gain * mean(d.bin_std);
-                                measured_freqs(j) = mean(d.phase_avg_speed);
-                            else
-                                errors(j) = 0;
-                                measured_freqs(j) = 0;
-                            end
+                            end  
                         end                    
                         
                         % Calculate mean force and store in array for plotting

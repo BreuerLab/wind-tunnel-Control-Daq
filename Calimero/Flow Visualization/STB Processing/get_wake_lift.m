@@ -94,7 +94,6 @@ function [lift, drag] = get_wake_lift(U, L, y, z, S, avg_type, vort_bool, y_cen,
         lift = 2 * density * trapz(z(1,:), lift_vec, 2);
         lift = squeeze(lift);
     else
-        % lift_mat_full = -(w .* -v * dA);
         lift_mat_full = -(u .* -w);
 
         lift_vec_full = trapz(y(:,1), lift_mat_full, 1);
