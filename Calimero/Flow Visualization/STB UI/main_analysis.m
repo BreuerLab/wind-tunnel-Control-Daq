@@ -1,5 +1,5 @@
-clear
-close all force
+% clear
+% close all force
 
 % Change current working directory to the directory where this file is
 cd(fileparts(mfilename('fullpath')));
@@ -19,5 +19,5 @@ a = compareWingbeatUI(2,root_path);
 a.dynamic_plotting();
 
 % % GUI for plotting time averaged quantities
-% b = avgForceUI(2, root_path);
-% b.dynamic_plotting();
+b = avgForceUI(2, root_path);
+b.dynamic_plotting();

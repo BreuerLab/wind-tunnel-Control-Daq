@@ -337,9 +337,9 @@ classdef avgForceUI < handle
                         end
                         filepath = obj.PIV_path + name + suffix;
             
-                        calc_force = false;
+                        calc_force = true;
                         if calc_force
-                            [var, err] = get_PIV_force(filepath, obj.force_var, vort_bool, 1);
+                            [var, err] = get_PIV_force(filepath, name, obj.force_var, vort_bool, 1);
 
                             if obj.PIV_sub
                                 filename = "ring_time_avg.mat";
@@ -363,8 +363,8 @@ classdef avgForceUI < handle
                             var = d.(obj.force_var);
 
                             if obj.PIV_sub
-                                % filename = "body_time_avg.mat";
-                                filename = "ring_time_avg.mat";
+                                filename = "body_time_avg.mat";
+                                % filename = "ring_time_avg.mat";
                                 bod = load(obj.PIV_path + "time_avg/" + filename, obj.force_var);
                                 var = var - bod.(obj.force_var);
                             end
@@ -384,19 +384,25 @@ classdef avgForceUI < handle
                     end
 
                     if obj.force_bool && ~contains(type, "UP")
+                        var_name_F = "filtered_data";
+                        % var_name_F = "wingbeat_avg_forces_smoothest";
+                        if freqs(j) == 0
+                            var_name_F = "filtered_data";
+                        end
+
                         if contains(obj.force_var,"drag")
                             idx = 1;
                         elseif contains(obj.force_var, "lift")
                             idx = 3;
                         end
-                        forces(2,j) = mean(get_force(obj.force_path, type, amp, freqs(j), idx));
+                        forces(2,j) = mean(get_force(obj.force_path, type, amp, freqs(j), idx, var_name_F));
 
                         if obj.force_sub
                             body_amp = amp;
                             if body_amp == 30
                                 body_amp = 20;
                             end
-                            body_force = mean(get_force(obj.force_path, "body", body_amp, freqs(j), idx));
+                            body_force = mean(get_force(obj.force_path, "body", body_amp, freqs(j), idx, var_name_F));
                             forces(2,j) = forces(2,j) - body_force;
                         end
                     end

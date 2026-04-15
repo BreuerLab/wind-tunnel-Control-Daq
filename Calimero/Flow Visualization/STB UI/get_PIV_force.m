@@ -1,4 +1,4 @@
-function [var, err] = get_PIV_force(file_name, force_var_name, vort_bool, avg_type)
+function [var, err] = get_PIV_force(file_name, case_name, force_var_name, vort_bool, avg_type)
 
         switch avg_type
             case 0
@@ -14,6 +14,11 @@ function [var, err] = get_PIV_force(file_name, force_var_name, vort_bool, avg_ty
         end
 
         d = load(file_name, vars{:});
+
+        % Find matching DAQ file
+        [daq_data_filename, daq_data_path] = get_daq_paths(case_name);
+
+        d = get_wind_tunnel_data(daq_data_filename);
 
         % Compute Lift force
         y_cen = -2.26; % -2.16, 2.55, -0.142 / d.L
