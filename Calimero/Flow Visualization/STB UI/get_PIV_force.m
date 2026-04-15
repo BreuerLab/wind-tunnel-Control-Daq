@@ -15,17 +15,26 @@ function [var, err] = get_PIV_force(file_name, case_name, force_var_name, vort_b
 
         d = load(file_name, vars{:});
 
-        % Find matching DAQ file
-        [daq_data_filename, daq_data_path] = get_daq_paths(case_name);
-
-        d = get_wind_tunnel_data(daq_data_filename);
+        if avg_type == 0
+            speed = d.U;
+            density = 1.225;
+        else
+            % Find matching DAQ file
+            [daq_data_filename, daq_data_path] = get_daq_paths(case_name);
+    
+            WT_d = get_wind_tunnel_data(daq_data_filename);
+            speed = WT_d.Speed_m_s_;
+            density = WT_d.Density_kg_m3_;
+            % density = 1.225;
+        end
 
         % Compute Lift force
         y_cen = -2.26; % -2.16, 2.55, -0.142 / d.L
         z_cen = -0.03 / d.L;
+        % rho = ; % 1.225 kg/m^3
 
         % Capture all outputs into a cell array
-        [outputs{1:2}] = get_wake_lift(d.U, d.L, d.y, d.z, d, avg_type, vort_bool, y_cen, z_cen);
+        [outputs{1:2}] = get_wake_lift(speed, d.L, d.y, d.z, d, avg_type, vort_bool, y_cen, z_cen, density);
         
         % Define your field names
         fields = {'lift', 'drag'};

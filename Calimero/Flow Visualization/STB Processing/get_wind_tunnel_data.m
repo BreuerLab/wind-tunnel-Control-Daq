@@ -1,8 +1,8 @@
-function d = get_wind_tunnel_data(force_file)
+function d = get_wind_tunnel_data(DAQ_file)
 
-string_end = extractAfter(force_file, "experiment");
+string_end = extractAfter(extractBefore(DAQ_file, "experiment"), "Hz");
 
- % Extract all digits
+% Extract all digits
 matches = regexp(string_end, '\d+', 'match');
 timeArray = str2double(matches); % 1 x 6 array of date and time
 
@@ -26,38 +26,23 @@ wind_tunnel_file = WT_dict(date);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 root_path = "R:\ENG_Breuer_Shared\rgissler\Calimero Force Data\STB Final\";
-folder = "STB_" + date;
-params_path = "\data\params";
 
-files = dir(root_path + folder + params_path);
+data = readtable(root_path + wind_tunnel_file);
 
-% Remove the '.' and '..' (which are always present in file systems)
-% and filter for actual folders
-files = files(~ismember({files.name}, {'.', '..'}));
+% Get datetime for each row of csv file
+windTunnelDT = datetime(data.Year, data.Month, data.Day, ...
+                data.Hour, data.Min, data.Sec);
 
-for i = 1:length(files)
-    name = files(i).name;
-    % Extract all digits
-    matches = regexp(name, '\d+', 'match');
-    timeArray = str2double(matches); % 1 x 6 array of date and time
+% Calculate the absolute time difference
+timeDiffs = abs(windTunnelDT - targetDT);
 
-    % find properties at that time from wind tunnel log file
-    if ~isempty(timeArray)
-        targetDT = datetime(timeArray);
+% Find the index of the minimum difference
+[minDiff, minIdx] = min(timeDiffs);
 
-        data = readtable(root_path + wind_tunnel_file);
+% Extract the full row
+bestMatchRow = data(minIdx, :);
 
-        % Get datetime for each row of csv file
-        windTunnelDT = datetime(data.Year, data.Month, data.Day, ...
-                        data.Hour, data.Min, data.Sec);
+% Store row in struct to return
+d = table2struct(bestMatchRow, 'ToScalar', true);
 
-        % Calculate the absolute time difference
-        timeDiffs = abs(windTunnelDT - targetDT);
-        
-        % Find the index of the minimum difference
-        [minDiff, minIdx] = min(timeDiffs);
-        
-        % Extract the full row
-        bestMatchRow = data(minIdx, :);
-    end
 end

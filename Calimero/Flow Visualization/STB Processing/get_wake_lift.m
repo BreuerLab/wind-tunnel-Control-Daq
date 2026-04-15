@@ -1,4 +1,4 @@
-function [lift, drag] = get_wake_lift(U, L, y, z, S, avg_type, vort_bool, y_cen, z_cen)
+function [lift, drag] = get_wake_lift(U, L, y, z, S, avg_type, vort_bool, y_cen, z_cen, density)
     dy = abs(y(1,2,1) - y(1,1,1)) * L;
     dz = abs(z(1,1,2) - z(1,1,1)) * L;
     dA = dy*dz;
@@ -83,8 +83,6 @@ function [lift, drag] = get_wake_lift(U, L, y, z, S, avg_type, vort_bool, y_cen,
     % should account for contribution from d/dt term in N-S
 
     %% Calculate lift
-    rho = 1.225; % air density kg/m^3
-
     if vort_bool
         % term1 = -U * dA * x .* -vortZ; 
         % term2 = (w + U) .* -v .* dA; % effectively zero
@@ -93,14 +91,14 @@ function [lift, drag] = get_wake_lift(U, L, y, z, S, avg_type, vort_bool, y_cen,
         lift_mat = term1 - term2;
     
         lift_vec = trapz(y(:,1), lift_mat, 1);
-        lift = 2 * rho * trapz(z(1,:), lift_vec, 2);
+        lift = 2 * density * trapz(z(1,:), lift_vec, 2);
         lift = squeeze(lift);
     else
         % lift_mat_full = -(w .* -v * dA);
         lift_mat_full = -(u .* -w);
 
         lift_vec_full = trapz(y(:,1), lift_mat_full, 1);
-        lift = 2 * rho * trapz(z(1,:), lift_vec_full, 2);
+        lift = 2 * density * trapz(z(1,:), lift_vec_full, 2);
         lift = squeeze(lift);
     end
 
@@ -117,13 +115,13 @@ function [lift, drag] = get_wake_lift(U, L, y, z, S, avg_type, vort_bool, y_cen,
         % dropped in this analysis can't be dropped as before with lift
 
         drag_vec = trapz(y(:,1), drag_mat, 1);
-        drag = 2 * rho * trapz(z(1,:), drag_vec, 2);
+        drag = 2 * density * trapz(z(1,:), drag_vec, 2);
         drag = squeeze(drag);
     else
         drag_mat_full = -u .* (u + U); % If w > U in magnitude, should be -
         
         drag_vec_full = trapz(y(:,1), drag_mat_full, 1);
-        drag = 2 * rho * trapz(z(1,:), drag_vec_full, 2);
+        drag = 2 * density * trapz(z(1,:), drag_vec_full, 2);
         drag = squeeze(drag);
     end
     

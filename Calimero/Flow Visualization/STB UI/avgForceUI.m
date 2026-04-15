@@ -336,30 +336,31 @@ classdef avgForceUI < handle
                             suffix = "_phase_avg.mat";
                         end
                         filepath = obj.PIV_path + name + suffix;
+
+                        if freqs(j) == 0
+                            avg_type = 0;
+                            measured_freqs(j) = 0;
+                            errors(j) = 0;
+                        else
+                            avg_type = 1;
+                            d = load(filepath, "bin_std", "phase_avg_speed");
+                            measured_freqs(j) = mean(d.phase_avg_speed);
+                            gain = 0.01;
+                            errors(j) = gain * mean(d.bin_std);
+                        end
             
-                        calc_force = true;
+                        calc_force = false;
                         if calc_force
-                            [var, err] = get_PIV_force(filepath, name, obj.force_var, vort_bool, 1);
+                            [var, err] = get_PIV_force(filepath, name, obj.force_var, vort_bool, avg_type);
 
                             if obj.PIV_sub
                                 filename = "ring_time_avg.mat";
                                 bod_filepath = obj.PIV_path + "time_avg/" + filename;
-                                [bod_var, ~] = get_PIV_force(bod_filepath, obj.force_var, vort_bool, 0);
+                                [bod_var, ~] = get_PIV_force(bod_filepath, "", obj.force_var, vort_bool, 0);
                                 var = var - bod_var;
                             end
-
                         else
-                            vars = {obj.force_var};
-                            if freqs(j) ~= 0
-                                vars{end+1} = "bin_std";
-                                vars{end+1} = "phase_avg_speed";
-                            else
-                                % TEMP SKIP OF OTHERS VARS FOR GLIDING CASE
-                                % if ~contains(obj.force_var, "lift") && ~contains(obj.force_var, "drag")
-                                %     continue;
-                                % end
-                            end
-                            d = load(filepath, vars{:});
+                            d = load(filepath, obj.force_var);
                             var = d.(obj.force_var);
 
                             if obj.PIV_sub
@@ -367,16 +368,7 @@ classdef avgForceUI < handle
                                 % filename = "ring_time_avg.mat";
                                 bod = load(obj.PIV_path + "time_avg/" + filename, obj.force_var);
                                 var = var - bod.(obj.force_var);
-                            end
-
-                            gain = 0.01;
-                            if freqs(j) ~= 0
-                                errors(j) = gain * mean(d.bin_std);
-                                measured_freqs(j) = mean(d.phase_avg_speed);
-                            else
-                                errors(j) = 0;
-                                measured_freqs(j) = 0;
-                            end
+                            end  
                         end                    
                         
                         % Calculate mean force and store in array for plotting

@@ -332,14 +332,22 @@ classdef avgForceUI < handle
                         name = type + "_" + amp + "deg_" + freqs(j) + "Hz";
                         if freqs(j) == 0
                             suffix = "_time_avg.mat";
+                            avg_type = 0;
+                            measured_freqs(j) = 0;
+                            errors(j) = 0;
                         else
                             suffix = "_phase_avg.mat";
+                            avg_type = 1;
+
+                            d = load(filepath, "bin_std", "phase_avg_speed");
+                            measured_freqs(j) = mean(d.phase_avg_speed);
+                            errors(j) = gain * mean(d.bin_std);
                         end
                         filepath = obj.PIV_path + name + suffix;
             
-                        calc_force = false;
+                        calc_force = true;
                         if calc_force
-                            [var, err] = get_PIV_force(filepath, obj.force_var, vort_bool, 1);
+                            [var, err] = get_PIV_force(filepath, name, obj.force_var, vort_bool, avg_type);
 
                             if obj.PIV_sub
                                 filename = "ring_time_avg.mat";
@@ -347,24 +355,13 @@ classdef avgForceUI < handle
                                 [bod_var, ~] = get_PIV_force(bod_filepath, obj.force_var, vort_bool, 0);
                                 var = var - bod_var;
                             end
-
                         else
-                            vars = {obj.force_var};
-                            if freqs(j) ~= 0
-                                vars{end+1} = "bin_std";
-                                vars{end+1} = "phase_avg_speed";
-                            else
-                                % TEMP SKIP OF OTHERS VARS FOR GLIDING CASE
-                                % if ~contains(obj.force_var, "lift") && ~contains(obj.force_var, "drag")
-                                %     continue;
-                                % end
-                            end
-                            d = load(filepath, vars{:});
+                            d = load(filepath, obj.force_var);
                             var = d.(obj.force_var);
 
                             if obj.PIV_sub
-                                % filename = "body_time_avg.mat";
-                                filename = "ring_time_avg.mat";
+                                filename = "body_time_avg.mat";
+                                % filename = "ring_time_avg.mat";
                                 bod = load(obj.PIV_path + "time_avg/" + filename, obj.force_var);
                                 var = var - bod.(obj.force_var);
                             end
@@ -384,9 +381,11 @@ classdef avgForceUI < handle
                     end
 
                     if obj.force_bool && ~contains(type, "UP")
-                        % var_name_F = "filtered_data";
-                        var_name_F = "wingbeat_avg_forces_smoothest";
-                        if 
+                        var_name_F = "filtered_data";
+                        % var_name_F = "wingbeat_avg_forces_smoothest";
+                        if freqs(j) == 0
+                            var_name_F = "filtered_data";
+                        end
 
                         if contains(obj.force_var,"drag")
                             idx = 1;
