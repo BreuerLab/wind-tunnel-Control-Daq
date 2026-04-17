@@ -64,8 +64,10 @@ classdef avgForceUI < handle
             obj.index = 1;
             obj.box_labels = ["lift_vort", "lift_vel", "drag_vort", "drag_vel",...
                 "speed", "voltage", "current", "KE", "enstrophy", "avg U"];
-            obj.var_names = ["lift", "lift_vel", "drag", "drag_vel",...
+            obj.var_names = ["lift.tot", "lift_vel", "drag.tot", "drag_vel",...
                 "phase_avg_speed", "phase_avg_volt", "phase_avg_cur", "KE", "enst", "u_avg"];
+            % obj.var_names = ["lift", "lift_vel", "drag", "drag_vel",...
+            %     "phase_avg_speed", "phase_avg_volt", "phase_avg_cur", "KE", "enst", "u_avg"];
             obj.y_labels = ["Lift (N)", "Lift (N)", "Drag (N)", "Drag (N)",...
                 "Speed (Hz)", "Voltage (V)", "Current (mA)", "KE", "Enstrophy", "Freestream Speed (m/s)"];
             obj.PIV_sub = false;
@@ -76,7 +78,7 @@ classdef avgForceUI < handle
             obj.y_norm = false;
             obj.force_bool = false;
             obj.PIV_bool = true;
-            obj.force_var = "lift";
+            obj.force_var = obj.var_names(1);
             obj.saveFig = false;
             obj.err_bool = false;
 

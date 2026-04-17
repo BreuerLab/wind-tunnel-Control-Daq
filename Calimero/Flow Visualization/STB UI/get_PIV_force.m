@@ -15,13 +15,15 @@ function [var, err] = get_PIV_force(file_name, case_name, force_var_name, avg_ty
             case 1
             vars = {"L","U","y","z","u_phase_avg","w_phase_avg"};
             if vort_bool
-                vars = [vars, "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg","uncTot_phase_avg"];
+                vars = [vars, "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg"];
             end
+            vars = [vars, "uncTot_phase_avg"];
         end
 
         d = load(file_name, vars{:});
 
-        if avg_type == 0
+        AFAM_bool = false;
+        if avg_type == 0 || ~AFAM_bool
             speed = d.U;
             density = 1.225;
         else
@@ -65,7 +67,7 @@ function [var, err] = get_PIV_force(file_name, case_name, force_var_name, avg_ty
         % Convert to a struct
         F = cell2struct(outputs, fields, 2);
 
-        var = F.(force_var_name);
+        var = eval("F." + force_var_name);
         err = 0;
 
         if norm_bool

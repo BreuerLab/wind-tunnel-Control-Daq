@@ -314,7 +314,7 @@ methods
         d4.Value = obj.iso_var;
         d4.ValueChangedFcn = @(src, event) iso_var_change(src, event, plot_panel);
 
-        l2_y = button3_y - 35;
+        l2_y = drop_y4 - 35;
         l2 = uilabel(obj.param_panel);
         l2.HorizontalAlignment = 'center';
         l2.Position = [30 l2_y 120 unit_height];

@@ -18,10 +18,10 @@ properties
     force_path;
 
     % integer, 0-6, defines which force/moment axes to display
-    index;
+    inds;
     % force and moment axes labels used in dropdown box
     axes_labels;
-
+    var_names;
     y_labels;
 
     % boolean, normalization/non-dimensionalization on or off
@@ -71,9 +71,16 @@ methods
         obj.PIV_path = obj.root_path + "Processed Results\";
         obj.force_path = obj.root_path + "Force Measurements\";
 
-        obj.index = 1;
-        obj.axes_labels = ["Lift", "Drag", "Speed", "Voltage", "Current", "Power"];
-        obj.y_labels = ["Lift (N)", "Drag (N)", "Speed (Hz)", "Voltage (V)", "Current (mA)", "Power (mW)"];
+        obj.inds = [];
+        % obj.axes_labels = ["Lift", "Drag", "Speed", "Voltage", "Current", "Power"];
+        obj.axes_labels = ["Lift - Vorticity", "y*\omega_x", "x*\omega_y", "u*w",...
+            "Drag - Vorticity", "z*\omega_y", "y*\omega_z", "(u-U)*u", "Speed", "Voltage", "Current", "Power"];
+        obj.var_names = ["lift.tot", "lift.vortX", "lift.vortY", "lift_vel",...
+                    "drag.tot", "drag.vortY", "drag.vortZ", "drag_vel",...
+                    "phase_avg_speed", "phase_avg_volt", "phase_avg_cur", "phase_avg_volt"];
+        obj.y_labels = ["Lift (N)","Lift (N)","Lift (N)","Lift (N)",...
+            "Drag (N)", "Drag (N)", "Drag (N)", "Drag (N)",...
+            "Speed (Hz)", "Voltage (V)", "Current (mA)", "Power (mW)"];
         obj.norm = false;
         obj.norm_period = true;
         obj.PIV_sub = false;
@@ -113,7 +120,7 @@ methods
         unit_spacing = round(0.005*screen_height);
 
         % Dropdown box for flapper type selection
-        drop_y1 = screen_height*0.85 - 30;
+        drop_y1 = screen_height*0.875 - unit_spacing;
         d1 = uidropdown(option_panel);
         d1.Position = [10 drop_y1 180 30];
         cur_types = unique(string(obj.available_selections(:, 1)));
@@ -162,13 +169,32 @@ methods
         b3.ButtonPushedFcn = @(src, event) removeFromList(src, event, plot_panel, lbox);
 
         % Dropdown box for which force/moment axes to display
-        drop_y9 = list_y - (unit_height + unit_spacing);
-        d9 = uidropdown(option_panel);
-        d9.Position = [10 drop_y9 180 unit_height];
-        d9.Items = obj.axes_labels;
-        d9.ValueChangedFcn = @(src, event) index_change(src, event, plot_panel);
+        % drop_y9 = list_y - (unit_height + unit_spacing);
+        % d9 = uidropdown(option_panel);
+        % d9.Position = [10 drop_y9 180 unit_height];
+        % d9.Items = obj.axes_labels;
+        % d9.ValueChangedFcn = @(src, event) index_change(src, event, plot_panel);
 
-        button4_y = drop_y9 - (unit_height + unit_spacing);
+        param_panel_height = 300;
+        param_panel_width = 180;
+        param_panel_y = list_y - unit_spacing - param_panel_height;
+        param_panel = uipanel(option_panel);
+        param_panel.Title = "Plot Parameters";
+        param_panel.TitlePosition = 'centertop';
+        param_panel.Position = [10 param_panel_y param_panel_width param_panel_height];
+
+        % Add Multiple Checkboxes using a loop
+        options = obj.axes_labels;
+        checkboxes = [];
+
+        for i = 1:length(options)
+            checkboxes(i) = uicheckbox(param_panel, ...
+                'Text', options(i), ...
+                'Position', [20 (param_panel_height - 50 - (i-1)*20) 150 22], ...
+                'ValueChangedFcn', @(src, event) updateLogic(src, event, plot_panel));
+        end
+
+        button4_y = param_panel_y - (unit_height + unit_spacing);
         b4 = uibutton(option_panel, "state");
         b4.Text = "Show Force";
         b4.FontSize = 18;
@@ -226,6 +252,7 @@ methods
         button9_y = label_y + (unit_height + unit_spacing);
         b4 = uibutton(option_panel);
         b4.Text = "Save Fig";
+        b4.FontSize = 18;
         b4.Position = [20 button9_y 160 unit_height];
         b4.BackgroundColor = [1 1 1];
         b4.ButtonPushedFcn = @(src, event) save_figure(src, event, plot_panel);
@@ -307,8 +334,13 @@ methods
             obj.update_plot(plot_panel);
         end
 
-        function index_change(src, ~, plot_panel)
-            obj.index = find(obj.axes_labels == src.Value);
+        function updateLogic(src, ~, plot_panel)
+            cur_ind = find(obj.axes_labels == src.Text);
+            if src.Value
+                obj.inds = [obj.inds cur_ind];
+            else
+                obj.inds(obj.inds == cur_ind) = [];
+            end
             obj.update_plot(plot_panel);
         end
 
@@ -409,8 +441,23 @@ methods (Access = private)
             common_var = string(uniq_amps);
         end
 
+        dual_plot = false;
+        if ~isempty(obj.inds)
+            if length(obj.inds) > 1
+                for n = 2:length(obj.inds)
+                    if ~strcmp(obj.y_labels(obj.inds(n-1)), obj.y_labels(obj.inds(n)))
+                        dual_plot = true;
+                        ylabel_one = obj.y_labels(obj.inds(n-1));
+                        ylabel_two = obj.y_labels(obj.inds(n));
+                    end
+                end
+            end
+        end
+
         ax = axes(plot_panel);
         hold(ax, 'on');
+        for j = 1:length(obj.inds)
+            index = obj.inds(j);
         for i = 1:length(obj.selection)
             cur_sel = obj.selection(i);
 
@@ -418,46 +465,44 @@ methods (Access = private)
 
             filename = cur_sel + "_phase_avg.mat";
 
-            if ismember(obj.index,[1,2])
+            if ismember(index,[1,2])
                 vars = {"L","U","y","z","u_phase_avg","w_phase_avg",...
                 "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg"};
             end
 
-            switch obj.index
-                case 1
-                    if obj.vort_bool
-                        var_name = "lift";
-                    else
-                        var_name = "lift_vel";
-                    end
-                case 2
-                    if obj.vort_bool
-                        var_name = "drag";
-                    else
-                        var_name = "drag_vel";
-                    end
-                case 3
-                    var_name = "phase_avg_speed";
-                case 4
-                    var_name = "phase_avg_volt";
-                case 5
-                    var_name = "phase_avg_cur";
-                case 6
-                    vars = {"phase_avg_volt", "phase_avg_cur"};
-            end
+            % switch index
+            %     case 1
+            %         if obj.vort_bool
+            %             var_name = "lift";
+            %         else
+            %             var_name = "lift_vel";
+            %         end
+            %     case 2
+            %         if obj.vort_bool
+            %             var_name = "drag";
+            %         else
+            %             var_name = "drag_vel";
+            %         end
+            %     case 3
+            %         var_name = "phase_avg_speed";
+            %     case 4
+            %         var_name = "phase_avg_volt";
+            %     case 5
+            %         var_name = "phase_avg_cur";
+            %     case 6
+            %         vars = {"phase_avg_volt", "phase_avg_cur"};
+            % end
+            var_name = obj.var_names(index);
 
             calc_force = true;
-            if ismember(obj.index,[1,2]) && calc_force
+            if ismember(index,[1,2,3,4,5,6,7,8]) && calc_force
                 % Compute Lift force
                 avg_type = 1;
-                d = load(obj.PIV_path + filename, "L");
-                y_cen = -0.142 / d.L;
-                z_cen = -0.03 / d.L;
     
                 norm_bool = false;
                 file_path = obj.PIV_path + filename;
                 [var, err] = get_PIV_force(file_path, cur_sel, var_name, avg_type, norm_bool);
-            elseif obj.index == 6
+            elseif index == 6
                 d = load(obj.PIV_path + filename, vars{:});
                 var = d.(vars{1}) .* d.(vars{2});
             else
@@ -468,15 +513,26 @@ methods (Access = private)
             load(obj.PIV_path + filename, "phase_avg_speed")
             freq_cor = mean(phase_avg_speed);
 
-            if ismember(obj.index,[1,2]) && obj.PIV_sub
+            if ismember(index,[1,2,3,4,5,6,7,8]) && obj.PIV_sub
                 % filename = "body_phase_avg.mat";
                 filename = "ring_time_avg.mat";
-                d = load(obj.PIV_path + "time_avg/" + filename, var_name);
-                var = var - d.(var_name);
+
+                if ~strcmp(var_name, "lift.vortY")
+                if calc_force
+                    % Compute aerodynamic forces
+                    norm_bool = false;
+                    file_path = obj.PIV_path + "time_avg/" + filename;
+                    [bod_var, bod_err] = get_PIV_force(file_path, "", var_name, 0, norm_bool);
+                    var = var - bod_var;
+                else
+                    d = load(obj.PIV_path + "time_avg/" + filename, var_name);
+                    var = var - d.(var_name);
+                end
+                end
             end
 
             % Shift data given convection time downstream to target
-            if ismember(obj.index,[1,2])
+            if ismember(index,[1,2,3,4,5,6,7,8])
             dist = 0.9;
             if contains(type, "UP_two")
                 dist = dist + 0.76;
@@ -511,10 +567,9 @@ methods (Access = private)
 
             if obj.force_bool && ~contains(type, "UP")
             
-            switch obj.index
-                case 1
+            if (ismember(index, [1,2,3,4]))
                     idx = 3;
-                case 2
+            elseif (ismember(index, [5,6,7,8]))
                     idx = 1;
             end
 
@@ -547,13 +602,32 @@ methods (Access = private)
             sels = [type, amp];
             original_color = colors(find(uniq_freqs == freq), find(common_var == sels(I(2)))); % hex
 
-            line = plot(ax, time, var);
-            line.DisplayName = strrep(cur_sel,"_"," ");
+            if dual_plot
+                if strcmp(ylabel_one, obj.y_labels(index))
+                    yyaxis(ax, 'left')
+                    line = plot(ax, time, var);
+                elseif strcmp(ylabel_two, obj.y_labels(index))
+                    yyaxis(ax, 'right')
+                    line = plot(ax, time, var);
+                end
+            else
+                line = plot(ax, time, var);
+            end
+            linestyles = ["-", "--", ":", "-."];
+
+            if isscalar(obj.inds)
+                legend_entry = strrep(cur_sel,"_"," ");
+            else
+                legend_entry = obj.axes_labels(index);
+                line.LineStyle = linestyles(find(obj.inds == index));
+            end
+
+            line.DisplayName = legend_entry;
             line.Color = original_color;
             line.LineWidth = 2;
-            if contains(type, "UP")
-                line.LineStyle = "--";
-            end
+            % if contains(type, "UP")
+            %     line.LineStyle = "--";
+            % end
 
             if obj.force_bool && ~contains(type, "UP")
                 line = plot(ax, time_F, force);
@@ -563,11 +637,34 @@ methods (Access = private)
                 line.LineStyle = ":";
             end
         end
+        end
         hold(ax, 'off');
 
         grid(ax, 'on');
         l = legend(ax, Location="northeast");
-        ylabel(ax, obj.y_labels(obj.index))
+        % if ~isempty(obj.inds)
+        %     if length(obj.inds) > 1
+        %         for n = 2:length(obj.inds)
+        %             if ~strcmp(obj.y_labels(obj.inds(n-1)), obj.y_labels(obj.inds(n)))
+        %                 dual_plot = true;
+        %                 ylabel_one = obj.y_labels(obj.inds(n-1));
+        %                 ylabel_two = obj.y_labels(obj.inds(n));
+        %             end
+        %         end
+        %     end
+        % end
+
+            if dual_plot
+                yyaxis(ax, 'left')
+                ylabel(ax, ylabel_one)
+                ax.YAxis(1).Color = 'k';
+                yyaxis(ax, 'right')
+                ylabel(ax, ylabel_two)
+                ax.YAxis(2).Color = 'k';
+            else
+                ylabel(ax, obj.y_labels(obj.inds(1)))
+            end
+            
         ax.FontSize = 18;
 
         if (obj.saveFig)
@@ -583,7 +680,7 @@ methods (Access = private)
             end
 
             % set(fignew, 'Position', [200 200 800 600])
-            set(fignew,'CreateFcn','set(gcbf,''Visible'',''on'')'); % Make it visible upon loading
+            set(fignew,'CreateFcn','set(gcf,''Visible'',''on'')'); % Make it visible upon loading
             savefig(fignew,filename);
             delete(fignew);
         end
