@@ -3,25 +3,52 @@ function [x, y, z, u, v, w, Utot, vortX, vortY, vortZ, vortTot, uncU, uncV, uncW
 D = loadpiv(file_path,"extractAllVariables","frameSelect",sel_frames); % "Validate", minCorrelationValue
 
 if RPCA_bool
-% RPCA filtering for velocities only near plane of interest
-% 1. Filter uRaw
-origSize = [size(D.u,1), size(D.u,2), 3, size(D.u,4)];
-X_u = reshape(D.u(:,:,3:5,:), [], size(D.u, 4)); 
-[L_u, ~] = RPCA(X_u);
-D.u(:,:,3:5,:) = reshape(L_u, origSize);
-% disp("u filtering complete")
+% % RPCA filtering for velocities only near plane of interest
+% % 1. Filter uRaw
+% origSize = [size(D.u,1), size(D.u,2), 3, size(D.u,4)];
+% X_u = reshape(D.u(:,:,3:5,:), [], size(D.u, 4)); 
+% [L_u, ~] = RPCA(X_u);
+% D.u(:,:,3:5,:) = reshape(L_u, origSize);
+% % disp("u filtering complete")
+% 
+% % 2. Filter vRaw
+% X_v = reshape(D.v(:,:,3:5,:), [], size(D.v, 4)); 
+% [L_v, ~] = RPCA(X_v);
+% D.v(:,:,3:5,:) = reshape(L_v, origSize);
+% % disp("v filtering complete")
+% 
+% % 3. Filter wRaw
+% X_w = reshape(D.w(:,:,3:5,:), [], size(D.w, 4)); 
+% [L_w, ~] = RPCA(X_w);
+% D.w(:,:,3:5,:) = reshape(L_w, origSize);
 
-% 2. Filter vRaw
-X_v = reshape(D.v(:,:,3:5,:), [], size(D.v, 4)); 
-[L_v, ~] = RPCA(X_v);
-D.v(:,:,3:5,:) = reshape(L_v, origSize);
-% disp("v filtering complete")
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+tic
+s_ind = 2;
+e_ind = 4;
+origSize = size(D.u(s_ind:e_ind,:,:,:));
 
-% 3. Filter wRaw
-X_w = reshape(D.w(:,:,3:5,:), [], size(D.w, 4)); 
-[L_w, ~] = RPCA(X_w);
-D.w(:,:,3:5,:) = reshape(L_w, origSize);
+% 1. Reshape and concatenate all three components vertically
+% X will have dimensions [ (3 * Space), Time ]
+X_all = [ reshape(D.u(s_ind:e_ind,:,:,:), [], size(D.u, 4)); ...
+          reshape(D.v(s_ind:e_ind,:,:,:), [], size(D.v, 4)); ...
+          reshape(D.w(s_ind:e_ind,:,:,:), [], size(D.w, 4))];
 
+% 2. Run RPCA once on the combined matrix
+[L_all, ~] = RPCA(X_all);
+
+% 3. Split the results back out
+numElements = size(X_all, 1) / 3;
+L_u = L_all(1:numElements, :);
+L_v = L_all(numElements+1:2*numElements, :);
+L_w = L_all(2*numElements+1:end, :);
+
+% 4. Reshape back to original dimensions
+D.u(s_ind:e_ind,:,:,:) = reshape(L_u, origSize);
+D.v(s_ind:e_ind,:,:,:) = reshape(L_v, origSize);
+D.w(s_ind:e_ind,:,:,:) = reshape(L_w, origSize);
+
+toc
 disp("RPCA complete, calculating vorticity...")
 for i = 1:size(D.u, 4)
 [D.vortX(:,:,:,i), D.vortY(:,:,:,i), D.vortZ(:,:,:,i)] = ...

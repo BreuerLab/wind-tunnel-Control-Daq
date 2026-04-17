@@ -27,7 +27,7 @@ classdef avgForceUI < handle
         y_labels;
 
         % boolean, normalization/non-dimensionalization on or off
-        norm;
+        y_norm;
         x_norm;
 
         filt_num;
@@ -68,12 +68,12 @@ classdef avgForceUI < handle
                 "phase_avg_speed", "phase_avg_volt", "phase_avg_cur", "KE", "enst", "u_avg"];
             obj.y_labels = ["Lift (N)", "Lift (N)", "Drag (N)", "Drag (N)",...
                 "Speed (Hz)", "Voltage (V)", "Current (mA)", "KE", "Enstrophy", "Freestream Speed (m/s)"];
-            obj.norm = false;
             obj.PIV_sub = false;
             obj.force_sub = false;
             obj.filt_num = 3;
 
             obj.x_norm = false;
+            obj.y_norm = false;
             obj.force_bool = false;
             obj.PIV_bool = true;
             obj.force_var = "lift";
@@ -188,7 +188,15 @@ classdef avgForceUI < handle
             x_norm_button.BackgroundColor = obj.COLOR_INACTIVE;
             x_norm_button.ValueChangedFcn = @(src, event) x_norm_change(src, event, plot_panel);
 
-            button7_y = button6_y - (unit_height + unit_spacing);
+            button66_y = button6_y - (unit_height + unit_spacing);
+            y_norm_button = uibutton(option_panel, "state");
+            y_norm_button.Text = "Normalize Y-axis";
+            y_norm_button.FontSize = 18;
+            y_norm_button.Position = [20 button66_y 160 unit_height];
+            y_norm_button.BackgroundColor = obj.COLOR_INACTIVE;
+            y_norm_button.ValueChangedFcn = @(src, event) y_norm_change(src, event, plot_panel);
+
+            button7_y = button66_y - (unit_height + unit_spacing);
             err_button = uibutton(option_panel, "state");
             err_button.Text = "Error";
             err_button.FontSize = 18;
@@ -251,6 +259,12 @@ classdef avgForceUI < handle
             function x_norm_change(src, ~, plot_panel)
                 obj.x_norm = src.Value;
                 src.BackgroundColor = obj.get_button_color(obj.x_norm);
+                obj.update_plot(plot_panel);
+            end
+
+            function y_norm_change(src, ~, plot_panel)
+                obj.y_norm = src.Value;
+                src.BackgroundColor = obj.get_button_color(obj.y_norm);
                 obj.update_plot(plot_panel);
             end
 
@@ -322,11 +336,6 @@ classdef avgForceUI < handle
                        length(uniq_amps),...
                        length(obj.selection));
 
-            vort_bool = true;
-            if contains(obj.force_var, "vel")
-                vort_bool = false;
-            end
-
             ax = axes(plot_panel);
             hold(ax, 'on');
             l = legend(ax, Location="best");
@@ -363,16 +372,17 @@ classdef avgForceUI < handle
                             measured_freqs(j) = mean(d.phase_avg_speed);
                             gain = 0.01;
                             errors(j) = gain * mean(d.bin_std);
+                            % errors(j) = 0.2 / length(d.bin_std);
                         end
             
                         calc_force = true;
                         if calc_force
-                            [var, err] = get_PIV_force(filepath, name, obj.force_var, vort_bool, avg_type);
+                            [var, err] = get_PIV_force(filepath, name, obj.force_var, avg_type, obj.y_norm);
 
                             if obj.PIV_sub
                                 filename = "ring_time_avg.mat";
                                 bod_filepath = obj.PIV_path + "time_avg/" + filename;
-                                [bod_var, ~] = get_PIV_force(bod_filepath, "", obj.force_var, vort_bool, 0);
+                                [bod_var, ~] = get_PIV_force(bod_filepath, "", obj.force_var, 0, obj.y_norm);
                                 var = var - bod_var;
                             end
                         else

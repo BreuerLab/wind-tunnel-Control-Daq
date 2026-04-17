@@ -32,13 +32,35 @@ function S = time_avg_STB(file_path, nondim_bool, U, L, num_files, save_filepath
         S.(avg_fields{f}) = S.(avg_fields{f}) / num_files;
     end
 
+    % Spatial resolution
+    dx = abs(x(2,1,1) - x(1,1,1));
+    dy = abs(y(1,2,1) - y(1,1,1));
+    dz = abs(z(1,1,2) - z(1,1,1));
+
+    % Compute Q-Criterion
+    [Qx,Qy,Qz,Q] = calQlate3D(S.mean_u, S.mean_v, S.mean_w,dx,dy,dz);
+    S.Qx = Qx; S.Qy = Qy; S.Qz = Qz; S.Q = Q;
 
     % Compute integral quanitites: lift, drag, KE, enstrophy, conv_U
     avg_type = 0;
     y_cen = -0.142 / L;
     z_cen = -0.03 / L;
-    [lift_vel, drag_vel] = get_wake_lift(U, L, y, z, S, avg_type, false, y_cen, z_cen);
-    [lift, drag] = get_wake_lift(U, L, y, z, S, avg_type, true, y_cen, z_cen);
+
+    if avg_type == 0
+        speed = U;
+        density = 1.225;
+    else
+        % Find matching DAQ file
+        [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name);
+
+        WT_d = get_wind_tunnel_data(daq_data_filename);
+        speed = WT_d.Speed_m_s_;
+        density = WT_d.Density_kg_m3_;
+        % density = 1.225;
+    end
+
+    [lift_vel, drag_vel] = get_wake_lift(speed, L, y, z, S, avg_type, false, y_cen, z_cen, density);
+    [lift, drag] = get_wake_lift(speed, L, y, z, S, avg_type, true, y_cen, z_cen, density);
 
     x_ind = 3;
     

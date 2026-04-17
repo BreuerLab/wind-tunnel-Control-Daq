@@ -1,6 +1,6 @@
 function [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name)
     % Define the base directory shortcuts to keep paths readable
-    base_rg = 'R:\ENG_Breuer_Shared\rgissler\Calimero Force Data\';
+    base_rg = 'R:\ENG_Breuer_Shared\rgissler\Calimero Force Data\STB Final\';
     base_group = 'R:\ENG_Breuer_Shared\group\Wind turbine\Turbine_STB\DAQ Data\';
 
     % Map experimental dates to their specific subfolders

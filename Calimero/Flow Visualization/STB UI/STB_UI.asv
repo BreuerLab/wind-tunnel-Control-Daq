@@ -945,13 +945,11 @@ methods (Access = private)
         elseif plot_idx == 7
             % y = squeeze(d.y(3,:,:));
             % z = squeeze(d.z(3,:,:));
-            % val = squeeze(val(3,:,:,:));
+            val = squeeze(val(3,:,:,:));
 
             mean_val = squeeze(mean(val, [1 2], "omitnan"));
 
             plot(ax, mean_val)
-            hold(ax, "on")
-            yline(ax, mean(mean_val))
             xlabel(ax, "Time", FontSize=16)
             ylabel(ax, obj.label_dict(obj.variable_name), FontSize=16, Interpreter="latex")
         end

@@ -31,30 +31,50 @@ g = fetch_coeff(order,wdw);
 
 switch numel(size(u))
     case 3 % For a single frame
-        % x-derivative
-        for i = size(u,2):-1:1
-        for j = size(u,3):-1:1
-            dudx(:,i,j) = conv(u(:,i,j), 1/(-dx)*g,'same');
-            dvdx(:,i,j) = conv(v(:,i,j), 1/(-dx)*g,'same');
-            dwdx(:,i,j) = conv(w(:,i,j), 1/(-dx)*g,'same');
-        end
-        end
-        % y-derivative
-        for i = size(u,1):-1:1
-        for j = size(u,3):-1:1
-            dudy(i,:,j) = conv(u(i,:,j), 1/(-dy)*g,'same');
-            dvdy(i,:,j) = conv(v(i,:,j), 1/(-dy)*g,'same');
-            dwdy(i,:,j) = conv(w(i,:,j), 1/(-dy)*g,'same');
-        end
-        end
-        % z-derivative
-        for i = size(u,1):-1:1
-        for j = size(u,2):-1:1
-            dudz(i,j,:) = conv(u(i,j,:), 1/(-dz)*g,'same');
-            dvdz(i,j,:) = conv(v(i,j,:), 1/(-dz)*g,'same');
-            dwdz(i,j,:) = conv(w(i,j,:), 1/(-dz)*g,'same');
-        end
-        end
+        % Pre-reshape the kernel for each dimension
+        gx = reshape(1/(-dx)*g, [], 1, 1); % Vertical kernel
+        gy = reshape(1/(-dy)*g, 1, [], 1); % Horizontal kernel
+        gz = reshape(1/(-dz)*g, 1, 1, []); % Depth kernel
+
+        % X-derivatives (First dimension)
+        dudx = convn(u, gx, 'same');
+        dvdx = convn(v, gx, 'same');
+        dwdx = convn(w, gx, 'same');
+
+        % Y-derivatives (Second dimension)
+        dudy = convn(u, gy, 'same');
+        dvdy = convn(v, gy, 'same');
+        dwdy = convn(w, gy, 'same');
+
+        % Z-derivatives (Third dimension)
+        dudz = convn(u, gz, 'same');
+        dvdz = convn(v, gz, 'same');
+        dwdz = convn(w, gz, 'same');
+
+        % % x-derivative
+        % for i = size(u,2):-1:1
+        % for j = size(u,3):-1:1
+        %     dudx(:,i,j) = conv(u(:,i,j), 1/(-dx)*g,'same');
+        %     dvdx(:,i,j) = conv(v(:,i,j), 1/(-dx)*g,'same');
+        %     dwdx(:,i,j) = conv(w(:,i,j), 1/(-dx)*g,'same');
+        % end
+        % end
+        % % y-derivative
+        % for i = size(u,1):-1:1
+        % for j = size(u,3):-1:1
+        %     dudy(i,:,j) = conv(u(i,:,j), 1/(-dy)*g,'same');
+        %     dvdy(i,:,j) = conv(v(i,:,j), 1/(-dy)*g,'same');
+        %     dwdy(i,:,j) = conv(w(i,:,j), 1/(-dy)*g,'same');
+        % end
+        % end
+        % % z-derivative
+        % for i = size(u,1):-1:1
+        % for j = size(u,2):-1:1
+        %     dudz(i,j,:) = conv(u(i,j,:), 1/(-dz)*g,'same');
+        %     dvdz(i,j,:) = conv(v(i,j,:), 1/(-dz)*g,'same');
+        %     dwdz(i,j,:) = conv(w(i,j,:), 1/(-dz)*g,'same');
+        % end
+        % end
 
     case 4 % For multiple frames
         % Pre-reshape the kernel for each dimension

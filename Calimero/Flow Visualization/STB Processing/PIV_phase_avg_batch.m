@@ -18,7 +18,7 @@ save_filepath_local = "Y:\Processed Results\";
 avg_type = 1; % 0 - time average, 1 - phase average
 
 nondim_bool = true; % non-dimensionalize data
-RPCA_bool = false; % RPCA filtering of vector fields
+RPCA_bool = true; % RPCA filtering of vector fields
 
 % If you want to make plots here, you can. However, it is NOT recommended.
 % Intead, use main_analysis to produce plots easily in a GUI interface.
@@ -36,7 +36,7 @@ case_names = get_case_names(vc7_filepath);
 sel_case_names = [];
 for i = 1:length(case_names)
     cur_name = case_names{i};
-    if ~contains(cur_name, "UP_one") && ~contains(cur_name, "UP_two") ...
+    if ~contains(cur_name, "UP_one") && contains(cur_name, "UP_two") ...
         && ~contains(cur_name, "turbine") && contains(cur_name, "flexible") ...
         && ~contains(cur_name, "0Hz")
         sel_case_names = [sel_case_names case_names(i)];

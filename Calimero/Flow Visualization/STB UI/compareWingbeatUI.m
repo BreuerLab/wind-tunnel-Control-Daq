@@ -47,7 +47,7 @@ properties
     saveFig;
 
     force_bool;
-    method; % 1 - velocity, 2 - vorticity
+    vort_bool; % 1 - velocity, 2 - vorticity
     % used to calculate forces from vector field data
 
     % ------- Available parameters user can select from -------
@@ -84,7 +84,7 @@ methods
         obj.saveFig = false;
 
         obj.force_bool = false;
-        obj.method = 2;
+        obj.vort_bool = true;
 
         % Search through files in path to get types and speeds
 
@@ -328,11 +328,11 @@ methods
 
         function method_change(src, ~, plot_panel)
             if (src.Value)
-                obj.method = 1;
+                obj.vort_bool = false;
                 src.BackgroundColor = [0.3010 0.7450 0.9330];
                 src.Text = "Use Vorticity";
             else
-                obj.method = 2;
+                obj.vort_bool = true;
                 src.BackgroundColor = [1 1 1];
                 src.Text = "Use Velocity";
             end
@@ -387,6 +387,7 @@ methods (Access = private)
     % update plot after user changes selected variables
     function update_plot(obj, plot_panel)
         delete(plot_panel.Children)
+        disp("-------------")
 
         uniq_types = unique(string(obj.available_selections(:,1)));
         uniq_amps = unique(cell2mat(obj.available_selections(:,2)));
@@ -424,18 +425,16 @@ methods (Access = private)
 
             switch obj.index
                 case 1
-                    switch obj.method
-                        case 1
-                            var_name = "lift_vel";
-                        case 2
-                            var_name = "lift";
+                    if obj.vort_bool
+                        var_name = "lift";
+                    else
+                        var_name = "lift_vel";
                     end
                 case 2
-                    switch obj.method
-                        case 1
-                            var_name = "drag_vel";
-                        case 2
-                            var_name = "drag";
+                    if obj.vort_bool
+                        var_name = "drag";
+                    else
+                        var_name = "drag_vel";
                     end
                 case 3
                     var_name = "phase_avg_speed";
@@ -447,25 +446,17 @@ methods (Access = private)
                     vars = {"phase_avg_volt", "phase_avg_cur"};
             end
 
-            calc_force = false;
+            calc_force = true;
             if ismember(obj.index,[1,2]) && calc_force
-                d = load(obj.PIV_path + filename, vars{:});
-
                 % Compute Lift force
                 avg_type = 1;
+                d = load(obj.PIV_path + filename, "L");
                 y_cen = -0.142 / d.L;
                 z_cen = -0.03 / d.L;
     
-                % 1. Capture all outputs into a cell array
-                [outputs{1:4}] = get_wake_lift(d.U, d.L, d.y, d.z, d, avg_type, y_cen, z_cen);
-                
-                % 2. Define your field names
-                fields = {'lift_vel', 'lift', 'drag_vel', 'drag'};
-                
-                % 3. Convert to a struct
-                F = cell2struct(outputs, fields, 2);
-    
-                var = F.(var_name);
+                norm_bool = false;
+                file_path = obj.PIV_path + filename;
+                [var, err] = get_PIV_force(file_path, cur_sel, var_name, avg_type, norm_bool);
             elseif obj.index == 6
                 d = load(obj.PIV_path + filename, vars{:});
                 var = d.(vars{1}) .* d.(vars{2});
@@ -500,9 +491,19 @@ methods (Access = private)
 
             % If first value less than mean value, shift array since we
             % must have started on the other midstroke position
-            if var(1) < min(var) + range(var)/3
-                var = circshift(var, 0.4*length(var));
+            % if var(1) < min(var) + range(var)/3
+            %     var = circshift(var, 0.4*length(var));
+            %     disp("Shifted STB curve for " + cur_sel)
+            % end
+
+            if amp == 10
+                var = circshift(var, round(0.44*length(var)));
                 disp("Shifted STB curve for " + cur_sel)
+            end
+
+            norm_bool = false;
+            if norm_bool
+                var = var / mean(var);
             end
 
             time = 1:length(var);
