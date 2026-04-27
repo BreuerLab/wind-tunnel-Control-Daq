@@ -510,8 +510,12 @@ methods (Access = private)
                 var = d.(var_name);
             end
             
-            load(obj.PIV_path + filename, "phase_avg_speed")
+            % vars_kin = {"phase_avg_pos", "phase_avg_speed", "phase_avg_acc"};
+            vars_kin = {"phase_avg_speed", "phase_avg_wing_pos", "phase_avg_wing_speed", "phase_avg_wing_acc"};
+            load(obj.PIV_path + filename, vars_kin{:})
             freq_cor = mean(phase_avg_speed);
+            % added_mass = get_added_mass(phase_avg_pos, phase_avg_speed, phase_avg_acc);
+            added_mass = get_added_mass(phase_avg_wing_pos, phase_avg_wing_speed, phase_avg_wing_acc);
 
             if ismember(index,[1,2,3,4,5,6,7,8]) && obj.PIV_sub
                 % filename = "body_phase_avg.mat";
@@ -622,6 +626,7 @@ methods (Access = private)
                 line.LineStyle = linestyles(find(obj.inds == index));
             end
 
+            disp(legend_entry + ": " + mean(var))
             line.DisplayName = legend_entry;
             line.Color = original_color;
             line.LineWidth = 2;
@@ -631,7 +636,9 @@ methods (Access = private)
 
             if obj.force_bool && ~contains(type, "UP")
                 line = plot(ax, time_F, force);
-                line.DisplayName = strrep(cur_sel,"_"," ") + " F";
+                F_legend = strrep(cur_sel,"_"," ") + " F";
+                line.DisplayName = F_legend;
+                disp(F_legend + ": " + mean(force))
                 line.Color = original_color;
                 line.LineWidth = 2;
                 line.LineStyle = ":";
@@ -641,7 +648,7 @@ methods (Access = private)
         hold(ax, 'off');
 
         grid(ax, 'on');
-        l = legend(ax, Location="northeast");
+        l = legend(ax, Location="best");
         % if ~isempty(obj.inds)
         %     if length(obj.inds) > 1
         %         for n = 2:length(obj.inds)

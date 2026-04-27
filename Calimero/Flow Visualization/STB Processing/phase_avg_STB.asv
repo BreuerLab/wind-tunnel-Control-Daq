@@ -71,8 +71,8 @@ else
 end
 
 if avg_type ~= 0
-    [~, ~, freq] = parse_name(case_name);
-    num_bins = size(d.u_phase_avg,4);
+    [~, ~, freq] = parse_name(PIV_case_name);
+    num_bins = size(S.u_phase_avg,4);
     dt = 1 / (freq * num_bins);
     x = zeros(1, num_bins);
     for k = 1:num_bins
@@ -118,12 +118,22 @@ S.KE = KE; S.enst = enst; S.u_avg = u_avg;
 
 if ~turbine_bool
     % Calculate phase averaged speed
-    [norm_time_speed, phase_avg_speed, phase_std_speed, bin_count_speed, bin_std_speed,...
-     phase_avg_volt, phase_std_volt, phase_avg_cur, phase_std_cur] = speed_phase_avg(PIV_case_name, plot_bool);
+    [norm_time_speed, phase_avg_pos, phase_std_pos,...
+    phase_avg_speed, phase_std_speed, phase_avg_acc, phase_std_acc,...
+    phase_avg_wing_pos, phase_std_wing_pos,...
+    phase_avg_wing_speed, phase_std_wing_speed, phase_avg_wing_acc, phase_std_wing_acc,...
+    bin_count_speed, bin_std_speed, phase_avg_volt, phase_std_volt,...
+    phase_avg_cur, phase_std_cur] = speed_phase_avg(PIV_case_name, plot_bool);
 
-    S.norm_time_speed = norm_time_speed; S.phase_avg_speed = phase_avg_speed;
-    S.phase_std_speed = phase_std_speed; S.bin_count_speed = bin_count_speed;
-    S.bin_std_speed = bin_std_speed;
+    S.norm_time_speed = norm_time_speed;
+    S.phase_avg_pos = phase_avg_pos; S.phase_std_pos = phase_std_pos;
+    S.phase_avg_speed = phase_avg_speed; S.phase_std_speed = phase_std_speed;
+    S.phase_avg_acc = phase_avg_acc; S.phase_std_acc = phase_std_acc;
+    
+    S.phase_avg_wing_pos = phase_avg_wing_pos; S.phase_std_wing_pos = phase_std_wing_pos;
+    S.phase_avg_wing_speed = phase_avg_wing_speed; S.phase_std_wing_speed = phase_std_wing_speed;
+    S.phase_avg_wing_acc = phase_avg_wing_acc; S.phase_std_acc = phase_std_acc;
+    S.bin_count_speed = bin_count_speed; S.bin_std_speed = bin_std_speed;
 
     S.phase_avg_volt = phase_avg_volt; S.phase_std_volt = phase_std_volt;
     S.phase_avg_cur = phase_avg_cur; S.phase_std_cur = phase_std_cur;

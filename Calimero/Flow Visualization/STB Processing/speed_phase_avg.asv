@@ -1,7 +1,5 @@
 function [norm_time_speed, phase_avg_pos, phase_std_pos,...
     phase_avg_speed, phase_std_speed, phase_avg_acc, phase_std_acc,...
-    phase_avg_wing_pos, phase_std_wing_pos,...
-    phase_avg_wing_speed, phase_std_wing_speed, phase_avg_wing_acc, phase_std_wing_acc,...
     bin_count_speed, bin_std_speed, phase_avg_volt, phase_std_volt,...
     phase_avg_cur, phase_std_cur] = speed_phase_avg(PIV_case_name, plot_bool)
 
@@ -21,7 +19,7 @@ OC_pulse_step = 4;
     process_data(results, offsets, cal_mat, ticksPerRev, OC_pulse_step, amp, true);
 
 OC_pulse_count = results(:,11);
-raw_pos = OC_pulse_count / (ticksPerRev / OC_pulse_step);
+wing_pos = OC_pulse_count / (ticksPerRev / OC_pulse_step);
 
 % Find indices where a laser fire has been recorded
 las_count = results(:,12);
@@ -30,21 +28,18 @@ mid_indices = find(las_count ~= 0 & las_count ~= las_count(end));
 mid_indices_adj = [mid_indices(1) - 1; mid_indices; mid_indices(end) + 1];
 
 % trim off begininning and end when accelerating
-raw_pos_tr = raw_pos(mid_indices_adj);
+wing_pos_tr = wing_pos(mid_indices_adj);
 time_tr = time_data(mid_indices_adj);
 pos_tr = pos(mid_indices_adj);
 speed_tr = speed(mid_indices_adj);
 acc_tr = acc(mid_indices_adj);
-wing_pos_tr = wing_pos(mid_indices_adj);
-wing_speed_tr = wing_speed(mid_indices_adj);
-wing_acc_tr = wing_acc(mid_indices_adj);
 volt_tr = voltAdj(mid_indices_adj);
 cur_tr = curAdj(mid_indices_adj);
 
 % figure
 % plot(time_tr,wing_pos_tr)
 
-norm_frame_pos_full = mod(raw_pos_tr,1);
+norm_frame_pos_full = mod(wing_pos_tr,1);
 
 % figure
 % plot(norm_frame_pos_full)
@@ -118,15 +113,6 @@ for j = 1:num_bins_speed
 
     phase_avg_acc(j) = mean(acc_tr(bin_indices_speed));
     phase_std_acc(j) = std(acc_tr(bin_indices_speed));
-
-    phase_avg_wing_pos(j) = mean(wing_pos_tr(bin_indices_speed));
-    phase_std_wing_pos(j) = std(wing_pos_tr(bin_indices_speed));
-
-    phase_avg_wing_speed(j) = mean(wing_speed_tr(bin_indices_speed));
-    phase_std_wing_speed(j) = std(wing_speed_tr(bin_indices_speed));
-
-    phase_avg_wing_acc(j) = mean(wing_acc_tr(bin_indices_speed));
-    phase_std_wing_acc(j) = std(wing_acc_tr(bin_indices_speed));
 
     phase_avg_volt(j) = mean(volt_tr(bin_indices_speed));
     phase_std_volt(j) = std(volt_tr(bin_indices_speed));

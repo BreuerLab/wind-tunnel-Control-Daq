@@ -123,8 +123,12 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
     
         lift_vec_wx = trapz(y(:,1), lift_mat, 1);
         % lift_wx = 2 * density * trapz(z(1,:), lift_vec_wx, 2);
-        lift_wx = density * trapz(z(1,:), lift_vec_wx, 2);
+        lift_wx = 2 * density * trapz(z(1,:), lift_vec_wx, 2);
         lift_wx = squeeze(lift_wx);
+
+        lift_vel_vel = trapz(y(:,1), lift_mat, 1);
+        lift_vel = 2 * density * trapz(z(1,:), lift_vec_vel, 2);
+        lift_vel = squeeze(lift_wx);
 
         if ~(isscalar(x))
         x = flip(x);
@@ -132,22 +136,30 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
         dx = abs(x(2) - x(1));
         dt = dx / U;
 
-        % x = x - (dx * length(x)) / 2;
+        x = x - (dx * length(x)) / 2;
 
         x_reshaped = reshape(x, 1, size(x,1), size(x,2));
+
+        % x_reshaped = x_reshaped - (dx * length(x)) / 2;
         lift_wy_F = zeros(size(x));
 
         vortY_shifted = vortY;
         for i = 1:length(x_reshaped)
-            term3 = vortY_shifted .* x_reshaped;
+            % x_cur = x - x(i);
+            % x_reshape_cur = reshape(x_cur, 1, size(x,1), size(x,2));
+
+            term3 = vortY_shifted;
+            % term3 = vortY_shifted .* x_reshape_cur;
 
             % x_tr = x(x < 0.7);
             % term3 = term3(:,:,x_reshaped < 0.7);
 
             lift_mat_wy = trapz(y(:,1), term3, 1);
             lift_vec_wy = trapz(z(1,:), lift_mat_wy, 2);
+            lift_vec_wy = lift_vec_wy .* x_reshaped;
 
             lift_wy = trapz(x, lift_vec_wy, 3);
+            % lift_wy = trapz(x_cur, lift_vec_wy, 3);
             % lift_wy = trapz(x_tr, lift_vec_wy, 3);
 
             % lift_wy = lift_vec_wy(1) - lift_vec_wy(end);
@@ -160,7 +172,7 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
         end
         % lift_wy_F = 2 * density * lift_wy_F'; 
 
-        lift_wy_F = density * lift_wy_F' * (1 / (dt*length(x))); 
+        lift_wy_F = 2 * density * lift_wy_F' * (1 / (dt*length(x))); 
 
         % lift_wy_Fin = gradient(lift_wy_F, dt);
 
@@ -207,11 +219,11 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
 
         drag_wy_mat = trapz(y(:,1), term2, 1);
         drag_wy_vec = trapz(z(1,:), drag_wy_mat, 2);
-        drag_wy = density * squeeze(drag_wy_vec);
+        drag_wy = 2 * density * squeeze(drag_wy_vec);
 
         drag_wz_mat = trapz(y(:,1), term3, 1);
         drag_wz_vec = trapz(z(1,:), drag_wz_mat, 2);
-        drag_wz = density * squeeze(drag_wz_vec);
+        drag_wz = 2 * density * squeeze(drag_wz_vec);
         % drag_mat = term2 + term3 + term4; % -term1
         % terms 2 and 3 end up being much smaller, perhaps the other terms
         % dropped in this analysis can't be dropped as before with lift
@@ -222,7 +234,7 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
 
         total = drag_wy + drag_wz;
         drag.vortY = drag_wy;
-        drag.drag_wz = drag_wz;
+        drag.vortZ = drag_wz;
         drag.tot = total;
     else
         drag_mat_full = -u .* (u + U); % If w > U in magnitude, should be -

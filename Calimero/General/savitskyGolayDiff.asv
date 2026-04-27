@@ -10,7 +10,7 @@ x = zeros(size(x_raw)); v = zeros(size(x_raw)); a = zeros(size(x_raw));
 
 % Compute 1st derivative using g(:,2) over a sliding window
 for n = (halfwin+1):(length(x_raw)-halfwin)
-    x(n) = dot(g(:,1), x_raw(n-halfwin:n+halfwin));
+    v(n) = dot(g(:,2), x_raw(n-halfwin:n+halfwin));
     v(n) = dot(g(:,2), x_raw(n-halfwin:n+halfwin));
     a(n) = dot(g(:,3), x_raw(n-halfwin:n+halfwin));
 end

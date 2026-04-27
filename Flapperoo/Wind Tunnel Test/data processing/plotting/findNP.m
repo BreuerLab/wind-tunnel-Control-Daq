@@ -138,7 +138,7 @@ function [NP_pos, NP_pos_err, NP_mom] = findNP(avg_results, AoA_sel)
             iter = iter + 1;
         % end
     end
-    if iter == 10000
+    if iter == 100000
         error("Max iter reached")
     end
 

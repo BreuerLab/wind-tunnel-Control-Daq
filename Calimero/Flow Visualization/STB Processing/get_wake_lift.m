@@ -119,12 +119,15 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
         % term2 = (w + U) .* -v .* dA; % effectively zero
         term1 = -U * y .* -vortX; 
         term2 = (u + U) .* -w; % effectively zero
-        lift_mat = term1 - term2;
     
-        lift_vec_wx = trapz(y(:,1), lift_mat, 1);
+        lift_vec_wx = trapz(y(:,1), term1, 1);
         % lift_wx = 2 * density * trapz(z(1,:), lift_vec_wx, 2);
         lift_wx = 2 * density * trapz(z(1,:), lift_vec_wx, 2);
         lift_wx = squeeze(lift_wx);
+
+        lift_vec_vel = trapz(y(:,1), -term2, 1);
+        lift_vel = 2 * density * trapz(z(1,:), lift_vec_vel, 2);
+        lift_vel = squeeze(lift_vel);
 
         if ~(isscalar(x))
         x = flip(x);
@@ -132,22 +135,30 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
         dx = abs(x(2) - x(1));
         dt = dx / U;
 
-        % x = x - (dx * length(x)) / 2;
+        x = x - (dx * length(x)) / 2;
 
         x_reshaped = reshape(x, 1, size(x,1), size(x,2));
+
+        % x_reshaped = x_reshaped - (dx * length(x)) / 2;
         lift_wy_F = zeros(size(x));
 
         vortY_shifted = vortY;
         for i = 1:length(x_reshaped)
-            term3 = vortY_shifted .* x_reshaped;
+            % x_cur = x - x(i);
+            % x_reshape_cur = reshape(x_cur, 1, size(x,1), size(x,2));
+
+            term3 = vortY_shifted;
+            % term3 = vortY_shifted .* x_reshape_cur;
 
             % x_tr = x(x < 0.7);
             % term3 = term3(:,:,x_reshaped < 0.7);
 
             lift_mat_wy = trapz(y(:,1), term3, 1);
             lift_vec_wy = trapz(z(1,:), lift_mat_wy, 2);
+            lift_vec_wy = lift_vec_wy .* x_reshaped;
 
             lift_wy = trapz(x, lift_vec_wy, 3);
+            % lift_wy = trapz(x_cur, lift_vec_wy, 3);
             % lift_wy = trapz(x_tr, lift_vec_wy, 3);
 
             % lift_wy = lift_vec_wy(1) - lift_vec_wy(end);
@@ -158,9 +169,9 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
             x_reshaped = circshift(x_reshaped, 1, 3);
             % vortY_shifted = circshift(vortY_shifted, 1, 3);
         end
-        lift_wy_F = 2 * density * lift_wy_F'; 
+        % lift_wy_F = 2 * density * lift_wy_F'; 
 
-        % lift_wy_F = 2 * density * lift_wy_F' * (1 / (dt*length(x))); 
+        lift_wy_F = 2 * density * lift_wy_F' * (1 / (dt*length(x))); 
 
         % lift_wy_Fin = gradient(lift_wy_F, dt);
 
@@ -180,12 +191,13 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
         % lift_wy = squeeze(lift_wy);
         % lift_wy_F = 2 * density * lift_wy';
 
-        total = lift_wx + lift_wy_F;
+        total = lift_wx + lift_vel + lift_wy_F;
         lift.vortY = lift_wy_F;
         else
-            total = lift_wx;
+            total = lift_wx + lift_vel;
         end
         lift.vortX = lift_wx;
+        lift.vel = lift_vel;
         lift.tot = total;
     else
         lift_mat_full = -(u .* -w);
