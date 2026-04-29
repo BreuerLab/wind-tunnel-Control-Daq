@@ -79,7 +79,7 @@ methods
             "image wingbeat phase", "wingbeat frequency","wake forces","phase avg: planar avg"];
         obj.plot_hold_bool = false;
         obj.iso_var_list = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
-                            "Q_x","Q_y","Q_z","|Q|"];
+                            "Q_x","Q_y","Q_z","|Q|", "helicity"];
         obj.iso_var = "|Q|";
         obj.iso_val = 0.05;
         obj.mirror_bool = false;
@@ -103,10 +103,10 @@ methods
         obj.case_name_list = fileNames;
 
         obj.movie_3D_vars = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
-                    "Q_x","Q_y","Q_z","|Q|","u_unc","v_unc","w_unc","|unc|"];
+                    "Q_x","Q_y","Q_z","|Q|","u_unc","v_unc","w_unc","|unc|","helicity"];
         movie_3D_values = ["u_phase_avg","v_phase_avg","w_phase_avg","Utot_phase_avg",...
         "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg","vortTot_phase_avg",...
-        "Qx","Qy","Qz","Q","uncU_phase_avg","uncV_phase_avg","uncW_phase_avg","uncTot_phase_avg"];
+        "Qx","Qy","Qz","Q","uncU_phase_avg","uncV_phase_avg","uncW_phase_avg","uncTot_phase_avg","hel_phase_avg"];
 
         obj.hist_vars = ["bin counts","bin SD","distribution"];
         hist_vals = ["bin_count", "bin_std","tick_frame_pos"];
@@ -152,7 +152,8 @@ methods
                       0, 0.02;...
                       0, 0.02;...
                       0, 0.02;...
-                      0, 0.02];
+                      0, 0.02;...
+                      -1, 1];
         % obj.iso_vals = [];
         obj.clim_scale = 2;
         movie_3D_labels = ["\boldmath$\frac{u c}{U_{\infty}}$",...
@@ -167,7 +168,8 @@ methods
                             "\boldmath$\frac{u c}{U_{\infty}}$",...
                             "\boldmath$\frac{v c}{U_{\infty}}$",...
                             "\boldmath$\frac{w c}{U_{\infty}}$",...
-                            "\boldmath$\frac{U c}{U_{\infty}}$"];
+                            "\boldmath$\frac{U c}{U_{\infty}}$",...
+                            ""];
 
         keys = cellstr([obj.movie_3D_vars obj.hist_vars]);
         values = [movie_3D_values hist_vals];
@@ -649,7 +651,7 @@ methods (Access = private)
             vars = {"L","U","num_bins","cycle_freq","z","y",var_name};
         end
         
-        if plot_idx == 3 % 3D plot
+        if plot_idx == 3 || plot_idx == 7 % 3D plot
             iso_var_name = obj.variable_name_dict(obj.iso_var);
             vars{end+1} = iso_var_name;
         elseif plot_idx == 4
@@ -726,7 +728,7 @@ methods (Access = private)
 
             % Trim data
             if obj.trim_bool
-                ybounds = [-2.7 2.45]; % roughly -0.15 to 0.15 meters
+                ybounds = [-2.26 2.45]; % roughly -0.15 to 0.15 meters
                 zbounds = [-2.36 2.55]; % roughly -0.2 to 0.2 meters
                 
                 y_idx = find(y(:,1) > ybounds(1) & y(:,1) < ybounds(2));  % columns
@@ -788,7 +790,7 @@ methods (Access = private)
             end
         end
 
-        if plot_idx == 3
+        if plot_idx == 3 || plot_idx == 7 % == 7 is TEMP
             Q = d.(iso_var_name);
             Q = squeeze(Q(3,:,:,:));
 
@@ -946,6 +948,8 @@ methods (Access = private)
             % y = squeeze(d.y(3,:,:));
             % z = squeeze(d.z(3,:,:));
             % val = squeeze(val(3,:,:,:));
+
+            % val(Q <= 0.001) = NaN;
 
             mean_val = squeeze(mean(val, [1 2], "omitnan"));
 

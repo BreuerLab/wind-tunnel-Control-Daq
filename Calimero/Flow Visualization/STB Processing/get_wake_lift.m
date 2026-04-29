@@ -1,11 +1,10 @@
 function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_cen, z_cen, density)
-    dy = abs(y(1,2,1) - y(1,1,1)) * L;
-    dz = abs(z(1,1,2) - z(1,1,1)) * L;
-    dA = dy*dz;
-
     trim_bool = true;
     if trim_bool
-        ybounds = [-2.7 2.45]; % roughly -0.15 to 0.15 meters
+        % ybounds = [-2.7 2.45]; % roughly -0.15 to 0.15 meters
+        % zbounds = [-2.36 2.55]; % roughly -0.2 to 0.2 meters
+
+        ybounds = [-2.7 2]; % roughly -0.15 to 0.15 meters
         zbounds = [-2.36 2.55]; % roughly -0.2 to 0.2 meters
         
         y_idx = find(y(1,:,1) > ybounds(1) & y(1,:,1) < ybounds(2));  % columns
@@ -22,7 +21,7 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
             vortX = squeeze(S.mean_vortX(:, y_idx, z_idx)) * (U/L);
             vortY = squeeze(S.mean_vortY(:, y_idx, z_idx)) * (U/L);
             vortZ = squeeze(S.mean_vortZ(:, y_idx, z_idx)) * (U/L);
-            % Q = squeeze(S.Qx(:, y_idx, z_idx));
+            % Q = squeeze(S.Q(:, y_idx, z_idx));
             end
         case 1
             u = squeeze(S.u_phase_avg(:, y_idx, z_idx, :)) * U;
@@ -32,7 +31,29 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
             vortX = squeeze(S.vortX_phase_avg(:, y_idx, z_idx, :)) * (U/L);
             vortY = squeeze(S.vortY_phase_avg(:, y_idx, z_idx, :)) * (U/L);
             vortZ = squeeze(S.vortZ_phase_avg(:, y_idx, z_idx, :)) * (U/L);
-            % Q = squeeze(S.Qx(:, y_idx, z_idx, :));
+            % Q = squeeze(S.Q(:, y_idx, z_idx, :));
+            end
+        case 2
+            % 'u', 'v', 'w', 'Utot', 'vortX', 'vortY', 'vortZ', 'vortTot'...
+            % 'uncU', 'uncV', 'uncW', 'uncTot', 'hel'
+            u = S{1};
+            w = S{3};
+            unc = S{12};
+
+            if vort_bool
+                vortX = S{5};
+                vortY = S{6};
+                vortZ = S{7};
+            end
+
+            u = squeeze(u(:, y_idx, z_idx, :)) * U;
+            w = squeeze(w(:, y_idx, z_idx, :)) * U;
+            unc = squeeze(unc(:, y_idx, z_idx, :));
+            if vort_bool
+            vortX = squeeze(vortX(:, y_idx, z_idx, :)) * (U/L);
+            vortY = squeeze(vortY(:, y_idx, z_idx, :)) * (U/L);
+            vortZ = squeeze(vortZ(:, y_idx, z_idx, :)) * (U/L);
+            % Q = squeeze(S.Q(:, y_idx, z_idx, :));
             end
     end
     end
@@ -61,7 +82,7 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
             vortZ = squeeze(vortZ(x_ind, y_idx, :));
             % Q = squeeze(Q(x_ind, y_idx, :));
             end
-        case 1
+        case {1,2}
             u = squeeze(u(x_ind, y_idx, :, :));
             w = squeeze(w(x_ind, y_idx, :, :));
             unc = squeeze(unc(x_ind, y_idx, :, :));
@@ -83,9 +104,26 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
     vortZ(isnan(unc)) = 0;
     end
 
-    vortX = medfilt3(vortX);
-    vortY = medfilt3(vortY);
-    vortZ = medfilt3(vortZ);
+    % vortX = medfilt3(vortX);
+    % vortY = medfilt3(vortY);
+    % vortZ = medfilt3(vortZ);
+
+    % median filter for each image, rather than 3D wake
+    filter_dim = [3 3];
+    for k = 1:size(vortX,3)
+    vortX(:,:,k) = medfilt2(vortX(:,:,k), filter_dim);
+    vortY(:,:,k) = medfilt2(vortY(:,:,k), filter_dim);
+    vortZ(:,:,k) = medfilt2(vortZ(:,:,k), filter_dim);
+    end
+
+    % Q_mask_bool = true;
+    % if Q_mask_bool
+    %     vortX(Q < 0) = 0;
+    %     % disp("Q mask active")
+    % end
+
+    thresh = 0.1 * (U/L);
+    vortX(vortX < thresh & vortX > -thresh) = 0;
     end
 
     % in my reference frame right wing produces positive vorticity, but
@@ -117,7 +155,8 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
 
         % term1 = -U * dA * x .* -vortZ; 
         % term2 = (w + U) .* -v .* dA; % effectively zero
-        term1 = -U * y .* -vortX; 
+        % term1 = -U * y .* -vortX;
+        term1 = u .* y .* -vortX;
         term2 = (u + U) .* -w; % effectively zero
     
         lift_vec_wx = trapz(y(:,1), term1, 1);
@@ -141,6 +180,7 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
 
         % x_reshaped = x_reshaped - (dx * length(x)) / 2;
         lift_wy_F = zeros(size(x));
+        lift_wx_F_T = zeros(size(x));
 
         vortY_shifted = vortY;
         for i = 1:length(x_reshaped)
@@ -168,10 +208,21 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
 
             x_reshaped = circshift(x_reshaped, 1, 3);
             % vortY_shifted = circshift(vortY_shifted, 1, 3);
+
+            % Testing same procedure for vortX term
+            % lift_mat_wx_T = trapz(y(:,1), term1 / U, 1);
+            % lift_vec_wx_T = trapz(z(1,:), lift_mat_wx_T, 2);
+            % lift_vec_wx_T = lift_vec_wx_T .* x_reshaped;
+            % 
+            % lift_wx_T = trapz(x, lift_vec_wx_T, 3);
+            % lift_wx_F_T(i) = squeeze(lift_wx_T);
+
+            x_reshaped = circshift(x_reshaped, 1, 3);
         end
         % lift_wy_F = 2 * density * lift_wy_F'; 
 
-        lift_wy_F = 2 * density * lift_wy_F' * (1 / (dt*length(x))); 
+        lift_wy_F = 2 * density * lift_wy_F' * (1 / (dt*length(x)));
+        % lift_wx_F_T = 2 * density * lift_wx_F_T' * (1 / (dt*length(x)));
 
         % lift_wy_Fin = gradient(lift_wy_F, dt);
 

@@ -1,5 +1,27 @@
 function S = time_avg_STB(file_path, nondim_bool, U, L, num_files, save_filepath_local, PIV_case_name, RPCA_bool)
     tic;
+
+    avg_type = 0;
+    if avg_type == 0
+        speed = U;
+        density = 1.225;
+    else
+        % Find matching DAQ file
+        [daq_data_filename, ~] = get_daq_paths(PIV_case_name);
+
+        WT_d = get_wind_tunnel_data(daq_data_filename);
+        speed = WT_d.Speed_m_s_;
+        density = WT_d.Density_kg_m3_;
+        % density = 1.225;
+    end
+
+    y_cen = -2.26;
+    z_cen = -0.03 / L;
+    x_conv = 0;
+
+    lift_vals = zeros(1,num_files);
+    drag_vals = zeros(1,num_files);
+
     % Define the field names we want to average (must be same order as
     % import_STB)
     fields = {'u', 'v', 'w', 'Utot', 'vortX', 'vortY', 'vortZ', 'vortTot', 'uncU', 'uncV', 'uncW', 'uncTot'};
@@ -20,6 +42,11 @@ function S = time_avg_STB(file_path, nondim_bool, U, L, num_files, save_filepath
             fn = ['mean_' fields{f}];
             S.(fn) = S.(fn) + data{f};
         end
+
+        avg_type = 2;
+        [lift, drag] = get_wake_lift(speed, L, x_conv, y, z, data, avg_type, true, y_cen, z_cen, density);
+        lift_vals(i) = lift.vortX;
+        drag_vals(i) = drag.tot;
         
         if mod(i, 100) == 0
             fprintf('Processed %d/%d\n', i, num_files);
@@ -43,24 +70,9 @@ function S = time_avg_STB(file_path, nondim_bool, U, L, num_files, save_filepath
 
     % Compute integral quanitites: lift, drag, KE, enstrophy, conv_U
     avg_type = 0;
-    y_cen = -0.142 / L;
-    z_cen = -0.03 / L;
 
-    if avg_type == 0
-        speed = U;
-        density = 1.225;
-    else
-        % Find matching DAQ file
-        [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name);
-
-        WT_d = get_wind_tunnel_data(daq_data_filename);
-        speed = WT_d.Speed_m_s_;
-        density = WT_d.Density_kg_m3_;
-        % density = 1.225;
-    end
-
-    [lift_vel, drag_vel] = get_wake_lift(speed, L, y, z, S, avg_type, false, y_cen, z_cen, density);
-    [lift, drag] = get_wake_lift(speed, L, y, z, S, avg_type, true, y_cen, z_cen, density);
+    [lift_vel, drag_vel] = get_wake_lift(speed, L, x_conv, y, z, S, avg_type, false, y_cen, z_cen, density);
+    [lift, drag] = get_wake_lift(speed, L, x_conv, y, z, S, avg_type, true, y_cen, z_cen, density);
 
     x_ind = 3;
     
@@ -89,6 +101,7 @@ function S = time_avg_STB(file_path, nondim_bool, U, L, num_files, save_filepath
     S.x = x; S.y = y; S.z = z; S.L = L; S.U = U;
     S.PIV_case_name = PIV_case_name;
     S.lift = lift; S.drag = drag; S.lift_vel = lift_vel; S.drag_vel = drag_vel;
+    S.mean_lift = mean(lift_vals); S.mean_drag = mean(drag_vals);
     S.KE = KE; S.enst = enst; S.u_avg = u_avg;
 
     % Save the entire structure

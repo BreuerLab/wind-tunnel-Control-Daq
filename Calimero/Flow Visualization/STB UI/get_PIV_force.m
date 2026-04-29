@@ -1,4 +1,4 @@
-function [var, err] = get_PIV_force(file_name, case_name, force_var_name, avg_type, norm_bool)
+function [var, err] = get_PIV_force(file_name, case_name, force_var_name, avg_type, norm_bool, y_cen)
 
         vort_bool = true;
         if contains(force_var_name, "vel")
@@ -40,7 +40,6 @@ function [var, err] = get_PIV_force(file_name, case_name, force_var_name, avg_ty
         end
 
         % Compute Lift force
-        y_cen = -2.26; % -2.16, 2.55, -0.142 / d.L
         z_cen = -0.03 / d.L;
         % rho = ; % 1.225 kg/m^3
 

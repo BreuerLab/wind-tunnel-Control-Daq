@@ -7,8 +7,25 @@ disp("Assuming num images = " + num_images)
 [norm_frame_pos, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_freq]...
     = frame_to_bin(PIV_case_name, num_images, turbine_bool, plot_bool);
 
+
+avg_type = 1;
+if avg_type == 0
+    speed = U;
+    density = 1.225;
+else
+    % Find matching DAQ file
+    [daq_data_filename, ~] = get_daq_paths(PIV_case_name);
+
+    WT_d = get_wind_tunnel_data(daq_data_filename);
+    speed = WT_d.Speed_m_s_;
+    density = WT_d.Density_kg_m3_;
+    % density = 1.225;
+end
+
 bin_count = zeros(1,num_bins);
 bin_std = zeros(1,num_bins);
+lift_phase_avg = zeros(1,num_bins);
+drag_phase_avg = zeros(1,num_bins);
 
 % Define the field names we want to average (must be same order as
 % import_STB)
@@ -22,6 +39,12 @@ for i = 1:num_bins
 
     % Import data (using a temporary struct or list)
     [x, y, z, data{1:13}] = import_STB_data(file_path, nondim_bool, U, L, bin_indices, RPCA_bool);
+
+    avg_type = 2;
+    y_cen = -2.26;
+    z_cen = -0.03 / L;
+    x_conv = 0;
+    [lift_vals, drag_vals] = get_wake_lift(speed, L, x_conv, y, z, data, avg_type, true, y_cen, z_cen, density);
         
     if i == 1
         % Initialize structure with zeros based on first file size
@@ -35,6 +58,9 @@ for i = 1:num_bins
         fname = [fields{f}, '_phase_avg'];
         % Compute mean along the 4th dimension
         S.(fname)(:,:,:,i) = mean(data{f}, 4);
+
+        lift_phase_avg(i) = mean(lift_vals.vortX);
+        drag_phase_avg(i) = mean(drag_vals);
     end
 
 
@@ -53,37 +79,23 @@ dz = abs(z(1,1,2) - z(1,1,1));
 S.Qx = Qx; S.Qy = Qy; S.Qz = Qz; S.Q = Q;
 
 % Compute integral quanitites: lift, drag, KE, enstrophy, conv_U
-avg_type = 1;
-y_cen = -0.142 / L;
+y_cen = -2.26; % 0.142 / L
 z_cen = -0.03 / L;
-
-if avg_type == 0
-    speed = d.U;
-    density = 1.225;
-else
-    % Find matching DAQ file
-    [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name);
-
-    WT_d = get_wind_tunnel_data(daq_data_filename);
-    speed = WT_d.Speed_m_s_;
-    density = WT_d.Density_kg_m3_;
-    % density = 1.225;
-end
 
 if avg_type ~= 0
     [~, ~, freq] = parse_name(PIV_case_name);
-    num_bins = size(S.u_phase_avg,4);
     dt = 1 / (freq * num_bins);
-    x = zeros(1, num_bins);
+    x_conv = zeros(1, num_bins);
     for k = 1:num_bins
-        x(k) =  speed * dt * (k - 1);
+        x_conv(k) =  speed * dt * (k - 1);
     end
 else
-    x = 0;
+    x_conv = 0;
 end
 
-[lift_vel, drag_vel] = get_wake_lift(speed, L, x, y, z, S, avg_type, false, y_cen, z_cen, density);
-[lift, drag] = get_wake_lift(speed, L, x, y, z, S, avg_type, true, y_cen, z_cen, density);
+avg_type = 1;
+[lift_vel, drag_vel] = get_wake_lift(speed, L, x_conv, y, z, S, avg_type, false, y_cen, z_cen, density);
+[lift, drag] = get_wake_lift(speed, L, x_conv, y, z, S, avg_type, true, y_cen, z_cen, density);
 
 x_ind = 3;
 
@@ -132,7 +144,7 @@ if ~turbine_bool
     
     S.phase_avg_wing_pos = phase_avg_wing_pos; S.phase_std_wing_pos = phase_std_wing_pos;
     S.phase_avg_wing_speed = phase_avg_wing_speed; S.phase_std_wing_speed = phase_std_wing_speed;
-    S.phase_avg_wing_acc = phase_avg_wing_acc; S.phase_std_acc = phase_std_acc;
+    S.phase_avg_wing_acc = phase_avg_wing_acc; S.phase_std_wing_acc = phase_std_wing_acc;
     S.bin_count_speed = bin_count_speed; S.bin_std_speed = bin_std_speed;
 
     S.phase_avg_volt = phase_avg_volt; S.phase_std_volt = phase_std_volt;

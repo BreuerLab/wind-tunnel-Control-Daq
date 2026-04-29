@@ -14,9 +14,8 @@ function [time, force, voltAdj, curAdj, pos, speed, acc, wing_pos, wing_speed, w
 
     if async
         raw_pos = OC_pulse_count / (ticksPerRev / OC_pulse_step); % revs
-        raw_pos = raw_pos*2*pi; % rad
-        wing_raw_pos = calimero_mechanism(raw_pos, d, r);
-        [pos,speed,acc] = savitskyGolayDiff(raw_pos, order, framelen, dt);
+        wing_raw_pos = calimero_mechanism(raw_pos*2*pi, d, r);
+        [pos, speed, acc] = savitskyGolayDiff(raw_pos, order, framelen, dt);
         [wing_pos,wing_speed,wing_acc] = savitskyGolayDiff(wing_raw_pos, order, framelen, dt);
     else
     digEdges = results(:,10);

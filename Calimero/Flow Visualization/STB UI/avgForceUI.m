@@ -39,6 +39,8 @@ classdef avgForceUI < handle
         force_sub;
         err_bool;
 
+        y_cen; % spanwise position of center of body for mirroring
+
         % ------- Available parameters user can select from -------
         available_selections;
 
@@ -64,8 +66,10 @@ classdef avgForceUI < handle
             obj.index = 1;
             obj.box_labels = ["lift_vort", "lift_vel", "drag_vort", "drag_vel",...
                 "speed", "voltage", "current", "KE", "enstrophy", "avg U"];
-            obj.var_names = ["lift.tot", "lift_vel", "drag.tot", "drag_vel",...
+            obj.var_names = ["lift.vortX", "lift_vel", "drag.tot", "drag_vel",...
                 "phase_avg_speed", "phase_avg_volt", "phase_avg_cur", "KE", "enst", "u_avg"];
+            % obj.var_names = ["lift_phase_avg", "lift_vel", "drag_phase_avg", "drag_vel",...
+            %     "phase_avg_speed", "phase_avg_volt", "phase_avg_cur", "KE", "enst", "u_avg"];
             % obj.var_names = ["lift", "lift_vel", "drag", "drag_vel",...
             %     "phase_avg_speed", "phase_avg_volt", "phase_avg_cur", "KE", "enst", "u_avg"];
             obj.y_labels = ["Lift (N)", "Lift (N)", "Drag (N)", "Drag (N)",...
@@ -81,6 +85,7 @@ classdef avgForceUI < handle
             obj.force_var = obj.var_names(1);
             obj.saveFig = false;
             obj.err_bool = false;
+            obj.y_cen = -2.26; % -2.16, 2.55, -0.142 / d.L;
 
             % Search through files in path to get types and speeds
             contents = dir(obj.PIV_path);
@@ -206,6 +211,12 @@ classdef avgForceUI < handle
             err_button.BackgroundColor = obj.COLOR_INACTIVE;
             err_button.ValueChangedFcn = @(src, event) err_change(src, event, plot_panel);
 
+            edit1_y = button7_y - (unit_height + unit_spacing);
+            y_cen_field = uieditfield(option_panel, 'numeric');
+            y_cen_field.Value = obj.y_cen;
+            y_cen_field.Position = [20 edit1_y 160 unit_height];
+            y_cen_field.ValueChangedFcn = @(src, event) y_cen_change(src, event, plot_panel);
+
             save_fig_button_y = (unit_height + unit_spacing);
             save_fig_button = uibutton(option_panel);
             save_fig_button.Text = "Save Fig";
@@ -299,6 +310,11 @@ classdef avgForceUI < handle
                 obj.update_plot(plot_panel);
             end
 
+            function y_cen_change(src, ~, plot_panel)
+                obj.y_cen = src.Value;
+                obj.update_plot(plot_panel);
+            end
+
             function save_figure(~, ~, plot_panel)
                 obj.saveFig = true;
                 obj.update_plot(plot_panel);
@@ -379,13 +395,13 @@ classdef avgForceUI < handle
             
                         calc_force = true;
                         if calc_force
-                            [var, err] = get_PIV_force(filepath, name, obj.force_var, avg_type, obj.y_norm);
+                            [var, err] = get_PIV_force(filepath, name, obj.force_var, avg_type, obj.y_norm, obj.y_cen);
 
                             if obj.PIV_sub
                                 filename = "body_time_avg.mat";
                                 % filename = "ring_time_avg.mat";
                                 bod_filepath = obj.PIV_path + "time_avg/" + filename;
-                                [bod_var, ~] = get_PIV_force(bod_filepath, "", obj.force_var, 0, obj.y_norm);
+                                [bod_var, ~] = get_PIV_force(bod_filepath, "", obj.force_var, 0, obj.y_norm, obj.y_cen);
                                 var = var - bod_var;
                             end
                         else
@@ -429,6 +445,7 @@ classdef avgForceUI < handle
                             forces(2,j) = forces(2,j) - body_force;
                         end
                     end
+                    disp(j + " of " + length(freqs) + " complete")
                 end
 
                 % x-axis is either wingbeat frequency or Strouhal number
