@@ -21,13 +21,17 @@ properties
 
     variable_name;
     var_name_list;
-    movie_3D_vars;
+    movie_3D_avg_vars;
+    movie_3D_std_vars
     hist_vars;
     freq_vars
     force_vars;
 
     variable_name_dict;
     label_dict;
+
+    std_var_name_dict;
+    std_label_dict
 
     hist_var_name_dict;
     hist_label_dict;
@@ -39,6 +43,8 @@ properties
     force_label_dict;
 
     clims; % color limits for each variable
+    mean_clims;
+    std_clims;
     clim_scale;
 
     param_panel; % panel of 3D plot parameters
@@ -75,7 +81,7 @@ methods
         obj.frame_ind = 1;
         obj.play = false;
 
-        obj.plot_types = ["time avg","phase avg: movie","phase avg: 3D plot",...
+        obj.plot_types = ["time avg","phase avg: movie", "phase std: movie", "phase avg: 3D plot",...
             "image wingbeat phase", "wingbeat frequency","wake forces","phase avg: planar avg"];
         obj.plot_hold_bool = false;
         obj.iso_var_list = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
@@ -102,11 +108,16 @@ methods
 
         obj.case_name_list = fileNames;
 
-        obj.movie_3D_vars = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
-                    "Q_x","Q_y","Q_z","|Q|","u_unc","v_unc","w_unc","|unc|","helicity"];
-        movie_3D_values = ["u_phase_avg","v_phase_avg","w_phase_avg","Utot_phase_avg",...
+        obj.movie_3D_avg_vars = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
+                    "Q_x","Q_y","Q_z","|Q|","u_unc","v_unc","w_unc","|unc|","helicity", "# particles"];
+        movie_3D_avg_values = ["u_phase_avg","v_phase_avg","w_phase_avg","Utot_phase_avg",...
         "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg","vortTot_phase_avg",...
-        "Qx","Qy","Qz","Q","uncU_phase_avg","uncV_phase_avg","uncW_phase_avg","uncTot_phase_avg","hel_phase_avg"];
+        "Qx","Qy","Qz","Q","uncU_phase_avg","uncV_phase_avg","uncW_phase_avg","uncTot_phase_avg","hel_phase_avg", "numP_phase_avg"];
+        
+        obj.movie_3D_std_vars = [obj.movie_3D_avg_vars(1:8) obj.movie_3D_avg_vars(13:end)];
+        movie_3D_std_values = ["u_phase_std","v_phase_std","w_phase_std","Utot_phase_std",...
+        "vortX_phase_std","vortY_phase_std","vortZ_phase_std","vortTot_phase_std",...
+        "uncU_phase_std","uncV_phase_std","uncW_phase_std","uncTot_phase_std","hel_phase_std", "numP_phase_std"];
 
         obj.hist_vars = ["bin counts","bin SD","distribution"];
         hist_vals = ["bin_count", "bin_std","tick_frame_pos"];
@@ -120,7 +131,7 @@ methods
         force_vals = ["lift", "lift_vel", "drag", "drag_vel"];
         force_labels = ["Lift (N)", "Lift (N)", "Drag (N)", "Drag (N)"];
 
-        obj.var_name_list = obj.movie_3D_vars;
+        obj.var_name_list = obj.movie_3D_avg_vars;
         % obj.clims = [-0.2, 0.2;...
         %              -0.2, 0.2;...
         %               -1.1, -0.9;...
@@ -137,7 +148,7 @@ methods
         %               0, 0.02;...
         %               0, 0.02;...
         %               0, 0.02];
-        obj.clims = [-1.1, -0.9;...
+        obj.mean_clims = [-1.1, -0.9;...
                      -0.2, 0.2;...
                       -0.2, 0.2;...
                       -1.1, -0.9;...
@@ -153,10 +164,28 @@ methods
                       0, 0.02;...
                       0, 0.02;...
                       0, 0.02;...
+                      -1, 1;...
+                      0, 50];
+
+        % for std plots
+        obj.std_clims = [0, 0.1;...
+                     0, 0.1;...
+                      0, 0.1;...
+                      0, 0.1;...
+                      0, 1;...
+                      0, 1;...
+                      0, 1;...
+                      0, 1;...
+                      0, 0.02;...
+                      0, 0.02;...
+                      0, 0.02;...
+                      0, 0.02;...
                       -1, 1];
+
+        obj.clims = obj.mean_clims;
         % obj.iso_vals = [];
         obj.clim_scale = 2;
-        movie_3D_labels = ["\boldmath$\frac{u c}{U_{\infty}}$",...
+        movie_3D_avg_labels = ["\boldmath$\frac{u c}{U_{\infty}}$",...
                             "\boldmath$\frac{v c}{U_{\infty}}$",...
                             "\boldmath$\frac{w c}{U_{\infty}}$",...
                             "\boldmath$\frac{U c}{U_{\infty}}$",...
@@ -169,13 +198,18 @@ methods
                             "\boldmath$\frac{v c}{U_{\infty}}$",...
                             "\boldmath$\frac{w c}{U_{\infty}}$",...
                             "\boldmath$\frac{U c}{U_{\infty}}$",...
-                            ""];
+                            "","count"];
+        movie_3D_std_labels = [movie_3D_avg_labels(1:8) movie_3D_avg_labels(13:end)];
 
-        keys = cellstr([obj.movie_3D_vars obj.hist_vars]);
-        values = [movie_3D_values hist_vals];
-        labels = [movie_3D_labels hist_labels];
+        keys = cellstr([obj.movie_3D_avg_vars obj.hist_vars]);
+        values = [movie_3D_avg_values hist_vals];
+        labels = [movie_3D_avg_labels hist_labels];
         obj.variable_name_dict = containers.Map(keys, values);
         obj.label_dict = containers.Map(keys, labels);
+
+        std_keys = cellstr(obj.movie_3D_std_vars);
+        obj.std_var_name_dict = containers.Map(std_keys, movie_3D_std_values);
+        obj.std_label_dict = containers.Map(std_keys, movie_3D_std_labels);
 
         hist_keys = cellstr(obj.hist_vars);
         obj.hist_var_name_dict = containers.Map(hist_keys, hist_vals);
@@ -392,20 +426,28 @@ methods
 
             % not changing from movie to 3D plot or vice versa
             if ~((strcmp(tmp,obj.plot_types(1)) || strcmp(tmp,obj.plot_types(2)) ...
-                    || strcmp(tmp,obj.plot_types(3)) || strcmp(tmp,obj.plot_types(7))) &&...
+                    || strcmp(tmp,obj.plot_types(4)) || strcmp(tmp,obj.plot_types(8))) &&...
                (strcmp(src.Value,obj.plot_types(1)) || strcmp(src.Value,obj.plot_types(2)) ...
-               || strcmp(src.Value,obj.plot_types(3)) || strcmp(src.Value,obj.plot_types(7))))
-            if strcmp(obj.plot_type, obj.plot_types(4))
-                obj.var_name_list = obj.hist_vars;
+               || strcmp(src.Value,obj.plot_types(4)) || strcmp(src.Value,obj.plot_types(8))))
+            if strcmp(obj.plot_type, obj.plot_types(3))
+                obj.var_name_list = obj.movie_3D_std_vars;
             elseif strcmp(obj.plot_type, obj.plot_types(5))
+                obj.var_name_list = obj.hist_vars;
+            elseif strcmp(obj.plot_type, obj.plot_types(6))
                 obj.var_name_list = obj.freq_vars;
-            elseif strcmp(obj.plot_type, obj.plot_types(6)) % wake forces
+            elseif strcmp(obj.plot_type, obj.plot_types(7)) % wake forces
                 obj.var_name_list = obj.force_vars;
             else
-                obj.var_name_list = obj.movie_3D_vars;
+                obj.var_name_list = obj.movie_3D_avg_vars;
             end
             obj.var_dropdown.Items = obj.var_name_list;
             obj.variable_name = obj.var_dropdown.Value;
+            end
+
+            if strcmp(tmp,obj.plot_types(3)) % just using std
+                obj.clims = obj.mean_clims;
+            elseif strcmp(src.Value,obj.plot_types(3)) % using std now
+                obj.clims = obj.std_clims;
             end
 
             % update color limit slider
@@ -415,7 +457,7 @@ methods
             obj.clim_slider.Limits = [center - range, center + range];
             obj.clim_slider.Value = obj.clims(var_idx,:);
 
-            if strcmp(src.Value,obj.plot_types(3)) % 3D plot, show params
+            if strcmp(src.Value,obj.plot_types(4)) % 3D plot, show params
                 obj.param_panel.Visible = "on";
             else
                 obj.param_panel.Visible = "off";
@@ -642,7 +684,7 @@ methods (Access = private)
         plot_idx = find(obj.plot_types == obj.plot_type);
 
         % movie or 3D plot
-        if ismember(plot_idx, [1, 2, 3, 7])
+        if ismember(plot_idx, [1, 2, 4, 8])
             % load in variables to plot
             var_name = obj.variable_name_dict(obj.variable_name);
             var_idx = find(obj.variable_name == obj.var_name_list);
@@ -651,10 +693,16 @@ methods (Access = private)
             vars = {"L","U","num_bins","cycle_freq","z","y",var_name};
         end
         
-        if plot_idx == 3 || plot_idx == 7 % 3D plot
+        if plot_idx == 4 || plot_idx == 8 % 3D plot
             iso_var_name = obj.variable_name_dict(obj.iso_var);
             vars{end+1} = iso_var_name;
-        elseif plot_idx == 4
+        elseif plot_idx == 3
+             % load in variables to plot
+            var_name = obj.std_var_name_dict(obj.variable_name);
+            var_idx = find(obj.variable_name == obj.var_name_list);
+
+            vars = {"L","U","num_bins","cycle_freq","z","y",var_name};
+        elseif plot_idx == 5
             % load in variables to plot
             var_name = obj.hist_var_name_dict(obj.variable_name);
 
@@ -663,7 +711,7 @@ methods (Access = private)
                 x_var_name = "full_cycle";
                 vars{end+1} = x_var_name;
             end
-        elseif plot_idx == 5
+        elseif plot_idx == 6
             var_name = obj.freq_var_name_dict(obj.variable_name);
 
             vars = {var_name};
@@ -673,7 +721,7 @@ methods (Access = private)
                 std_name = "phase_std_speed";
                 vars{end+1} = std_name;
             end
-        elseif plot_idx == 6
+        elseif plot_idx == 7
             var_name = obj.force_var_name_dict(obj.variable_name);
             vars = {"L","U","y","z","u_phase_avg","w_phase_avg",...
                 "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg"};
@@ -681,7 +729,7 @@ methods (Access = private)
         full_file_path = obj.file_path + obj.case_name + obj.file_suffix;
         d = load(full_file_path, vars{:});
 
-        if plot_idx == 2 || plot_idx == 3
+        if plot_idx == 2 || plot_idx == 3 || plot_idx == 4
             obj.slider.Visible = "on";
             obj.play_button.Visible = "on";
             % Adjust slider for number of bins
@@ -696,12 +744,12 @@ methods (Access = private)
             obj.play_button.Visible = "off";
         end
 
-        if plot_idx ~= 6
+        if plot_idx ~= 7
             val = d.(var_name);
         end
 
         % movie or 3D plot
-        if ismember(plot_idx, [1, 2, 3, 7])
+        if ismember(plot_idx, [1, 2, 3, 4, 8])
             y = squeeze(d.y(3,:,:));
             z = squeeze(d.z(3,:,:));
             val = squeeze(val(3,:,:,:));
@@ -718,17 +766,22 @@ methods (Access = private)
                 params.zero = 1;
             end
     
-            params.cb_lab = obj.label_dict(obj.variable_name);
-
-            if any(contains(["v","ω_z","ω_x"],obj.variable_name))
-                cFlip = true;
-            else
+            if plot_idx == 4
+                params.cb_lab = obj.std_label_dict(obj.variable_name);
                 cFlip = false;
+            else
+                params.cb_lab = obj.label_dict(obj.variable_name);
+    
+                if any(contains(["v","ω_z","ω_x"],obj.variable_name))
+                    cFlip = true;
+                else
+                    cFlip = false;
+                end
             end
 
             % Trim data
             if obj.trim_bool
-                ybounds = [-2.26 2.45]; % roughly -0.15 to 0.15 meters
+                ybounds = [-2.26 2]; % roughly -0.15 to 0.15 meters
                 zbounds = [-2.36 2.55]; % roughly -0.2 to 0.2 meters
                 
                 y_idx = find(y(:,1) > ybounds(1) & y(:,1) < ybounds(2));  % columns
@@ -790,7 +843,7 @@ methods (Access = private)
             end
         end
 
-        if plot_idx == 3 || plot_idx == 7 % == 7 is TEMP
+        if plot_idx == 4 || plot_idx == 8 % == 8 is TEMP
             Q = d.(iso_var_name);
             Q = squeeze(Q(3,:,:,:));
 
@@ -818,7 +871,7 @@ methods (Access = private)
 
             mean_val = mean(val,3);
             PIV_plot(y, z, mean_val, params, ax);
-        elseif plot_idx == 2
+        elseif plot_idx == 2 || plot_idx == 3
 
         % params.title = "Spanwise velocity - Average";
         params.clims = obj.clims(var_idx,:);
@@ -848,7 +901,7 @@ methods (Access = private)
             obj.frame_ind = 0; % reset for next loop iteration
             end
         end
-        elseif plot_idx == 3
+        elseif plot_idx == 4
             params.num_bins = d.num_bins;
             params.clims = obj.clims(var_idx,:);
             params.movie = false;
@@ -886,7 +939,7 @@ methods (Access = private)
                 plot_3D(ax, s, cData, params);
                 obj.plot_hold_bool = true;
             end
-        elseif plot_idx == 4
+        elseif plot_idx == 5
             if (obj.variable_name == obj.hist_vars(3))
                 histogram(ax, val, d.(x_var_name))
                 xlabel(ax, "Tick number", FontSize=16)
@@ -896,7 +949,7 @@ methods (Access = private)
                 xlabel(ax, "Bin number", FontSize=16)
                 ylabel(ax, obj.hist_label_dict(obj.variable_name), FontSize=16)
             end
-        elseif plot_idx == 5
+        elseif plot_idx == 6
             if (obj.variable_name == obj.freq_vars(1))
                 phase_avg_speed = val;
                 phase_std_speed = d.(std_name);
@@ -928,7 +981,7 @@ methods (Access = private)
                 xlabel(ax, "Bin number", FontSize=16)
                 ylabel(ax, obj.freq_label_dict(obj.variable_name), FontSize=16)
             end
-        elseif plot_idx == 6
+        elseif plot_idx == 7
             % Compute lift/drag force
             avg_type = 1;
             y_cen = -0.142 / d.L;
@@ -937,19 +990,17 @@ methods (Access = private)
             norm_bool = false;
             [val, err] = get_PIV_force(full_file_path, obj.case_name, var_name, avg_type, norm_bool);
 
-            %
-
             plot(ax, val)
             hold(ax, "on")
             yline(ax, mean(val))
             xlabel(ax, "Time", FontSize=16)
             ylabel(ax, obj.force_label_dict(obj.variable_name), FontSize=16)
-        elseif plot_idx == 7
+        elseif plot_idx == 8
             % y = squeeze(d.y(3,:,:));
             % z = squeeze(d.z(3,:,:));
             % val = squeeze(val(3,:,:,:));
 
-            % val(Q <= 0.001) = NaN;
+            val(Q <= 0.025) = NaN;
 
             mean_val = squeeze(mean(val, [1 2], "omitnan"));
 

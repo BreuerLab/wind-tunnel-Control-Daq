@@ -7,6 +7,34 @@ omega_x = nan(size(uRaw));
 omega_y = nan(size(uRaw));
 omega_z = nan(size(uRaw));
 
+tmp = uRaw;
+tmp(tmp == 0) = median(uRaw,"all");
+u = tmp;
+
+tmp = vRaw;
+tmp(tmp == 0) = median(vRaw,"all");
+v = tmp;
+
+tmp = wRaw;
+tmp(tmp == 0) = median(wRaw,"all");
+w = tmp;
+
+% tmp = uRaw;
+% tmp(tmp == 0) = NaN;
+% u = tmp;
+% 
+% tmp = vRaw;
+% tmp(tmp == 0) = NaN;
+% v = tmp;
+% 
+% tmp = wRaw;
+% tmp(tmp == 0) = NaN;
+% w = tmp;
+% 
+% u = fill3D(u);
+% v = fill3D(v);
+% w = fill3D(w);
+
 dx = abs(xRaw(2,1,1) - xRaw(1,1,1));
 dy = abs(yRaw(1,2,1) - yRaw(1,1,1));
 dz = abs(zRaw(1,1,2) - zRaw(1,1,1));
@@ -44,7 +72,7 @@ Kv = [ 1, 2, 1;
 % convn handles the 3rd dimension (k) automatically by applying 
 % the 2D kernel to every slice.
 C = 1 / (8 * dx * dy);
-omega_z = C * (convn(uRaw, Ku, 'same') + convn(vRaw, Kv, 'same'));
+omega_z = C * (convn(u, Ku, 'same') + convn(v, Kv, 'same'));
 
 % C = 1 / (8 * dx * dy);
 % 
@@ -103,7 +131,7 @@ Ku(:, 1, 1) = [1, 2,  1]; % j+1 terms
 Ku = Ku * dx;
 
 C = 1 / (8 * dx * dz);
-omega_y = C * (convn(wRaw, Kw, 'same') + convn(uRaw, Ku, 'same'));
+omega_y = C * (convn(w, Kw, 'same') + convn(u, Ku, 'same'));
 
 % C = 1 / (8 * dx * dz);
 % 
@@ -151,7 +179,7 @@ Kw(1, 1, :) = [1, 2,  1]; % j+1 terms
 Kw = Kw * dz;
 
 C = 1 / (8 * dy * dz);
-omega_x = C * (convn(vRaw, Kv, 'same') + convn(wRaw, Kw, 'same'));
+omega_x = C * (convn(v, Kv, 'same') + convn(w, Kw, 'same'));
 
 % C = 1 / (8 * dy * dz);
 % 

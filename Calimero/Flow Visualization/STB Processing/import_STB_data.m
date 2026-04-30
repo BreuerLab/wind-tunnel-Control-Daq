@@ -1,4 +1,4 @@
-function [x, y, z, u, v, w, Utot, vortX, vortY, vortZ, vortTot, uncU, uncV, uncW, uncTot, hel] = ...
+function [x, y, z, u, v, w, Utot, vortX, vortY, vortZ, vortTot, uncU, uncV, uncW, uncTot, hel, num_particles] = ...
     import_STB_data(file_path, nondim_bool, U, L, sel_frames, RPCA_bool)
 D = loadpiv(file_path,"extractAllVariables","frameSelect",sel_frames); % "Validate", minCorrelationValue
 
@@ -86,6 +86,8 @@ else
     uncV_full = D.uncV;
     uncW_full = D.uncW;
 end
+
+num_particles = D.numP;
 
 % uncTot = (uncU.^2 + uncV.^2 + uncW.^2).^(1/2);
 % corr = D.corr;

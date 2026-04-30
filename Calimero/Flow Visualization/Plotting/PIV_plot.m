@@ -30,6 +30,7 @@ function h = PIV_plot(x, y, val_tr, params, ax)
     elseif params.clims(1) == 0 % uncertainty plots
         colormap(ax, jet);
         cb = colorbar(ax);
+        clim(ax, params.clims);
     else % vorticity plots
         cb = colorbarpzn(ax, params.clims(1), params.clims(2),'level', nlevels); % , 'level', 21
     end

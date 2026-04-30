@@ -15,7 +15,7 @@ function [var, err] = get_PIV_force(file_name, case_name, force_var_name, avg_ty
             case 1
             vars = {"L","U","y","z","u_phase_avg","w_phase_avg"};
             if vort_bool
-                vars = [vars, "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg"];
+                vars = [vars, "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg", "Q"];
             end
             vars = [vars, "uncTot_phase_avg"];
         end

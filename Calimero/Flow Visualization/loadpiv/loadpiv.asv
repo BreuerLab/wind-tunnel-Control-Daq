@@ -742,8 +742,8 @@ out1.uncWRaw = permute(w_uncTmp, pOrder);
 
 out1.numP = rot180(out1.numP);
 
-numPTmp = out1.numP;
+u_uncTmp = out1.uncWRaw;
 
 % Permute the underlying array dimensions
-out1.numP = permute(numPTmp, pOrder);
+out1.uncURaw = permute(u_uncTmp, pOrder);
 end

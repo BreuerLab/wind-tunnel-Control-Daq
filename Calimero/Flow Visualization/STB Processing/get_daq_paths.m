@@ -28,9 +28,19 @@ function [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name)
     cases.UP_two_flexible_30deg_6Hz = {'UP_two_PIV_flexible_30_4m.s_10deg_6Hz_2026-02-15 12-51-01_experiment_2026_02_15_12_52_27.mat', d15};
 
     % Feb 12th Data
+    cases.UP_one_flexible_10deg_2Hz = {'UP_one_PIV_flexible_10_4m.s_10deg_2Hz_2026-02-12 13-19-55_experiment_2026_02_12_13_21_15.mat', d12};
+    cases.UP_one_flexible_10deg_4Hz = {'UP_one_PIV_flexible_10_4m.s_10deg_4Hz_2026-02-12 13-49-16_experiment_2026_02_12_13_50_36.mat', d12};
+    cases.UP_one_flexible_10deg_6Hz = {'UP_one_PIV_flexible_10_4m.s_10deg_6Hz_2026-02-12 14-18-53_experiment_2026_02_12_14_20_10.mat', d12};
+    cases.UP_one_flexible_10deg_8Hz = {'UP_one_PIV_flexible_10_4m.s_10deg_8Hz_2026-02-12 14-46-39_experiment_2026_02_12_14_48_01.mat', d12};
+
     cases.UP_one_flexible_20deg_2Hz = {'UP_one_PIV_flexible_20_4m.s_10deg_2Hz_2026-02-12 11-00-21_experiment_2026_02_12_11_02_30.mat', d12};
+    cases.UP_one_flexible_20deg_4Hz = {'UP_one_PIV_flexible_20_4m.s_10deg_4Hz_2026-02-12 11-28-10_experiment_2026_02_12_11_29_30', d12};
     cases.UP_one_flexible_20deg_6Hz = {'UP_one_PIV_flexible_20_4m.s_10deg_6Hz_2026-02-12 11-57-03_experiment_2026_02_12_11_58_20.mat', d12};
+    cases.UP_one_flexible_20deg_8Hz = {'UP_one_PIV_flexible_20_4m.s_10deg_8Hz_2026-02-12 12-50-23_experiment_2026_02_12_12_51_36', d12};
+    
     cases.UP_one_flexible_30deg_2Hz = {'UP_one_PIV_flexible_30_4m.s_10deg_2Hz_2026-02-12 15-31-47_experiment_2026_02_12_15_33_07.mat', d12};
+    cases.UP_one_flexible_30deg_4Hz = {'UP_one_PIV_flexible_30_4m.s_10deg_4Hz_2026-02-12 16-02-50_experiment_2026_02_12_16_04_10', d12};
+    cases.UP_one_flexible_30deg_6Hz = {'UP_one_PIV_flexible_30_4m.s_10deg_6Hz_2026-02-12 16-51-05_experiment_2026_02_12_16_52_27', d12};
 
     % Feb 11th Data
     cases.flexible_10deg_2Hz = {'PIV_flexible_10_4m.s_10deg_2Hz_2026-02-11 13-57-37_experiment_2026_02_11_13_59_51.mat', d11};

@@ -29,7 +29,7 @@ drag_phase_avg = zeros(1,num_bins);
 
 % Define the field names we want to average (must be same order as
 % import_STB)
-fields = {'u', 'v', 'w', 'Utot', 'vortX', 'vortY', 'vortZ', 'vortTot', 'uncU', 'uncV', 'uncW', 'uncTot', 'hel'};
+fields = {'u', 'v', 'w', 'Utot', 'vortX', 'vortY', 'vortZ', 'vortTot', 'uncU', 'uncV', 'uncW', 'uncTot', 'hel', 'numP'};
 
 for i = 1:num_bins
     bin_indices = find(bin_ind_arr == i);
@@ -38,7 +38,8 @@ for i = 1:num_bins
     bin_std(i) = std(norm_frame_pos(bin_indices))*100;
 
     % Import data (using a temporary struct or list)
-    [x, y, z, data{1:13}] = import_STB_data(file_path, nondim_bool, U, L, bin_indices, RPCA_bool);
+    [x, y, z, data{1:length(fields)}] = ...
+        import_STB_data(file_path, nondim_bool, U, L, bin_indices, RPCA_bool);
 
     avg_type = 2;
     y_cen = -2.26;
@@ -57,7 +58,10 @@ for i = 1:num_bins
     for f = 1:length(fields)
         fname = [fields{f}, '_phase_avg'];
         % Compute mean along the 4th dimension
-        S.(fname)(:,:,:,i) = mean(data{f}, 4);
+        S.(fname)(:,:,:,i) = mean(data{f}, 4, "omitnan");
+
+        fname = [fields{f}, '_phase_std'];
+        S.(fname)(:,:,:,i) = std(data{f}, 0, 4, "omitnan");
 
         lift_phase_avg(i) = mean(lift_vals.vortX);
         drag_phase_avg(i) = mean(drag_vals.tot);
@@ -74,8 +78,18 @@ dx = abs(x(2,1,1) - x(1,1,1));
 dy = abs(y(1,2,1) - y(1,1,1));
 dz = abs(z(1,1,2) - z(1,1,1));
 
+% Replace NaNs with zeros, otherwise Q iso surfaces are holey
+% u_phase_avg = S.u_phase_avg;
+% u_phase_avg(isnan(u_phase_avg)) = 0;
+% 
+% v_phase_avg = S.v_phase_avg;
+% v_phase_avg(isnan(v_phase_avg)) = 0;
+% 
+% w_phase_avg = S.w_phase_avg;
+% w_phase_avg(isnan(w_phase_avg)) = 0;
+
 % Compute Q-Criterion
-[Qx,Qy,Qz,Q] = calQlate3D(S.u_phase_avg, S.v_phase_avg, S.w_phase_avg,dx,dy,dz);
+[Qx,Qy,Qz,Q] = calQlate3D(S.u_phase_avg, S.v_phase_avg, S.w_phase_avg, dx,dy,dz);
 S.Qx = Qx; S.Qy = Qy; S.Qz = Qz; S.Q = Q;
 
 % Compute integral quanitites: lift, drag, KE, enstrophy, conv_U

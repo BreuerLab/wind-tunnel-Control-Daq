@@ -31,7 +31,7 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
             vortX = squeeze(S.vortX_phase_avg(:, y_idx, z_idx, :)) * (U/L);
             vortY = squeeze(S.vortY_phase_avg(:, y_idx, z_idx, :)) * (U/L);
             vortZ = squeeze(S.vortZ_phase_avg(:, y_idx, z_idx, :)) * (U/L);
-            % Q = squeeze(S.Q(:, y_idx, z_idx, :));
+            Q = squeeze(S.Q(:, y_idx, z_idx, :));
             end
         case 2
             % 'u', 'v', 'w', 'Utot', 'vortX', 'vortY', 'vortZ', 'vortTot'...
@@ -53,24 +53,20 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
             vortX = squeeze(vortX(:, y_idx, z_idx, :)) * (U/L);
             vortY = squeeze(vortY(:, y_idx, z_idx, :)) * (U/L);
             vortZ = squeeze(vortZ(:, y_idx, z_idx, :)) * (U/L);
-            % Q = squeeze(S.Q(:, y_idx, z_idx, :));
+            Q = squeeze(S.Q(:, y_idx, z_idx, :));
             end
     end
     end
 
     % First trim data about center point
-    y_idx = find(y(1,:,1) > y_cen);  % columns
+    y_idx = find(y(1,:,1) >= y_cen);  % columns
 
     z = z - z_cen;
 
     x_ind = 3;
 
-    % Make values dimensional
-    y = squeeze(y(x_ind, y_idx, :)) * L;
-    z = squeeze(z(x_ind, y_idx, :)) * L;
-
-    % shift axis so that min point is now considered as origin
-    y = y - min(y, [], "all");
+    y = squeeze(y(x_ind, y_idx, :));
+    z = squeeze(z(x_ind, y_idx, :));
 
     switch avg_type
         case 0
@@ -90,18 +86,62 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
             vortX = squeeze(vortX(x_ind, y_idx, :, :));
             vortY = squeeze(vortY(x_ind, y_idx, :, :));
             vortZ = squeeze(vortZ(x_ind, y_idx, :, :));
-            % Q = squeeze(Q(x_ind, y_idx, :, :));
+            Q = squeeze(Q(x_ind, y_idx, :, :));
             end
     end
+
+    % % ------------------------
+    % % Trim off body contribution
+    % y_body = -1.3;
+    % y_idx = find(y(:,1) >= y_body);  % columns
+    % 
+    % y = y(y_idx, :);
+    % z = z(y_idx, :);
+    % 
+    % switch avg_type
+    %     case 0
+    %         u = u(y_idx, :);
+    %         w = w(y_idx, :);
+    %         if vort_bool
+    %         vortX = vortX(y_idx, :);
+    %         vortY = vortY(y_idx, :);
+    %         vortZ = vortZ(y_idx, :);
+    %         % Q = squeeze(Q(x_ind, y_idx, :));
+    %         end
+    %     case {1,2}
+    %         u = u(y_idx, :, :);
+    %         w = w(y_idx, :, :);
+    %         unc = unc(y_idx, :, :);
+    %         if vort_bool
+    %         vortX = vortX(y_idx, :, :);
+    %         vortY = vortY(y_idx, :, :);
+    %         vortZ = vortZ(y_idx, :, :);
+    %         Q = Q(y_idx, :, :);
+    %         end
+    % end
+
+    % ---------------------
+    % Make values dimensional
+    y = y*L;
+    z = z*L;
+
+    % shift axis so that min point is now considered as origin
+    % y = y - min(y, [], "all");
+    y = y - y_cen*L;
 
     % mask regions where missing STB information
     % u(isnan(unc)) = NaN;
     % w(isnan(unc)) = NaN;
     if vort_bool
+       
+        default_value = 0;
+
+    % THIS IS BAD, SHOULD JUST OMIT THESE RATHER THAN WEIGHTING TOWARDS
+    % ZERO
     if avg_type
-    vortX(isnan(unc)) = 0; %  & unc > 0.03
-    vortY(isnan(unc)) = 0;
-    vortZ(isnan(unc)) = 0;
+    vortX(isnan(unc)) = default_value; %  & unc > 0.03
+    vortY(isnan(unc)) = default_value;
+    vortZ(isnan(unc)) = default_value;
     end
 
     % vortX = medfilt3(vortX);
@@ -123,7 +163,7 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
     % end
 
     thresh = 0.1 * (U/L);
-    vortX(vortX < thresh & vortX > -thresh) = 0;
+    vortX(vortX < thresh & vortX > -thresh) = default_value;
     end
 
     % in my reference frame right wing produces positive vorticity, but
@@ -149,6 +189,12 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
     % end
     % end
 
+    % mean convection speed base on vortex centers
+    % u_tmp = u;
+    % u_tmp(Q <= 0.025) = NaN;
+    % 
+    % mean_u = squeeze(mean(u_tmp, "all", "omitnan"));
+
     %% Calculate lift
     if vort_bool
         lift = struct();
@@ -156,6 +202,7 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
         % term1 = -U * dA * x .* -vortZ; 
         % term2 = (w + U) .* -v .* dA; % effectively zero
         % term1 = -U * y .* -vortX;
+        % term1 = mean_u * y .* -vortX;
         term1 = u .* y .* -vortX;
         term2 = (u + U) .* -w; % effectively zero
     
