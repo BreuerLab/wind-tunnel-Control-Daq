@@ -65,6 +65,11 @@ properties
     trim_bool;
     num_cycles;
     cam;
+
+    cur_type;
+    cur_types;
+    distance_labels;
+    distance_type_dict;
 end
 
 methods
@@ -106,7 +111,20 @@ methods
         % Only apply extractBefore to the matching files
         fileNames(hasSuffix) = extractBefore(fileNames(hasSuffix), obj.file_suffix);
 
-        obj.case_name_list = fileNames;
+        available_selections = get_sel_from_file(files);
+
+        obj.cur_types = ["flexible";"UP_one_flexible";"UP_two_flexible"];
+        if ~isequal(sort(obj.cur_types), sort(unique(string(available_selections(:, 1)))))
+            error("Downstream type mismatch. Check types...")
+        end
+        
+        obj.cur_type = obj.cur_types(1);
+        obj.distance_labels = ["x = 0.9m","x = 1.3m","x = 1.7m"];
+
+        obj.distance_type_dict = containers.Map(obj.distance_labels, obj.cur_types);
+
+        cleanedStrings = extractAfter(erase(fileNames, obj.cur_types), "_");
+        obj.case_name_list = unique(cleanedStrings);
 
         obj.movie_3D_avg_vars = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
                     "Q_x","Q_y","Q_z","|Q|","u_unc","v_unc","w_unc","|unc|","helicity", "# particles"];
@@ -239,11 +257,17 @@ methods
         drop_y1 = screen_height*0.85 - 30;
         d1 = uidropdown(option_panel);
         d1.Position = [10 drop_y1 180 30];
-        d1.Items = obj.case_name_list;
-        obj.case_name = d1.Value; % use current value in box
-        d1.ValueChangedFcn = @(src, event) case_change(src, event, plot_panel);
+        d1.Items = obj.distance_labels;
+        d1.ValueChangedFcn = @(src, event) distance_change(src, event, plot_panel);
 
-        drop_y2 = drop_y1 - 35;
+        drop_y11 = drop_y1 - 35;
+        d11 = uidropdown(option_panel);
+        d11.Position = [10 drop_y11 180 30];
+        d11.Items = obj.case_name_list;
+        obj.case_name = d11.Value; % use current value in box
+        d11.ValueChangedFcn = @(src, event) case_change(src, event, plot_panel);
+
+        drop_y2 = drop_y11 - 35;
         d2 = uidropdown(option_panel);
         d2.Position = [10 drop_y2 180 30];
         d2.Items = obj.plot_types;
@@ -411,7 +435,12 @@ methods
 
         % ~ indicates input argument that's ignored
 
-        % User selected new desired force/moment axes
+        function distance_change(src, ~, plot_panel)
+            obj.cur_type = obj.distance_type_dict(src.Value);
+            % obj.plot_hold_bool = false;
+            obj.update_plot(plot_panel);
+        end
+
         function case_change(src, ~, plot_panel)
             obj.case_name = src.Value;
             % obj.plot_hold_bool = false;
@@ -726,7 +755,7 @@ methods (Access = private)
             vars = {"L","U","y","z","u_phase_avg","w_phase_avg",...
                 "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg"};
         end
-        full_file_path = obj.file_path + obj.case_name + obj.file_suffix;
+        full_file_path = obj.file_path + obj.cur_type + "_" + obj.case_name + obj.file_suffix;
         d = load(full_file_path, vars{:});
 
         if plot_idx == 2 || plot_idx == 3 || plot_idx == 4
@@ -988,7 +1017,7 @@ methods (Access = private)
             z_cen = -0.03 / d.L;
 
             norm_bool = false;
-            [val, err] = get_PIV_force(full_file_path, obj.case_name, var_name, avg_type, norm_bool);
+            [val, err] = get_PIV_force(full_file_path, obj.cur_type + "_" + obj.case_name, var_name, avg_type, norm_bool);
 
             plot(ax, val)
             hold(ax, "on")

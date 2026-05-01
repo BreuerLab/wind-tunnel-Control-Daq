@@ -31,7 +31,7 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
             vortX = squeeze(S.vortX_phase_avg(:, y_idx, z_idx, :)) * (U/L);
             vortY = squeeze(S.vortY_phase_avg(:, y_idx, z_idx, :)) * (U/L);
             vortZ = squeeze(S.vortZ_phase_avg(:, y_idx, z_idx, :)) * (U/L);
-            Q = squeeze(S.Q(:, y_idx, z_idx, :));
+            % Q = squeeze(S.Q(:, y_idx, z_idx, :));
             end
         case 2
             % 'u', 'v', 'w', 'Utot', 'vortX', 'vortY', 'vortZ', 'vortTot'...
@@ -53,7 +53,7 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
             vortX = squeeze(vortX(:, y_idx, z_idx, :)) * (U/L);
             vortY = squeeze(vortY(:, y_idx, z_idx, :)) * (U/L);
             vortZ = squeeze(vortZ(:, y_idx, z_idx, :)) * (U/L);
-            Q = squeeze(S.Q(:, y_idx, z_idx, :));
+            % Q = squeeze(S.Q(:, y_idx, z_idx, :));
             end
     end
     end
@@ -86,7 +86,7 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
             vortX = squeeze(vortX(x_ind, y_idx, :, :));
             vortY = squeeze(vortY(x_ind, y_idx, :, :));
             vortZ = squeeze(vortZ(x_ind, y_idx, :, :));
-            Q = squeeze(Q(x_ind, y_idx, :, :));
+            % Q = squeeze(Q(x_ind, y_idx, :, :));
             end
     end
 

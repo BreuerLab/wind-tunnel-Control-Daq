@@ -45,6 +45,7 @@ properties
     % 3 - Filtered - 10*wingbeat frequency cutoff frequency
     filt_num;
     saveFig;
+    y_cen;
 
     force_bool;
     vort_bool; % 1 - velocity, 2 - vorticity
@@ -89,6 +90,7 @@ methods
         obj.log_scale = false;
         obj.filt_num = 3;
         obj.saveFig = false;
+        obj.y_cen = -2.26; % -2.16, 2.55, -0.142 / d.L;
 
         obj.force_bool = false;
         obj.vort_bool = true;
@@ -501,7 +503,7 @@ methods (Access = private)
     
                 norm_bool = false;
                 file_path = obj.PIV_path + filename;
-                [var, err] = get_PIV_force(file_path, cur_sel, var_name, avg_type, norm_bool);
+                [var, err] = get_PIV_force(file_path, cur_sel, var_name, avg_type, norm_bool, obj.y_cen);
             elseif index == 6
                 d = load(obj.PIV_path + filename, vars{:});
                 var = d.(vars{1}) .* d.(vars{2});
@@ -526,7 +528,7 @@ methods (Access = private)
                     % Compute aerodynamic forces
                     norm_bool = false;
                     file_path = obj.PIV_path + "time_avg/" + filename;
-                    [bod_var, bod_err] = get_PIV_force(file_path, "", var_name, 0, norm_bool);
+                    [bod_var, bod_err] = get_PIV_force(file_path, "", var_name, 0, norm_bool, obj.y_cen);
                     var = var - bod_var;
                 else
                     d = load(obj.PIV_path + "time_avg/" + filename, var_name);
