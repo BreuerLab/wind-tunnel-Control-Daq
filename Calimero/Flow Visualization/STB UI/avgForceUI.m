@@ -52,6 +52,9 @@ classdef avgForceUI < handle
         % Curves currently displayed on plot
         plot_curves;
         saveFig;
+
+        distance_labels;
+        distance_type_dict;
     end
 
     methods
@@ -94,10 +97,18 @@ classdef avgForceUI < handle
             % Get amps, freqs, types from file names
             obj.available_selections = get_sel_from_file(files);
 
-            obj.sel_type = obj.available_selections{1,1};
             obj.sel_amp = obj.available_selections{1,2};
 
             obj.plot_curves = [];
+
+            cur_types = ["flexible";"UP_one_flexible";"UP_two_flexible"];
+            obj.sel_type = cur_types(1);
+            if ~isequal(sort(cur_types), sort(unique(string(obj.available_selections(:, 1)))))
+                error("Downstream type mismatch. Check types...")
+            end
+
+            obj.distance_labels = ["x = 0.9m","x = 1.3m","x = 1.7m"];
+            obj.distance_type_dict = containers.Map(obj.distance_labels, cur_types);
         end
 
         % Builds figure with all UI elements and defines all callback
@@ -114,8 +125,7 @@ classdef avgForceUI < handle
             drop_y1 = screen_height*0.85 - 30;
             type_dropdown = uidropdown(option_panel);
             type_dropdown.Position = [10 drop_y1 180 30];
-            cur_types = unique(string(obj.available_selections(:, 1)));
-            type_dropdown.Items = cur_types;
+            type_dropdown.Items = obj.distance_labels;
             type_dropdown.ValueChangedFcn = @(src, event) type_change(src, event);
 
             % Dropdown box for wingbeat amplitude selection
@@ -231,7 +241,7 @@ classdef avgForceUI < handle
             % ===== Nested Callback Functions =====
             
             function type_change(src, ~)
-                obj.sel_type = src.Value;
+                obj.sel_type = obj.distance_type_dict(src.Value);
             end
 
             function amp_change(src, ~)
@@ -393,7 +403,7 @@ classdef avgForceUI < handle
                             % errors(j) = 0.2 / length(d.bin_std);
                         end
             
-                        calc_force = true;
+                        calc_force = false;
                         if calc_force
                             [var, err] = get_PIV_force(filepath, name, obj.force_var, avg_type, obj.y_norm, obj.y_cen);
 
@@ -405,8 +415,15 @@ classdef avgForceUI < handle
                                 var = var - bod_var;
                             end
                         else
-                            d = load(filepath, obj.force_var);
-                            var = d.(obj.force_var);
+                            if contains(obj.force_var, ".")
+                                abbrv_name = extractBefore(obj.force_var, ".");
+                                d = load(filepath, abbrv_name);
+
+                                var = eval("d." + obj.force_var);
+                            else
+                                d = load(filepath, obj.force_var);
+                                var = d.(obj.force_var);
+                            end
 
                             if obj.PIV_sub
                                 % filename = "body_time_avg.mat";
