@@ -25,7 +25,6 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
             end
         case 1
             u = squeeze(S.u_phase_avg(:, y_idx, z_idx, :)) * U;
-            v = squeeze(S.v_phase_avg(:, y_idx, z_idx, :)) * U;
             w = squeeze(S.w_phase_avg(:, y_idx, z_idx, :)) * U;
             unc = squeeze(S.uncTot_phase_avg(:, y_idx, z_idx, :));
             if vort_bool
@@ -33,8 +32,8 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
             vortY = squeeze(S.vortY_phase_avg(:, y_idx, z_idx, :)) * (U/L);
             vortZ = squeeze(S.vortZ_phase_avg(:, y_idx, z_idx, :)) * (U/L);
 
-            % dudy = squeeze(S.dudy_phase_avg(:, y_idx, z_idx, :)) * (U/L);
-            % dudz = squeeze(S.dudz_phase_avg(:, y_idx, z_idx, :)) * (U/L);
+            dudy = squeeze(S.dudy_phase_avg(:, y_idx, z_idx, :)) * (U/L);
+            dudz = squeeze(S.dudz_phase_avg(:, y_idx, z_idx, :)) * (U/L);
             % Q = squeeze(S.Q(:, y_idx, z_idx, :));
             end
         case 2
@@ -57,9 +56,6 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
             vortX = squeeze(vortX(:, y_idx, z_idx, :)) * (U/L);
             vortY = squeeze(vortY(:, y_idx, z_idx, :)) * (U/L);
             vortZ = squeeze(vortZ(:, y_idx, z_idx, :)) * (U/L);
-
-            % dudy = squeeze(S.dudy_phase_avg(:, y_idx, z_idx, :)) * (U/L);
-            % dudz = squeeze(S.dudz_phase_avg(:, y_idx, z_idx, :)) * (U/L);
             % Q = squeeze(S.Q(:, y_idx, z_idx, :));
             end
     end
@@ -87,16 +83,12 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
             end
         case {1,2}
             u = squeeze(u(x_ind, y_idx, :, :));
-            % v = squeeze(v(x_ind, y_idx, :, :));
             w = squeeze(w(x_ind, y_idx, :, :));
             unc = squeeze(unc(x_ind, y_idx, :, :));
             if vort_bool
             vortX = squeeze(vortX(x_ind, y_idx, :, :));
             vortY = squeeze(vortY(x_ind, y_idx, :, :));
             vortZ = squeeze(vortZ(x_ind, y_idx, :, :));
-
-            % dudy = squeeze(dudy(x_ind, y_idx, :, :));
-            % dudz = squeeze(dudz(x_ind, y_idx, :, :));
             % Q = squeeze(Q(x_ind, y_idx, :, :));
             end
     end
@@ -147,13 +139,12 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
        
         default_value = 0;
 
+    % THIS IS BAD, SHOULD JUST OMIT THESE RATHER THAN WEIGHTING TOWARDS
+    % ZERO
     if avg_type
     vortX(isnan(unc)) = default_value; %  & unc > 0.03
     vortY(isnan(unc)) = default_value;
     vortZ(isnan(unc)) = default_value;
-
-    % dudy(isnan(unc)) = default_value;
-    % dudz(isnan(unc)) = default_value;
     end
 
     % vortX = medfilt3(vortX);
@@ -166,9 +157,6 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
     vortX(:,:,k) = medfilt2(vortX(:,:,k), filter_dim);
     vortY(:,:,k) = medfilt2(vortY(:,:,k), filter_dim);
     vortZ(:,:,k) = medfilt2(vortZ(:,:,k), filter_dim);
-
-    % dudy(:,:,k) = medfilt2(dudy(:,:,k), filter_dim);
-    % dudz(:,:,k) = medfilt2(dudz(:,:,k), filter_dim);
     end
 
     % Q_mask_bool = true;
@@ -220,7 +208,6 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
         % term1 = mean_u * y .* -vortX;
         term1 = u .* y .* -vortX;
         term2 = (u + U) .* -w; % effectively zero
-        % term3 = y .* (w .* dudy - v .* dudz);
     
         lift_vec_wx = trapz(y(:,1), term1, 1);
         % lift_wx = 2 * density * trapz(z(1,:), lift_vec_wx, 2);
@@ -230,10 +217,6 @@ function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_c
         lift_vec_vel = trapz(y(:,1), -term2, 1);
         lift_vel = 2 * density * trapz(z(1,:), lift_vec_vel, 2);
         lift_vel = squeeze(lift_vel);
-
-        % lift_vec_du = trapz(y(:,1), term3, 1);
-        % lift_du = 2 * density * trapz(z(1,:), lift_vec_du, 2);
-        % lift_du = squeeze(lift_du);
 
         if ~(isscalar(x))
         x = flip(x);

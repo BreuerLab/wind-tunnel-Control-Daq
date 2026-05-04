@@ -45,6 +45,7 @@ properties
     % 3 - Filtered - 10*wingbeat frequency cutoff frequency
     filt_num;
     saveFig;
+    y_cen;
 
     force_bool;
     vort_bool; % 1 - velocity, 2 - vorticity
@@ -74,10 +75,13 @@ methods
         obj.inds = [];
         % obj.axes_labels = ["Lift", "Drag", "Speed", "Voltage", "Current", "Power"];
         obj.axes_labels = ["Lift - Vorticity", "y*\omega_x", "x*\omega_y", "u*w",...
-            "Drag - Vorticity", "z*\omega_y", "y*\omega_z", "(u-U)*u", "Speed", "Voltage", "Current", "Power"];
+            "Drag - Vorticity", "z*\omega_y", "y*\omega_z", "(u-U)*u",...
+            "Speed", "Acceleration", "Wing Position", "Wing Speed", "Wing Acceleration",...
+            "Voltage", "Current", "Power"];
         obj.var_names = ["lift.tot", "lift.vortX", "lift.vortY", "lift_vel",...
                     "drag.tot", "drag.vortY", "drag.vortZ", "drag_vel",...
-                    "phase_avg_speed", "phase_avg_volt", "phase_avg_cur", "phase_avg_volt"];
+                    "phase_avg_speed", "phase_avg_acc",...
+                    "phase_avg_volt", "phase_avg_cur", "phase_avg_volt"];
         obj.y_labels = ["Lift (N)","Lift (N)","Lift (N)","Lift (N)",...
             "Drag (N)", "Drag (N)", "Drag (N)", "Drag (N)",...
             "Speed (Hz)", "Voltage (V)", "Current (mA)", "Power (mW)"];
@@ -89,6 +93,7 @@ methods
         obj.log_scale = false;
         obj.filt_num = 3;
         obj.saveFig = false;
+        obj.y_cen = -2.26; % -2.16, 2.55, -0.142 / d.L;
 
         obj.force_bool = false;
         obj.vort_bool = true;
@@ -501,7 +506,7 @@ methods (Access = private)
     
                 norm_bool = false;
                 file_path = obj.PIV_path + filename;
-                [var, err] = get_PIV_force(file_path, cur_sel, var_name, avg_type, norm_bool);
+                [var, err] = get_PIV_force(file_path, cur_sel, var_name, avg_type, norm_bool, obj.y_cen);
             elseif index == 6
                 d = load(obj.PIV_path + filename, vars{:});
                 var = d.(vars{1}) .* d.(vars{2});
@@ -510,22 +515,28 @@ methods (Access = private)
                 var = d.(var_name);
             end
             
-            load(obj.PIV_path + filename, "phase_avg_speed")
+            % vars_kin = {"phase_avg_pos", "phase_avg_speed", "phase_avg_acc"};
+            vars_kin = {"phase_avg_speed", "phase_avg_wing_pos", "phase_avg_wing_speed", "phase_avg_wing_acc"};
+            load(obj.PIV_path + filename, vars_kin{:})
             freq_cor = mean(phase_avg_speed);
+            % added_mass = get_added_mass(phase_avg_pos, phase_avg_speed, phase_avg_acc);
+            added_mass = get_added_mass(phase_avg_wing_pos, phase_avg_wing_speed, phase_avg_wing_acc);
 
             if ismember(index,[1,2,3,4,5,6,7,8]) && obj.PIV_sub
                 % filename = "body_phase_avg.mat";
                 filename = "ring_time_avg.mat";
 
-                if calc_force && ~
+                if ~strcmp(var_name, "lift.vortY")
+                if calc_force
                     % Compute aerodynamic forces
                     norm_bool = false;
                     file_path = obj.PIV_path + "time_avg/" + filename;
-                    [bod_var, bod_err] = get_PIV_force(file_path, "", var_name, 0, norm_bool);
+                    [bod_var, bod_err] = get_PIV_force(file_path, "", var_name, 0, norm_bool, obj.y_cen);
                     var = var - bod_var;
                 else
                     d = load(obj.PIV_path + "time_avg/" + filename, var_name);
                     var = var - d.(var_name);
+                end
                 end
             end
 
@@ -620,6 +631,7 @@ methods (Access = private)
                 line.LineStyle = linestyles(find(obj.inds == index));
             end
 
+            disp(legend_entry + ": " + mean(var))
             line.DisplayName = legend_entry;
             line.Color = original_color;
             line.LineWidth = 2;
@@ -629,7 +641,9 @@ methods (Access = private)
 
             if obj.force_bool && ~contains(type, "UP")
                 line = plot(ax, time_F, force);
-                line.DisplayName = strrep(cur_sel,"_"," ") + " F";
+                F_legend = strrep(cur_sel,"_"," ") + " F";
+                line.DisplayName = F_legend;
+                disp(F_legend + ": " + mean(force))
                 line.Color = original_color;
                 line.LineWidth = 2;
                 line.LineStyle = ":";
@@ -639,7 +653,7 @@ methods (Access = private)
         hold(ax, 'off');
 
         grid(ax, 'on');
-        l = legend(ax, Location="northeast");
+        l = legend(ax, Location="best");
         % if ~isempty(obj.inds)
         %     if length(obj.inds) > 1
         %         for n = 2:length(obj.inds)

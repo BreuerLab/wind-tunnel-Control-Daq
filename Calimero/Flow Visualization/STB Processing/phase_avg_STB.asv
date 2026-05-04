@@ -108,8 +108,6 @@ else
     x_conv = 0;
 end
 
-% Trimming fields
-
 avg_type = 1;
 [lift_vel, drag_vel] = get_wake_lift(speed, L, x_conv, y, z, S, avg_type, false, y_cen, z_cen, density);
 [lift, drag] = get_wake_lift(speed, L, x_conv, y, z, S, avg_type, true, y_cen, z_cen, density);
@@ -123,12 +121,11 @@ z_arr = squeeze(z(x_ind,1,:));
 
 KE_field = squeeze(S.Utot_phase_avg(x_ind,:,:,:)).^2;
 % TRIM AND CUT AT MIRROR POINT BEFORE INTEGRATING
-% KE = trapz(y_arr, KE_field, 1);
-% KE = trapz(z_arr, KE, 2);
-% KE = squeeze(KE);
+KE = trapz(y_arr, KE_field, 1);
+KE = trapz(z_arr, KE, 2);
+KE = squeeze(KE);
 
-Utot_full = velX.^2 + velY.^2 + velZ.^2;
-KE_tot_field = permute(Utot_full,[2 3 1]);
+KE_tot_field
 
 enst_field = squeeze(S.vortTot_phase_avg(x_ind,:,:,:)).^2;
 enst = trapz(y_arr, enst_field, 1);

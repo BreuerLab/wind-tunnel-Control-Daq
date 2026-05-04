@@ -591,12 +591,19 @@ out1.wRaw = permute(wTmp, permutationOrder);
 [out1.vortXRaw, out1.vortYRaw, out1.vortZRaw] = ...
     calculateVorticity(out1.xRaw, out1.yRaw, out1.zRaw, out1.uRaw, out1.vRaw, out1.wRaw);
 
-[out1.dudx, out1.dudy, out1.dudz] = ...
-    get_gradients(out1.xRaw, out1.yRaw, out1.zRaw, out1.uRaw);
-[out1.dvdx, out1.dvdy, out1.dvdz] = ...
-    get_gradients(out1.xRaw, out1.yRaw, out1.zRaw, out1.vRaw);
-[out1.dwdx, out1.dwdy, out1.dwdz] = ...
-    get_gradients(out1.xRaw, out1.yRaw, out1.zRaw, out1.wRaw);
+data = zeroToMedian(data)
+
+out1.dudx = central_diff_4th(out1.xRaw, out1.uRaw);
+out1.dudy = central_diff_4th(out1.yRaw, out1.uRaw);
+out1.dudz = central_diff_4th(out1.zRaw, out1.uRaw);
+
+out1.dvdx = central_diff_4th(out1.xRaw, out1.vRaw);
+out1.dvdy = central_diff_4th(out1.yRaw, out1.vRaw);
+out1.dvdz = central_diff_4th(out1.zRaw, out1.vRaw);
+
+out1.dwdx = central_diff_4th(out1.xRaw, out1.wRaw);
+out1.dwdy = central_diff_4th(out1.yRaw, out1.wRaw);
+out1.dwdz = central_diff_4th(out1.zRaw, out1.wRaw);
 
 out1.uncURaw = nan([sizeXY numTrimmedPlanes]);
 out1.uncVRaw = nan(size(out1.uncURaw));
@@ -629,48 +636,25 @@ out1.uncWRaw = permute(wUncertaintyTmp, permutationOrder);
 out1.numP = permute(rotateStbVolume(out1.numP), permutationOrder);
 end
 
-function dudx = central_diff_4th_3D(x, u)
-    % Calculates the 1st derivative of 3D matrix u along the dimension
-    % defined by the coordinate matrix x.
+function dudx = central_diff_4th(x, u)
+    % Calculates the 1st derivative of u with respect to x 
+    % using a 4th-order central difference scheme.
     
-    % Determine which dimension varies in x
-    if any(diff(x, 1, 1), 'all')
-        dim = 1;
-    elseif any(diff(x, 1, 2), 'all')
-        dim = 2;
-    elseif any(diff(x, 1, 3), 'all')
-        dim = 3;
-    else
-        error('Coordinate matrix x does not appear to vary along any dimension.');
-    end
+    n = length(u);
+    h = x(2) - x(1); % Assumes uniform spacing
     
-    % Calculate spacing h
-    if dim == 1
-        h = x(2,1,1) - x(1,1,1);
-    elseif dim == 2
-        h = x(1,2,1) - x(1,1,1);
-    else
-        h = x(1,1,2) - x(1,1,1);
-    end
-    
-    % Initialize output
+    % Initialize output with NaNs
     dudx = NaN(size(u));
-    n = size(u, dim);
     
-    % Apply 4th-order central difference along the detected dimension
-    if dim == 1
-        dudx(3:n-2,:,:) = (-u(5:n,:,:) + 8*u(4:n-1,:,:) - 8*u(2:n-3,:,:) + u(1:n-4,:,:)) / (12 * h);
-    elseif dim == 2
-        dudx(:,3:n-2,:) = (-u(:,5:n,:) + 8*u(:,4:n-1,:) - 8*u(:,2:n-3,:) + u(:,1:n-4,:)) / (12 * h);
-    elseif dim == 3
-        dudx(:,:,3:n-2) = (-u(:,:,5:n) + 8*u(:,:,4:n-1) - 8*u(:,:,2:n-3) + u(:,:,1:n-4)) / (12 * h);
-    end
+    % Vectorized calculation for indices 3 to n-2
+    % This maps to the formula: (-u_i+2 + 8u_i+1 - 8u_i-1 + u_i-2) / 12h
+    dudx(3:n-2) = (-u(5:n) + 8*u(4:n-1) - 8*u(2:n-3) + u(1:n-4)) / (12 * h);
 end
 
 function [dudx, dudy, dudz] = get_gradients(x, y, z, u)
     u = zeroToMedian(u);
 
-    dudx = central_diff_4th_3D(squeeze(x(:,1,1)), u);
-    dudy = central_diff_4th_3D(squeeze(y(1,:,1)), u);
-    dudz = central_diff_4th_3D(squeeze(z(1,1,:)), u);
+    dudx = central_diff_4th(out1.xRaw, out1.uRaw);
+    dudy = central_diff_4th(out1.yRaw, out1.uRaw);
+    dudz = central_diff_4th(out1.zRaw, out1.uRaw);
 end

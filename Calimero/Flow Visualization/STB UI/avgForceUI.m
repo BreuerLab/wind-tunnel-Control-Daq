@@ -403,7 +403,7 @@ classdef avgForceUI < handle
                             % errors(j) = 0.2 / length(d.bin_std);
                         end
             
-                        calc_force = false;
+                        calc_force = true;
                         if calc_force
                             [var, err] = get_PIV_force(filepath, name, obj.force_var, avg_type, obj.y_norm, obj.y_cen);
 

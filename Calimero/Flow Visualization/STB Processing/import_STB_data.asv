@@ -160,21 +160,21 @@ dwdy = dwdy_full;
 dwdz = dwdz_full;
 end
 
-% Total vel calculated without NaNs
-tmp = u;
-tmp(isnan(tmp)) = median(u,"all", "omitnan");
-u_tmp = tmp;
+% Total vec
+tmp = uRaw;
+tmp(tmp == 0) = median(uRaw,"all");
+u = tmp;
 
-tmp = v;
-tmp(isnan(tmp)) = median(v,"all", "omitnan");
-v_tmp = tmp;
+tmp = vRaw;
+tmp(tmp == 0) = median(vRaw,"all");
+v = tmp;
 
-tmp = w;
-tmp(isnan(tmp)) = median(w,"all", "omitnan");
-w_tmp = tmp;
+tmp = wRaw;
+tmp(tmp == 0) = median(wRaw,"all");
+w = tmp;
 
 % Calculate totals using vector sum
-Utot = (u_tmp.^2 + v_tmp.^2 + w_tmp.^2).^(1/2);
+Utot = (u.^2 + v.^2 + w.^2).^(1/2);
 vortTot = (vortX.^2 + vortY.^2 + vortZ.^2).^(1/2);
 uncTot = (uncU.^2 + uncV.^2 + uncW.^2).^(1/2);
 hel = (u .* vortX) + (v .* vortY) + (w .* vortZ);
