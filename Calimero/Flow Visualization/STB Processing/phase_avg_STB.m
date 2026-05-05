@@ -8,19 +8,13 @@ disp("Assuming num images = " + num_images)
     = frame_to_bin(PIV_case_name, num_images, turbine_bool, plot_bool);
 
 
-avg_type = 1;
-if avg_type == 0
-    speed = U;
-    density = 1.225;
-else
-    % Find matching DAQ file
-    [daq_data_filename, ~] = get_daq_paths(PIV_case_name);
+% Find matching DAQ file
+[daq_data_filename, ~] = get_daq_paths(PIV_case_name);
 
-    WT_d = get_wind_tunnel_data(daq_data_filename);
-    speed = WT_d.Speed_m_s_;
-    density = WT_d.Density_kg_m3_;
-    % density = 1.225;
-end
+% Get AFAM parameters associated with that trial
+WT_d = get_wind_tunnel_data(daq_data_filename);
+S.U_act = speed;
+S.rho_act = density;
 
 bin_count = zeros(1,num_bins);
 bin_std = zeros(1,num_bins);
@@ -109,10 +103,6 @@ dz = abs(z(1,1,2) - z(1,1,1));
 [Qx,Qy,Qz,Q] = calQlate3D(S.u_phase_avg, S.v_phase_avg, S.w_phase_avg, dx,dy,dz);
 S.Qx = Qx; S.Qy = Qy; S.Qz = Qz; S.Q = Q;
 
-% Compute integral quanitites: lift, drag, KE, enstrophy, conv_U
-y_cen = -2.26; % 0.142 / L
-z_cen = -0.03 / L;
-
 if avg_type ~= 0
     [~, ~, freq] = parse_name(PIV_case_name);
     dt = 1 / (freq * num_bins);
@@ -183,7 +173,8 @@ KE_diff = trapz(z_arr, KE_diff, 2);
 KE_diff = squeeze(KE_diff);
 
 % Calculate power
-power_field = KE_diff_field .* (u_tr + 1);
+power_field = KE_diff_field .* -(u_tr + 1);
+% negative sign added since -1.1 velocity means power added, acceleration
 power = trapz(y_arr, power_field, 1);
 power = trapz(z_arr, power, 2);
 power = squeeze(power);
@@ -246,12 +237,8 @@ if ~turbine_bool
     S.phase_avg_power = phase_avg_volt .* phase_avg_cur;
 end
 
-% Find matching DAQ file
-[daq_data_filename, ~] = get_daq_paths(PIV_case_name);
-
-WT_d = get_wind_tunnel_data(daq_data_filename);
-S.U_act = WT_d.Speed_m_s_ / U;
-S.rho_act = WT_d.Density_kg_m3_;
+S.U_act = speed / U;
+S.rho_act = density;
 
 % Save the entire structure
 if RPCA_bool
