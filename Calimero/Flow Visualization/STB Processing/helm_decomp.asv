@@ -1,18 +1,13 @@
-function helm_decomp(x, y, z, L, S)
+function [velX, velY, velZ] = helm_decomp(x, y, z, L, D)
 
 x_ind = 3;
 % -----------------------------------------
 % ----- Reorder and resize matrices -------
 % -----------------------------------------
-vortX = squeeze(S.vortX_phase_avg(x_ind,:,:,:));
-vortX = permute(vortX, [3 1 2]);
-vortY = squeeze(S.vortY_phase_avg(x_ind,:,:,:));
-vortY = permute(vortY, [3 1 2]);
-vortZ = squeeze(S.vortZ_phase_avg(x_ind,:,:,:));
-vortZ = permute(vortZ, [3 1 2]);
-
-u = squeeze(S.u_phase_avg(x_ind, :, :, :));
-u = permute(u, [3 1 2]);
+vortX = permute(D.vortX, [3 1 2]);
+vortY = permute(D.vortY, [3 1 2]);
+vortZ = permute(D.vortZ, [3 1 2]);
+u = permute(D.u, [3 1 2]);
 
 x = repmat(x', [1, size(vortX,2), size(vortX,3)]);
 y = repmat(y, [size(vortX,1), 1, size(vortX,3)]);
@@ -112,28 +107,28 @@ z_big = repmat(z_arr, [length(y_arr), 1]);
 [velX, velY, velZ] = get_vel_from_vort(x_arr, y_arr, z_arr, vortX_extra, vortY_extra, vortZ_extra);
 
 % Compare with measured flowfield
-velX_tr = velX(:,y_arr >= min(y,[],"all") & y_arr <= max(y,[],"all"), z_arr >= min(z,[],"all") & z_arr <= max(z,[],"all"));
-velY_tr = velY(:,y_arr >= min(y,[],"all") & y_arr <= max(y,[],"all"), z_arr >= min(z,[],"all") & z_arr <= max(z,[],"all"));
-velZ_tr = velZ(:,y_arr >= min(y,[],"all") & y_arr <= max(y,[],"all"), z_arr >= min(z,[],"all") & z_arr <= max(z,[],"all"));
-
-params.clims = [-0.1 0.1];
-params.zero = 0;
-params.cb_lab = "u/U";
-
-p_y = squeeze(y(1,:,2:end));
-p_z = squeeze(z(1,:,2:end));
-p_u = squeeze(u(1,:,2:end));
-p_u = p_u + 1;
-
-figure
-ax = gca;
-PIV_plot(y_big, z_big, squeeze(velX(1,:,:)), params, ax);
-
-figure
-ax = gca;
-PIV_plot(p_y, p_z, squeeze(velX_tr(1,:,:)), params, ax);
-
-figure
-ax = gca;
-PIV_plot(p_y, p_z, p_u, params, ax);
+% velX_tr = velX(:,y_arr >= min(y,[],"all") & y_arr <= max(y,[],"all"), z_arr >= min(z,[],"all") & z_arr <= max(z,[],"all"));
+% velY_tr = velY(:,y_arr >= min(y,[],"all") & y_arr <= max(y,[],"all"), z_arr >= min(z,[],"all") & z_arr <= max(z,[],"all"));
+% velZ_tr = velZ(:,y_arr >= min(y,[],"all") & y_arr <= max(y,[],"all"), z_arr >= min(z,[],"all") & z_arr <= max(z,[],"all"));
+% 
+% params.clims = [-0.1 0.1];
+% params.zero = 0;
+% params.cb_lab = "u/U";
+% 
+% p_y = squeeze(y(1,:,2:end));
+% p_z = squeeze(z(1,:,2:end));
+% p_u = squeeze(u(1,:,2:end));
+% p_u = p_u + 1;
+% 
+% figure
+% ax = gca;
+% PIV_plot(y_big, z_big, squeeze(velX(1,:,:)), params, ax);
+% 
+% figure
+% ax = gca;
+% PIV_plot(p_y, p_z, squeeze(velX_tr(1,:,:)), params, ax);
+% 
+% figure
+% ax = gca;
+% PIV_plot(p_y, p_z, p_u, params, ax);
 end

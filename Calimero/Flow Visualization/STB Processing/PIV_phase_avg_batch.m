@@ -43,6 +43,7 @@ for i = 1:length(case_names)
     end
 end
 
+myFuncTimer = tic;
 for i = 1:length(sel_case_names)
 PIV_case_name = sel_case_names(i);
 
@@ -92,4 +93,6 @@ switch avg_type
         end
 end
 end
+elapsed = toc(myFuncTimer);
+fprintf('Batch took: %.4f seconds\n', elapsed);
 return

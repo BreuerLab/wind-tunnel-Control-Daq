@@ -1,66 +1,19 @@
-function [velX, velY, velZ] = helm_decomp(x, y, z, L, S)
-
-x_ind = 3;
+function [y_big, z_big, velX, velY, velZ] = helm_decomp(x, y, z, L, D)
 % -----------------------------------------
 % ----- Reorder and resize matrices -------
 % -----------------------------------------
-vortX = squeeze(S.vortX_phase_avg(x_ind,:,:,:));
-vortX = permute(vortX, [3 1 2]);
-vortY = squeeze(S.vortY_phase_avg(x_ind,:,:,:));
-vortY = permute(vortY, [3 1 2]);
-vortZ = squeeze(S.vortZ_phase_avg(x_ind,:,:,:));
-vortZ = permute(vortZ, [3 1 2]);
-
-u = squeeze(S.u_phase_avg(x_ind, :, :, :));
-u = permute(u, [3 1 2]);
+vortX = permute(D.vortX, [3 1 2]);
+vortY = permute(D.vortY, [3 1 2]);
+vortZ = permute(D.vortZ, [3 1 2]);
+u = permute(D.u, [3 1 2]);
 
 x = repmat(x', [1, size(vortX,2), size(vortX,3)]);
-y = repmat(y, [size(vortX,1), 1, size(vortX,3)]);
+y = repmat(y', [size(vortX,1), 1, size(vortX,3)]);
 z = repmat(reshape(z, [1 1 length(z)]), [size(vortX,1), size(vortX,2), 1]);
-
-% y = repmat(reshape(y, [1, size(vortX,2), size(vortX,3)]), [size(vortX,1), 1, 1]);
-% z = repmat(reshape(z, [1 size(vortX,2) size(vortX,3)]), [size(vortX,1), 1, 1]);
-
-
-% -----------------------------------------
-% ------------- Trimming Wake -------------
-% -----------------------------------------
-ybounds = [-2.7 2]; % roughly -0.15 to 0.15 meters
-zbounds = [-2.36 2.55]; % roughly -0.2 to 0.2 meters
-
-y_idx = find(y(1,:,1) > ybounds(1) & y(1,:,1) < ybounds(2));  % columns
-z_idx = find(z(1,1,:) > zbounds(1) & z(1,1,:) < zbounds(2));  % rows
-
-x = x(:, y_idx, z_idx);
-y = y(:, y_idx, z_idx);
-z = z(:, y_idx, z_idx);
-
-vortX = vortX(:, y_idx, z_idx);
-vortY = vortY(:, y_idx, z_idx);
-vortZ = vortZ(:, y_idx, z_idx);
-
-u = u(:, y_idx, z_idx);
-
 
 % -----------------------------------------
 % ------------- Mirroring Wake ------------
 % -----------------------------------------
-y_cen = -2.26;
-% Mirror across the centerline to reconstruct the opposite side of the wake.
-y_idx_m = find(y(1,:,1) >= y_cen);  % columns
-
-x = x(:, y_idx_m, :);
-y = y(:, y_idx_m, :);
-z = z(:, y_idx_m, :);
-
-vortX = vortX(:, y_idx_m, :);
-vortY = vortY(:, y_idx_m, :);
-vortZ = vortZ(:, y_idx_m, :);
-
-u = u(:, y_idx_m, :);
-
-% Shift so the mirror center is the origin.
-y = y - min(y, [], "all");
 
 % Reflect and skip the first row to avoid double-counting the centerline.
 x_add = flip(x(:,2:end,:),2);

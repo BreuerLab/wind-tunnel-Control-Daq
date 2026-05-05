@@ -68,15 +68,18 @@ classdef avgForceUI < handle
 
             obj.index = 1;
             obj.box_labels = ["lift_vort", "lift_vel", "drag_vort", "drag_vel",...
-                "speed", "voltage", "current", "KE", "enstrophy", "avg U"];
+                            "speed", "voltage", "current", "electric power", "KE",...
+                            "KE wake", "power wake", "KE Full", "enstrophy", "avg U", "pitot U", "# bins"];
             obj.var_names = ["lift.vortX", "lift_vel", "drag.tot", "drag_vel",...
-                "phase_avg_speed", "phase_avg_volt", "phase_avg_cur", "KE", "enst", "u_avg"];
+                "phase_avg_speed", "phase_avg_volt", "phase_avg_cur", "phase_avg_power", "KE",...
+                "KE_diff", "power", "KE_tot", "enst", "u_avg", "U_act", "num_bins"];
             % obj.var_names = ["lift_phase_avg", "lift_vel", "drag_phase_avg", "drag_vel",...
             %     "phase_avg_speed", "phase_avg_volt", "phase_avg_cur", "KE", "enst", "u_avg"];
             % obj.var_names = ["lift", "lift_vel", "drag", "drag_vel",...
             %     "phase_avg_speed", "phase_avg_volt", "phase_avg_cur", "KE", "enst", "u_avg"];
             obj.y_labels = ["Lift (N)", "Lift (N)", "Drag (N)", "Drag (N)",...
-                "Speed (Hz)", "Voltage (V)", "Current (mA)", "KE", "Enstrophy", "Freestream Speed (m/s)"];
+                "Speed (Hz)", "Voltage (V)", "Current (mA)", "Power (mW)", "KE",...
+                "KE", "power", "KE", "Enstrophy", "Freestream Speed", "Freestream Speed", "count"];
             obj.PIV_sub = false;
             obj.force_sub = false;
             obj.filt_num = 3;
@@ -396,14 +399,17 @@ classdef avgForceUI < handle
                             errors(j) = 0;
                         else
                             avg_type = 1;
-                            d = load(filepath, "bin_std", "phase_avg_speed");
+                            d = load(filepath, "U", "U_act", "bin_std", "phase_avg_speed");
                             measured_freqs(j) = mean(d.phase_avg_speed);
-                            gain = 0.01;
+                            % gain = 0.01;
+                            gain = 0.001;
                             errors(j) = gain * mean(d.bin_std);
+                            wind_speed = d.U;
+                            wind_speed_act = d.U_act * d.U;
                             % errors(j) = 0.2 / length(d.bin_std);
                         end
             
-                        calc_force = true;
+                        calc_force = false;
                         if calc_force
                             [var, err] = get_PIV_force(filepath, name, obj.force_var, avg_type, obj.y_norm, obj.y_cen);
 
@@ -467,7 +473,7 @@ classdef avgForceUI < handle
 
                 % x-axis is either wingbeat frequency or Strouhal number
                 if obj.x_norm
-                    Sts = freqToSt(measured_freqs, 4, amp);
+                    Sts = freqToSt(measured_freqs, wind_speed_act, amp);
                     x_var = Sts;
                     x_label = "Strouhal Number";
                 else

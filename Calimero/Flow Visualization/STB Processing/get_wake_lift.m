@@ -1,144 +1,18 @@
-function [lift, drag] = get_wake_lift(U, L, x, y, z, S, avg_type, vort_bool, y_cen, z_cen, density)
-    trim_bool = true;
-    if trim_bool
-        % ybounds = [-2.7 2.45]; % roughly -0.15 to 0.15 meters
-        % zbounds = [-2.36 2.55]; % roughly -0.2 to 0.2 meters
-
-        ybounds = [-2.7 2]; % roughly -0.15 to 0.15 meters
-        zbounds = [-2.36 2.55]; % roughly -0.2 to 0.2 meters
-        
-        y_idx = find(y(1,:,1) > ybounds(1) & y(1,:,1) < ybounds(2));  % columns
-        z_idx = find(z(1,1,:) > zbounds(1) & z(1,1,:) < zbounds(2));  % rows
-        
-        y = y(:, y_idx, z_idx);
-        z = z(:, y_idx, z_idx);
-
-    switch avg_type
-        case 0
-            u = squeeze(S.mean_u(:, y_idx, z_idx)) * U;
-            w = squeeze(S.mean_w(:, y_idx, z_idx)) * U;
-            if vort_bool
-            vortX = squeeze(S.mean_vortX(:, y_idx, z_idx)) * (U/L);
-            vortY = squeeze(S.mean_vortY(:, y_idx, z_idx)) * (U/L);
-            vortZ = squeeze(S.mean_vortZ(:, y_idx, z_idx)) * (U/L);
-            % Q = squeeze(S.Q(:, y_idx, z_idx));
-            end
-        case 1
-            u = squeeze(S.u_phase_avg(:, y_idx, z_idx, :)) * U;
-            v = squeeze(S.v_phase_avg(:, y_idx, z_idx, :)) * U;
-            w = squeeze(S.w_phase_avg(:, y_idx, z_idx, :)) * U;
-            unc = squeeze(S.uncTot_phase_avg(:, y_idx, z_idx, :));
-            if vort_bool
-            vortX = squeeze(S.vortX_phase_avg(:, y_idx, z_idx, :)) * (U/L);
-            vortY = squeeze(S.vortY_phase_avg(:, y_idx, z_idx, :)) * (U/L);
-            vortZ = squeeze(S.vortZ_phase_avg(:, y_idx, z_idx, :)) * (U/L);
-
-            % dudy = squeeze(S.dudy_phase_avg(:, y_idx, z_idx, :)) * (U/L);
-            % dudz = squeeze(S.dudz_phase_avg(:, y_idx, z_idx, :)) * (U/L);
-            % Q = squeeze(S.Q(:, y_idx, z_idx, :));
-            end
-        case 2
-            % 'u', 'v', 'w', 'Utot', 'vortX', 'vortY', 'vortZ', 'vortTot'...
-            % 'uncU', 'uncV', 'uncW', 'uncTot', 'hel'
-            u = S{1};
-            w = S{3};
-            unc = S{12};
-
-            if vort_bool
-                vortX = S{5};
-                vortY = S{6};
-                vortZ = S{7};
-            end
-
-            u = squeeze(u(:, y_idx, z_idx, :)) * U;
-            w = squeeze(w(:, y_idx, z_idx, :)) * U;
-            unc = squeeze(unc(:, y_idx, z_idx, :));
-            if vort_bool
-            vortX = squeeze(vortX(:, y_idx, z_idx, :)) * (U/L);
-            vortY = squeeze(vortY(:, y_idx, z_idx, :)) * (U/L);
-            vortZ = squeeze(vortZ(:, y_idx, z_idx, :)) * (U/L);
-
-            % dudy = squeeze(S.dudy_phase_avg(:, y_idx, z_idx, :)) * (U/L);
-            % dudz = squeeze(S.dudz_phase_avg(:, y_idx, z_idx, :)) * (U/L);
-            % Q = squeeze(S.Q(:, y_idx, z_idx, :));
-            end
-    end
-    end
-
-    % First trim data about center point
-    y_idx = find(y(1,:,1) >= y_cen);  % columns
-
-    z = z - z_cen;
-
-    x_ind = 3;
-
-    y = squeeze(y(x_ind, y_idx, :));
-    z = squeeze(z(x_ind, y_idx, :));
-
-    switch avg_type
-        case 0
-            u = squeeze(u(x_ind, y_idx, :));
-            w = squeeze(w(x_ind, y_idx, :));
-            if vort_bool
-            vortX = squeeze(vortX(x_ind, y_idx, :));
-            vortY = squeeze(vortY(x_ind, y_idx, :));
-            vortZ = squeeze(vortZ(x_ind, y_idx, :));
-            % Q = squeeze(Q(x_ind, y_idx, :));
-            end
-        case {1,2}
-            u = squeeze(u(x_ind, y_idx, :, :));
-            % v = squeeze(v(x_ind, y_idx, :, :));
-            w = squeeze(w(x_ind, y_idx, :, :));
-            unc = squeeze(unc(x_ind, y_idx, :, :));
-            if vort_bool
-            vortX = squeeze(vortX(x_ind, y_idx, :, :));
-            vortY = squeeze(vortY(x_ind, y_idx, :, :));
-            vortZ = squeeze(vortZ(x_ind, y_idx, :, :));
-
-            % dudy = squeeze(dudy(x_ind, y_idx, :, :));
-            % dudz = squeeze(dudz(x_ind, y_idx, :, :));
-            % Q = squeeze(Q(x_ind, y_idx, :, :));
-            end
-    end
-
-    % % ------------------------
-    % % Trim off body contribution
-    % y_body = -1.3;
-    % y_idx = find(y(:,1) >= y_body);  % columns
-    % 
-    % y = y(y_idx, :);
-    % z = z(y_idx, :);
-    % 
-    % switch avg_type
-    %     case 0
-    %         u = u(y_idx, :);
-    %         w = w(y_idx, :);
-    %         if vort_bool
-    %         vortX = vortX(y_idx, :);
-    %         vortY = vortY(y_idx, :);
-    %         vortZ = vortZ(y_idx, :);
-    %         % Q = squeeze(Q(x_ind, y_idx, :));
-    %         end
-    %     case {1,2}
-    %         u = u(y_idx, :, :);
-    %         w = w(y_idx, :, :);
-    %         unc = unc(y_idx, :, :);
-    %         if vort_bool
-    %         vortX = vortX(y_idx, :, :);
-    %         vortY = vortY(y_idx, :, :);
-    %         vortZ = vortZ(y_idx, :, :);
-    %         Q = Q(y_idx, :, :);
-    %         end
-    % end
+function [lift, drag] = get_wake_lift(U, L, D, avg_type, vort_bool, density)
 
     % ---------------------
     % Make values dimensional
-    y = y*L;
-    z = z*L;
+    x = D.x;
+    y = D.y*L;
+    z = D.z*L;
+    u = D.u*U;
+    v = D.v*U;
+    w = D.w*U;
+    vortX = D.vortX / (L/U);
+    vortY = D.vortY / (L/U);
+    vortZ = D.vortZ / (L/U);
 
-    % shift axis so that min point is now considered as origin
-    % y = y - min(y, [], "all");
-    y = y - y_cen*L;
+    unc = D.unc;
 
     % mask regions where missing STB information
     % u(isnan(unc)) = NaN;
