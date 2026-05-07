@@ -38,6 +38,7 @@ classdef avgForceUI < handle
         PIV_sub;
         force_sub;
         err_bool;
+        calc_bool;
 
         y_cen; % spanwise position of center of body for mirroring
 
@@ -91,6 +92,7 @@ classdef avgForceUI < handle
             obj.force_var = obj.var_names(1);
             obj.saveFig = false;
             obj.err_bool = false;
+            obj.calc_bool = false;
             obj.y_cen = -2.26; % -2.16, 2.55, -0.142 / d.L;
 
             % Search through files in path to get types and speeds
@@ -230,6 +232,14 @@ classdef avgForceUI < handle
             y_cen_field.Position = [20 edit1_y 160 unit_height];
             y_cen_field.ValueChangedFcn = @(src, event) y_cen_change(src, event, plot_panel);
 
+            button8_y = edit1_y - (unit_height + unit_spacing);
+            calc_button = uibutton(option_panel, "state");
+            calc_button.Text = "Live Calculate";
+            calc_button.FontSize = 18;
+            calc_button.Position = [20 button7_y 160 unit_height];
+            calc_button.BackgroundColor = obj.COLOR_INACTIVE;
+            calc_button.ValueChangedFcn = @(src, event) calc_change(src, event, plot_panel);
+
             save_fig_button_y = (unit_height + unit_spacing);
             save_fig_button = uibutton(option_panel);
             save_fig_button.Text = "Save Fig";
@@ -297,6 +307,12 @@ classdef avgForceUI < handle
             function err_change(src, ~, plot_panel)
                 obj.err_bool = src.Value;
                 src.BackgroundColor = obj.get_button_color(obj.err_bool);
+                obj.update_plot(plot_panel);
+            end
+            
+            function calc_change(src, ~, plot_panel)
+                obj.calc_bool = src.Value;
+                src.BackgroundColor = obj.get_button_color(obj.calc_bool);
                 obj.update_plot(plot_panel);
             end
 
@@ -402,15 +418,14 @@ classdef avgForceUI < handle
                             d = load(filepath, "U", "U_act", "bin_std", "phase_avg_speed");
                             measured_freqs(j) = mean(d.phase_avg_speed);
                             % gain = 0.01;
-                            gain = 0.001;
-                            errors(j) = gain * mean(d.bin_std);
+                            % gain = 0.001;
+                            errors(j) = mean(d.bin_std);
                             wind_speed = d.U;
                             wind_speed_act = d.U_act * d.U;
                             % errors(j) = 0.2 / length(d.bin_std);
                         end
-            
-                        calc_force = false;
-                        if calc_force
+
+                        if obj.calc_bool
                             [var, err] = get_PIV_force(filepath, name, obj.force_var, avg_type, obj.y_norm, obj.y_cen);
 
                             if obj.PIV_sub
@@ -470,6 +485,10 @@ classdef avgForceUI < handle
                     end
                     disp(j + " of " + length(freqs) + " complete")
                 end
+
+                % Calculate gain based on range of values
+                gain = range(forces(1,:))/2;
+                errors = gain * errors;
 
                 % x-axis is either wingbeat frequency or Strouhal number
                 if obj.x_norm

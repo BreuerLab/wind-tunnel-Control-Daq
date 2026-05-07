@@ -61,6 +61,9 @@ properties
 
     % Curves currently displayed on plot
     plot_curves;
+
+    distance_labels;
+    distance_type_dict;
 end
 
 methods
@@ -115,6 +118,15 @@ methods
 
         obj.plot_curves = [];
         % attachFileListsToBird(path, cur_bird);
+
+        cur_types = ["flexible";"UP_one_flexible";"UP_two_flexible"];
+        obj.sel_type = cur_types(1);
+        if ~isequal(sort(cur_types), sort(unique(string(obj.available_selections(:, 1)))))
+            error("Downstream type mismatch. Check types...")
+        end
+
+        obj.distance_labels = ["x = 0.9m","x = 1.3m","x = 1.7m"];
+        obj.distance_type_dict = containers.Map(obj.distance_labels, cur_types);
     end
 
     % Builds figure with all UI elements and defines all callback
@@ -131,8 +143,7 @@ methods
         drop_y1 = screen_height*0.875 - unit_spacing;
         d1 = uidropdown(option_panel);
         d1.Position = [10 drop_y1 180 30];
-        cur_types = unique(string(obj.available_selections(:, 1)));
-        d1.Items = cur_types;
+        d1.Items = obj.distance_labels;
         d1.ValueChangedFcn = @(src, event) type_change(src, event);
 
         % Dropdown box for wingbeat frequency selection
@@ -141,7 +152,8 @@ methods
         d2.Position = [10 drop_y2 180 unit_height];
         cur_freqs = obj.available_selections(cell2mat(obj.available_selections(:,2)) == obj.sel_amp ...
             & strcmp(string(obj.available_selections(:,1)), obj.sel_type),3);
-        d2.Items = string(cur_freqs) + " Hz";
+        freqs_string = string(cur_freqs) + " Hz";
+        d2.Items = [freqs_string; "all"];
 
         % Dropdown box for wingbeat amplitude selection
         drop_y3 = drop_y2 - (unit_height + unit_spacing);
@@ -280,17 +292,29 @@ methods
 
         % update type variable with new value selected by user
         function type_change(src, ~)
-            obj.sel_type = src.Value;
+            obj.sel_type = obj.distance_type_dict(src.Value);
         end
 
         % update frequency variable with new value selected by user
         function freq_change(src, ~, d)
+            if strcmp(src.Value, "all")
+            obj.sel_freq = -1;
+            else
             obj.sel_freq = str2double(regexp(src.Value, '\d+', 'match'));
+            end
             
             % Change amplitude list to only show those available at this
             % wingbeat frequency
+            if obj.sel_freq == -1
+                cur_avail_freqs = cell2mat(obj.available_selections(cell2mat(obj.available_selections(:,2)) == obj.sel_amp ...
+            & strcmp(string(obj.available_selections(:,1)), obj.sel_type),3));
+                max_freq = max(cur_avail_freqs);
+                amps = obj.available_selections(cell2mat(obj.available_selections(:,3)) == max_freq ...
+            & strcmp(string(obj.available_selections(:,1)), obj.sel_type),2);
+            else
             amps = obj.available_selections(cell2mat(obj.available_selections(:,3)) == obj.sel_freq ...
             & strcmp(string(obj.available_selections(:,1)), obj.sel_type),2);
+            end
             d.Items = string(amps) + " deg";
         end
 
@@ -319,12 +343,27 @@ methods
 
         function addToList(~, ~, plot_panel, lbox)
 
-            case_name = obj.sel_type + "_" + obj.sel_amp +...
+            if obj.sel_freq == -1 % "all" case selected
+               cur_avail_freqs = obj.available_selections(cell2mat(obj.available_selections(:,2)) == obj.sel_amp ...
+            & strcmp(string(obj.available_selections(:,1)), obj.sel_type),3);
+               for n = 1:length(cur_avail_freqs)
+               cur_freq = cur_avail_freqs(n);
+                case_name = obj.sel_type + "_" + obj.sel_amp +...
+                "deg_" + cur_freq + "Hz";
+
+                if (sum(strcmp(string(lbox.Items), case_name)) == 0)
+                    lbox.Items = [lbox.Items, case_name];
+                    obj.selection = [obj.selection, case_name];
+                end
+               end
+            else
+                case_name = obj.sel_type + "_" + obj.sel_amp +...
                 "deg_" + obj.sel_freq + "Hz";
 
-            if (sum(strcmp(string(lbox.Items), case_name)) == 0)
-                lbox.Items = [lbox.Items, case_name];
-                obj.selection = [obj.selection, case_name];
+                if (sum(strcmp(string(lbox.Items), case_name)) == 0)
+                    lbox.Items = [lbox.Items, case_name];
+                    obj.selection = [obj.selection, case_name];
+                end
             end
 
             obj.update_plot(plot_panel);
@@ -429,6 +468,30 @@ methods (Access = private)
         delete(plot_panel.Children)
         disp("-------------")
 
+        % ----------------------------------------
+        % ------------- Color Setup --------------
+        % ----------------------------------------
+        cur_selections = cell(length(obj.selection),3);
+        for i = 1:length(obj.selection)
+            cur_sel = obj.selection(i);
+            [amp, type, freq] = parse_name(cur_sel);
+    
+            % Add to list of amplitudes and frequencies
+            cur_selections{i,1} = type;
+            cur_selections{i,2} = amp;
+            cur_selections{i,3} = freq;
+        end
+
+        try
+        uniq_types = unique(string(cur_selections(:,1)));
+        uniq_amps = unique(cell2mat(cur_selections(:,2)));
+        uniq_freqs = unique(cell2mat(cur_selections(:,3)));
+
+        colors = getColors(length(uniq_types),...
+                           length(uniq_amps),...
+                           length(uniq_freqs),...
+                           length(obj.selection));
+        catch
         uniq_types = unique(string(obj.available_selections(:,1)));
         uniq_amps = unique(cell2mat(obj.available_selections(:,2)));
         uniq_freqs = unique(cell2mat(obj.available_selections(:,3)));
@@ -437,6 +500,7 @@ methods (Access = private)
                            length(uniq_amps),...
                            length(uniq_freqs),...
                            length(obj.selection));
+        end
 
         colors = flip(colors,1);
 
@@ -448,6 +512,8 @@ methods (Access = private)
         else
             common_var = string(uniq_amps);
         end
+
+        % ----------------------------------------
 
         dual_plot = false;
         if ~isempty(obj.inds)
@@ -502,7 +568,7 @@ methods (Access = private)
             % end
             var_name = obj.var_names(index);
 
-            calc_force = true;
+            calc_force = false;
             if ismember(index,[1,2,3,4,5,6,7,8]) && calc_force
                 % Compute Lift force
                 avg_type = 1;
@@ -514,12 +580,24 @@ methods (Access = private)
                 d = load(obj.PIV_path + filename, vars{:});
                 var = d.(vars{1}) .* d.(vars{2});
             else
-                d = load(obj.PIV_path + filename, var_name);
-                var = d.(var_name);
+                if contains(var_name, ".")
+                    abbrv_name = extractBefore(var_name, ".");
+                    vars = {"L","U", abbrv_name};
+                    d = load(obj.PIV_path + filename, vars{:});
+    
+                    var = eval("d." + var_name);
+                else
+                    vars = {"L","U", var_name};
+                    d = load(obj.PIV_path + filename, vars{:});
+                    var = d.(var_name);
+                end
+                % TEMP CODE TO NORMALIZE SPEEDS
+                % var = var / mean(var);
             end
             
             % vars_kin = {"phase_avg_pos", "phase_avg_speed", "phase_avg_acc"};
-            vars_kin = {"phase_avg_speed", "phase_avg_wing_pos", "phase_avg_wing_speed", "phase_avg_wing_acc"};
+            vars_kin = {"phase_avg_speed", "phase_avg_wing_pos",...
+                "phase_avg_wing_speed", "phase_avg_wing_acc", "u_avg"};
             load(obj.PIV_path + filename, vars_kin{:})
             freq_cor = mean(phase_avg_speed);
             % added_mass = get_added_mass(phase_avg_pos, phase_avg_speed, phase_avg_acc);
@@ -546,15 +624,20 @@ methods (Access = private)
             % Shift data given convection time downstream to target
             if ismember(index,[1,2,3,4,5,6,7,8])
             dist = 0.9;
+            sep_dist = 0.37;
             if contains(type, "UP_two")
-                dist = dist + 0.76;
+                dist = dist + sep_dist*2;
             elseif contains(type, "UP_one")
-                dist = dist + 0.37;
+                dist = dist + sep_dist;
             end
             speed = 4;
+            % speed = mean(-squeeze(u_avg)) * d.U;
             conv_time = dist / speed; % 0.9 m downstream, 4 m/s
-            shift = conv_time * freq;
+            % shift = conv_time * freq;
+            shift = conv_time * freq_cor; % get shift as a portion of a cycle
             var = circshift(var, round(shift*length(var)));
+            disp("Shifted by: " + round(shift*length(var)) + " / " + length(var))
+            % disp("Shifted by: " + mod(round(shift*length(var)), length(var)) + " / " + length(var))
             end
 
             % If first value less than mean value, shift array since we

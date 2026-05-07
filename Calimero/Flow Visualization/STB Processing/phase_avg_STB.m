@@ -13,8 +13,8 @@ disp("Assuming num images = " + num_images)
 
 % Get AFAM parameters associated with that trial
 WT_d = get_wind_tunnel_data(daq_data_filename);
-S.U_act = speed;
-S.rho_act = density;
+speed = WT_d.Speed_m_s_;
+density = WT_d.Density_kg_m3_;
 
 bin_count = zeros(1,num_bins);
 bin_std = zeros(1,num_bins);
@@ -190,6 +190,8 @@ enst = trapz(y_arr, enst_field, 1);
 enst = trapz(z_arr, enst, 2);
 enst = squeeze(enst);
 
+div_field = S.dudx_phase_avg + S.dvdy_phase_avg + S.dwdz_phase_avg;
+
 % u_avg = trapz(y_arr, u_tr, 1);
 % u_avg = trapz(z_arr, u_avg, 2);
 % 
@@ -212,6 +214,7 @@ S.lift_phase_avg = lift_phase_avg; S.drag_phase_avg = drag_phase_avg;
 S.KE = KE; S.KE_diff = KE_diff; S.KE_tot = KE_tot; S.enst = enst; S.u_avg = u_avg;
 S.y_B = y_B; S.z_B = z_B; S.velX_B = velX_B; S.velY_B = velY_B; S.velZ_B = velZ_B;
 S.power = power; S.numP_avg = numP_avg; S.unc_avg = unc_avg;
+S.div = div_field;
 
 if ~turbine_bool
     % Calculate phase averaged speed
