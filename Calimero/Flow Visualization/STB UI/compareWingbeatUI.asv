@@ -792,7 +792,7 @@ methods (Access = private)
         legend(ax, Location="best");
         % for hidden figure for saving
         grid(ax_target, 'on');
-        legend(ax_target, Location="best");
+        llegend(ax_target, Location="best");
         % if ~isempty(obj.inds)
         %     if length(obj.inds) > 1
         %         for n = 2:length(obj.inds)

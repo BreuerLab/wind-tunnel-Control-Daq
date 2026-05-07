@@ -76,7 +76,6 @@ properties
     num_cycles;
     extrapolate_bool;
     floor_bool;
-    thresh;
 end
 
 methods
@@ -105,7 +104,6 @@ methods
         obj.trim_bool = true;
         obj.extrapolate_bool = false;
         obj.floor_bool = false;
-        obj.thresh = 0.1;
 
         files = dir(obj.file_path + "*.mat");
 
@@ -364,11 +362,11 @@ methods
         floor_button.BackgroundColor = obj.INACTIVE_COLOR;
         floor_button.ValueChangedFcn = @(src, event) floor_change(src, event, plot_panel);
 
-        edit1_y = floor_button_y - 35;
-        floor_field = uieditfield(option_panel, 'numeric');
-        floor_field.Value = obj.thresh;
-        floor_field.Position = [20 edit1_y 160 unit_height];
-        floor_field.ValueChangedFcn = @(src, event) thresh_change(src, event, plot_panel);
+        edit1_y = button7_y - (unit_height + unit_spacing);
+        y_cen_field = uieditfield(option_panel, 'numeric');
+        y_cen_field.Value = obj.y_cen;
+        y_cen_field.Position = [20 edit1_y 160 unit_height];
+        y_cen_field.ValueChangedFcn = @(src, event) y_cen_change(src, event, plot_panel);
 
         panel_width = plot_panel.Position(3);
         frame_slider_width = panel_width * (3/4);
@@ -677,11 +675,6 @@ methods
             obj.update_plot(plot_panel);
         end
 
-        function thresh_change(src, ~, plot_panel)
-            obj.thresh = src.Value;
-            obj.update_plot(plot_panel);
-        end
-
         function view_change_handler(event, plot_panel)
             selected_text = event.NewValue.Text;
 
@@ -887,7 +880,8 @@ methods (Access = private)
             end
 
             if obj.floor_bool
-                val(val < (params.zero + obj.thresh) & val > (params.zero - obj.thresh)) = params.zero;
+                thresh = 0.1;
+                val(val < (params.zero + thresh) & val > (params.zero - thresh)) = params.zero;
             end
         end
 
