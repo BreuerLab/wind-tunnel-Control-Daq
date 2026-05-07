@@ -17,7 +17,6 @@ save_filepath_local = "Y:\Processed Results\";
 
 avg_type = 1; % 0 - time average, 1 - phase average
 down_dist = [0, 1, 2]; % 0 - closest to FoV, 2 - furthest from FoV
-% down_dist = [0]; % 0 - closest to FoV, 2 - furthest from FoV
 nondim_bool = true; % non-dimensionalize data
 RPCA_bool = false; % RPCA filtering of vector fields
 
@@ -37,26 +36,19 @@ case_names = get_case_names(vc7_filepath);
 sel_case_names = [];
 for i = 1:length(case_names)
     cur_name = case_names{i};
-    % Check the conditions that are ALWAYS required
-    is_valid_base = ~contains(cur_name, "turbine") && ...
-                contains(cur_name, "flexible") && ...
-                ~contains(cur_name, "0Hz");
-
-    if is_valid_base
-        is_match = false;
-        
-        if ismember(0, down_dist) && ~contains(cur_name, ["UP_one", "UP_two"])
-            is_match = true;
-        elseif ismember(1, down_dist) && contains(cur_name, "UP_one") && ~contains(cur_name, "UP_two")
-            is_match = true;
-        elseif ismember(2, down_dist) && ~contains(cur_name, "UP_one") && contains(cur_name, "UP_two")
-            is_match = true;
-        end
-    
-        % Append if any case matched
-        if is_match
-            sel_case_names = [sel_case_names, case_names(i)];
-        end
+    if contains(down_dist, 0)
+    if ~contains(cur_name, "UP_one") && ~contains(cur_name, "UP_two") ...
+        && ~contains(cur_name, "turbine") && contains(cur_name, "flexible") ...
+        && ~contains(cur_name, "0Hz")
+        sel_case_names = [sel_case_names case_names(i)];
+    end
+    elseif contains(down_dist, 1)
+    if ~contains(cur_name, "UP_one") && ~contains(cur_name, "UP_two") ...
+        && ~contains(cur_name, "turbine") && contains(cur_name, "flexible") ...
+        && ~contains(cur_name, "0Hz")
+        sel_case_names = [sel_case_names case_names(i)];
+    end
+    elseif contains(down_dist, 2)
     end
 end
 
@@ -99,8 +91,10 @@ switch avg_type
         end
     case 1
         disp("Phase Average: Loading file: " + file_path)
+        tic
         S = phase_avg_STB(file_path, nondim_bool, U, L, save_filepath_local,...
             PIV_case_name, turbine_bool, plot_bool, RPCA_bool);
+        toc
 
         if PIV_plot_bool
             error("Plotting phase averaged results not currently supported")
