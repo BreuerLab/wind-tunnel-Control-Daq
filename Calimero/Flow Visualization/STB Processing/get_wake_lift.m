@@ -1,7 +1,8 @@
 function [lift, drag] = get_wake_lift(U, L, D, avg_type, vort_bool, density)
 
-    % ---------------------
-    % Make values dimensional
+    % ---------------------------------------------
+    % --------- Make values dimensional -----------
+    % ---------------------------------------------
     x = D.x;
     y = D.y*L;
     z = D.z*L;
@@ -18,7 +19,6 @@ function [lift, drag] = get_wake_lift(U, L, D, avg_type, vort_bool, density)
     % u(isnan(unc)) = NaN;
     % w(isnan(unc)) = NaN;
     if vort_bool
-       
         default_value = 0;
 
     if avg_type

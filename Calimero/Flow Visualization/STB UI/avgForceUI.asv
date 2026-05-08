@@ -8,7 +8,6 @@ classdef avgForceUI < handle
     properties (Constant)
         COLOR_ACTIVE = [0.3010 0.7450 0.9330];
         COLOR_INACTIVE = [1 1 1];
-        operations = ["mean", "range"];
     end
 
     properties
@@ -57,8 +56,6 @@ classdef avgForceUI < handle
 
         distance_labels;
         distance_type_dict;
-
-        operation;
     end
 
     methods
@@ -91,7 +88,6 @@ classdef avgForceUI < handle
             obj.PIV_sub = false;
             obj.force_sub = false;
             obj.filt_num = 3;
-            obj.operation = "mean";
 
             obj.x_norm = false;
             obj.y_norm = false;
@@ -177,13 +173,14 @@ classdef avgForceUI < handle
             force_var_dropdown.Items = obj.box_labels;
             force_var_dropdown.ValueChangedFcn = @(src, event) force_var_change(src, event, plot_panel);
 
-            drop_y44 = drop_y4 - 35;
-            operation_dropdown = uidropdown(option_panel);
-            operation_dropdown.Position = [10 drop_y44 180 30];
-            operation_dropdown.Items = obj.operations;
-            operation_dropdown.ValueChangedFcn = @(src, event) operation_change(src, event, plot_panel);
+            button41_y = drop_y4 - (unit_height + unit_spacing);
+            drop_y4 = list_y - 35;
+            force_var_dropdown = uidropdown(option_panel);
+            force_var_dropdown.Position = [10 drop_y4 180 30];
+            force_var_dropdown.Items = obj.box_labels;
+            force_var_dropdown.ValueChangedFcn = @(src, event) force_var_change(src, event, plot_panel);
 
-            button4_y = drop_y44 - (unit_height + unit_spacing);
+            button4_y = button41_y - (unit_height + unit_spacing);
             piv_button = uibutton(option_panel, "state");
             piv_button.Text = "Show PIV";
             piv_button.Value = true;
@@ -277,11 +274,6 @@ classdef avgForceUI < handle
 
             function force_var_change(src, ~, plot_panel)
                 obj.force_var = obj.var_names(obj.box_labels == src.Value);
-                obj.update_plot(plot_panel);
-            end
-
-            function operation_change(src, ~, plot_panel)
-                obj.operation = src.Value;
                 obj.update_plot(plot_panel);
             end
 
@@ -481,11 +473,8 @@ classdef avgForceUI < handle
                         end                    
                         
                         % Calculate mean force and store in array for plotting
-                        if strcmp(obj.operation, "mean")
-                            forces(1,j) = mean(var);
-                        elseif strcmp(obj.operation, "range")
-                            forces(1,j) = range(var);
-                        end
+                        forces(1,j) = mean(var);
+                        % forces(1,j) = range(var);
                     end
 
                     if obj.force_bool && ~contains(type, "UP")
@@ -502,12 +491,7 @@ classdef avgForceUI < handle
                         elseif contains(obj.force_var, "lift")
                             idx = 3;
                         end
-
-                        if strcmp(obj.operation, "mean")
-                            forces(2,j) = mean(get_force(obj.force_path, type, amp, freqs(j), idx, var_name_F));
-                        elseif strcmp(obj.operation, "range")
-                            forces(2,j) = range(get_force(obj.force_path, type, amp, freqs(j), idx, var_name_F));
-                        end
+                        forces(2,j) = mean(get_force(obj.force_path, type, amp, freqs(j), idx, var_name_F));
 
                         if obj.force_sub
                             body_amp = amp;

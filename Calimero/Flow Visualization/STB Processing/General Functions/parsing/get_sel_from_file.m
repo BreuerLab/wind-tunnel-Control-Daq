@@ -3,11 +3,13 @@ function available_selections = get_sel_from_file(files)
 
     for i = 1:length(files)
         name = files(i).name;
-        name = erase(name, ["_time_avg.mat", "_phase_avg.mat"]);
-
-        if ~contains(name, "Hz") % body or ring only case
+        
+        % skip body and ring cases, and secondary files
+        if ~contains(name, "Hz") || contains(name, "integral")
             continue
         end
+
+        name = erase(name, ["_time_avg.mat", "_phase_avg.mat"]);
         
         [amp, type, freq] = parse_name(name);
 

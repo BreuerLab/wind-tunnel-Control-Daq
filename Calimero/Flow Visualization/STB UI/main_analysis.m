@@ -15,9 +15,9 @@ data_file_path = "Y:\Processed Results\";
 
 root_path = "Y:\";
 % % GUI for plotting phase averaged quantities
-% a = compareWingbeatUI(2,root_path);
-% a.dynamic_plotting();
+a = compareWingbeatUI(2,root_path);
+a.dynamic_plotting();
 
 % % GUI for plotting time averaged quantities
-b = avgForceUI(2, root_path);
-b.dynamic_plotting();
+% b = avgForceUI(2, root_path);
+% b.dynamic_plotting();

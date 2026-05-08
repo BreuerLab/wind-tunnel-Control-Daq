@@ -7,7 +7,6 @@ disp("Assuming num images = " + num_images)
 [norm_frame_pos, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_freq]...
     = frame_to_bin(PIV_case_name, num_images, turbine_bool, plot_bool);
 
-
 % Find matching DAQ file
 [daq_data_filename, ~] = get_daq_paths(PIV_case_name);
 

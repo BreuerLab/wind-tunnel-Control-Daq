@@ -809,14 +809,14 @@ methods (Access = private)
         full_file_path = obj.file_path + obj.current_downstream_type + "_" + obj.case_name + obj.file_suffix;
 
         if ~isempty(cur_secondary_vars)
-            d1 = load(full_file_path + "_integral.mat", cur_secondary_vars{:});
-            d2 = load(full_file_path + ".mat", vars{:});
-    
-            % Combine by converting to cell arrays of names/values and back to struct
-            d = cell2struct([struct2cell(d1); struct2cell(d2)], [fieldnames(d1); fieldnames(d2)], 1);
+        d1 = load(full_file_path + "_integral.mat", cur_secondary_vars);
+        d2 = load(full_file_path + ".mat", vars{:});
+
+        % Combine by converting to cell arrays of names/values and back to struct
+        d = cell2struct([struct2cell(d1); struct2cell(d2)], [fieldnames(d1); fieldnames(d2)], 1);
         else
-            d = load(full_file_path + ".mat", vars{:});
-        end
+            d2 = load(full_file_path + ".mat", vars{:});
+            en
 
         if plot_idx == 2 || plot_idx == 3 || plot_idx == 4
             obj.slider.Visible = "on";

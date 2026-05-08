@@ -45,6 +45,10 @@ unc_tr = D.uncTot_phase_avg;
 numP_tr = D.numP_phase_avg;
 hel_tr = D.hel_phase_avg;
 
+dudx_tr = D.dudx_phase_avg;
+dvdx_tr = D.dvdx_phase_avg;
+dwdx_tr = D.dwdx_phase_avg;
+
 [y_tr, z_tr, u_tr] = trim_vel_field(y, z, u_tr);
 [~, ~, v_tr] = trim_vel_field(y, z, v_tr);
 [~, ~, w_tr] = trim_vel_field(y, z, w_tr);
@@ -57,6 +61,9 @@ hel_tr = D.hel_phase_avg;
 [~, ~, vortTot_tr] = trim_vel_field(y, z, D.vortTot_phase_avg);
 [~, ~, numP_tr] = trim_vel_field(y, z, numP_tr);
 [~, ~, hel_tr] = trim_vel_field(y, z, hel_tr);
+[~, ~, dudx_tr] = trim_vel_field(y, z, dudx_tr);
+[~, ~, dvdx_tr] = trim_vel_field(y, z, dvdx_tr);
+[~, ~, dwdx_tr] = trim_vel_field(y, z, dwdx_tr);
 
 % Replace nans in velocity field with median values so integral
 % calculations aren't skewed
@@ -146,28 +153,27 @@ S.hel_avg = mean(hel_tr, [1, 2]);
 % -------------- Calculate values from DAQ data ------------------
 % ----------------------------------------------------------------
 if ~turbine_bool
-    % Calculate phase averaged speed
-    [norm_time_speed, phase_avg_pos, phase_std_pos,...
-    phase_avg_speed, phase_std_speed, phase_avg_acc, phase_std_acc,...
-    phase_avg_wing_pos, phase_std_wing_pos,...
-    phase_avg_wing_speed, phase_std_wing_speed, phase_avg_wing_acc, phase_std_wing_acc,...
-    bin_count_speed, bin_std_speed, phase_avg_volt, phase_std_volt,...
-    phase_avg_cur, phase_std_cur] = speed_phase_avg(D.PIV_case_name, plot_bool);
+% Define the field names in the order they are returned by the function
+fNames = {'norm_time_speed', 'phase_avg_pos', 'phase_std_pos', ...
+          'phase_avg_speed', 'phase_std_speed',...
+          'phase_avg_acc', 'phase_std_acc',...
+          'phase_avg_wing_pos', 'phase_std_wing_pos',...
+          'phase_avg_wing_speed', 'phase_std_wing_speed',...
+          'phase_avg_wing_acc', 'phase_std_wing_acc',...
+          'bin_count_speed', 'bin_std_speed',...
+          'phase_avg_volt', 'phase_std_volt',...
+          'phase_avg_cur', 'phase_std_cur'};
 
-    % Add data to a struct
-    S.norm_time_speed = norm_time_speed;
-    S.phase_avg_pos = phase_avg_pos; S.phase_std_pos = phase_std_pos;
-    S.phase_avg_speed = phase_avg_speed; S.phase_std_speed = phase_std_speed;
-    S.phase_avg_acc = phase_avg_acc; S.phase_std_acc = phase_std_acc;
-    
-    S.phase_avg_wing_pos = phase_avg_wing_pos; S.phase_std_wing_pos = phase_std_wing_pos;
-    S.phase_avg_wing_speed = phase_avg_wing_speed; S.phase_std_wing_speed = phase_std_wing_speed;
-    S.phase_avg_wing_acc = phase_avg_wing_acc; S.phase_std_wing_acc = phase_std_wing_acc;
-    S.bin_count_speed = bin_count_speed; S.bin_std_speed = bin_std_speed;
+% Capture all outputs into a cell array
+outputs = cell(1, numel(fNames));
+[outputs{:}] = speed_phase_avg(D.PIV_case_name, plot_bool);
 
-    S.phase_avg_volt = phase_avg_volt; S.phase_std_volt = phase_std_volt;
-    S.phase_avg_cur = phase_avg_cur; S.phase_std_cur = phase_std_cur;
-    S.phase_avg_power = phase_avg_volt .* phase_avg_cur;
+% Map cell array to struct fields
+for i = 1:numel(fNames)
+    S.(fNames{i}) = outputs{i};
+end
+
+S.phase_avg_power = S.phase_avg_volt .* S.phase_avg_cur;
 end
 
 % Save the entire structure

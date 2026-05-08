@@ -48,7 +48,6 @@ properties
     y_cen;
 
     calc_bool;
-    align_bool;
     force_bool;
     vort_bool; % 1 - velocity, 2 - vorticity
     % used to calculate forces from vector field data
@@ -106,7 +105,6 @@ methods
         obj.force_bool = false;
         obj.vort_bool = true;
         obj.calc_bool = false;
-        obj.align_bool = false;
 
         % Search through files in path to get types and speeds
 
@@ -258,14 +256,6 @@ methods
         b77.BackgroundColor = [1 1 1];
         b77.ValueChangedFcn = @(src, event) calc_change(src, event, plot_panel);
 
-        button88_y = button77_y - (unit_height + unit_spacing);
-        b88 = uibutton(option_panel, "state");
-        b88.Text = "Align";
-        b88.FontSize = 18;
-        b88.Position = [20 button88_y 160 unit_height];
-        b88.BackgroundColor = [1 1 1];
-        b88.ValueChangedFcn = @(src, event) align_change(src, event, plot_panel);
-
 
         % ------------------------------------------------------
         % -------Buttons built up from bottom of screen---------
@@ -364,12 +354,6 @@ methods
         function calc_change(src, ~, plot_panel)
             obj.calc_bool = src.Value;
             src.BackgroundColor = obj.get_button_color(obj.calc_bool);
-            obj.update_plot(plot_panel);
-        end
-
-        function align_change(src, ~, plot_panel)
-            obj.align_bool = src.Value;
-            src.BackgroundColor = obj.get_button_color(obj.align_bool);
             obj.update_plot(plot_panel);
         end
 
@@ -536,14 +520,7 @@ methods (Access = private)
                            length(obj.selection));
         end
 
-        % whether 3 plots of the same case at different downstream distance
-        % exist and the align bool is active. If so 3 plots will be aligned
-        three_type_bool = length(uniq_types) == 3 &&...
-                          isscalar(uniq_amps) &&...
-                          isscalar(uniq_freqs) &&...
-                          obj.align_bool &&...
-                          ~isempty(obj.inds);
-
+        three_type_bool = length(uniq_types) == 3 && isscalar(uniq_amps) && isscalar(uniq_freqs);
         colors = flip(colors,1);
 
         uniq_counts = [length(uniq_types), length(uniq_amps)];
@@ -693,6 +670,7 @@ methods (Access = private)
 
             if three_type_bool
                 data_list(i).val = var;
+                continue;
             end
 
             time = 1:length(var);
@@ -735,11 +713,11 @@ methods (Access = private)
             color_params.common_var = common_var;
             color_params.I = I;
             color_params.colors = colors;
-            if ~three_type_bool
             obj.plot_data(ax, ax_target, time, var, index, dual_plot, cur_sel, color_params); % ylabel_one, ylabel_two
-            end
         end
         end
+        hold(ax, 'off');
+        hold(ax_target, 'off');
 
         % three_type_bool
         if three_type_bool
@@ -763,15 +741,10 @@ methods (Access = private)
         data_list(3).val = align_signals(data_list(1).val, data_list(3).val);
 
 
-        for i = 1:length(data_list)
-            var = data_list(i).val;
-            cur_sel = obj.selection(i);
-            obj.plot_data(ax, ax_target, time_interp, var, index, dual_plot, cur_sel, color_params); % ylabel_one, ylabel_two
-        end
+        for 
+        obj.plot_data(ax, ax_target, time, var, index, dual_plot, cur_sel, color_params); % ylabel_one, ylabel_two
         end
 
-        hold(ax, 'off');
-        hold(ax_target, 'off');
         if (obj.saveFig)
             filename = "saved_figure.fig";
             % fignew = figure('Visible','off'); % Invisible figure
