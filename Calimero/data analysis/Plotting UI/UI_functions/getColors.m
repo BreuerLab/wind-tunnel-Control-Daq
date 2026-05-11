@@ -1,4 +1,9 @@
-function colors = getColors(num_types, num_speeds, num_freq, num_cases)
+function colors = getColors(num_types, num_speeds, num_freq, num_cases, color_mode)
+    if nargin >= 5 && strcmp(string(color_mode), "selection")
+        colors = getSelectionColors(num_cases);
+        return
+    end
+
     sorted_nums = sort([num_types, num_speeds]); % ascending
     if (num_cases > sorted_nums(2)*num_freq)
         disp("Woah, not ready to make all those colors")
@@ -129,4 +134,21 @@ function colors = getColors(num_types, num_speeds, num_freq, num_cases)
     end
     end
     end
+end
+
+function colors = getSelectionColors(num_cases)
+    palette = ["#0072B2"; "#D55E00"; "#009E73"; "#CC79A7";...
+               "#56B4E9"; "#E69F00"; "#F0E442"; "#000000";...
+               "#332288"; "#88CCEE"; "#44AA99"; "#117733";...
+               "#999933"; "#DDCC77"; "#CC6677"; "#882255";...
+               "#AA4499"; "#DDDDDD"];
+
+    if num_cases == 0
+        colors = strings(0, 1);
+        return
+    end
+
+    repeat_count = ceil(num_cases / length(palette));
+    colors = repmat(palette, repeat_count, 1);
+    colors = colors(1:num_cases);
 end

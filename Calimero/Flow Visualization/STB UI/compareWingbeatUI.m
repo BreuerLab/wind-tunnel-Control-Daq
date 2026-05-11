@@ -546,6 +546,89 @@ methods (Access = private)
         end
     end
 
+    function line_style = get_index_line_style(obj, index)
+        linestyles = ["-", "--", ":", "-."];
+        if isempty(obj.inds)
+            line_style = "-";
+            return
+        end
+
+        line_style_idx = find(obj.inds == index, 1);
+        if isempty(line_style_idx)
+            line_style = "-";
+            return
+        end
+
+        line_style_idx = mod(line_style_idx - 1, length(linestyles)) + 1;
+        line_style = linestyles(line_style_idx);
+    end
+
+    function marker = get_force_marker(obj, index)
+        markers = ["o", "s", "^", "d", "v", ">", "<", "p", "h", "x", "+", "*"];
+        if isempty(obj.inds)
+            marker = "o";
+            return
+        end
+
+        marker_idx = find(obj.inds == index, 1);
+        if isempty(marker_idx)
+            marker = "o";
+            return
+        end
+
+        marker_idx = mod(marker_idx - 1, length(markers)) + 1;
+        marker = markers(marker_idx);
+    end
+
+    function colors = get_default_selection_colors(~, num_selections)
+        palette = ["#0072B2"; "#D55E00"; "#009E73"; "#CC79A7";...
+                   "#56B4E9"; "#E69F00"; "#F0E442"; "#000000";...
+                   "#332288"; "#88CCEE"; "#44AA99"; "#117733";...
+                   "#999933"; "#DDCC77"; "#CC6677"; "#882255";...
+                   "#AA4499"; "#DDDDDD"];
+
+        if num_selections == 0
+            colors = strings(0, 1);
+            return
+        end
+
+        repeat_count = ceil(num_selections / length(palette));
+        colors = repmat(palette, repeat_count, 1);
+        colors = colors(1:num_selections);
+    end
+
+    function color = get_curve_color(obj, cur_sel, color_params)
+        color = [0 0 0];
+
+        if isfield(color_params, 'selection_names') && isfield(color_params, 'selection_colors')
+            selection_idx = find(color_params.selection_names == string(cur_sel), 1);
+            if ~isempty(selection_idx)
+                color = obj.hex_to_rgb(color_params.selection_colors(selection_idx));
+                return
+            end
+        end
+
+        [amp, type, freq] = parse_name(cur_sel);
+        sels = [type, amp];
+        freq_idx = find(color_params.uniq_freqs == freq, 1);
+        var_idx = find(color_params.common_var == sels(color_params.I(2)), 1);
+
+        if ~isempty(freq_idx) && ~isempty(var_idx)
+            color = obj.hex_to_rgb(color_params.colors(freq_idx, var_idx));
+        end
+    end
+
+    function rgb = hex_to_rgb(~, hex_color)
+        hex_color = char(hex_color);
+        if startsWith(hex_color, '#')
+            hex_color = hex_color(2:end);
+        end
+
+        rgb = [hex2dec(hex_color(1:2)),...
+               hex2dec(hex_color(3:4)),...
+               hex2dec(hex_color(5:6))] / 255;
+    end
+
     % update plot after user changes selected variables
     function update_plot(obj, plot_panel)
         fignew = figure('Visible', 'off');
@@ -587,12 +670,20 @@ methods (Access = private)
                            length(obj.selection));
         end
 
+        num_selections = length(obj.selection);
+        try
+            selection_colors = getColors(1, 1, num_selections, num_selections, "selection");
+        catch
+            selection_colors = obj.get_default_selection_colors(num_selections);
+        end
+
         align_plot_bool = obj.align_bool &&...
                           ~isempty(obj.inds) &&...
                           ~isempty(obj.selection);
         aligned_curves = struct('val', {}, 'time', {}, 'index', {},...
                                 'plot_idx', {}, 'cur_sel', {},...
-                                'legend_entry', {}, 'line_style', {});
+                                'legend_entry', {}, 'line_style', {},...
+                                'marker', {});
 
         colors = flip(colors,1);
 
@@ -758,7 +849,8 @@ methods (Access = private)
                     'plot_idx', j,...
                     'cur_sel', cur_sel,...
                     'legend_entry', obj.get_aligned_legend_entry(cur_sel, index, false),...
-                    'line_style', "");
+                    'line_style', "",...
+                    'marker', "");
             end
 
             time_F = [];
@@ -808,13 +900,16 @@ methods (Access = private)
                     'plot_idx', j,...
                     'cur_sel', cur_sel,...
                     'legend_entry', obj.get_aligned_legend_entry(cur_sel, index, true),...
-                    'line_style', ":");
+                    'line_style', ":",...
+                    'marker', obj.get_force_marker(index));
             end
 
             color_params.uniq_freqs = uniq_freqs;
             color_params.common_var = common_var;
             color_params.I = I;
             color_params.colors = colors;
+            color_params.selection_names = string(obj.selection);
+            color_params.selection_colors = selection_colors;
             if ~align_plot_bool
             obj.plot_data(ax, ax_target, time, var, time_F, force, index, dual_plot, j, cur_sel, color_params, ylabs); % ylabel_one, ylabel_two
             end
@@ -859,6 +954,7 @@ methods (Access = private)
         for i = 1:length(aligned_curves)
             plot_options.legend_entry = aligned_curves(i).legend_entry;
             plot_options.line_style = aligned_curves(i).line_style;
+            plot_options.marker = aligned_curves(i).marker;
             obj.plot_data(ax, ax_target, aligned_curves(i).time, aligned_curves(i).val, [], [],...
                           aligned_curves(i).index, dual_plot, aligned_curves(i).plot_idx,...
                           aligned_curves(i).cur_sel, color_params, ylabs, plot_options); % ylabel_one, ylabel_two
@@ -895,11 +991,11 @@ methods (Access = private)
 
         has_legend_override = isfield(plot_options, 'legend_entry') && strlength(string(plot_options.legend_entry)) > 0;
         has_line_style = isfield(plot_options, 'line_style') && strlength(string(plot_options.line_style)) > 0;
+        has_marker = isfield(plot_options, 'marker') && strlength(string(plot_options.marker)) > 0;
 
         [amp, type, freq] = parse_name(cur_sel);
         % Get color for this case name
-        sels = [type, amp];
-        original_color = color_params.colors(find(color_params.uniq_freqs == freq), find(color_params.common_var == sels(color_params.I(2)))); % hex
+        original_color = obj.get_curve_color(cur_sel, color_params);
 
         if dual_plot
             if plot_idx == 1
@@ -930,7 +1026,6 @@ methods (Access = private)
             line_h = plot(ax_target, time, var);
         end
             
-            linestyles = ["-", "--", ":", "-."];
             if has_legend_override
                 legend_entry = string(plot_options.legend_entry);
             elseif isscalar(obj.inds)
@@ -943,20 +1038,24 @@ methods (Access = private)
                 line.LineStyle = char(plot_options.line_style);
                 line_h.LineStyle = char(plot_options.line_style);
             elseif ~isscalar(obj.inds)
-                line_style_idx = find(obj.inds == index, 1);
-                line_style_idx = mod(line_style_idx - 1, length(linestyles)) + 1;
-                line.LineStyle = linestyles(line_style_idx);
-                line_h.LineStyle = linestyles(line_style_idx);
+                line_style = obj.get_index_line_style(index);
+                line.LineStyle = char(line_style);
+                line_h.LineStyle = char(line_style);
+            end
+
+            if has_marker
+                line.Marker = char(plot_options.marker);
+                line_h.Marker = char(plot_options.marker);
             end
 
             disp(legend_entry + ", mean: " + mean(var))
             disp(legend_entry + ", range: " + range(var))
             line.DisplayName = legend_entry;
-            % line.Color = original_color;
+            line.Color = original_color;
             line.LineWidth = 2;
 
             line_h.DisplayName = legend_entry;
-            % line_h.Color = original_color;
+            line_h.Color = original_color;
             line_h.LineWidth = 2;
             % if contains(type, "UP")
             %     line.LineStyle = "--";
@@ -964,19 +1063,21 @@ methods (Access = private)
 
             if obj.force_bool && ~contains(type, "UP") && ~isempty(force)
                 line = plot(ax, time_F, force);
-                F_legend = strrep(cur_sel,"_"," ") + " F";
+                F_legend = obj.get_aligned_legend_entry(cur_sel, index, true);
                 line.DisplayName = F_legend;
                 disp(F_legend + ": " + mean(force))
-                % line.Color = original_color;
+                line.Color = original_color;
                 line.LineWidth = 2;
                 line.LineStyle = ":";
+                line.Marker = char(obj.get_force_marker(index));
 
                 % for hidden figure for saving
                 line_h = plot(ax_target, time_F, force);
                 line_h.DisplayName = F_legend;
-                % line_h.Color = original_color;
+                line_h.Color = original_color;
                 line_h.LineWidth = 2;
                 line_h.LineStyle = ":";
+                line_h.Marker = char(obj.get_force_marker(index));
             end
 
             grid(ax, 'on');
