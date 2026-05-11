@@ -240,6 +240,7 @@ for i = 1:length(r_vals)
     r = r_vals(i);
 
     init_theta = acos(-r/d);
+    init_theta = pi;
     theta_R = linspace(init_theta, init_theta - numRevs*2*pi, numPts);
     phi_eqt_R = atand((r*sin(theta_R)) ./ (d + r*cos(theta_R)));
     phi_eqt_R = phi_eqt_R / max(phi_eqt_R);

@@ -2,18 +2,9 @@ function S = time_avg_STB(file_path, nondim_bool, U, L, num_files, save_filepath
     tic;
 
     avg_type = 0;
-    if avg_type == 0
-        speed = U;
-        density = 1.225;
-    else
-        % Find matching DAQ file
-        [daq_data_filename, ~] = get_daq_paths(PIV_case_name);
 
-        WT_d = get_wind_tunnel_data(daq_data_filename);
-        speed = WT_d.Speed_m_s_;
-        density = WT_d.Density_kg_m3_;
-        % density = 1.225;
-    end
+    speed = U;
+    density = 1.225;
 
     y_cen = -2.26;
     z_cen = -0.03 / L;
@@ -24,11 +15,12 @@ function S = time_avg_STB(file_path, nondim_bool, U, L, num_files, save_filepath
 
     % Define the field names we want to average (must be same order as
     % import_STB)
-    fields = {'u', 'v', 'w', 'Utot', 'vortX', 'vortY', 'vortZ', 'vortTot', 'uncU', 'uncV', 'uncW', 'uncTot'};
+    fields = {'u', 'v', 'w', 'Utot', 'vortX', 'vortY', 'vortZ', 'vortTot', 'uncU', 'uncV', 'uncW', 'uncTot', 'hel', 'numP',...
+        'dudx', 'dudy', 'dudz', 'dvdx', 'dvdy', 'dvdz', 'dwdx', 'dwdy', 'dwdz', 'Utot_diff'};
     
     for i = 1:num_files
         % Import data (using a temporary struct or list)
-        [x, y, z, data{1:12}] = import_STB_data(file_path, nondim_bool, U, L, i, RPCA_bool);
+        [x, y, z, data{1:length(fields)}] = import_STB_data(file_path, nondim_bool, U, L, i, RPCA_bool);
         
         if i == 1
             % Initialize structure with zeros based on first file size
@@ -40,11 +32,33 @@ function S = time_avg_STB(file_path, nondim_bool, U, L, num_files, save_filepath
         % Accumulate sums dynamically
         for f = 1:length(fields)
             fn = ['mean_' fields{f}];
-            S.(fn) = S.(fn) + data{f};
+            current_data = data{f};
+            current_data(isnan(current_data)) = 0;
+            S.(fn) = S.(fn) + current_data;
         end
 
         avg_type = 2;
-        [lift, drag] = get_wake_lift(speed, L, x_conv, y, z, data, avg_type, true, y_cen, z_cen, density);
+
+        x_conv = 0;
+
+        u_tr = data{1}; v_tr = data{2}; w_tr = data{3};
+        vortX_tr = data{5}; vortY_tr = data{6}; vortZ_tr = data{7};
+        unc_tr = data{12};
+    
+        [y_tr, z_tr, u_tr] = trim_vel_field(y, z, u_tr);
+        [~, ~, v_tr] = trim_vel_field(y, z, v_tr);
+        [~, ~, w_tr] = trim_vel_field(y, z, w_tr);
+        [~, ~, vortX_tr] = trim_vel_field(y, z, vortX_tr);
+        [~, ~, vortY_tr] = trim_vel_field(y, z, vortY_tr);
+        [~, ~, vortZ_tr] = trim_vel_field(y, z, vortZ_tr);
+        [~, ~, unc_tr] = trim_vel_field(y, z, unc_tr);
+    
+        F.x = x_conv; F.y = y_tr; F.z = z_tr;
+        F.u = u_tr; F.v = v_tr; F.w = w_tr;
+        F.vortX = vortX_tr; F.vortY = vortY_tr; F.vortZ = vortZ_tr;
+        F.unc = unc_tr;
+
+        [lift, drag] = get_wake_lift(speed, L, F, avg_type, true, density);
         lift_vals(i) = lift.vortX;
         drag_vals(i) = drag.tot;
         
@@ -59,54 +73,16 @@ function S = time_avg_STB(file_path, nondim_bool, U, L, num_files, save_filepath
         S.(avg_fields{f}) = S.(avg_fields{f}) / num_files;
     end
 
-    % Spatial resolution
-    dx = abs(x(2,1,1) - x(1,1,1));
-    dy = abs(y(1,2,1) - y(1,1,1));
-    dz = abs(z(1,1,2) - z(1,1,1));
-
-    % Compute Q-Criterion
-    [Qx,Qy,Qz,Q] = calQlate3D(S.mean_u, S.mean_v, S.mean_w,dx,dy,dz);
-    S.Qx = Qx; S.Qy = Qy; S.Qz = Qz; S.Q = Q;
-
-    % Compute integral quanitites: lift, drag, KE, enstrophy, conv_U
-    avg_type = 0;
-
-    [lift_vel, drag_vel] = get_wake_lift(speed, L, x_conv, y, z, S, avg_type, false, y_cen, z_cen, density);
-    [lift, drag] = get_wake_lift(speed, L, x_conv, y, z, S, avg_type, true, y_cen, z_cen, density);
-
-    x_ind = 3;
-    
-    y_arr = squeeze(y(x_ind,:,1));
-    z_arr = squeeze(z(x_ind,1,:));
-    
-    KE_field = squeeze(S.mean_Utot(x_ind,:,:,:)).^2;
-    KE = trapz(y_arr, KE_field, 1); % WHAT DIMENSION SHOULD THIS BE?
-    KE = trapz(z_arr, KE, 2);
-    KE = squeeze(KE);
-    
-    enst_field = squeeze(S.mean_vortTot(x_ind,:,:,:)).^2;
-    enst = trapz(y_arr, enst_field, 1);
-    enst = trapz(z_arr, enst, 2);
-    enst = squeeze(enst);
-    
-    u_avg = trapz(y_arr, squeeze(S.mean_u(x_ind,:,:,:)), 1);
-    u_avg = trapz(z_arr, u_avg, 2);
-    
-    Ly = y_arr(end) - y_arr(1);
-    Lz = z_arr(end) - z_arr(1);
-    
-    u_avg = squeeze(u_avg) / (Ly * Lz);
-
     % Add metadata to the struct
-    S.x = x; S.y = y; S.z = z; S.L = L; S.U = U;
+    S.x = x; S.y = y; S.z = z; S.L = L; S.U = U; S.rho = density;
     S.PIV_case_name = PIV_case_name;
-    S.lift = lift; S.drag = drag; S.lift_vel = lift_vel; S.drag_vel = drag_vel;
     S.mean_lift = mean(lift_vals); S.mean_drag = mean(drag_vals);
-    S.KE = KE; S.enst = enst; S.u_avg = u_avg;
 
     % Save the entire structure
     save_path = fullfile(save_filepath_local, [PIV_case_name, '_time_avg.mat']);
     save(save_path, '-struct', 'S');
     
     fprintf('Processing and saving took %.4f seconds.\n', toc);
+
+    calc_secondary_vals_time(S, save_filepath_local)
 end

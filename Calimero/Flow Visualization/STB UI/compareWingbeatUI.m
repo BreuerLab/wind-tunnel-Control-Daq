@@ -8,6 +8,8 @@ classdef compareWingbeatUI < handle
     properties (Constant)
         COLOR_ACTIVE = [0.3010 0.7450 0.9330];
         COLOR_INACTIVE = [1 1 1];
+
+        cur_types = ["flexible";"UP_one_flexible";"UP_two_flexible"];
     end
 
 properties
@@ -50,7 +52,6 @@ properties
     calc_bool;
     align_bool;
     force_bool;
-    vort_bool; % 1 - velocity, 2 - vorticity
     % used to calculate forces from vector field data
 
     % ------- Available parameters user can select from -------
@@ -104,7 +105,6 @@ methods
         obj.y_cen = -2.26; % -2.16, 2.55, -0.142 / d.L;
 
         obj.force_bool = false;
-        obj.vort_bool = true;
         obj.calc_bool = false;
         obj.align_bool = false;
 
@@ -123,14 +123,13 @@ methods
         obj.plot_curves = [];
         % attachFileListsToBird(path, cur_bird);
 
-        cur_types = ["flexible";"UP_one_flexible";"UP_two_flexible"];
-        obj.sel_type = cur_types(1);
-        if ~isequal(sort(cur_types), sort(unique(string(obj.available_selections(:, 1)))))
+        obj.sel_type = obj.cur_types(1);
+        if ~isequal(sort(obj.cur_types), sort(unique(string(obj.available_selections(:, 1)))))
             error("Downstream type mismatch. Check types...")
         end
 
         obj.distance_labels = ["x = 0.9m","x = 1.3m","x = 1.7m"];
-        obj.distance_type_dict = containers.Map(obj.distance_labels, cur_types);
+        obj.distance_type_dict = containers.Map(obj.distance_labels, obj.cur_types);
     end
 
     % Builds figure with all UI elements and defines all callback
@@ -147,8 +146,8 @@ methods
         drop_y1 = screen_height*0.875 - unit_spacing;
         d1 = uidropdown(option_panel);
         d1.Position = [10 drop_y1 180 30];
-        d1.Items = obj.distance_labels;
         d1.ValueChangedFcn = @(src, event) type_change(src, event);
+        d1.Items = [obj.distance_labels, "all"];
 
         % Dropdown box for wingbeat frequency selection
         drop_y2 = drop_y1 - (unit_height + unit_spacing);
@@ -175,22 +174,32 @@ methods
         button2_y = drop_y3 - (unit_height + unit_spacing);
         b2 = uibutton(option_panel);
         b2.Position = [15 button2_y 80 unit_height];
+        b2.BackgroundColor = [1 1 1];
         b2.Text = "Add entry";
 
         % Button to remove entry defined by selected type,
         % frequency, angle, and speed from list of plotted cases
         b3 = uibutton(option_panel);
         b3.Position = [105 button2_y 80 unit_height];
+        b3.BackgroundColor = [1 1 1];
         b3.Text = "Delete entry";
 
         % List of cases currently displayed on the plots
-        list_y = button2_y - (4*(unit_height + unit_spacing) + unit_spacing);
+        list_y = button2_y - (3*(unit_height + unit_spacing) + unit_spacing);
         lbox = uilistbox(option_panel);
         lbox.Items = strings(0);
-        lbox.Position = [10 list_y 180 4*(unit_height + unit_spacing)];
+        lbox.Position = [10 list_y 180 3*(unit_height + unit_spacing)];
 
         b2.ButtonPushedFcn = @(src, event) addToList(src, event, plot_panel, lbox);
         b3.ButtonPushedFcn = @(src, event) removeFromList(src, event, plot_panel, lbox);
+
+        button33_y = list_y - (unit_height + unit_spacing);
+        b33 = uibutton(option_panel);
+        b33.Text = "Clear Entries";
+        b33.FontSize = 18;
+        b33.Position = [20 button33_y 160 unit_height];
+        b33.BackgroundColor = [1 1 1];
+        b33.ButtonPushedFcn = @(src, event) clearList(src, event, plot_panel, lbox);
 
         % Dropdown box for which force/moment axes to display
         % drop_y9 = list_y - (unit_height + unit_spacing);
@@ -201,7 +210,7 @@ methods
 
         param_panel_height = 300;
         param_panel_width = 180;
-        param_panel_y = list_y - unit_spacing - param_panel_height;
+        param_panel_y = button33_y - unit_spacing - param_panel_height;
         param_panel = uipanel(option_panel);
         param_panel.Title = "Plot Parameters";
         param_panel.TitlePosition = 'centertop';
@@ -226,15 +235,7 @@ methods
         b4.BackgroundColor = [1 1 1];
         b4.ValueChangedFcn = @(src, event) force_change(src, event, plot_panel);
 
-        button5_y = button4_y - (unit_height + unit_spacing);
-        b5 = uibutton(option_panel, "state");
-        b5.Text = "Use Velocity";
-        b5.FontSize = 18;
-        b5.Position = [20 button5_y 160 unit_height];
-        b5.BackgroundColor = [1 1 1];
-        b5.ValueChangedFcn = @(src, event) method_change(src, event, plot_panel);
-
-        button6_y = button5_y - (unit_height + unit_spacing);
+        button6_y = button4_y - (unit_height + unit_spacing);
         b6 = uibutton(option_panel, "state");
         b6.Text = "PIV Body Sub";
         b6.FontSize = 18;
@@ -312,7 +313,11 @@ methods
 
         % update type variable with new value selected by user
         function type_change(src, ~)
+            if src.Value == "all"
+            obj.sel_type = src.Value;
+            else
             obj.sel_type = obj.distance_type_dict(src.Value);
+            end
         end
 
         % update frequency variable with new value selected by user
@@ -327,13 +332,15 @@ methods
             % wingbeat frequency
             if obj.sel_freq == -1
                 cur_avail_freqs = cell2mat(obj.available_selections(cell2mat(obj.available_selections(:,2)) == obj.sel_amp ...
-            & strcmp(string(obj.available_selections(:,1)), obj.sel_type),3));
+            & strcmp(string(obj.available_selections(:,1)), obj.cur_types(1)),3));
+
                 max_freq = max(cur_avail_freqs);
+
                 amps = obj.available_selections(cell2mat(obj.available_selections(:,3)) == max_freq ...
-            & strcmp(string(obj.available_selections(:,1)), obj.sel_type),2);
+            & strcmp(string(obj.available_selections(:,1)), obj.cur_types(1)),2);
             else
             amps = obj.available_selections(cell2mat(obj.available_selections(:,3)) == obj.sel_freq ...
-            & strcmp(string(obj.available_selections(:,1)), obj.sel_type),2);
+            & strcmp(string(obj.available_selections(:,1)), obj.cur_types(1)),2);
             end
             d.Items = string(amps) + " deg";
         end
@@ -345,8 +352,8 @@ methods
             % Change frequency list to only show those available at this
             % wingbeat amplitude
             freqs = obj.available_selections(cell2mat(obj.available_selections(:,2)) == obj.sel_amp ...
-            & strcmp(string(obj.available_selections(:,1)), obj.sel_type),3);
-            d.Items = string(freqs) + " Hz";
+            & strcmp(string(obj.available_selections(:,1)), obj.cur_types(1)),3);
+            d.Items = [string(freqs) + " Hz"; "all"];
         end
 
         function PIV_sub_change(src, ~, plot_panel)
@@ -388,6 +395,17 @@ methods
                     obj.selection = [obj.selection, case_name];
                 end
                end
+            elseif obj.sel_type == "all"
+               for n = 1:length(obj.cur_types)
+               cur_type = obj.cur_types(n);
+               case_name = cur_type + "_" + obj.sel_amp +...
+                "deg_" + obj.sel_freq + "Hz";
+
+                if (sum(strcmp(string(lbox.Items), case_name)) == 0)
+                    lbox.Items = [lbox.Items, case_name];
+                    obj.selection = [obj.selection, case_name];
+                end
+               end
             else
                 case_name = obj.sel_type + "_" + obj.sel_amp +...
                 "deg_" + obj.sel_freq + "Hz";
@@ -413,6 +431,16 @@ methods
             obj.update_plot(plot_panel);
         end
 
+        function clearList(~, ~, plot_panel, lbox)
+            % removing value from list that's displayed
+            new_list_indices = [];
+            lbox.Items = lbox.Items(new_list_indices);
+
+            % removing value from list used for plotting
+            obj.selection = [];
+            obj.update_plot(plot_panel);
+        end
+
         function updateLogic(src, ~, plot_panel)
             cur_ind = find(obj.axes_labels == src.Text);
             if src.Value
@@ -432,20 +460,6 @@ methods
                 obj.force_bool = false;
                 src.BackgroundColor = [1 1 1];
                 src.Text = "Show Force";
-            end
-
-            obj.update_plot(plot_panel);
-        end
-
-        function method_change(src, ~, plot_panel)
-            if (src.Value)
-                obj.vort_bool = false;
-                src.BackgroundColor = [0.3010 0.7450 0.9330];
-                src.Text = "Use Vorticity";
-            else
-                obj.vort_bool = true;
-                src.BackgroundColor = [1 1 1];
-                src.Text = "Use Velocity";
             end
 
             obj.update_plot(plot_panel);
@@ -538,11 +552,12 @@ methods (Access = private)
 
         % whether 3 plots of the same case at different downstream distance
         % exist and the align bool is active. If so 3 plots will be aligned
-        three_type_bool = length(uniq_types) == 3 &&...
-                          isscalar(uniq_amps) &&...
-                          isscalar(uniq_freqs) &&...
-                          obj.align_bool &&...
-                          ~isempty(obj.inds);
+        three_type_bool = obj.align_bool &&...
+                          ~isempty(obj.inds) &&...
+                          ~isempty(obj.selection);
+        % length(uniq_types) == 3 &&...
+                          % isscalar(uniq_amps) &&...
+                          % isscalar(uniq_freqs) &&...
 
         colors = flip(colors,1);
 
@@ -558,12 +573,13 @@ methods (Access = private)
         % ----------------------------------------
 
         dual_plot = false;
+        ylabs = strings(1,2);
         if ~isempty(obj.inds)
             if length(obj.inds) > 1
                 for n = 2:length(obj.inds)
                     dual_plot = true;
-                    ylabel_one = obj.y_labels(obj.inds(n-1));
-                    ylabel_two = obj.y_labels(obj.inds(n));
+                    ylabs(1) = obj.y_labels(obj.inds(n-1));
+                    ylabs(2) = obj.y_labels(obj.inds(n));
 
                     % only make two plots if they are using units
                     % if ~strcmp(obj.y_labels(obj.inds(n-1)), obj.y_labels(obj.inds(n)))
@@ -576,7 +592,18 @@ methods (Access = private)
         end
 
         if three_type_bool
-            data_list(3) = struct('val', []);
+            if length(obj.selection) > 1
+                data_list(length(obj.selection)) = struct('val', []);
+                get_idx = @(i, j) i; % Function returns i
+            elseif length(obj.inds) > 1
+               data_list(length(obj.inds)) = struct('val', []);
+               get_idx = @(i, j) j; % Function returns j
+            elseif obj.force_bool
+                data_list(2*length(obj.selection)) = struct('val', []);
+                get_idx = @(i, j) i; % Function returns i
+            else
+                error("Not enough selections for alignment")
+            end
         end
 
         ax = axes(plot_panel);
@@ -635,18 +662,26 @@ methods (Access = private)
 
             if ismember(index,[1,2,3,4,5,6,7,8]) && obj.PIV_sub
                 % filename = "body_phase_avg.mat";
-                filename = "ring_time_avg.mat";
+                filename = "ring_time_avg";
+                file_path_t = obj.PIV_path + "time_avg/" + filename + ".mat";
+                secondary_file_path_t = obj.PIV_path + "time_avg/" + filename + "_integral.mat";
 
                 if ~strcmp(var_name, "lift.vortY")
-                if calc_force
+                if obj.calc_bool
                     % Compute aerodynamic forces
                     norm_bool = false;
-                    file_path = obj.PIV_path + "time_avg/" + filename;
-                    [bod_var, bod_err] = get_PIV_force(file_path, "", var_name, 0, norm_bool, obj.y_cen);
+                    [bod_var, bod_err] = get_PIV_force(file_path_t, "", var_name, 0, norm_bool, obj.y_cen);
                     var = var - bod_var;
                 else
-                    d = load(obj.PIV_path + "time_avg/" + filename, var_name);
-                    var = var - d.(var_name);
+                    if contains(var_name, ".")
+                        abbrv_name = extractBefore(var_name, ".");
+                        d2 = load(secondary_file_path_t, abbrv_name);
+                    else
+                        d2 = load(secondary_file_path_t, var_name);
+                    end
+
+                    body_var = eval("d2." + var_name);
+                    var = var - body_var;
                 end
                 end
             end
@@ -682,22 +717,26 @@ methods (Access = private)
             % 10 amp flexible case accidentally started at mid-downstroke
             % rather than mid-upstroke used for the rest
             if amp == 10 && ~contains(type, "UP")
-                var = circshift(var, round(0.44*length(var)));
+                % var = circshift(var, round(0.44*length(var)));
+                var = circshift(var, round(0.5*length(var)));
                 disp("Shifted STB curve for " + cur_sel)
             end
 
             norm_bool = false;
             if norm_bool
-                var = var / mean(var);
+                var = var / max(var);
             end
 
             if three_type_bool
-                data_list(i).val = var;
+                ind = get_idx(i, j);
+                data_list(2*ind-1).val = var;
             end
 
             time = 1:length(var);
             time = time / length(var);
 
+            time_F = [];
+            force = [];
             if obj.force_bool && ~contains(type, "UP")
             
             if (ismember(index, [1,2,3,4]))
@@ -731,17 +770,20 @@ methods (Access = private)
             end
             end
 
+            if three_type_bool
+                ind = get_idx(i, j);
+                data_list(2*ind).val = force;
+            end
             color_params.uniq_freqs = uniq_freqs;
             color_params.common_var = common_var;
             color_params.I = I;
             color_params.colors = colors;
             if ~three_type_bool
-            obj.plot_data(ax, ax_target, time, var, index, dual_plot, cur_sel, color_params); % ylabel_one, ylabel_two
+            obj.plot_data(ax, ax_target, time, var, time_F, force, index, dual_plot, j, cur_sel, color_params, ylabs); % ylabel_one, ylabel_two
             end
         end
         end
 
-        % three_type_bool
         if three_type_bool
         lengths = arrayfun(@(s) length(s.val), data_list, 'UniformOutput', true);
         maxLength = max(lengths);
@@ -759,14 +801,25 @@ methods (Access = private)
             data_list(i).val = interp1(time, var, time_interp, 'pchip');
         end
 
-        data_list(2).val = align_signals(data_list(1).val, data_list(2).val);
-        data_list(3).val = align_signals(data_list(1).val, data_list(3).val);
+        lags = zeros(1,length(data_list)-1);
+        for i = 2:length(data_list)
+        [data_list(i).val, lags(i-1)] = align_signals(data_list(1).val, data_list(i).val);
+        end
+
+        disp(lags)
+        % if lags(1) < lags(2) && lags(1) < 0
+        %     lags(2) = lags(2) - length(time_interp);
+        % end
+        % disp(lags)
+        % disp(lags / length(time_interp))
+        % disp(lags(2) / lags(1))
 
 
         for i = 1:length(data_list)
             var = data_list(i).val;
-            cur_sel = obj.selection(i);
-            obj.plot_data(ax, ax_target, time_interp, var, index, dual_plot, cur_sel, color_params); % ylabel_one, ylabel_two
+            % cur_sel = obj.selection(i);
+            cur_sel = "";
+            obj.plot_data(ax, ax_target, time_interp, var, time_F, force, index, dual_plot, 1, cur_sel, color_params, ylabs); % ylabel_one, ylabel_two
         end
         end
 
@@ -793,14 +846,14 @@ methods (Access = private)
       
     end
 
-    function plot_data(obj, ax, ax_target, time, var, index, dual_plot, cur_sel, color_params)
+    function plot_data(obj, ax, ax_target, time, var, time_F, force, index, dual_plot, plot_idx, cur_sel, color_params, ylabs)
         [amp, type, freq] = parse_name(cur_sel);
         % Get color for this case name
         sels = [type, amp];
         original_color = color_params.colors(find(color_params.uniq_freqs == freq), find(color_params.common_var == sels(color_params.I(2)))); % hex
 
         if dual_plot
-            if j == 1
+            if plot_idx == 1
                 yyaxis(ax, 'left')
                 line = plot(ax, time, var);
                 % for hidden figure for saving
@@ -840,11 +893,11 @@ methods (Access = private)
             disp(legend_entry + ", mean: " + mean(var))
             disp(legend_entry + ", range: " + range(var))
             line.DisplayName = legend_entry;
-            line.Color = original_color;
+            % line.Color = original_color;
             line.LineWidth = 2;
 
             line_h.DisplayName = legend_entry;
-            line_h.Color = original_color;
+            % line_h.Color = original_color;
             line_h.LineWidth = 2;
             % if contains(type, "UP")
             %     line.LineStyle = "--";
@@ -855,14 +908,14 @@ methods (Access = private)
                 F_legend = strrep(cur_sel,"_"," ") + " F";
                 line.DisplayName = F_legend;
                 disp(F_legend + ": " + mean(force))
-                line.Color = original_color;
+                % line.Color = original_color;
                 line.LineWidth = 2;
                 line.LineStyle = ":";
 
                 % for hidden figure for saving
                 line_h = plot(ax_target, time_F, force);
                 line_h.DisplayName = F_legend;
-                line_h.Color = original_color;
+                % line_h.Color = original_color;
                 line_h.LineWidth = 2;
                 line_h.LineStyle = ":";
             end
@@ -886,18 +939,18 @@ methods (Access = private)
 
             if dual_plot
                 yyaxis(ax, 'left')
-                ylabel(ax, ylabel_one)
+                ylabel(ax, ylabs(1))
                 ax.YAxis(1).Color = 'k';
                 yyaxis(ax, 'right')
-                ylabel(ax, ylabel_two)
+                ylabel(ax, ylabs(2))
                 ax.YAxis(2).Color = 'k';
 
                 % for hidden figure for saving
                 yyaxis(ax_target, 'left')
-                ylabel(ax_target, ylabel_one)
+                ylabel(ax_target, ylabs(1))
                 ax_target.YAxis(1).Color = 'k';
                 yyaxis(ax_target, 'right')
-                ylabel(ax_target, ylabel_two)
+                ylabel(ax_target, ylabs(2))
                 ax_target.YAxis(2).Color = 'k';
             elseif ~isempty(obj.inds)
                 ylabel(ax, obj.y_labels(obj.inds(1)))

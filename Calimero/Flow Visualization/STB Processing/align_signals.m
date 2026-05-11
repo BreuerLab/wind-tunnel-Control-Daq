@@ -1,4 +1,4 @@
-function shifted_sig = align_signals(sig1, sig2)
+function [shifted_sig, lag_in_samples] = align_signals(sig1, sig2)
 
     % normalize signals to have mean of zero and std of 1
     sig1_norm = (sig1 - mean(sig1)) / std(sig1);

@@ -8,21 +8,30 @@ function [var, err] = get_PIV_force(file_name, case_name, force_var_name, avg_ty
 
         switch avg_type
             case 0
-            vars = {"L","U","U_act","rho_act","y","z","mean_u","mean_w"};
+            vars = {"L","U","rho","y","z","mean_u","mean_v","mean_w"};
             if vort_bool
                 vars = [vars, "mean_vortX","mean_vortY","mean_vortZ"];
             end
+            vars = [vars, "mean_uncTot"];
             case 1
             vars = {"L","U","U_act","rho_act","y","z","u_phase_avg","v_phase_avg","w_phase_avg"};
             if vort_bool
                 vars = [vars, "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg",...
-                    "Q"]; % "dudy_phase_avg", "dudz_phase_avg"
+                    ]; % "dudy_phase_avg", "dudz_phase_avg"
             end
             vars = [vars, "uncTot_phase_avg"];
         end
 
         d = load(file_name, vars{:});
-        speed = d.U_act * d.U;
+        switch avg_type
+            case 0
+                speed = d.U;
+                density = 1.225;
+            case 1
+                speed = d.U_act * d.U;
+                density = d.rho_act;
+        end
+        
 
         % Use frozen flow assumption, i.e. convection of vortices, to get z-axis
         if avg_type ~= 0
@@ -42,6 +51,19 @@ function [var, err] = get_PIV_force(file_name, case_name, force_var_name, avg_ty
 % -------------------------------------------------------------
 y = d.y;
 z = d.z;
+
+switch avg_type
+case 0
+u_tr = d.mean_u;
+v_tr = d.mean_v;
+w_tr = d.mean_w;
+
+vortX_tr = d.mean_vortX;
+vortY_tr = d.mean_vortY;
+vortZ_tr = d.mean_vortZ;
+
+unc_tr = d.mean_uncTot;
+case 1
 u_tr = d.u_phase_avg;
 v_tr = d.v_phase_avg;
 w_tr = d.w_phase_avg;
@@ -51,6 +73,7 @@ vortY_tr = d.vortY_phase_avg;
 vortZ_tr = d.vortZ_phase_avg;
 
 unc_tr = d.uncTot_phase_avg;
+end
 
 [y_tr, z_tr, u_tr] = trim_vel_field(y, z, u_tr);
 [~, ~, v_tr] = trim_vel_field(y, z, v_tr);
@@ -73,7 +96,7 @@ D.unc = unc_tr;
 
         % Capture all outputs into a cell array
         % [outputs{1:2}] = get_wake_lift(speed, d.L, x, d.y, d.z, d, avg_type, vort_bool, y_cen, z_cen, density);
-        [outputs{1:2}] = get_wake_lift(speed, d.L, D, avg_type, vort_bool, d.rho_act);
+        [outputs{1:2}] = get_wake_lift(speed, d.L, D, avg_type, vort_bool, density);
         
         % Define your field names
         fields = {'lift', 'drag'};

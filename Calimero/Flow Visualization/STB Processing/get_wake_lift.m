@@ -21,14 +21,14 @@ function [lift, drag] = get_wake_lift(U, L, D, avg_type, vort_bool, density)
     if vort_bool
         default_value = 0;
 
-    if avg_type
+    % if avg_type
     vortX(isnan(unc)) = default_value; %  & unc > 0.03
     vortY(isnan(unc)) = default_value;
     vortZ(isnan(unc)) = default_value;
 
     % dudy(isnan(unc)) = default_value;
     % dudz(isnan(unc)) = default_value;
-    end
+    % end
 
     % vortX = medfilt3(vortX);
     % vortY = medfilt3(vortY);
@@ -36,13 +36,19 @@ function [lift, drag] = get_wake_lift(U, L, D, avg_type, vort_bool, density)
 
     % median filter for each image, rather than 3D wake
     filter_dim = [3 3];
-    for k = 1:size(vortX,3)
-    vortX(:,:,k) = medfilt2(vortX(:,:,k), filter_dim);
-    vortY(:,:,k) = medfilt2(vortY(:,:,k), filter_dim);
-    vortZ(:,:,k) = medfilt2(vortZ(:,:,k), filter_dim);
-
-    % dudy(:,:,k) = medfilt2(dudy(:,:,k), filter_dim);
-    % dudz(:,:,k) = medfilt2(dudz(:,:,k), filter_dim);
+    if ndims(vortX) == 3
+        for k = 1:size(vortX,3)
+        vortX(:,:,k) = medfilt2(vortX(:,:,k), filter_dim);
+        vortY(:,:,k) = medfilt2(vortY(:,:,k), filter_dim);
+        vortZ(:,:,k) = medfilt2(vortZ(:,:,k), filter_dim);
+    
+        % dudy(:,:,k) = medfilt2(dudy(:,:,k), filter_dim);
+        % dudz(:,:,k) = medfilt2(dudz(:,:,k), filter_dim);
+        end
+    else
+        vortX = medfilt2(vortX, filter_dim);
+        vortY = medfilt2(vortY, filter_dim);
+        vortZ = medfilt2(vortZ, filter_dim);
     end
 
     % Q_mask_bool = true;
@@ -51,9 +57,11 @@ function [lift, drag] = get_wake_lift(U, L, D, avg_type, vort_bool, density)
     %     % disp("Q mask active")
     % end
 
-    thresh = 0.1 * (U/L);
-    vortX(vortX < thresh & vortX > -thresh) = default_value;
-    vortY(vortY < thresh & vortY > -thresh) = default_value;
+    if ndims(vortX) == 3
+    % thresh = 0.1 * (U/L);
+    % vortX(vortX < thresh & vortX > -thresh) = default_value;
+    % vortY(vortY < thresh & vortY > -thresh) = default_value;
+    end
     end
 
     % in my reference frame right wing produces positive vorticity, but

@@ -15,7 +15,7 @@ data_file_path = "Y:\Processed Results\";
 
 root_path = "Y:\";
 % % GUI for plotting phase averaged quantities
-a = compareWingbeatUI(2,root_path);
+a = compareWingbeatUI(1,root_path);
 a.dynamic_plotting();
 
 % % GUI for plotting time averaged quantities
