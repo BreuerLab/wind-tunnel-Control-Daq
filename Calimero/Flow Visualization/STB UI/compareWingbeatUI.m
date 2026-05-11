@@ -509,6 +509,43 @@ methods (Access = private)
         end
     end
 
+    function legend_entry = get_aligned_legend_entry(obj, cur_sel, index, is_force)
+        case_label = strrep(string(cur_sel), "_", " ");
+        index_label = obj.axes_labels(index);
+
+        if is_force
+            force_label = obj.get_force_legend_label(index);
+            if length(obj.selection) > 1 && length(obj.inds) > 1
+                legend_entry = case_label + " - " + index_label + " - " + force_label;
+            elseif length(obj.selection) > 1
+                legend_entry = case_label + " - " + force_label;
+            elseif length(obj.inds) > 1
+                legend_entry = index_label + " - " + force_label;
+            else
+                legend_entry = case_label + " F";
+            end
+            return
+        end
+
+        if length(obj.selection) > 1 && length(obj.inds) > 1
+            legend_entry = case_label + " - " + index_label;
+        elseif length(obj.inds) > 1
+            legend_entry = index_label;
+        else
+            legend_entry = case_label;
+        end
+    end
+
+    function force_label = get_force_legend_label(~, index)
+        if ismember(index, 1:4)
+            force_label = "Lift force";
+        elseif ismember(index, 5:8)
+            force_label = "Drag force";
+        else
+            force_label = "Force";
+        end
+    end
+
     % update plot after user changes selected variables
     function update_plot(obj, plot_panel)
         fignew = figure('Visible', 'off');
@@ -550,14 +587,12 @@ methods (Access = private)
                            length(obj.selection));
         end
 
-        % whether 3 plots of the same case at different downstream distance
-        % exist and the align bool is active. If so 3 plots will be aligned
-        three_type_bool = obj.align_bool &&...
+        align_plot_bool = obj.align_bool &&...
                           ~isempty(obj.inds) &&...
                           ~isempty(obj.selection);
-        % length(uniq_types) == 3 &&...
-                          % isscalar(uniq_amps) &&...
-                          % isscalar(uniq_freqs) &&...
+        aligned_curves = struct('val', {}, 'time', {}, 'index', {},...
+                                'plot_idx', {}, 'cur_sel', {},...
+                                'legend_entry', {}, 'line_style', {});
 
         colors = flip(colors,1);
 
@@ -588,21 +623,6 @@ methods (Access = private)
                     %     ylabel_two = obj.y_labels(obj.inds(n));
                     % end
                 end
-            end
-        end
-
-        if three_type_bool
-            if length(obj.selection) > 1
-                data_list(length(obj.selection)) = struct('val', []);
-                get_idx = @(i, j) i; % Function returns i
-            elseif length(obj.inds) > 1
-               data_list(length(obj.inds)) = struct('val', []);
-               get_idx = @(i, j) j; % Function returns j
-            elseif obj.force_bool
-                data_list(2*length(obj.selection)) = struct('val', []);
-                get_idx = @(i, j) i; % Function returns i
-            else
-                error("Not enough selections for alignment")
             end
         end
 
@@ -727,13 +747,19 @@ methods (Access = private)
                 var = var / max(var);
             end
 
-            if three_type_bool
-                ind = get_idx(i, j);
-                data_list(2*ind-1).val = var;
-            end
-
             time = 1:length(var);
             time = time / length(var);
+
+            if align_plot_bool
+                aligned_curves(end+1) = struct(...
+                    'val', var,...
+                    'time', time,...
+                    'index', index,...
+                    'plot_idx', j,...
+                    'cur_sel', cur_sel,...
+                    'legend_entry', obj.get_aligned_legend_entry(cur_sel, index, false),...
+                    'line_style', "");
+            end
 
             time_F = [];
             force = [];
@@ -743,8 +769,11 @@ methods (Access = private)
                     idx = 3;
             elseif (ismember(index, [5,6,7,8]))
                     idx = 1;
+            else
+                    idx = [];
             end
 
+            if ~isempty(idx)
             % var_name_F = "wingbeat_avg_forces_raw";
             % var_name_F = "wingbeat_avg_forces";
             var_name_F = "wingbeat_avg_forces_smoothest";
@@ -769,41 +798,53 @@ methods (Access = private)
                 disp("Shifted force curve for " + cur_sel)
             end
             end
-
-            if three_type_bool
-                ind = get_idx(i, j);
-                data_list(2*ind).val = force;
             end
+
+            if align_plot_bool && ~isempty(force)
+                aligned_curves(end+1) = struct(...
+                    'val', force,...
+                    'time', time_F,...
+                    'index', index,...
+                    'plot_idx', j,...
+                    'cur_sel', cur_sel,...
+                    'legend_entry', obj.get_aligned_legend_entry(cur_sel, index, true),...
+                    'line_style', ":");
+            end
+
             color_params.uniq_freqs = uniq_freqs;
             color_params.common_var = common_var;
             color_params.I = I;
             color_params.colors = colors;
-            if ~three_type_bool
+            if ~align_plot_bool
             obj.plot_data(ax, ax_target, time, var, time_F, force, index, dual_plot, j, cur_sel, color_params, ylabs); % ylabel_one, ylabel_two
             end
         end
         end
 
-        if three_type_bool
-        lengths = arrayfun(@(s) length(s.val), data_list, 'UniformOutput', true);
+        if align_plot_bool && ~isempty(aligned_curves)
+        lengths = arrayfun(@(s) length(s.val), aligned_curves, 'UniformOutput', true);
+        aligned_curves = aligned_curves(lengths > 0);
+        lengths = lengths(lengths > 0);
+        if isempty(aligned_curves)
+            hold(ax, 'off');
+            hold(ax_target, 'off');
+            return
+        end
         maxLength = max(lengths);
+        time_interp = 1:maxLength;
+        time_interp = time_interp / length(time_interp);
 
         % resample data points to have the same number of bins
-        for i = 1:length(data_list)
-            var = data_list(i).val;
-
-            time = 1:length(var);
-            time = time / length(time);
-            
-            time_interp = 1:maxLength;
-            time_interp = time_interp / length(time_interp);
-
-            data_list(i).val = interp1(time, var, time_interp, 'pchip');
+        for i = 1:length(aligned_curves)
+            var = aligned_curves(i).val;
+            time = aligned_curves(i).time;
+            aligned_curves(i).val = interp1(time, var, time_interp, 'pchip');
+            aligned_curves(i).time = time_interp;
         end
 
-        lags = zeros(1,length(data_list)-1);
-        for i = 2:length(data_list)
-        [data_list(i).val, lags(i-1)] = align_signals(data_list(1).val, data_list(i).val);
+        lags = zeros(1,length(aligned_curves)-1);
+        for i = 2:length(aligned_curves)
+        [aligned_curves(i).val, lags(i-1)] = align_signals(aligned_curves(1).val, aligned_curves(i).val);
         end
 
         disp(lags)
@@ -815,11 +856,12 @@ methods (Access = private)
         % disp(lags(2) / lags(1))
 
 
-        for i = 1:length(data_list)
-            var = data_list(i).val;
-            % cur_sel = obj.selection(i);
-            cur_sel = "";
-            obj.plot_data(ax, ax_target, time_interp, var, time_F, force, index, dual_plot, 1, cur_sel, color_params, ylabs); % ylabel_one, ylabel_two
+        for i = 1:length(aligned_curves)
+            plot_options.legend_entry = aligned_curves(i).legend_entry;
+            plot_options.line_style = aligned_curves(i).line_style;
+            obj.plot_data(ax, ax_target, aligned_curves(i).time, aligned_curves(i).val, [], [],...
+                          aligned_curves(i).index, dual_plot, aligned_curves(i).plot_idx,...
+                          aligned_curves(i).cur_sel, color_params, ylabs, plot_options); % ylabel_one, ylabel_two
         end
         end
 
@@ -846,7 +888,14 @@ methods (Access = private)
       
     end
 
-    function plot_data(obj, ax, ax_target, time, var, time_F, force, index, dual_plot, plot_idx, cur_sel, color_params, ylabs)
+    function plot_data(obj, ax, ax_target, time, var, time_F, force, index, dual_plot, plot_idx, cur_sel, color_params, ylabs, plot_options)
+        if nargin < 14 || isempty(plot_options)
+            plot_options = struct();
+        end
+
+        has_legend_override = isfield(plot_options, 'legend_entry') && strlength(string(plot_options.legend_entry)) > 0;
+        has_line_style = isfield(plot_options, 'line_style') && strlength(string(plot_options.line_style)) > 0;
+
         [amp, type, freq] = parse_name(cur_sel);
         % Get color for this case name
         sels = [type, amp];
@@ -882,12 +931,22 @@ methods (Access = private)
         end
             
             linestyles = ["-", "--", ":", "-."];
-            if isscalar(obj.inds)
+            if has_legend_override
+                legend_entry = string(plot_options.legend_entry);
+            elseif isscalar(obj.inds)
                 legend_entry = strrep(cur_sel,"_"," ");
             else
                 legend_entry = obj.axes_labels(index);
-                line.LineStyle = linestyles(find(obj.inds == index));
-                line_h.LineStyle = linestyles(find(obj.inds == index));
+            end
+
+            if has_line_style
+                line.LineStyle = char(plot_options.line_style);
+                line_h.LineStyle = char(plot_options.line_style);
+            elseif ~isscalar(obj.inds)
+                line_style_idx = find(obj.inds == index, 1);
+                line_style_idx = mod(line_style_idx - 1, length(linestyles)) + 1;
+                line.LineStyle = linestyles(line_style_idx);
+                line_h.LineStyle = linestyles(line_style_idx);
             end
 
             disp(legend_entry + ", mean: " + mean(var))
@@ -903,7 +962,7 @@ methods (Access = private)
             %     line.LineStyle = "--";
             % end
 
-            if obj.force_bool && ~contains(type, "UP")
+            if obj.force_bool && ~contains(type, "UP") && ~isempty(force)
                 line = plot(ax, time_F, force);
                 F_legend = strrep(cur_sel,"_"," ") + " F";
                 line.DisplayName = F_legend;
