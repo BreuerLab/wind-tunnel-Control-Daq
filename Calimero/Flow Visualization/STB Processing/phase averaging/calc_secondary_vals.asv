@@ -96,7 +96,7 @@ KE = squeeze(KE);
 
 % Calculated using streamwise speed with freestream speed subtracted,
 % represents KE introduced by disturbance of flapper
-KE_diff_field = Utot_diff_tr.^2;
+KE_diff_field = 2 * Utot_diff_tr.^2; % x2 for L and R wings
 KE_diff = trapz(y_arr, KE_diff_field, 1);
 KE_diff = trapz(z_arr, KE_diff, 2);
 KE_diff = squeeze(KE_diff);
@@ -138,6 +138,9 @@ S.vortZ_avg = mean(vortZ_tr, [1, 2]);
 S.numP_avg = mean(numP_tr, [1, 2]);
 S.unc_avg = mean(unc_tr, [1, 2]);
 S.hel_avg = mean(hel_tr, [1, 2]);
+S.dudx_avg = mean(dudx_tr, [1, 2]);
+S.dvdx_avg = mean(dvdx_tr, [1, 2]);
+S.hel_avg = mean(dwdx_tr, [1, 2]);
 
 % The average can also be calculated using the linear interpolation of
 % trapz, this seems to be worse (more susceptible to noise)

@@ -138,6 +138,9 @@ S.vortZ_avg = mean(vortZ_tr, [1, 2]);
 S.numP_avg = mean(numP_tr, [1, 2]);
 S.unc_avg = mean(unc_tr, [1, 2]);
 S.hel_avg = mean(hel_tr, [1, 2]);
+S.dudx_avg = mean(dudx_tr, [1, 2]);
+S.dvdx_avg = mean(dvdx_tr, [1, 2]);
+S.dwdx_avg = mean(dwdx_tr, [1, 2]);
 
 % The average can also be calculated using the linear interpolation of
 % trapz, this seems to be worse (more susceptible to noise)
