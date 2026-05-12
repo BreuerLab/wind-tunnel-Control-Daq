@@ -8,6 +8,7 @@ classdef avgForceUI < handle
     properties (Constant)
         COLOR_ACTIVE = [0.3010 0.7450 0.9330];
         COLOR_INACTIVE = [1 1 1];
+        operations = ["mean", "range"];
     end
 
     properties
@@ -56,6 +57,8 @@ classdef avgForceUI < handle
 
         distance_labels;
         distance_type_dict;
+
+        operation;
     end
 
     methods
@@ -80,14 +83,16 @@ classdef avgForceUI < handle
             %     "phase_avg_speed", "phase_avg_volt", "phase_avg_cur", "KE", "enst", "u_avg"];
             % obj.var_names = ["lift", "lift_vel", "drag", "drag_vel",...
             %     "phase_avg_speed", "phase_avg_volt", "phase_avg_cur", "KE", "enst", "u_avg"];
-            obj.y_labels = ["Lift (N)", "Lift (N)", "Lift (N)", "Lift (N)", "Drag (N)", "Drag (N)",...
+            obj.y_labels = ["Lift (N)", "Lift (N)", "Lift (N)", "Lift (N)", "Drag (N)",...
+                "Drag (N): $\frac{2\rho}{N_f} \sum\limits_{n_f = 1}^{N_f} \iint_S \frac{-\mathbf{u}(\mathbf{u} + U)}{U^2} dA",...
                 "Speed (Hz)", "Voltage (V)", "Current (mA)", "Power (mW)", "KE",...
-                "KE", "power", "KE", "Enstrophy", "Helicity",...
+                "KE", "Power: $\frac{1}{N_f} \sum\limits_{n_f = 1}^{N_f} \iint_S \frac{-(\mathbf{u} + U)^2 \mathbf{u}}{U^3} dA$", "KE", "Enstrophy", "Helicity",...
                 "Speed", "Speed", "Speed",...
                 "Freestream Speed", "Uncertainty", "count", "count"];
             obj.PIV_sub = false;
             obj.force_sub = false;
             obj.filt_num = 3;
+            obj.operation = "mean";
 
             obj.x_norm = false;
             obj.y_norm = false;
@@ -173,14 +178,13 @@ classdef avgForceUI < handle
             force_var_dropdown.Items = obj.box_labels;
             force_var_dropdown.ValueChangedFcn = @(src, event) force_var_change(src, event, plot_panel);
 
-            button41_y = drop_y4 - (unit_height + unit_spacing);
-            drop_y4 = list_y - 35;
-            force_var_dropdown = uidropdown(option_panel);
-            force_var_dropdown.Position = [10 drop_y4 180 30];
-            force_var_dropdown.Items = obj.box_labels;
-            force_var_dropdown.ValueChangedFcn = @(src, event) force_var_change(src, event, plot_panel);
+            drop_y44 = drop_y4 - 35;
+            operation_dropdown = uidropdown(option_panel);
+            operation_dropdown.Position = [10 drop_y44 180 30];
+            operation_dropdown.Items = obj.operations;
+            operation_dropdown.ValueChangedFcn = @(src, event) operation_change(src, event, plot_panel);
 
-            button4_y = button41_y - (unit_height + unit_spacing);
+            button4_y = drop_y44 - (unit_height + unit_spacing);
             piv_button = uibutton(option_panel, "state");
             piv_button.Text = "Show PIV";
             piv_button.Value = true;
@@ -274,6 +278,11 @@ classdef avgForceUI < handle
 
             function force_var_change(src, ~, plot_panel)
                 obj.force_var = obj.var_names(obj.box_labels == src.Value);
+                obj.update_plot(plot_panel);
+            end
+
+            function operation_change(src, ~, plot_panel)
+                obj.operation = src.Value;
                 obj.update_plot(plot_panel);
             end
 
@@ -473,8 +482,11 @@ classdef avgForceUI < handle
                         end                    
                         
                         % Calculate mean force and store in array for plotting
-                        forces(1,j) = mean(var);
-                        % forces(1,j) = range(var);
+                        if strcmp(obj.operation, "mean")
+                            forces(1,j) = mean(var);
+                        elseif strcmp(obj.operation, "range")
+                            forces(1,j) = range(var);
+                        end
                     end
 
                     if obj.force_bool && ~contains(type, "UP")
@@ -491,7 +503,12 @@ classdef avgForceUI < handle
                         elseif contains(obj.force_var, "lift")
                             idx = 3;
                         end
-                        forces(2,j) = mean(get_force(obj.force_path, type, amp, freqs(j), idx, var_name_F));
+
+                        if strcmp(obj.operation, "mean")
+                            forces(2,j) = mean(get_force(obj.force_path, type, amp, freqs(j), idx, var_name_F));
+                        elseif strcmp(obj.operation, "range")
+                            forces(2,j) = range(get_force(obj.force_path, type, amp, freqs(j), idx, var_name_F));
+                        end
 
                         if obj.force_sub
                             body_amp = amp;
@@ -519,7 +536,7 @@ classdef avgForceUI < handle
                     x_label = "Wingbeat Frequency (Hz)";
                 end
 
-                xlabel(ax, x_label)
+                xlabel(ax, x_label, Interpreter="latex")
 
                 if obj.err_bool
                     ylabel(ax, "Error (N)")
@@ -533,7 +550,7 @@ classdef avgForceUI < handle
                     s1.MarkerFaceColor = original_color;
                     s1.DisplayName = strrep(type,"_"," ") + ", " + amp + " deg";
                 else
-                ylabel(ax, obj.y_labels(obj.var_names == obj.force_var))
+                ylabel(ax, obj.y_labels(obj.var_names == obj.force_var), Interpreter="latex")
 
                 if obj.PIV_bool
                     s1 = errorbar(ax, x_var, forces(1,:), errors, 'o');

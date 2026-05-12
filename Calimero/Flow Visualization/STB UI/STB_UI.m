@@ -97,7 +97,9 @@ methods
             "image wingbeat phase", "wingbeat frequency","wake forces","phase avg: planar avg"];
         obj.plot_hold_bool = false;
         obj.iso_var_list = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
-                            "Q_x","Q_y","Q_z","|Q|", "helicity"];
+                            "Q_x","Q_y","Q_z","|Q|", "helicity",...
+                            "du/dx","du/dy","du/dz","dv/dx","dv/dy",...
+                            "dv/dz","dw/dx","dw/dy","dw/dz"];
         obj.iso_var = "|Q|";
         obj.iso_val = 0.05;
         obj.mirror_bool = false;

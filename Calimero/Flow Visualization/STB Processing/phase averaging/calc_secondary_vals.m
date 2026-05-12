@@ -96,7 +96,7 @@ KE = squeeze(KE);
 
 % Calculated using streamwise speed with freestream speed subtracted,
 % represents KE introduced by disturbance of flapper
-KE_diff_field = Utot_diff_tr.^2;
+KE_diff_field = 2 * Utot_diff_tr.^2; % x2 for L and R wings
 KE_diff = trapz(y_arr, KE_diff_field, 1);
 KE_diff = trapz(z_arr, KE_diff, 2);
 KE_diff = squeeze(KE_diff);

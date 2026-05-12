@@ -83,9 +83,13 @@ classdef avgForceUI < handle
             %     "phase_avg_speed", "phase_avg_volt", "phase_avg_cur", "KE", "enst", "u_avg"];
             % obj.var_names = ["lift", "lift_vel", "drag", "drag_vel",...
             %     "phase_avg_speed", "phase_avg_volt", "phase_avg_cur", "KE", "enst", "u_avg"];
-            obj.y_labels = ["Lift (N)", "Lift (N)", "Lift (N)", "Lift (N)", "Drag (N)", "Drag (N)",...
-                "Speed (Hz)", "Voltage (V)", "Current (mA)", "Power (mW)", "KE",...
-                "KE", "power", "KE", "Enstrophy", "Helicity",...
+            obj.y_labels = ["Lift (N)", "Lift (N)", "Lift (N)", "Lift (N)", "Drag (N)",...
+                "Drag (N): $\frac{2\rho}{N} \sum\limits_{n_f = 1}^{N} \int_S -\mathbf{u}(\mathbf{u} + U) dA$",...
+                "Speed (Hz)", "Voltage (V)", "Current (mA)", "Power (mW)",...
+                "KE: $\frac{1}{N c^2} \sum\limits_{n_f = 1}^{N} \int_S \frac{\mathbf{u}^2}{U^2} dA$",...
+                "KE: $\frac{1}{N c^2} \sum\limits_{n_f = 1}^{N} \int_S \frac{(\mathbf{u} + U)^2}{U^2} dA$",...
+                "Power: $\frac{1}{N c^2} \sum\limits_{n_f = 1}^{N} \int_S \frac{-(\mathbf{u} + U)^2 \mathbf{u}}{U^3} dA$",...
+                "KE", "Enstrophy", "Helicity",...
                 "Speed", "Speed", "Speed",...
                 "Freestream Speed", "Uncertainty", "count", "count"];
             obj.PIV_sub = false;
@@ -465,7 +469,11 @@ classdef avgForceUI < handle
 
                                 var = eval("d." + obj.force_var);
                             else
-                                d = load(secondary_filepath, obj.force_var);
+                                if obj.force_var == "U_act"
+                                    d = load(filepath, obj.force_var);
+                                else
+                                    d = load(secondary_filepath, obj.force_var);
+                                end
                                 var = d.(obj.force_var);
                             end
 
@@ -535,7 +543,7 @@ classdef avgForceUI < handle
                     x_label = "Wingbeat Frequency (Hz)";
                 end
 
-                xlabel(ax, x_label)
+                xlabel(ax, x_label, Interpreter="latex")
 
                 if obj.err_bool
                     ylabel(ax, "Error (N)")
@@ -549,7 +557,7 @@ classdef avgForceUI < handle
                     s1.MarkerFaceColor = original_color;
                     s1.DisplayName = strrep(type,"_"," ") + ", " + amp + " deg";
                 else
-                ylabel(ax, obj.y_labels(obj.var_names == obj.force_var))
+                ylabel(ax, obj.y_labels(obj.var_names == obj.force_var), Interpreter="latex")
 
                 if obj.PIV_bool
                     s1 = errorbar(ax, x_var, forces(1,:), errors, 'o');
