@@ -54,8 +54,11 @@ properties
 
     % Color limits for each variable list
     clims;
+    clim_dict;
     mean_clims;
+    mean_clim_dict;
     std_clims;
+    std_clim_dict;
     clim_scale;
 
     % UI handles that callbacks need to update
@@ -221,7 +224,10 @@ methods
                       -1, 1;
                       -1, 1];
 
+        obj.mean_clim_dict = obj.build_clim_dict(obj.movie_3D_avg_vars, obj.mean_clims);
+        obj.std_clim_dict = obj.build_clim_dict(obj.movie_3D_std_vars, obj.std_clims);
         obj.clims = obj.mean_clims;
+        obj.clim_dict = obj.mean_clim_dict;
         obj.clim_scale = 2;
         movie_3D_avg_labels = ["\boldmath$\frac{u c}{U_{\infty}}$",...
                             "\boldmath$\frac{v c}{U_{\infty}}$",...
@@ -522,11 +528,7 @@ methods
                 obj.variable_name = obj.var_dropdown.Value;
             end
 
-            if strcmp(previous_plot_type, obj.plot_types(3))
-                obj.clims = obj.mean_clims;
-            elseif strcmp(obj.plot_type, obj.plot_types(3))
-                obj.clims = obj.std_clims;
-            end
+            obj.set_active_color_limit_set();
 
             obj.update_color_limit_slider();
 
@@ -556,10 +558,8 @@ methods
             % Update the slider to the snapped positions
             src.Value = [newMin, newMax];
     
-            var_idx = find(obj.variable_name == obj.var_name_list);
-
             % update color limits
-            obj.clims(var_idx,:) = [src.Value(1) src.Value(2)];
+            obj.set_color_limits(obj.variable_name, [src.Value(1) src.Value(2)]);
     
             obj.update_plot(plot_panel);
         end
@@ -605,9 +605,7 @@ methods
         function iso_var_change(src, ~, plot_panel)
             obj.iso_var = src.Value;
 
-            var_idx = find(obj.iso_var == obj.var_name_list);
-
-            new_limits = obj.clims(var_idx, :);
+            new_limits = obj.get_color_limits(obj.iso_var);
             range_width = new_limits(2) - new_limits(1);
 
             obj.iso_slider.Limits = new_limits;
@@ -753,7 +751,7 @@ methods (Access = private)
 
         if ismember(plot_idx, [1, 2, 4, 8])
             var_name = obj.variable_name_dict(obj.variable_name);
-            var_idx = find(obj.variable_name == obj.var_name_list);
+            var_clims = obj.get_color_limits(obj.variable_name);
 
             if obj.extrapolate_bool
                 var_name = obj.dict_B(var_name);
@@ -779,7 +777,7 @@ methods (Access = private)
             end
         elseif plot_idx == 3
             var_name = obj.std_var_name_dict(obj.variable_name);
-            var_idx = find(obj.variable_name == obj.var_name_list);
+            var_clims = obj.get_color_limits(obj.variable_name);
 
             vars = {"L","U","num_bins","cycle_freq","z","y",var_name};
         elseif plot_idx == 5
@@ -853,9 +851,9 @@ methods (Access = private)
 
             params.U = d.U;
 
-            if min(obj.clims(var_idx,:)) < -1
+            if min(var_clims) < -1
                 params.zero = -1;
-            elseif min(obj.clims(var_idx,:)) < 0.5
+            elseif min(var_clims) < 0.5
                 params.zero = 0;
             else
                 params.zero = 1;
@@ -938,13 +936,13 @@ methods (Access = private)
         end
 
         if plot_idx == 1
-            params.clims = obj.clims(var_idx,:);
+            params.clims = var_clims;
 
             mean_val = mean(val,3);
             PIV_plot(y, z, mean_val, params, ax);
         elseif plot_idx == 2 || plot_idx == 3
 
-        params.clims = obj.clims(var_idx,:);
+        params.clims = var_clims;
 
         val_tr = val(:,:,obj.frame_ind);
         h = PIV_plot(y, z, val_tr, params, ax);
@@ -973,7 +971,7 @@ methods (Access = private)
         end
         elseif plot_idx == 4
             params.num_bins = d.num_bins;
-            params.clims = obj.clims(var_idx,:);
+            params.clims = var_clims;
             params.movie = false;
             params.L = d.L;
             params.shift = obj.frame_ind - 1;
@@ -1077,12 +1075,79 @@ methods (Access = private)
         end
     end
 
+    function clim_dict = build_clim_dict(~, var_names, clim_values)
+        keys = cellstr(var_names);
+        values = mat2cell(clim_values, ones(1, size(clim_values, 1)), size(clim_values, 2));
+        clim_dict = containers.Map(keys, values);
+    end
+
+    function set_active_color_limit_set(obj)
+        if strcmp(obj.plot_type, obj.plot_types(3))
+            obj.clims = obj.std_clims;
+            obj.clim_dict = obj.std_clim_dict;
+        else
+            obj.clims = obj.mean_clims;
+            obj.clim_dict = obj.mean_clim_dict;
+        end
+    end
+
+    function clims = get_color_limits(obj, var_name)
+        key = char(var_name);
+        if isKey(obj.clim_dict, key)
+            clims = obj.clim_dict(key);
+            return
+        end
+
+        var_idx = find(string(var_name) == obj.var_name_list, 1);
+        if isempty(var_idx)
+            error("No color limits defined for " + string(var_name))
+        end
+        clims = obj.clims(var_idx,:);
+    end
+
+    function set_color_limits(obj, var_name, new_clims)
+        key = char(var_name);
+        if isKey(obj.clim_dict, key)
+            obj.clim_dict(key) = new_clims;
+        end
+
+        var_idx = find(string(var_name) == obj.var_name_list, 1);
+        if ~isempty(var_idx)
+            obj.clims(var_idx,:) = new_clims;
+        end
+
+        if strcmp(obj.plot_type, obj.plot_types(3))
+            obj.std_clims = obj.update_clim_matrix(obj.movie_3D_std_vars, obj.std_clims, var_name, new_clims);
+            if isKey(obj.std_clim_dict, key)
+                obj.std_clim_dict(key) = new_clims;
+            end
+        else
+            obj.mean_clims = obj.update_clim_matrix(obj.movie_3D_avg_vars, obj.mean_clims, var_name, new_clims);
+            if isKey(obj.mean_clim_dict, key)
+                obj.mean_clim_dict(key) = new_clims;
+            end
+        end
+    end
+
+    function clim_values = update_clim_matrix(~, var_names, clim_values, var_name, new_clims)
+        var_idx = find(string(var_name) == var_names, 1);
+        if ~isempty(var_idx)
+            clim_values(var_idx,:) = new_clims;
+        end
+    end
+
     function update_color_limit_slider(obj)
-        var_idx = find(obj.variable_name == obj.var_name_list);
-        center = mean(obj.clims(var_idx,:));
-        range = (obj.clim_scale/2)*diff(obj.clims(var_idx,:));
+        if ~isKey(obj.clim_dict, char(obj.variable_name))
+            obj.clim_slider.Enable = "off";
+            return
+        end
+
+        obj.clim_slider.Enable = "on";
+        cur_clims = obj.get_color_limits(obj.variable_name);
+        center = mean(cur_clims);
+        range = (obj.clim_scale/2)*diff(cur_clims);
         obj.clim_slider.Limits = [center - range, center + range];
-        obj.clim_slider.Value = obj.clims(var_idx,:);
+        obj.clim_slider.Value = cur_clims;
     end
 end
 
