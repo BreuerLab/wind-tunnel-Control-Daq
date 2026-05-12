@@ -580,6 +580,14 @@ methods (Access = private)
         marker = markers(marker_idx);
     end
 
+    function marker = get_piv_force_marker(obj, index)
+        if ismember(index, 1:8)
+            marker = obj.get_force_marker(index);
+        else
+            marker = "";
+        end
+    end
+
     function colors = get_default_selection_colors(~, num_selections)
         palette = ["#0072B2"; "#D55E00"; "#009E73"; "#CC79A7";...
                    "#56B4E9"; "#E69F00"; "#F0E442"; "#000000";...
@@ -850,7 +858,7 @@ methods (Access = private)
                     'cur_sel', cur_sel,...
                     'legend_entry', obj.get_aligned_legend_entry(cur_sel, index, false),...
                     'line_style', "",...
-                    'marker', "");
+                    'marker', obj.get_piv_force_marker(index));
             end
 
             time_F = [];
@@ -900,8 +908,8 @@ methods (Access = private)
                     'plot_idx', j,...
                     'cur_sel', cur_sel,...
                     'legend_entry', obj.get_aligned_legend_entry(cur_sel, index, true),...
-                    'line_style', ":",...
-                    'marker', obj.get_force_marker(index));
+                    'line_style', "-",...
+                    'marker', "none");
             end
 
             color_params.uniq_freqs = uniq_freqs;
@@ -1046,6 +1054,12 @@ methods (Access = private)
             if has_marker
                 line.Marker = char(plot_options.marker);
                 line_h.Marker = char(plot_options.marker);
+            else
+                piv_force_marker = obj.get_piv_force_marker(index);
+                if strlength(piv_force_marker) > 0
+                    line.Marker = char(piv_force_marker);
+                    line_h.Marker = char(piv_force_marker);
+                end
             end
 
             disp(legend_entry + ", mean: " + mean(var))
@@ -1068,16 +1082,14 @@ methods (Access = private)
                 disp(F_legend + ": " + mean(force))
                 line.Color = original_color;
                 line.LineWidth = 2;
-                line.LineStyle = ":";
-                line.Marker = char(obj.get_force_marker(index));
+                line.LineStyle = "-";
 
                 % for hidden figure for saving
                 line_h = plot(ax_target, time_F, force);
                 line_h.DisplayName = F_legend;
                 line_h.Color = original_color;
                 line_h.LineWidth = 2;
-                line_h.LineStyle = ":";
-                line_h.Marker = char(obj.get_force_marker(index));
+                line_h.LineStyle = "-";
             end
 
             grid(ax, 'on');
