@@ -19,8 +19,8 @@ S.U_act = speed / U;
 
 bin_count = zeros(1,num_bins);
 bin_std = zeros(1,num_bins);
-lift_phase_avg = zeros(1,num_bins);
-drag_phase_avg = zeros(1,num_bins);
+lift_phase_avg = struct();
+drag_phase_avg = struct();
 
 % Define the field names we want to average (must be same order as
 % import_STB)
@@ -64,6 +64,16 @@ for i = 1:num_bins
         for f = 1:length(fields)
             S.([fields{f} '_phase_avg']) = zeros(size(x,1), size(x,2), size(x,3), num_bins);
         end
+
+        lift_fields = fieldnames(lift_vals);
+        for f = 1:length(lift_fields)
+            lift_phase_avg.(lift_fields{f}) = zeros(1,num_bins);
+        end
+
+        drag_fields = fieldnames(drag_vals);
+        for f = 1:length(drag_fields)
+            drag_phase_avg.(drag_fields{f}) = zeros(1,num_bins);
+        end
     end
 
 
@@ -74,9 +84,18 @@ for i = 1:num_bins
 
         fname = [fields{f}, '_phase_std'];
         S.(fname)(:,:,:,i) = std(data{f}, 0, 4, "omitnan");
+    end
 
-        lift_phase_avg(i) = mean(lift_vals.vortX);
-        drag_phase_avg(i) = mean(drag_vals.tot);
+    for f = 1:length(lift_fields)
+        field_name = lift_fields{f};
+        cur_vals = lift_vals.(field_name);
+        lift_phase_avg.(field_name)(i) = mean(cur_vals(:), "omitnan");
+    end
+
+    for f = 1:length(drag_fields)
+        field_name = drag_fields{f};
+        cur_vals = drag_vals.(field_name);
+        drag_phase_avg.(field_name)(i) = mean(cur_vals(:), "omitnan");
     end
 
 
