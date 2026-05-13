@@ -1046,10 +1046,8 @@ methods (Access = private)
             
             if has_legend_override
                 legend_entry = string(plot_options.legend_entry);
-            elseif isscalar(obj.inds)
-                legend_entry = strrep(cur_sel,"_"," ");
             else
-                legend_entry = obj.axes_labels(index);
+                legend_entry = obj.get_aligned_legend_entry(cur_sel, index, false);
             end
 
             if has_line_style
