@@ -3,15 +3,14 @@ close all force
 
 % Change current working directory to the directory where this file is
 cd(fileparts(mfilename('fullpath')));
-addpath(genpath('../../'))
-addpath(genpath('.'))
+addpath(genpath('../../../'))
 
 data_file_path = "Y:\Processed Results\";
 % data_file_path = "/Volumes/ENG_Breuer_Shared/group/Ronan/STB Analysis/Processed Results/";
 
 % GUI for plotting vector fields and wake topology
-% c = STB_UI(2,data_file_path);
-% c.dynamic_plotting();
+c = STB_UI(2,data_file_path);
+c.dynamic_plotting();
 
 root_path = "Y:\";
 % % GUI for plotting phase averaged quantities
@@ -19,5 +18,5 @@ root_path = "Y:\";
 % a.dynamic_plotting();
 
 % % GUI for plotting time averaged quantities
-b = avgForceUI(2, root_path);
-b.dynamic_plotting();
+% b = avgForceUI(2, root_path);
+% b.dynamic_plotting();

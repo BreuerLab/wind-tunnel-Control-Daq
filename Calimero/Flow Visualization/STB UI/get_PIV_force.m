@@ -58,9 +58,11 @@ u_tr = d.mean_u;
 v_tr = d.mean_v;
 w_tr = d.mean_w;
 
+if vort_bool
 vortX_tr = d.mean_vortX;
 vortY_tr = d.mean_vortY;
 vortZ_tr = d.mean_vortZ;
+end
 
 unc_tr = d.mean_uncTot;
 case 1
@@ -68,9 +70,11 @@ u_tr = d.u_phase_avg;
 v_tr = d.v_phase_avg;
 w_tr = d.w_phase_avg;
 
+if vort_bool
 vortX_tr = d.vortX_phase_avg;
 vortY_tr = d.vortY_phase_avg;
 vortZ_tr = d.vortZ_phase_avg;
+end
 
 unc_tr = d.uncTot_phase_avg;
 end
@@ -78,9 +82,11 @@ end
 [y_tr, z_tr, u_tr] = trim_vel_field(y, z, u_tr);
 [~, ~, v_tr] = trim_vel_field(y, z, v_tr);
 [~, ~, w_tr] = trim_vel_field(y, z, w_tr);
+if vort_bool
 [~, ~, vortX_tr] = trim_vel_field(y, z, vortX_tr);
 [~, ~, vortY_tr] = trim_vel_field(y, z, vortY_tr);
 [~, ~, vortZ_tr] = trim_vel_field(y, z, vortZ_tr);
+end
 [~, ~, unc_tr] = trim_vel_field(y, z, unc_tr);
 
 % Replace nans in velocity field with median values so integral
@@ -91,7 +97,9 @@ w_tr = nanToMedian(w_tr);
 
 D.x = x_conv; D.y = y_tr; D.z = z_tr;
 D.u = u_tr; D.v = v_tr; D.w = w_tr;
+if vort_bool
 D.vortX = vortX_tr; D.vortY = vortY_tr; D.vortZ = vortZ_tr;
+end
 D.unc = unc_tr;
 
         % Capture all outputs into a cell array

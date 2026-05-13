@@ -67,6 +67,7 @@ properties
 
     distance_labels;
     distance_type_dict;
+    type_distance_dict
 end
 
 methods
@@ -130,6 +131,7 @@ methods
 
         obj.distance_labels = ["x = 0.9m","x = 1.3m","x = 1.7m"];
         obj.distance_type_dict = containers.Map(obj.distance_labels, obj.cur_types);
+        obj.type_distance_dict = containers.Map(obj.cur_types, obj.distance_labels);
     end
 
     % Builds figure with all UI elements and defines all callback
@@ -510,7 +512,10 @@ methods (Access = private)
     end
 
     function legend_entry = get_aligned_legend_entry(obj, cur_sel, index, is_force)
-        case_label = strrep(string(cur_sel), "_", " ");
+        [amp, type, freq] = parse_name(cur_sel);
+        distance_label = obj.type_distance_dict(char(type));
+        name = distance_label + ", " + amp + " deg, " + freq + " Hz";
+        case_label = strrep(string(name), "_", " ");
         index_label = obj.axes_labels(index);
 
         if is_force
@@ -537,9 +542,9 @@ methods (Access = private)
     end
 
     function force_label = get_force_legend_label(~, index)
-        if ismember(index, 1:4)
+        if ismember(index, 1:5)
             force_label = "Lift force";
-        elseif ismember(index, 5:8)
+        elseif ismember(index, 6:10)
             force_label = "Drag force";
         else
             force_label = "Force";
@@ -581,7 +586,7 @@ methods (Access = private)
     end
 
     function marker = get_piv_force_marker(obj, index)
-        if ismember(index, 1:8)
+        if ismember(index, 1:10)
             marker = obj.get_force_marker(index);
         else
             marker = "";
@@ -746,7 +751,7 @@ methods (Access = private)
 
             var_name = obj.var_names(index);
 
-            if ismember(index,[1,2,3,4,5,6,7,8]) && obj.calc_bool
+            if ismember(index,1:10) && obj.calc_bool
                 % Compute Lift force
                 avg_type = 1;
     
@@ -784,7 +789,7 @@ methods (Access = private)
             % added_mass = get_added_mass(phase_avg_pos, phase_avg_speed, phase_avg_acc);
             added_mass = get_added_mass(phase_avg_wing_pos, phase_avg_wing_speed, phase_avg_wing_acc);
 
-            if ismember(index,[1,2,3,4,5,6,7,8]) && obj.PIV_sub
+            if ismember(index,1:10) && obj.PIV_sub
                 % filename = "body_phase_avg.mat";
                 filename = "ring_time_avg";
                 file_path_t = obj.PIV_path + "time_avg/" + filename + ".mat";
@@ -812,7 +817,7 @@ methods (Access = private)
 
             % Shift data given convection time downstream to target
             % for curves using imaging plane data only
-            if ismember(index,[1,2,3,4,5,6,7,8])
+            if ismember(index,1:10)
             dist = 0.9;
             sep_dist = 0.37;
             if contains(type, "UP_two")
@@ -870,9 +875,9 @@ methods (Access = private)
             force = [];
             if obj.force_bool && ~contains(type, "UP")
             
-            if (ismember(index, [1,2,3,4]))
+            if (ismember(index, [1,2,3,4,5]))
                     idx = 3;
-            elseif (ismember(index, [5,6,7,8]))
+            elseif (ismember(index, [6,7,8,9,10]))
                     idx = 1;
             else
                     idx = [];
@@ -898,10 +903,10 @@ methods (Access = private)
 
             % THIS NEEDS SOME FIXING HERE, NOT ALWAYS SHIFTING AT THE
             % CORRECT TIME
-            if force(1) < mean(force)
-                force = circshift(force, round(0.4*length(force)));
-                disp("Shifted force curve for " + cur_sel)
-            end
+            % if force(1) < mean(force)
+            %     force = circshift(force, round(0.4*length(force)));
+            %     disp("Shifted force curve for " + cur_sel)
+            % end
             end
             end
 

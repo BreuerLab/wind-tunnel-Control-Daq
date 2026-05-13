@@ -189,7 +189,7 @@ methods
                       0, 0.03;...
                       0, 0.03;...
                       -1, 1;...
-                      0, 50;
+                      0, 75;
                       -0.1, 0.1;
                       -1, 1;
                       -1, 1;
@@ -758,12 +758,13 @@ methods (Access = private)
 
             if obj.extrapolate_bool
                 var_name = obj.dict_B(var_name);
-                vars = {"L","U","num_bins","cycle_freq","z_B","y_B"};
+                vars = {"L","U","num_bins","cycle_freq"};
+                cur_secondary_vars = {"z_B","y_B"};
             else
                 vars = {"L","U","num_bins","cycle_freq","z","y"};
             end
 
-            if contains(obj.variable_name, obj.secondary_vars)
+            if contains(obj.variable_name, obj.secondary_vars) || obj.extrapolate_bool
                 cur_secondary_vars{end+1} = var_name;
             else
                 vars{end+1} = var_name;

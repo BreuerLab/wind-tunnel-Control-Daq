@@ -83,8 +83,9 @@ classdef avgForceUI < handle
             %     "phase_avg_speed", "phase_avg_volt", "phase_avg_cur", "KE", "enst", "u_avg"];
             % obj.var_names = ["lift", "lift_vel", "drag", "drag_vel",...
             %     "phase_avg_speed", "phase_avg_volt", "phase_avg_cur", "KE", "enst", "u_avg"];
-            obj.y_labels = ["Lift (N)", "Lift (N)", "Lift (N)", "Lift (N)", "Drag (N)",...
-                "Drag (N): $\frac{2\rho}{N} \sum\limits_{n_f = 1}^{N} \int_S -\mathbf{u}(\mathbf{u} + U) dA$",...
+            obj.y_labels = ["Lift (N): $\frac{2\rho}{N} \sum\limits_{n_f = 1}^{N} \int_S -u \omega_x y dA$",...
+                "Lift (N)", "Lift (N)","Lift (N)","Drag (N)",...
+                "Drag (N): $\frac{2\rho}{N} \sum\limits_{n_f = 1}^{N} \int_S -u(u + U) dA$",...
                 "Speed (Hz)", "Voltage (V)", "Current (mA)", "Power (mW)",...
                 "KE: $\frac{1}{N c^2} \sum\limits_{n_f = 1}^{N} \int_S \frac{\mathbf{u}^2}{U^2} dA$",...
                 "KE: $\frac{1}{N c^2} \sum\limits_{n_f = 1}^{N} \int_S \frac{(\mathbf{u} + U)^2}{U^2} dA$",...
@@ -445,6 +446,7 @@ classdef avgForceUI < handle
                             % gain = 0.01;
                             % gain = 0.001;
                             errors(j) = mean(d.bin_std);
+                            % errors(j) = 0;
                             wind_speed = d.U;
                             density = d.rho_act;
                             area = d.L * d.L * 3 * 2;
@@ -456,8 +458,8 @@ classdef avgForceUI < handle
                             [var, err] = get_PIV_force(filepath, name, obj.force_var, avg_type, obj.y_norm, obj.y_cen);
 
                             if obj.PIV_sub
-                                filename = "body_time_avg.mat";
-                                % filename = "ring_time_avg.mat";
+                                % filename = "body_time_avg.mat";
+                                filename = "ring_time_avg.mat";
                                 bod_filepath = obj.PIV_path + "time_avg/" + filename;
                                 [bod_var, ~] = get_PIV_force(bod_filepath, "", obj.force_var, 0, obj.y_norm, obj.y_cen);
                                 var = var - bod_var;
@@ -482,9 +484,16 @@ classdef avgForceUI < handle
 
                             if obj.PIV_sub
                                 % filename = "body_time_avg.mat";
-                                filename = "ring_time_avg.mat";
-                                bod = load(obj.PIV_path + "time_avg/" + filename, obj.force_var);
-                                var = var - bod.(obj.force_var);
+                                filename = "ring_time_avg_integral.mat";
+                                if contains(obj.force_var, ".")
+                                    abbrv_name = extractBefore(obj.force_var, ".");
+                                    bod = load(obj.PIV_path + "time_avg/" + filename, abbrv_name);
+                                    bod_var = eval("bod." + obj.force_var);
+                                else
+                                    bod = load(obj.PIV_path + "time_avg/" + filename, obj.force_var);
+                                    bod_var = bod.(obj.force_var);
+                                end
+                                var = var - bod_var;
                             end  
                         end                    
                         

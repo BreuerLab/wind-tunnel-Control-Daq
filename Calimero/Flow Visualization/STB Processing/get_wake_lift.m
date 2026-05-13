@@ -9,9 +9,11 @@ function [lift, drag] = get_wake_lift(U, L, D, avg_type, vort_bool, density)
     u = D.u*U;
     v = D.v*U;
     w = D.w*U;
+    if vort_bool
     vortX = D.vortX / (L/U);
     vortY = D.vortY / (L/U);
     vortZ = D.vortZ / (L/U);
+    end
 
     unc = D.unc;
 
