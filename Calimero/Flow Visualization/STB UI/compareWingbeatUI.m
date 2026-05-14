@@ -755,7 +755,7 @@ methods (Access = private)
     function color = get_curve_color(obj, cur_sel, color_params)
         color = [0 0 0];
 
-        if isfield(color_params, 'selection_names') && isfield(color_params, 'selection_colors')
+        if color_params.use_selection_colors && isfield(color_params, 'selection_names') && isfield(color_params, 'selection_colors')
             selection_idx = find(color_params.selection_names == string(cur_sel), 1);
             if ~isempty(selection_idx)
                 color = obj.hex_to_rgb(color_params.selection_colors(selection_idx));
@@ -763,13 +763,14 @@ methods (Access = private)
             end
         end
 
-        [amp, type, freq] = parse_name(cur_sel);
-        sels = [type, amp];
+        [amp, ~, freq] = parse_name(cur_sel);
         freq_idx = find(color_params.uniq_freqs == freq, 1);
-        var_idx = find(color_params.common_var == sels(color_params.I(2)), 1);
+        amp_idx = find(color_params.uniq_amps == amp, 1);
 
-        if ~isempty(freq_idx) && ~isempty(var_idx)
-            color = obj.hex_to_rgb(color_params.colors(freq_idx, var_idx));
+        if ~isempty(freq_idx) && ~isempty(amp_idx) &&...
+           freq_idx <= size(color_params.colors, 1) &&...
+           amp_idx <= size(color_params.colors, 2)
+            color = obj.hex_to_rgb(color_params.colors(freq_idx, amp_idx));
         end
     end
 
@@ -805,32 +806,28 @@ methods (Access = private)
             cur_selections{i,3} = freq;
         end
 
-        try
-        uniq_types = unique(string(cur_selections(:,1)));
-        uniq_amps = unique(cell2mat(cur_selections(:,2)));
-        uniq_freqs = unique(cell2mat(cur_selections(:,3)));
-
-        colors = getColors(length(uniq_types),...
-                           length(uniq_amps),...
-                           length(uniq_freqs),...
-                           length(obj.selection));
-        catch
-        uniq_types = unique(string(obj.available_selections(:,1)));
-        uniq_amps = unique(cell2mat(obj.available_selections(:,2)));
-        uniq_freqs = unique(cell2mat(obj.available_selections(:,3)));
-
-        colors = getColors(length(uniq_types),...
-                           length(uniq_amps),...
-                           length(uniq_freqs),...
-                           length(obj.selection));
+        if isempty(obj.selection)
+            uniq_types = strings(0);
+            uniq_amps = [];
+            uniq_freqs = [];
+            colors = strings(0);
+        else
+            uniq_types = unique(string(cur_selections(:,1)));
+            uniq_amps = unique(cell2mat(cur_selections(:,2)));
+            uniq_freqs = unique(cell2mat(cur_selections(:,3)));
+            if length(uniq_types) > 1
+                colors = strings(0);
+            else
+                colors = getColors(1,...
+                                   length(uniq_amps),...
+                                   length(uniq_freqs),...
+                                   length(obj.selection));
+                colors = flip(colors,1);
+            end
         end
 
-        num_selections = length(obj.selection);
-        try
-            selection_colors = getColors(1, 1, num_selections, num_selections, "selection");
-        catch
-            selection_colors = obj.get_default_selection_colors(num_selections);
-        end
+        use_selection_colors = length(uniq_types) > 1;
+        selection_colors = obj.get_default_selection_colors(length(obj.selection));
 
         align_plot_bool = obj.align_bool &&...
                           ~isempty(obj.inds) &&...
@@ -839,17 +836,6 @@ methods (Access = private)
                                 'plot_idx', {}, 'cur_sel', {},...
                                 'legend_entry', {}, 'line_style', {},...
                                 'marker', {});
-
-        colors = flip(colors,1);
-
-        uniq_counts = [length(uniq_types), length(uniq_amps)];
-        [B, I] = sort(uniq_counts);
-
-        if (I(2) == 1)
-            common_var = uniq_types;
-        else
-            common_var = string(uniq_amps);
-        end
 
         % ----------------------------------------
 
@@ -1046,9 +1032,9 @@ methods (Access = private)
             end
 
             color_params.uniq_freqs = uniq_freqs;
-            color_params.common_var = common_var;
-            color_params.I = I;
+            color_params.uniq_amps = uniq_amps;
             color_params.colors = colors;
+            color_params.use_selection_colors = use_selection_colors;
             color_params.selection_names = string(obj.selection);
             color_params.selection_colors = selection_colors;
             if ~align_plot_bool
