@@ -19,6 +19,14 @@ dz = abs(D.z(1,1,2) - D.z(1,1,1));
 [Qx,Qy,Qz,Q] = calQlate3D(D.u_phase_avg, D.v_phase_avg, D.w_phase_avg, dx,dy,dz);
 S.Qx = Qx; S.Qy = Qy; S.Qz = Qz; S.Q = Q;
 
+% Calculated using streamwise speed with freestream speed subtracted,
+% represents KE introduced by disturbance of flapper
+S.KE_diff_field = 2 * D.Utot_diff_phase_avg.^2; % x2 for L and R wings
+
+% Calculate power
+S.power_field = S.KE_diff_field .* -D.u_phase_avg; % remove +1 next to u_tr
+% negative sign added since -1.1 velocity means power added, acceleration
+
 num_bins = D.num_bins;
 speed = D.U_act * D.U;
 [~, ~, freq] = parse_name(D.PIV_case_name);
@@ -49,6 +57,9 @@ dudx_tr = D.dudx_phase_avg;
 dvdx_tr = D.dvdx_phase_avg;
 dwdx_tr = D.dwdx_phase_avg;
 
+KE_tr = S.KE_diff_field;
+power_tr = S.power_field;
+
 [y_tr, z_tr, u_tr] = trim_vel_field(y, z, u_tr);
 [~, ~, v_tr] = trim_vel_field(y, z, v_tr);
 [~, ~, w_tr] = trim_vel_field(y, z, w_tr);
@@ -64,6 +75,8 @@ dwdx_tr = D.dwdx_phase_avg;
 [~, ~, dudx_tr] = trim_vel_field(y, z, dudx_tr);
 [~, ~, dvdx_tr] = trim_vel_field(y, z, dvdx_tr);
 [~, ~, dwdx_tr] = trim_vel_field(y, z, dwdx_tr);
+[~, ~, KE_tr] = trim_vel_field(y, z, KE_tr);
+[~, ~, power_tr] = trim_vel_field(y, z, power_tr);
 
 % Replace nans in velocity field with median values so integral
 % calculations aren't skewed
@@ -96,15 +109,12 @@ KE = squeeze(KE);
 
 % Calculated using streamwise speed with freestream speed subtracted,
 % represents KE introduced by disturbance of flapper
-KE_diff_field = 2 * Utot_diff_tr.^2; % x2 for L and R wings
-KE_diff = trapz(y_arr, KE_diff_field, 1);
+KE_diff = trapz(y_arr, KE_tr, 1);
 KE_diff = trapz(z_arr, KE_diff, 2);
 KE_diff = squeeze(KE_diff);
 
 % Calculate power
-power_field = KE_diff_field .* -u_tr; % remove +1 next to u_tr
-% negative sign added since -1.1 velocity means power added, acceleration
-power = trapz(y_arr, power_field, 1);
+power = trapz(y_arr, power_tr, 1);
 power = trapz(z_arr, power, 2);
 power = squeeze(power);
 
@@ -123,7 +133,6 @@ div_field = D.dudx_phase_avg + D.dvdy_phase_avg + D.dwdz_phase_avg;
 
 S.KE = KE; S.KE_diff = KE_diff; S.KE_tot = KE_tot; S.enst = enst;
 S.power = power; S.div = div_field;
-S.KE_field = KE_diff_field; S.power_field = power_field;
 
 % ----------------------------------------------------------------
 % --------------------- PLANAR AVERAGES --------------------------

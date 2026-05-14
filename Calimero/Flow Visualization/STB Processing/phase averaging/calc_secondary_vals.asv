@@ -19,6 +19,14 @@ dz = abs(D.z(1,1,2) - D.z(1,1,1));
 [Qx,Qy,Qz,Q] = calQlate3D(D.u_phase_avg, D.v_phase_avg, D.w_phase_avg, dx,dy,dz);
 S.Qx = Qx; S.Qy = Qy; S.Qz = Qz; S.Q = Q;
 
+% Calculated using streamwise speed with freestream speed subtracted,
+% represents KE introduced by disturbance of flapper
+KE_diff_field = 2 * D.Utot_diff_phase_avg.^2; % x2 for L and R wings
+
+% Calculate power
+power_field = KE_diff_field .* -u_tr; % remove +1 next to u_tr
+% negative sign added since -1.1 velocity means power added, acceleration
+
 num_bins = D.num_bins;
 speed = D.U_act * D.U;
 [~, ~, freq] = parse_name(D.PIV_case_name);
@@ -123,6 +131,7 @@ div_field = D.dudx_phase_avg + D.dvdy_phase_avg + D.dwdz_phase_avg;
 
 S.KE = KE; S.KE_diff = KE_diff; S.KE_tot = KE_tot; S.enst = enst;
 S.power = power; S.div = div_field;
+S.KE_field = KE_diff_field; S.power_field = power_field;
 
 % ----------------------------------------------------------------
 % --------------------- PLANAR AVERAGES --------------------------
@@ -140,7 +149,7 @@ S.unc_avg = mean(unc_tr, [1, 2]);
 S.hel_avg = mean(hel_tr, [1, 2]);
 S.dudx_avg = mean(dudx_tr, [1, 2]);
 S.dvdx_avg = mean(dvdx_tr, [1, 2]);
-S.hel_avg = mean(dwdx_tr, [1, 2]);
+S.dwdx_avg = mean(dwdx_tr, [1, 2]);
 
 % The average can also be calculated using the linear interpolation of
 % trapz, this seems to be worse (more susceptible to noise)
@@ -176,6 +185,7 @@ for i = 1:numel(fNames)
     S.(fNames{i}) = outputs{i};
 end
 
+S.phase_avg_speed_error = abs(S.phase_avg_speed - freq);
 S.phase_avg_power = S.phase_avg_volt .* S.phase_avg_cur;
 end
 
