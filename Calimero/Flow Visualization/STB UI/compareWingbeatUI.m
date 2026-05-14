@@ -70,6 +70,7 @@ properties
     calc_bool;
     align_bool;
     force_bool;
+    separate_y_axis_bool;
     % used to calculate forces from vector field data
 
     % ------- Available parameters user can select from -------
@@ -117,6 +118,7 @@ methods
         obj.force_bool = false;
         obj.calc_bool = false;
         obj.align_bool = false;
+        obj.separate_y_axis_bool = false;
 
         % Search through files in path to get types and speeds
 
@@ -294,6 +296,14 @@ methods
         b88.BackgroundColor = [1 1 1];
         b88.ValueChangedFcn = @(src, event) align_change(src, event, plot_panel);
 
+        button99_y = button88_y - (unit_height + unit_spacing);
+        b99 = uibutton(option_panel, "state");
+        b99.Text = "Separate Y-Axis";
+        b99.FontSize = 18;
+        b99.Position = [20 button99_y 160 unit_height];
+        b99.BackgroundColor = [1 1 1];
+        b99.ValueChangedFcn = @(src, event) separate_y_axis_change(src, event, plot_panel);
+
 
         % ------------------------------------------------------
         % -------Buttons built up from bottom of screen---------
@@ -404,6 +414,12 @@ methods
         function align_change(src, ~, plot_panel)
             obj.align_bool = src.Value;
             src.BackgroundColor = obj.get_button_color(obj.align_bool);
+            obj.update_plot(plot_panel);
+        end
+
+        function separate_y_axis_change(src, ~, plot_panel)
+            obj.separate_y_axis_bool = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.separate_y_axis_bool);
             obj.update_plot(plot_panel);
         end
 
@@ -701,6 +717,24 @@ methods (Access = private)
         end
     end
 
+    function dual_plot = should_use_separate_y_axes(obj)
+        dual_plot = false;
+        if length(obj.inds) < 2
+            return
+        end
+
+        force_indices = arrayfun(@(index) obj.is_force_index(index), obj.inds);
+        dual_plot = obj.separate_y_axis_bool || ~all(force_indices);
+    end
+
+    function y_label = get_single_axis_label(obj)
+        if ~isempty(obj.inds) && all(arrayfun(@(index) obj.is_force_index(index), obj.inds))
+            y_label = "Force (N)";
+        else
+            y_label = obj.active_labels(obj.inds(1));
+        end
+    end
+
     function colors = get_default_selection_colors(~, num_selections)
         palette = ["#0072B2"; "#D55E00"; "#009E73"; "#CC79A7";...
                    "#56B4E9"; "#E69F00"; "#F0E442"; "#000000";...
@@ -819,23 +853,11 @@ methods (Access = private)
 
         % ----------------------------------------
 
-        dual_plot = false;
+        dual_plot = obj.should_use_separate_y_axes();
         ylabs = strings(1,2);
-        if ~isempty(obj.inds)
-            if length(obj.inds) > 1
-                for n = 2:length(obj.inds)
-                    dual_plot = true;
-                    ylabs(1) = obj.active_labels(obj.inds(n-1));
-                    ylabs(2) = obj.active_labels(obj.inds(n));
-
-                    % only make two plots if they are using units
-                    % if ~strcmp(obj.y_labels(obj.inds(n-1)), obj.y_labels(obj.inds(n)))
-                    %     dual_plot = true;
-                    %     ylabel_one = obj.y_labels(obj.inds(n-1));
-                    %     ylabel_two = obj.y_labels(obj.inds(n));
-                    % end
-                end
-            end
+        if dual_plot
+            ylabs(1) = obj.active_labels(obj.inds(1));
+            ylabs(2) = obj.active_labels(obj.inds(2));
         end
 
         ax = axes(plot_panel);
@@ -1234,9 +1256,9 @@ methods (Access = private)
                 ylabel(ax_target, ylabs(2))
                 ax_target.YAxis(2).Color = 'k';
             elseif ~isempty(obj.inds)
-                ylabel(ax, obj.active_labels(obj.inds(1)))
+                ylabel(ax, obj.get_single_axis_label())
                 % for hidden figure for saving
-                ylabel(ax_target, obj.active_labels(obj.inds(1)))
+                ylabel(ax_target, obj.get_single_axis_label())
             end
             
         ax.FontSize = 18;
