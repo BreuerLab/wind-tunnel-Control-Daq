@@ -177,7 +177,7 @@ methods
         d3.Position = [10 drop_y3 180 unit_height];
         cur_amps = obj.available_selections(cell2mat(obj.available_selections(:,3)) == obj.sel_freq ...
             & strcmp(string(obj.available_selections(:,1)), obj.sel_type),2);
-        d3.Items = string(cur_amps) + " deg";
+        d3.Items = [string(cur_amps) + " deg"; "all"];
 
         d2.ValueChangedFcn = @(src, event) freq_change(src, event, d3);
         d3.ValueChangedFcn = @(src, event) amp_change(src, event, d2);
@@ -368,28 +368,32 @@ methods
             % Change amplitude list to only show those available at this
             % wingbeat frequency
             if obj.sel_freq == -1
-                cur_avail_freqs = cell2mat(obj.available_selections(cell2mat(obj.available_selections(:,2)) == obj.sel_amp ...
-            & strcmp(string(obj.available_selections(:,1)), obj.cur_types(1)),3));
-
-                max_freq = max(cur_avail_freqs);
-
-                amps = obj.available_selections(cell2mat(obj.available_selections(:,3)) == max_freq ...
-            & strcmp(string(obj.available_selections(:,1)), obj.cur_types(1)),2);
+                amps = obj.available_selections(strcmp(string(obj.available_selections(:,1)), obj.cur_types(1)),2);
             else
             amps = obj.available_selections(cell2mat(obj.available_selections(:,3)) == obj.sel_freq ...
             & strcmp(string(obj.available_selections(:,1)), obj.cur_types(1)),2);
             end
-            d.Items = string(amps) + " deg";
+            amps = unique(cell2mat(amps));
+            d.Items = [string(amps) + " deg"; "all"];
         end
 
         % update speed variable with new value selected by user
         function amp_change(src, ~, d)
-            obj.sel_amp = str2double(regexp(src.Value, '\d+', 'match'));
+            if strcmp(src.Value, "all")
+                obj.sel_amp = -1;
+            else
+                obj.sel_amp = str2double(regexp(src.Value, '\d+', 'match'));
+            end
 
             % Change frequency list to only show those available at this
             % wingbeat amplitude
-            freqs = obj.available_selections(cell2mat(obj.available_selections(:,2)) == obj.sel_amp ...
-            & strcmp(string(obj.available_selections(:,1)), obj.cur_types(1)),3);
+            if obj.sel_amp == -1
+                freqs = obj.available_selections(strcmp(string(obj.available_selections(:,1)), obj.cur_types(1)),3);
+            else
+                freqs = obj.available_selections(cell2mat(obj.available_selections(:,2)) == obj.sel_amp ...
+                & strcmp(string(obj.available_selections(:,1)), obj.cur_types(1)),3);
+            end
+            freqs = unique(cell2mat(freqs));
             d.Items = [string(freqs) + " Hz"; "all"];
         end
 
@@ -424,36 +428,32 @@ methods
         end
 
         function addToList(~, ~, plot_panel, lbox)
+            selection_types = string(obj.available_selections(:,1));
+            selection_amps = cell2mat(obj.available_selections(:,2));
+            selection_freqs = cell2mat(obj.available_selections(:,3));
 
-            if obj.sel_freq == -1 % "all" case selected
-               cur_avail_freqs = obj.available_selections(cell2mat(obj.available_selections(:,2)) == obj.sel_amp ...
-            & strcmp(string(obj.available_selections(:,1)), obj.sel_type),3);
-               for n = 1:length(cur_avail_freqs)
-               cur_freq = cur_avail_freqs(n);
-                case_name = obj.sel_type + "_" + obj.sel_amp +...
-                "deg_" + cur_freq + "Hz";
+            type_mask = true(size(selection_types));
+            if obj.sel_type ~= "all"
+                type_mask = selection_types == obj.sel_type;
+            end
 
-                if (sum(strcmp(string(lbox.Items), case_name)) == 0)
-                    lbox.Items = [lbox.Items, case_name];
-                    obj.selection = [obj.selection, case_name];
-                end
-               end
-            elseif obj.sel_type == "all"
-               for n = 1:length(obj.cur_types)
-               cur_type = obj.cur_types(n);
-               case_name = cur_type + "_" + obj.sel_amp +...
-                "deg_" + obj.sel_freq + "Hz";
+            amp_mask = true(size(selection_amps));
+            if obj.sel_amp ~= -1
+                amp_mask = selection_amps == obj.sel_amp;
+            end
 
-                if (sum(strcmp(string(lbox.Items), case_name)) == 0)
-                    lbox.Items = [lbox.Items, case_name];
-                    obj.selection = [obj.selection, case_name];
-                end
-               end
-            else
-                case_name = obj.sel_type + "_" + obj.sel_amp +...
-                "deg_" + obj.sel_freq + "Hz";
+            freq_mask = true(size(selection_freqs));
+            if obj.sel_freq ~= -1
+                freq_mask = selection_freqs == obj.sel_freq;
+            end
 
-                if (sum(strcmp(string(lbox.Items), case_name)) == 0)
+            matching_indices = find(type_mask & amp_mask & freq_mask);
+            for n = 1:length(matching_indices)
+                cur_idx = matching_indices(n);
+                case_name = selection_types(cur_idx) + "_" + string(selection_amps(cur_idx)) +...
+                    "deg_" + string(selection_freqs(cur_idx)) + "Hz";
+
+                if sum(strcmp(string(lbox.Items), case_name)) == 0
                     lbox.Items = [lbox.Items, case_name];
                     obj.selection = [obj.selection, case_name];
                 end
