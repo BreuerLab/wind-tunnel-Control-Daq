@@ -448,6 +448,13 @@ methods
             end
 
             matching_indices = find(type_mask & amp_mask & freq_mask);
+            [~, type_order] = ismember(selection_types(matching_indices), obj.cur_types);
+            type_order(type_order == 0) = length(obj.cur_types) + 1;
+            [~, sort_order] = sortrows([type_order(:),...
+                                        selection_amps(matching_indices),...
+                                        selection_freqs(matching_indices)]);
+            matching_indices = matching_indices(sort_order);
+
             for n = 1:length(matching_indices)
                 cur_idx = matching_indices(n);
                 case_name = selection_types(cur_idx) + "_" + string(selection_amps(cur_idx)) +...
