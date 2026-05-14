@@ -829,7 +829,6 @@ methods (Access = private)
                                    length(uniq_amps),...
                                    length(uniq_freqs),...
                                    length(obj.selection));
-                colors = flip(colors,1);
             end
         end
 

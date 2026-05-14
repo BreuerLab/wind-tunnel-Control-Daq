@@ -106,6 +106,7 @@ methods
                             "dv/dz","dw/dx","dw/dy","dw/dz"];
         obj.iso_var = "|Q|";
         obj.iso_val = 0.05;
+        % obj.iso_val = -0.05;
         obj.mirror_bool = false;
         obj.filter_bool = false;
         obj.num_cycles = 1;
@@ -430,9 +431,12 @@ methods
         obj.iso_slider = uislider(obj.param_panel);
         obj.iso_slider.Position = [5 iso_slider_y iso_slider_w 3];
         obj.iso_slider.Limits = [0.005 0.1];
+        % obj.iso_slider.Limits = [-0.1 -0.005];
         obj.iso_slider.Value = obj.iso_val;
         obj.iso_slider.MajorTicks = 0:0.025:0.1; % 0:0.05:0.5
         obj.iso_slider.MinorTicks = 0.005:0.005:0.1; % 0.01:0.01:0.5
+        % obj.iso_slider.MajorTicks = -0.1:0.025:0; % 0:0.05:0.5
+        % obj.iso_slider.MinorTicks = -0.1:0.005:0.005; % 0.01:0.01:0.5
         obj.iso_slider.ValueChangedFcn = @(src, event) iso_change(src, event, plot_panel);
 
         % Dropdown box for which variables to display
