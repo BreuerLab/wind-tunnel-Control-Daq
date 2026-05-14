@@ -210,7 +210,7 @@ methods
         % d9.Items = obj.axes_labels;
         % d9.ValueChangedFcn = @(src, event) index_change(src, event, plot_panel);
 
-        param_panel_height = 300;
+        param_panel_height = 130;
         param_panel_width = 180;
         param_panel_y = button33_y - unit_spacing - param_panel_height;
         param_panel = uipanel(option_panel);
@@ -218,16 +218,28 @@ methods
         param_panel.TitlePosition = 'centertop';
         param_panel.Position = [10 param_panel_y param_panel_width param_panel_height];
 
-        % Add Multiple Checkboxes using a loop
-        options = obj.axes_labels;
-        checkboxes = [];
+        variable_options = ["none", obj.axes_labels];
 
-        for i = 1:length(options)
-            checkboxes(i) = uicheckbox(param_panel, ...
-                'Text', options(i), ...
-                'Position', [20 (param_panel_height - 50 - (i-1)*12) 150 22], ...
-                'ValueChangedFcn', @(src, event) updateLogic(src, event, plot_panel));
-        end
+        var_label1 = uilabel(param_panel);
+        var_label1.Text = "Variable 1";
+        var_label1.Position = [15 82 150 22];
+
+        var_dropdown1 = uidropdown(param_panel);
+        var_dropdown1.Items = variable_options;
+        var_dropdown1.Value = "none";
+        var_dropdown1.Position = [15 57 150 25];
+
+        var_label2 = uilabel(param_panel);
+        var_label2.Text = "Variable 2";
+        var_label2.Position = [15 32 150 22];
+
+        var_dropdown2 = uidropdown(param_panel);
+        var_dropdown2.Items = variable_options;
+        var_dropdown2.Value = "none";
+        var_dropdown2.Position = [15 7 150 25];
+
+        var_dropdown1.ValueChangedFcn = @(src, event) updateVariableSelection(src, event, plot_panel, var_dropdown1, var_dropdown2);
+        var_dropdown2.ValueChangedFcn = @(src, event) updateVariableSelection(src, event, plot_panel, var_dropdown1, var_dropdown2);
 
         button4_y = param_panel_y - (unit_height + unit_spacing);
         b4 = uibutton(option_panel, "state");
@@ -443,13 +455,21 @@ methods
             obj.update_plot(plot_panel);
         end
 
-        function updateLogic(src, ~, plot_panel)
-            cur_ind = find(obj.axes_labels == src.Text);
-            if src.Value
-                obj.inds = [obj.inds cur_ind];
-            else
-                obj.inds(obj.inds == cur_ind) = [];
+        function updateVariableSelection(~, ~, plot_panel, dropdown1, dropdown2)
+            selected_values = [string(dropdown1.Value), string(dropdown2.Value)];
+            obj.inds = [];
+
+            for n = 1:length(selected_values)
+                if selected_values(n) == "none"
+                    continue
+                end
+
+                cur_ind = find(obj.axes_labels == selected_values(n), 1);
+                if ~isempty(cur_ind) && ~ismember(cur_ind, obj.inds)
+                    obj.inds = [obj.inds cur_ind];
+                end
             end
+
             obj.update_plot(plot_panel);
         end
 
