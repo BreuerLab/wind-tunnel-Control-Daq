@@ -123,6 +123,7 @@ div_field = D.dudx_phase_avg + D.dvdy_phase_avg + D.dwdz_phase_avg;
 
 S.KE = KE; S.KE_diff = KE_diff; S.KE_tot = KE_tot; S.enst = enst;
 S.power = power; S.div = div_field;
+S.KE_field = KE_diff_field; S.power_field = power_field;
 
 % ----------------------------------------------------------------
 % --------------------- PLANAR AVERAGES --------------------------
@@ -176,6 +177,7 @@ for i = 1:numel(fNames)
     S.(fNames{i}) = outputs{i};
 end
 
+S.phase_avg_speed_error = abs(S.phase_avg_speed - freq);
 S.phase_avg_power = S.phase_avg_volt .* S.phase_avg_cur;
 end
 
