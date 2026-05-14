@@ -19,12 +19,28 @@ properties
     PIV_path;
     force_path;
 
-    % integer, 0-6, defines which force/moment axes to display
     inds;
-    % force and moment axes labels used in dropdown box
-    axes_labels;
-    var_names;
-    y_labels;
+
+    active_types;
+    active_names;
+    active_labels;
+
+    force_var_types = ["y*\omega_x", "x*\omega_y", "u*w",...
+        "Drag - Vorticity", "z*\omega_y", "y*\omega_z", "(u-U)*u"];
+    kin_var_types = ["Speed", "Speed Error", "Acceleration",...
+                "Wing Position", "Wing Speed", "Wing Acceleration",...
+                "Voltage", "Current", "Power"];
+    force_var_names = ["lift.tot", "lift.vortX", "lift.vortY", "lift_vel",...
+                    "drag.tot", "drag.vortY", "drag.vortZ", "drag_vel"];
+    kin_var_names = ["phase_avg_speed", "phase_avg_speed_error",...
+                         "phase_avg_acc", "phase_avg_wing_pos",...
+                         "phase_avg_wing_speed", "phase_avg_wing_acc",...
+                         "phase_avg_volt", "phase_avg_cur", "phase_avg_volt"];
+    force_y_labels = ["Lift (N)","Lift (N)","Lift (N)","Lift (N)","Lift (N)",...
+        "Drag (N)", "Drag (N)", "Drag (N)", "Drag (N)", "Drag (N)"];
+    kin_y_labels = ["Speed (Hz)", "Speed Error (Hz)", "Acceleration (Hz^2)", ...
+        "Position (rad)", "Speed (rad/s)", "Acceleration (rad/s^2)",...
+        "Voltage (V)", "Current (mA)", "Power (mW)"];
 
     % boolean, normalization/non-dimensionalization on or off
     norm;
@@ -67,6 +83,7 @@ properties
 
     distance_labels;
     distance_type_dict;
+    type_distance_dict
 end
 
 methods
@@ -79,21 +96,11 @@ methods
         obj.force_path = obj.root_path + "Force Measurements\";
 
         obj.inds = [];
-        % obj.axes_labels = ["Lift", "Drag", "Speed", "Voltage", "Current", "Power"];
-        obj.axes_labels = ["Lift - Vorticity", "y*\omega_x", "x*\omega_y", "u*w",...
-            "Drag - Vorticity", "z*\omega_y", "y*\omega_z", "(u-U)*u",...
-            "Speed", "Acceleration", "Wing Position", "Wing Speed", "Wing Acceleration",...
-            "Voltage", "Current", "Power"];
-        obj.var_names = ["lift.tot", "lift.vortX", "lift.vortY", "lift_vel",...
-                    "drag.tot", "drag.vortY", "drag.vortZ", "drag_vel",...
-                    "phase_avg_speed", "phase_avg_acc", "phase_avg_wing_pos",...
-                    "phase_avg_wing_speed", "phase_avg_wing_acc",...
-                    "phase_avg_volt", "phase_avg_cur", "phase_avg_volt"];
-        obj.y_labels = ["Lift (N)","Lift (N)","Lift (N)","Lift (N)",...
-            "Drag (N)", "Drag (N)", "Drag (N)", "Drag (N)",...
-            "Speed (Hz)", "Acceleration (Hz^2)", ...
-            "Position (rad)", "Speed (rad/s)", "Acceleration (rad/s^2)",...
-            "Voltage (V)", "Current (mA)", "Power (mW)"];
+        % bj.force_var_types = ["Lift - Vorticity", "y*\omega_x", "x*\omega_y", "u*w", "BA: y*\omega_x",...
+        %     "Drag - Vorticity", "z*\omega_y", "y*\omega_z", "(u-U)*u", "BA: (u-U)*u"];
+        % obj.force_var_names = ["lift.tot", "lift.vortX", "lift.vortY", "lift_vel", "lift_phase_avg.vortX",...
+        %             "drag.tot", "drag.vortY", "drag.vortZ", "drag_vel", "drag_phase_avg"];
+
         obj.norm = false;
         obj.norm_period = true;
         obj.PIV_sub = false;
@@ -130,6 +137,7 @@ methods
 
         obj.distance_labels = ["x = 0.9m","x = 1.3m","x = 1.7m"];
         obj.distance_type_dict = containers.Map(obj.distance_labels, obj.cur_types);
+        obj.type_distance_dict = containers.Map(obj.cur_types, obj.distance_labels);
     end
 
     % Builds figure with all UI elements and defines all callback
@@ -201,14 +209,7 @@ methods
         b33.BackgroundColor = [1 1 1];
         b33.ButtonPushedFcn = @(src, event) clearList(src, event, plot_panel, lbox);
 
-        % Dropdown box for which force/moment axes to display
-        % drop_y9 = list_y - (unit_height + unit_spacing);
-        % d9 = uidropdown(option_panel);
-        % d9.Position = [10 drop_y9 180 unit_height];
-        % d9.Items = obj.axes_labels;
-        % d9.ValueChangedFcn = @(src, event) index_change(src, event, plot_panel);
-
-        param_panel_height = 300;
+        param_panel_height = 180;
         param_panel_width = 180;
         param_panel_y = button33_y - unit_spacing - param_panel_height;
         param_panel = uipanel(option_panel);
@@ -216,16 +217,38 @@ methods
         param_panel.TitlePosition = 'centertop';
         param_panel.Position = [10 param_panel_y param_panel_width param_panel_height];
 
-        % Add Multiple Checkboxes using a loop
-        options = obj.axes_labels;
-        checkboxes = [];
+        var_type_label = uilabel(param_panel);
+        var_type_label.Text = "Variable Type";
+        var_type_label.Position = [15 132 150 22];
 
-        for i = 1:length(options)
-            checkboxes(i) = uicheckbox(param_panel, ...
-                'Text', options(i), ...
-                'Position', [20 (param_panel_height - 50 - (i-1)*15) 150 22], ...
-                'ValueChangedFcn', @(src, event) updateLogic(src, event, plot_panel));
-        end
+        var_type_dropdown = uidropdown(param_panel);
+        var_type_dropdown.Items = ["kinematics", "force", "BA: force"];
+        var_type_dropdown.Value = "kinematics";
+        var_type_dropdown.Position = [15 107 150 25];
+
+        init_options = ["none", obj.kin_var_types];
+
+        var_label1 = uilabel(param_panel);
+        var_label1.Text = "Variable 1";
+        var_label1.Position = [15 82 150 22];
+
+        var_dropdown1 = uidropdown(param_panel);
+        var_dropdown1.Items = init_options;
+        var_dropdown1.Value = "none";
+        var_dropdown1.Position = [15 57 150 25];
+
+        var_label2 = uilabel(param_panel);
+        var_label2.Text = "Variable 2";
+        var_label2.Position = [15 32 150 22];
+
+        var_dropdown2 = uidropdown(param_panel);
+        var_dropdown2.Items = init_options;
+        var_dropdown2.Value = "none";
+        var_dropdown2.Position = [15 7 150 25];
+
+        var_dropdown1.ValueChangedFcn = @(src, event) updateVariableSelection(src, event, plot_panel, var_dropdown1, var_dropdown2);
+        var_dropdown2.ValueChangedFcn = @(src, event) updateVariableSelection(src, event, plot_panel, var_dropdown1, var_dropdown2);
+        var_type_dropdown.ValueChangedFcn = @(src, event) updateVariableType(src, event, plot_panel, var_dropdown1, var_dropdown2);
 
         button4_y = param_panel_y - (unit_height + unit_spacing);
         b4 = uibutton(option_panel, "state");
@@ -441,13 +464,62 @@ methods
             obj.update_plot(plot_panel);
         end
 
-        function updateLogic(src, ~, plot_panel)
-            cur_ind = find(obj.axes_labels == src.Text);
-            if src.Value
-                obj.inds = [obj.inds cur_ind];
-            else
-                obj.inds(obj.inds == cur_ind) = [];
+        function updateVariableSelection(~, ~, plot_panel, dropdown1, dropdown2)
+            selected_values = [string(dropdown1.Value), string(dropdown2.Value)];
+            obj.inds = [];
+
+            for n = 1:length(selected_values)
+                if selected_values(n) == "none"
+                    continue
+                end
+
+                cur_ind = find(obj.active_types == selected_values(n), 1);
+                if ~isempty(cur_ind) && ~ismember(cur_ind, obj.inds)
+                    obj.inds = [obj.inds cur_ind];
+                end
             end
+
+            obj.update_plot(plot_panel);
+        end
+
+        function updateVariableType(src, ~, plot_panel, dropdown1, dropdown2)
+            if strcmp(src.Value, "kinematics")
+                obj.active_types = obj.kin_var_types;
+                obj.active_names = obj.kin_var_names;
+                obj.active_labels = obj.kin_y_labels;
+
+                if strcmp(dropdown1.Value, "none")
+                    dropdown1.Items = ["none", obj.kin_var_types];
+                end
+                if strcmp(dropdown2.Value, "none")
+                    dropdown2.Items = ["none", obj.kin_var_types];
+                end
+            elseif strcmp(src.Value, "force")
+                obj.active_types = obj.force_var_types;
+                obj.active_names = obj.force_var_names;
+                obj.active_labels = obj.force_y_labels;
+
+                if strcmp(dropdown1.Value, "none")
+                    dropdown1.Items = ["none", obj.force_var_types];
+                end
+                if strcmp(dropdown2.Value, "none")
+                    dropdown2.Items = ["none", obj.force_var_types];
+                end
+            elseif strcmp(src.Value, "BA: force")
+                obj.active_types = "BA: " + obj.force_var_types;
+                obj.active_names = regexprep(obj.force_var_names, '\.', "_phase_avg" + ".");
+                obj.active_labels = obj.force_y_labels;
+
+                if strcmp(dropdown1.Value, "none")
+                    dropdown1.Items = ["none", "BA: " + obj.force_var_types];
+                end
+                if strcmp(dropdown2.Value, "none")
+                    dropdown2.Items = ["none", "BA: " + obj.force_var_types];
+                end
+            else
+                error("invalid var type")
+            end
+
             obj.update_plot(plot_panel);
         end
 
@@ -509,6 +581,137 @@ methods (Access = private)
         end
     end
 
+    function legend_entry = get_aligned_legend_entry(obj, cur_sel, index, is_force)
+        [amp, type, freq] = parse_name(cur_sel);
+        distance_label = obj.type_distance_dict(char(type));
+        name = distance_label + ", " + amp + " deg, " + freq + " Hz";
+        case_label = strrep(string(name), "_", " ");
+        index_label = obj.active_types(index);
+
+        if is_force
+            force_label = obj.get_force_legend_label(index);
+            if length(obj.selection) > 1 && length(obj.inds) > 1
+                legend_entry = case_label + " - " + index_label + " - " + force_label;
+            elseif length(obj.selection) > 1
+                legend_entry = case_label + " - " + force_label;
+            elseif length(obj.inds) > 1
+                legend_entry = index_label + " - " + force_label;
+            else
+                legend_entry = case_label + " F";
+            end
+            return
+        end
+
+        if length(obj.selection) > 1 && length(obj.inds) > 1
+            legend_entry = case_label + " - " + index_label;
+        elseif length(obj.inds) > 1
+            legend_entry = index_label;
+        else
+            legend_entry = case_label;
+        end
+    end
+
+    function force_label = get_force_legend_label(~, index)
+        if ismember(index, 1:5)
+            force_label = "Lift force";
+        elseif ismember(index, 6:10)
+            force_label = "Drag force";
+        else
+            force_label = "Force";
+        end
+    end
+
+    function line_style = get_index_line_style(obj, index)
+        linestyles = ["-", "--", ":", "-."];
+        if isempty(obj.inds)
+            line_style = "-";
+            return
+        end
+
+        line_style_idx = find(obj.inds == index, 1);
+        if isempty(line_style_idx)
+            line_style = "-";
+            return
+        end
+
+        line_style_idx = mod(line_style_idx - 1, length(linestyles)) + 1;
+        line_style = linestyles(line_style_idx);
+    end
+
+    function marker = get_force_marker(obj, index)
+        markers = ["o", "s", "^", "d", "v", ">", "<", "p", "h", "x", "+", "*"];
+        if isempty(obj.inds)
+            marker = "o";
+            return
+        end
+
+        marker_idx = find(obj.inds == index, 1);
+        if isempty(marker_idx)
+            marker = "o";
+            return
+        end
+
+        marker_idx = mod(marker_idx - 1, length(markers)) + 1;
+        marker = markers(marker_idx);
+    end
+
+    function marker = get_piv_force_marker(obj, index)
+        if ismember(index, 1:10)
+            marker = obj.get_force_marker(index);
+        else
+            marker = "";
+        end
+    end
+
+    function colors = get_default_selection_colors(~, num_selections)
+        palette = ["#0072B2"; "#D55E00"; "#009E73"; "#CC79A7";...
+                   "#56B4E9"; "#E69F00"; "#F0E442"; "#000000";...
+                   "#332288"; "#88CCEE"; "#44AA99"; "#117733";...
+                   "#999933"; "#DDCC77"; "#CC6677"; "#882255";...
+                   "#AA4499"; "#DDDDDD"];
+
+        if num_selections == 0
+            colors = strings(0, 1);
+            return
+        end
+
+        repeat_count = ceil(num_selections / length(palette));
+        colors = repmat(palette, repeat_count, 1);
+        colors = colors(1:num_selections);
+    end
+
+    function color = get_curve_color(obj, cur_sel, color_params)
+        color = [0 0 0];
+
+        if isfield(color_params, 'selection_names') && isfield(color_params, 'selection_colors')
+            selection_idx = find(color_params.selection_names == string(cur_sel), 1);
+            if ~isempty(selection_idx)
+                color = obj.hex_to_rgb(color_params.selection_colors(selection_idx));
+                return
+            end
+        end
+
+        [amp, type, freq] = parse_name(cur_sel);
+        sels = [type, amp];
+        freq_idx = find(color_params.uniq_freqs == freq, 1);
+        var_idx = find(color_params.common_var == sels(color_params.I(2)), 1);
+
+        if ~isempty(freq_idx) && ~isempty(var_idx)
+            color = obj.hex_to_rgb(color_params.colors(freq_idx, var_idx));
+        end
+    end
+
+    function rgb = hex_to_rgb(~, hex_color)
+        hex_color = char(hex_color);
+        if startsWith(hex_color, '#')
+            hex_color = hex_color(2:end);
+        end
+
+        rgb = [hex2dec(hex_color(1:2)),...
+               hex2dec(hex_color(3:4)),...
+               hex2dec(hex_color(5:6))] / 255;
+    end
+
     % update plot after user changes selected variables
     function update_plot(obj, plot_panel)
         fignew = figure('Visible', 'off');
@@ -550,14 +753,20 @@ methods (Access = private)
                            length(obj.selection));
         end
 
-        % whether 3 plots of the same case at different downstream distance
-        % exist and the align bool is active. If so 3 plots will be aligned
-        three_type_bool = obj.align_bool &&...
+        num_selections = length(obj.selection);
+        try
+            selection_colors = getColors(1, 1, num_selections, num_selections, "selection");
+        catch
+            selection_colors = obj.get_default_selection_colors(num_selections);
+        end
+
+        align_plot_bool = obj.align_bool &&...
                           ~isempty(obj.inds) &&...
                           ~isempty(obj.selection);
-        % length(uniq_types) == 3 &&...
-                          % isscalar(uniq_amps) &&...
-                          % isscalar(uniq_freqs) &&...
+        aligned_curves = struct('val', {}, 'time', {}, 'index', {},...
+                                'plot_idx', {}, 'cur_sel', {},...
+                                'legend_entry', {}, 'line_style', {},...
+                                'marker', {});
 
         colors = flip(colors,1);
 
@@ -591,21 +800,6 @@ methods (Access = private)
             end
         end
 
-        if three_type_bool
-            if length(obj.selection) > 1
-                data_list(length(obj.selection)) = struct('val', []);
-                get_idx = @(i, j) i; % Function returns i
-            elseif length(obj.inds) > 1
-               data_list(length(obj.inds)) = struct('val', []);
-               get_idx = @(i, j) j; % Function returns j
-            elseif obj.force_bool
-                data_list(2*length(obj.selection)) = struct('val', []);
-                get_idx = @(i, j) i; % Function returns i
-            else
-                error("Not enough selections for alignment")
-            end
-        end
-
         ax = axes(plot_panel);
         hold(ax, 'on');
         hold(ax_target, 'on');
@@ -620,20 +814,26 @@ methods (Access = private)
             file_path = obj.PIV_path + filename + ".mat";
             secondary_file_path = obj.PIV_path + filename + "_integral.mat";
 
-            if ismember(index,[1,2])
-                vars = {"L","U","y","z","u_phase_avg","w_phase_avg",...
-                "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg"};
-            end
+            var_name = obj.active_names(index);
 
-            var_name = obj.var_names(index);
-
-            if ismember(index,[1,2,3,4,5,6,7,8]) && obj.calc_bool
-                % Compute Lift force
+            if contains(obj.active_labels,"Lift (N)") && obj.calc_bool
                 avg_type = 1;
     
                 norm_bool = false;
+                
                 [var, err] = get_PIV_force(file_path, cur_sel, var_name, avg_type, norm_bool, obj.y_cen);
             else
+                vars = {"L","U"};
+                d2 = load(file_path, vars{:});
+                if contains(var_name, ["lift_phase_avg", "drag_phase_avg"])
+                    if contains(var_name, ".")
+                        abbrv_name = extractBefore(var_name, ".");
+                        d2 = load(file_path, abbrv_name);
+                    else
+                        d2 = load(file_path, var_name);
+                    end
+                    var = eval("d2." + var_name);
+                else
                 if contains(var_name, ".")
                     abbrv_name = extractBefore(var_name, ".");
                     d1 = load(secondary_file_path, abbrv_name);
@@ -642,12 +842,11 @@ methods (Access = private)
                 end
 
                 var = eval("d1." + var_name);
-                vars = {"L","U"};
-                d2 = load(file_path, vars{:});
         
                 % Combine by converting to cell arrays of names/values and back to struct
                 d = cell2struct([struct2cell(d1); struct2cell(d2)], [fieldnames(d1); fieldnames(d2)], 1);
 
+                end
                 % TEMP CODE TO NORMALIZE SPEEDS
                 % var = var / mean(var);
             end
@@ -660,7 +859,7 @@ methods (Access = private)
             % added_mass = get_added_mass(phase_avg_pos, phase_avg_speed, phase_avg_acc);
             added_mass = get_added_mass(phase_avg_wing_pos, phase_avg_wing_speed, phase_avg_wing_acc);
 
-            if ismember(index,[1,2,3,4,5,6,7,8]) && obj.PIV_sub
+            if ismember(index,1:10) && obj.PIV_sub
                 % filename = "body_phase_avg.mat";
                 filename = "ring_time_avg";
                 file_path_t = obj.PIV_path + "time_avg/" + filename + ".mat";
@@ -688,7 +887,7 @@ methods (Access = private)
 
             % Shift data given convection time downstream to target
             % for curves using imaging plane data only
-            if ismember(index,[1,2,3,4,5,6,7,8])
+            if ismember(index,1:10)
             dist = 0.9;
             sep_dist = 0.37;
             if contains(type, "UP_two")
@@ -727,24 +926,34 @@ methods (Access = private)
                 var = var / max(var);
             end
 
-            if three_type_bool
-                ind = get_idx(i, j);
-                data_list(2*ind-1).val = var;
-            end
-
             time = 1:length(var);
             time = time / length(var);
+
+            if align_plot_bool
+                aligned_curves(end+1) = struct(...
+                    'val', var,...
+                    'time', time,...
+                    'index', index,...
+                    'plot_idx', j,...
+                    'cur_sel', cur_sel,...
+                    'legend_entry', obj.get_aligned_legend_entry(cur_sel, index, false),...
+                    'line_style', "",...
+                    'marker', obj.get_piv_force_marker(index));
+            end
 
             time_F = [];
             force = [];
             if obj.force_bool && ~contains(type, "UP")
             
-            if (ismember(index, [1,2,3,4]))
+            if (ismember(index, [1,2,3,4,5]))
                     idx = 3;
-            elseif (ismember(index, [5,6,7,8]))
+            elseif (ismember(index, [6,7,8,9,10]))
                     idx = 1;
+            else
+                    idx = [];
             end
 
+            if ~isempty(idx)
             % var_name_F = "wingbeat_avg_forces_raw";
             % var_name_F = "wingbeat_avg_forces";
             var_name_F = "wingbeat_avg_forces_smoothest";
@@ -764,46 +973,61 @@ methods (Access = private)
 
             % THIS NEEDS SOME FIXING HERE, NOT ALWAYS SHIFTING AT THE
             % CORRECT TIME
-            if force(1) < mean(force)
-                force = circshift(force, round(0.4*length(force)));
-                disp("Shifted force curve for " + cur_sel)
+            % if force(1) < mean(force)
+            %     force = circshift(force, round(0.4*length(force)));
+            %     disp("Shifted force curve for " + cur_sel)
+            % end
             end
             end
 
-            if three_type_bool
-                ind = get_idx(i, j);
-                data_list(2*ind).val = var;
+            if align_plot_bool && ~isempty(force)
+                aligned_curves(end+1) = struct(...
+                    'val', force,...
+                    'time', time_F,...
+                    'index', index,...
+                    'plot_idx', j,...
+                    'cur_sel', cur_sel,...
+                    'legend_entry', obj.get_aligned_legend_entry(cur_sel, index, true),...
+                    'line_style', "-",...
+                    'marker', "none");
             end
+
             color_params.uniq_freqs = uniq_freqs;
             color_params.common_var = common_var;
             color_params.I = I;
             color_params.colors = colors;
-            if ~three_type_bool
+            color_params.selection_names = string(obj.selection);
+            color_params.selection_colors = selection_colors;
+            if ~align_plot_bool
             obj.plot_data(ax, ax_target, time, var, time_F, force, index, dual_plot, j, cur_sel, color_params, ylabs); % ylabel_one, ylabel_two
             end
         end
         end
 
-        if three_type_bool
-        lengths = arrayfun(@(s) length(s.val), data_list, 'UniformOutput', true);
+        if align_plot_bool && ~isempty(aligned_curves)
+        lengths = arrayfun(@(s) length(s.val), aligned_curves, 'UniformOutput', true);
+        aligned_curves = aligned_curves(lengths > 0);
+        lengths = lengths(lengths > 0);
+        if isempty(aligned_curves)
+            hold(ax, 'off');
+            hold(ax_target, 'off');
+            return
+        end
         maxLength = max(lengths);
+        time_interp = 1:maxLength;
+        time_interp = time_interp / length(time_interp);
 
         % resample data points to have the same number of bins
-        for i = 1:length(data_list)
-            var = data_list(i).val;
-
-            time = 1:length(var);
-            time = time / length(time);
-            
-            time_interp = 1:maxLength;
-            time_interp = time_interp / length(time_interp);
-
-            data_list(i).val = interp1(time, var, time_interp, 'pchip');
+        for i = 1:length(aligned_curves)
+            var = aligned_curves(i).val;
+            time = aligned_curves(i).time;
+            aligned_curves(i).val = interp1(time, var, time_interp, 'pchip');
+            aligned_curves(i).time = time_interp;
         end
 
-        lags = zeros(1,length(data_list)-1);
-        for i = 2:length(data_list)
-        [data_list(i).val, lags(i-1)] = align_signals(data_list(1).val, data_list(i).val);
+        lags = zeros(1,length(aligned_curves)-1);
+        for i = 2:length(aligned_curves)
+        [aligned_curves(i).val, lags(i-1)] = align_signals(aligned_curves(1).val, aligned_curves(i).val);
         end
 
         disp(lags)
@@ -815,11 +1039,13 @@ methods (Access = private)
         % disp(lags(2) / lags(1))
 
 
-        for i = 1:length(data_list)
-            var = data_list(i).val;
-            % cur_sel = obj.selection(i);
-            cur_sel = "";
-            obj.plot_data(ax, ax_target, time_interp, var, time_F, force, index, dual_plot, 1, cur_sel, color_params, ylabs); % ylabel_one, ylabel_two
+        for i = 1:length(aligned_curves)
+            plot_options.legend_entry = aligned_curves(i).legend_entry;
+            plot_options.line_style = aligned_curves(i).line_style;
+            plot_options.marker = aligned_curves(i).marker;
+            obj.plot_data(ax, ax_target, aligned_curves(i).time, aligned_curves(i).val, [], [],...
+                          aligned_curves(i).index, dual_plot, aligned_curves(i).plot_idx,...
+                          aligned_curves(i).cur_sel, color_params, ylabs, plot_options); % ylabel_one, ylabel_two
         end
         end
 
@@ -846,11 +1072,18 @@ methods (Access = private)
       
     end
 
-    function plot_data(obj, ax, ax_target, time, var, time_F, force, index, dual_plot, plot_idx, cur_sel, color_params, ylabs)
+    function plot_data(obj, ax, ax_target, time, var, time_F, force, index, dual_plot, plot_idx, cur_sel, color_params, ylabs, plot_options)
+        if nargin < 14 || isempty(plot_options)
+            plot_options = struct();
+        end
+
+        has_legend_override = isfield(plot_options, 'legend_entry') && strlength(string(plot_options.legend_entry)) > 0;
+        has_line_style = isfield(plot_options, 'line_style') && strlength(string(plot_options.line_style)) > 0;
+        has_marker = isfield(plot_options, 'marker') && strlength(string(plot_options.marker)) > 0;
+
         [amp, type, freq] = parse_name(cur_sel);
         % Get color for this case name
-        sels = [type, amp];
-        original_color = color_params.colors(find(color_params.uniq_freqs == freq), find(color_params.common_var == sels(color_params.I(2)))); % hex
+        original_color = obj.get_curve_color(cur_sel, color_params);
 
         if dual_plot
             if plot_idx == 1
@@ -881,13 +1114,30 @@ methods (Access = private)
             line_h = plot(ax_target, time, var);
         end
             
-            linestyles = ["-", "--", ":", "-."];
-            if isscalar(obj.inds)
-                legend_entry = strrep(cur_sel,"_"," ");
+            if has_legend_override
+                legend_entry = string(plot_options.legend_entry);
             else
-                legend_entry = obj.axes_labels(index);
-                line.LineStyle = linestyles(find(obj.inds == index));
-                line_h.LineStyle = linestyles(find(obj.inds == index));
+                legend_entry = obj.get_aligned_legend_entry(cur_sel, index, false);
+            end
+
+            if has_line_style
+                line.LineStyle = char(plot_options.line_style);
+                line_h.LineStyle = char(plot_options.line_style);
+            elseif ~isscalar(obj.inds)
+                line_style = obj.get_index_line_style(index);
+                line.LineStyle = char(line_style);
+                line_h.LineStyle = char(line_style);
+            end
+
+            if has_marker
+                line.Marker = char(plot_options.marker);
+                line_h.Marker = char(plot_options.marker);
+            else
+                piv_force_marker = obj.get_piv_force_marker(index);
+                if strlength(piv_force_marker) > 0
+                    line.Marker = char(piv_force_marker);
+                    line_h.Marker = char(piv_force_marker);
+                end
             end
 
             disp(legend_entry + ", mean: " + mean(var))
@@ -903,21 +1153,21 @@ methods (Access = private)
             %     line.LineStyle = "--";
             % end
 
-            if obj.force_bool && ~contains(type, "UP")
+            if obj.force_bool && ~contains(type, "UP") && ~isempty(force)
                 line = plot(ax, time_F, force);
-                F_legend = strrep(cur_sel,"_"," ") + " F";
+                F_legend = obj.get_aligned_legend_entry(cur_sel, index, true);
                 line.DisplayName = F_legend;
                 disp(F_legend + ": " + mean(force))
                 line.Color = original_color;
                 line.LineWidth = 2;
-                line.LineStyle = ":";
+                line.LineStyle = "-";
 
                 % for hidden figure for saving
                 line_h = plot(ax_target, time_F, force);
                 line_h.DisplayName = F_legend;
                 line_h.Color = original_color;
                 line_h.LineWidth = 2;
-                line_h.LineStyle = ":";
+                line_h.LineStyle = "-";
             end
 
             grid(ax, 'on');

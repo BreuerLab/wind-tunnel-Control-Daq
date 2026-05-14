@@ -19,12 +19,30 @@ properties
     PIV_path;
     force_path;
 
-    % integer, 0-6, defines which force/moment axes to display
     inds;
-    % force and moment axes labels used in dropdown box
-    axes_labels;
-    var_names;
-    y_labels;
+
+    active_types;
+    active_names;
+    active_labels;
+
+    force_var_types = ["y*\omega_x", "x*\omega_y", "u*w",...
+        "Drag - Vorticity", "z*\omega_y", "y*\omega_z", "(u-U)*u"];
+    kin_var_types = ["Speed", "Speed Error", "Acceleration",...
+                "Wing Position", "Wing Speed", "Wing Acceleration",...
+                "Voltage", "Current", "Power"];
+
+    force_var_names = ["lift.vortX", "lift.vortY", "lift_vel",...
+                    "drag.tot", "drag.vortY", "drag.vortZ", "drag_vel"];
+    kin_var_names = ["phase_avg_speed", "phase_avg_speed_error",...
+                         "phase_avg_acc", "phase_avg_wing_pos",...
+                         "phase_avg_wing_speed", "phase_avg_wing_acc",...
+                         "phase_avg_volt", "phase_avg_cur", "phase_avg_volt"];
+
+    force_y_labels = ["Lift (N)","Lift (N)","Lift (N)","Lift (N)","Lift (N)",...
+        "Drag (N)", "Drag (N)", "Drag (N)", "Drag (N)", "Drag (N)"];
+    kin_y_labels = ["Speed (Hz)", "Speed Error (Hz)", "Acceleration (Hz^2)", ...
+        "Position (rad)", "Speed (rad/s)", "Acceleration (rad/s^2)",...
+        "Voltage (V)", "Current (mA)", "Power (mW)"];
 
     % boolean, normalization/non-dimensionalization on or off
     norm;
@@ -80,21 +98,11 @@ methods
         obj.force_path = obj.root_path + "Force Measurements\";
 
         obj.inds = [];
-        % obj.axes_labels = ["Lift", "Drag", "Speed", "Voltage", "Current", "Power"];
-        obj.axes_labels = ["Lift - Vorticity", "y*\omega_x", "x*\omega_y", "u*w", "BA: y*\omega_x",...
-            "Drag - Vorticity", "z*\omega_y", "y*\omega_z", "(u-U)*u", "BA: (u-U)*u"...
-            "Speed", "Speed Error", "Acceleration", "Wing Position", "Wing Speed", "Wing Acceleration",...
-            "Voltage", "Current", "Power"];
-        obj.var_names = ["lift.tot", "lift.vortX", "lift.vortY", "lift_vel", "lift_phase_avg.vortX",...
-                    "drag.tot", "drag.vortY", "drag.vortZ", "drag_vel", "drag_phase_avg",...
-                    "phase_avg_speed", "phase_avg_speed_error", "phase_avg_acc", "phase_avg_wing_pos",...
-                    "phase_avg_wing_speed", "phase_avg_wing_acc",...
-                    "phase_avg_volt", "phase_avg_cur", "phase_avg_volt"];
-        obj.y_labels = ["Lift (N)","Lift (N)","Lift (N)","Lift (N)","Lift (N)",...
-            "Drag (N)", "Drag (N)", "Drag (N)", "Drag (N)", "Drag (N)",...
-            "Speed (Hz)", "Speed Error (Hz)", "Acceleration (Hz^2)", ...
-            "Position (rad)", "Speed (rad/s)", "Acceleration (rad/s^2)",...
-            "Voltage (V)", "Current (mA)", "Power (mW)"];
+        % bj.force_var_types = ["Lift - Vorticity", "y*\omega_x", "x*\omega_y", "u*w", "BA: y*\omega_x",...
+        %     "Drag - Vorticity", "z*\omega_y", "y*\omega_z", "(u-U)*u", "BA: (u-U)*u"];
+        % obj.force_var_names = ["lift.tot", "lift.vortX", "lift.vortY", "lift_vel", "lift_phase_avg.vortX",...
+        %             "drag.tot", "drag.vortY", "drag.vortZ", "drag_vel", "drag_phase_avg"];
+
         obj.norm = false;
         obj.norm_period = true;
         obj.PIV_sub = false;
@@ -203,14 +211,7 @@ methods
         b33.BackgroundColor = [1 1 1];
         b33.ButtonPushedFcn = @(src, event) clearList(src, event, plot_panel, lbox);
 
-        % Dropdown box for which force/moment axes to display
-        % drop_y9 = list_y - (unit_height + unit_spacing);
-        % d9 = uidropdown(option_panel);
-        % d9.Position = [10 drop_y9 180 unit_height];
-        % d9.Items = obj.axes_labels;
-        % d9.ValueChangedFcn = @(src, event) index_change(src, event, plot_panel);
-
-        param_panel_height = 130;
+        param_panel_height = 180;
         param_panel_width = 180;
         param_panel_y = button33_y - unit_spacing - param_panel_height;
         param_panel = uipanel(option_panel);
@@ -218,14 +219,23 @@ methods
         param_panel.TitlePosition = 'centertop';
         param_panel.Position = [10 param_panel_y param_panel_width param_panel_height];
 
-        variable_options = ["none", obj.axes_labels];
+        var_type_label = uilabel(param_panel);
+        var_type_label.Text = "Variable Type";
+        var_type_label.Position = [15 132 150 22];
+
+        var_type_dropdown = uidropdown(param_panel);
+        var_type_dropdown.Items = ["kinematics", "force", "BA: force"];
+        var_type_dropdown.Value = "kinematics";
+        var_type_dropdown.Position = [15 107 150 25];
+
+        init_options = ["none", obj.kin_var_types];
 
         var_label1 = uilabel(param_panel);
         var_label1.Text = "Variable 1";
         var_label1.Position = [15 82 150 22];
 
         var_dropdown1 = uidropdown(param_panel);
-        var_dropdown1.Items = variable_options;
+        var_dropdown1.Items = init_options;
         var_dropdown1.Value = "none";
         var_dropdown1.Position = [15 57 150 25];
 
@@ -234,12 +244,13 @@ methods
         var_label2.Position = [15 32 150 22];
 
         var_dropdown2 = uidropdown(param_panel);
-        var_dropdown2.Items = variable_options;
+        var_dropdown2.Items = init_options;
         var_dropdown2.Value = "none";
         var_dropdown2.Position = [15 7 150 25];
 
         var_dropdown1.ValueChangedFcn = @(src, event) updateVariableSelection(src, event, plot_panel, var_dropdown1, var_dropdown2);
         var_dropdown2.ValueChangedFcn = @(src, event) updateVariableSelection(src, event, plot_panel, var_dropdown1, var_dropdown2);
+        var_type_dropdown.ValueChangedFcn = @(src, event) updateVariableType(src, event, plot_panel, var_dropdown1, var_dropdown2);
 
         button4_y = param_panel_y - (unit_height + unit_spacing);
         b4 = uibutton(option_panel, "state");
@@ -464,10 +475,51 @@ methods
                     continue
                 end
 
-                cur_ind = find(obj.axes_labels == selected_values(n), 1);
+                cur_ind = find(obj.active_types == selected_values(n), 1);
                 if ~isempty(cur_ind) && ~ismember(cur_ind, obj.inds)
                     obj.inds = [obj.inds cur_ind];
                 end
+            end
+
+            obj.update_plot(plot_panel);
+        end
+
+        function updateVariableType(src, ~, plot_panel, dropdown1, dropdown2)
+            if strcmp(src.Value, "kinematics")
+                obj.active_types = obj.kin_var_types;
+                obj.active_names = obj.kin_var_names;
+                obj.active_labels = obj.kin_y_labels;
+
+                if strcmp(dropdown1.Value, "none")
+                    dropdown1.Items = ["none", obj.kin_var_types];
+                end
+                if strcmp(dropdown2.Value, "none")
+                    dropdown2.Items = ["none", obj.kin_var_types];
+                end
+            elseif strcmp(src.Value, "force")
+                obj.active_types = obj.force_var_types;
+                obj.active_names = obj.force_var_names;
+                obj.active_labels = obj.force_y_labels;
+
+                if strcmp(dropdown1.Value, "none")
+                    dropdown1.Items = ["none", obj.force_var_types];
+                end
+                if strcmp(dropdown2.Value, "none")
+                    dropdown2.Items = ["none", obj.force_var_types];
+                end
+            elseif strcmp(src.Value, "BA: force")
+                obj.active_types = "BA: " + obj.force_var_types;
+                obj.active_names = regexprep(obj.force_var_names, '\.', "_phase_avg" + ".");
+                obj.active_labels = obj.force_y_labels;
+
+                if strcmp(dropdown1.Value, "none")
+                    dropdown1.Items = ["none", "BA: " + obj.force_var_types];
+                end
+                if strcmp(dropdown2.Value, "none")
+                    dropdown2.Items = ["none", "BA: " + obj.force_var_types];
+                end
+            else
+                error("invalid var type")
             end
 
             obj.update_plot(plot_panel);
@@ -536,7 +588,7 @@ methods (Access = private)
         distance_label = obj.type_distance_dict(char(type));
         name = distance_label + ", " + amp + " deg, " + freq + " Hz";
         case_label = strrep(string(name), "_", " ");
-        index_label = obj.axes_labels(index);
+        index_label = obj.active_types(index);
 
         if is_force
             force_label = obj.get_force_legend_label(index);
@@ -737,8 +789,8 @@ methods (Access = private)
             if length(obj.inds) > 1
                 for n = 2:length(obj.inds)
                     dual_plot = true;
-                    ylabs(1) = obj.y_labels(obj.inds(n-1));
-                    ylabs(2) = obj.y_labels(obj.inds(n));
+                    ylabs(1) = obj.active_labels(obj.inds(n-1));
+                    ylabs(2) = obj.active_labels(obj.inds(n));
 
                     % only make two plots if they are using units
                     % if ~strcmp(obj.y_labels(obj.inds(n-1)), obj.y_labels(obj.inds(n)))
@@ -764,18 +816,12 @@ methods (Access = private)
             file_path = obj.PIV_path + filename + ".mat";
             secondary_file_path = obj.PIV_path + filename + "_integral.mat";
 
-            if ismember(index,[1,2])
-                vars = {"L","U","y","z","u_phase_avg","w_phase_avg",...
-                "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg"};
-            end
+            var_name = obj.active_names(index);
 
-            var_name = obj.var_names(index);
-
-            if ismember(index,1:10) && obj.calc_bool
-                % Compute Lift force
+            if contains("Lift (N)",obj.active_labels) && obj.calc_bool
                 avg_type = 1;
-    
                 norm_bool = false;
+                % Compute forces from flow field live
                 [var, err] = get_PIV_force(file_path, cur_sel, var_name, avg_type, norm_bool, obj.y_cen);
             else
                 vars = {"L","U"};
@@ -1158,9 +1204,9 @@ methods (Access = private)
                 ylabel(ax_target, ylabs(2))
                 ax_target.YAxis(2).Color = 'k';
             elseif ~isempty(obj.inds)
-                ylabel(ax, obj.y_labels(obj.inds(1)))
+                ylabel(ax, obj.active_labels(obj.inds(1)))
                 % for hidden figure for saving
-                ylabel(ax_target, obj.y_labels(obj.inds(1)))
+                ylabel(ax_target, obj.active_labels(obj.inds(1)))
             end
             
         ax.FontSize = 18;
