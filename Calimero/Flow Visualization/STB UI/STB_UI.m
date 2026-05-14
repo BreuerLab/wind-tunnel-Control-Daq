@@ -153,7 +153,7 @@ methods
         "dudx_phase_avg","dudy_phase_avg","dudz_phase_avg",...
         "dvdx_phase_avg","dvdy_phase_avg","dvdz_phase_avg",...
         "dwdx_phase_avg","dwdy_phase_avg","dwdz_phase_avg",...
-        "div", "KE_field", "power_field"];
+        "div", "KE_diff_field", "power_field"];
         
         obj.movie_3D_std_vars = [obj.movie_3D_avg_vars(1:8) obj.movie_3D_avg_vars(13:end)];
         movie_3D_std_values = [movie_3D_avg_values(1:8) movie_3D_avg_values(13:end)];
@@ -203,8 +203,8 @@ methods
                       -1, 1;
                       -1, 1;
                       -0.3, 0.3;
-                      -1, 1;
-                      -1, 1];
+                      0, 0.2;
+                      0, 0.2];
 
         % for std plots
         obj.std_clims = [0, 0.1;...
@@ -231,8 +231,8 @@ methods
                       -1, 1;
                       -1, 1;
                       -1, 1;
-                      -1, 1;
-                      -1, 1];
+                      0, 0.2;
+                      0, 0.2];
 
         obj.mean_clim_dict = obj.build_clim_dict(obj.movie_3D_avg_vars, obj.mean_clims);
         obj.std_clim_dict = obj.build_clim_dict(obj.movie_3D_std_vars, obj.std_clims);
