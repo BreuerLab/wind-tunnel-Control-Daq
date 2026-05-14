@@ -38,8 +38,8 @@ properties
                          "phase_avg_wing_speed", "phase_avg_wing_acc",...
                          "phase_avg_volt", "phase_avg_cur", "phase_avg_volt"];
 
-    force_y_labels = ["Lift (N)","Lift (N)","Lift (N)","Lift (N)","Lift (N)",...
-        "Drag (N)", "Drag (N)", "Drag (N)", "Drag (N)", "Drag (N)"];
+    force_y_labels = ["Lift (N)","Lift (N)","Lift (N)",...
+        "Drag (N)", "Drag (N)", "Drag (N)", "Drag (N)"];
     kin_y_labels = ["Speed (Hz)", "Speed Error (Hz)", "Acceleration (Hz^2)", ...
         "Position (rad)", "Speed (rad/s)", "Acceleration (rad/s^2)",...
         "Voltage (V)", "Current (mA)", "Power (mW)"];
@@ -98,6 +98,7 @@ methods
         obj.force_path = obj.root_path + "Force Measurements\";
 
         obj.inds = [];
+        [obj.active_types, obj.active_names, obj.active_labels] = obj.get_all_variable_options();
         % bj.force_var_types = ["Lift - Vorticity", "y*\omega_x", "x*\omega_y", "u*w", "BA: y*\omega_x",...
         %     "Drag - Vorticity", "z*\omega_y", "y*\omega_z", "(u-U)*u", "BA: (u-U)*u"];
         % obj.force_var_names = ["lift.tot", "lift.vortX", "lift.vortY", "lift_vel", "lift_phase_avg.vortX",...
@@ -228,7 +229,8 @@ methods
         var_type_dropdown.Value = "kinematics";
         var_type_dropdown.Position = [15 107 150 25];
 
-        init_options = ["none", obj.kin_var_types];
+        [init_types, ~, ~] = obj.get_variable_options(var_type_dropdown.Value);
+        init_options = ["none", init_types];
 
         var_label1 = uilabel(param_panel);
         var_label1.Text = "Variable 1";
@@ -485,44 +487,15 @@ methods
         end
 
         function updateVariableType(src, ~, plot_panel, dropdown1, dropdown2)
-            if strcmp(src.Value, "kinematics")
-                obj.active_types = obj.kin_var_types;
-                obj.active_names = obj.kin_var_names;
-                obj.active_labels = obj.kin_y_labels;
+            updateDropdownItems(src.Value, dropdown1);
+            updateDropdownItems(src.Value, dropdown2);
+            updateVariableSelection([], [], plot_panel, dropdown1, dropdown2);
+        end
 
-                if strcmp(dropdown1.Value, "none")
-                    dropdown1.Items = ["none", obj.kin_var_types];
-                end
-                if strcmp(dropdown2.Value, "none")
-                    dropdown2.Items = ["none", obj.kin_var_types];
-                end
-            elseif strcmp(src.Value, "force")
-                obj.active_types = obj.force_var_types;
-                obj.active_names = obj.force_var_names;
-                obj.active_labels = obj.force_y_labels;
-
-                if strcmp(dropdown1.Value, "none")
-                    dropdown1.Items = ["none", obj.force_var_types];
-                end
-                if strcmp(dropdown2.Value, "none")
-                    dropdown2.Items = ["none", obj.force_var_types];
-                end
-            elseif strcmp(src.Value, "BA: force")
-                obj.active_types = "BA: " + obj.force_var_types;
-                obj.active_names = regexprep(obj.force_var_names, '\.', "_phase_avg" + ".");
-                obj.active_labels = obj.force_y_labels;
-
-                if strcmp(dropdown1.Value, "none")
-                    dropdown1.Items = ["none", "BA: " + obj.force_var_types];
-                end
-                if strcmp(dropdown2.Value, "none")
-                    dropdown2.Items = ["none", "BA: " + obj.force_var_types];
-                end
-            else
-                error("invalid var type")
-            end
-
-            obj.update_plot(plot_panel);
+        function updateDropdownItems(var_type, dropdown)
+            current_value = string(dropdown.Value);
+            dropdown.Items = obj.get_dropdown_items(var_type, current_value);
+            dropdown.Value = current_value;
         end
 
         function force_change(src, ~, plot_panel)
@@ -583,6 +556,42 @@ methods (Access = private)
         end
     end
 
+    function [types, names, labels] = get_all_variable_options(obj)
+        ba_force_types = "BA: " + obj.force_var_types;
+        ba_force_names = regexprep(obj.force_var_names, '\.', "_phase_avg" + ".");
+
+        types = [obj.force_var_types, ba_force_types, obj.kin_var_types];
+        names = [obj.force_var_names, ba_force_names, obj.kin_var_names];
+        labels = [obj.force_y_labels, obj.force_y_labels, obj.kin_y_labels];
+    end
+
+    function [types, names, labels] = get_variable_options(obj, var_type)
+        if strcmp(var_type, "kinematics")
+            types = obj.kin_var_types;
+            names = obj.kin_var_names;
+            labels = obj.kin_y_labels;
+        elseif strcmp(var_type, "force")
+            types = obj.force_var_types;
+            names = obj.force_var_names;
+            labels = obj.force_y_labels;
+        elseif strcmp(var_type, "BA: force")
+            types = "BA: " + obj.force_var_types;
+            names = regexprep(obj.force_var_names, '\.', "_phase_avg" + ".");
+            labels = obj.force_y_labels;
+        else
+            error("invalid var type")
+        end
+    end
+
+    function items = get_dropdown_items(obj, var_type, current_value)
+        [types, ~, ~] = obj.get_variable_options(var_type);
+        items = ["none", types];
+
+        if current_value ~= "none" && ~ismember(current_value, items)
+            items = [items, current_value];
+        end
+    end
+
     function legend_entry = get_aligned_legend_entry(obj, cur_sel, index, is_force)
         [amp, type, freq] = parse_name(cur_sel);
         distance_label = obj.type_distance_dict(char(type));
@@ -613,13 +622,15 @@ methods (Access = private)
         end
     end
 
-    function force_label = get_force_legend_label(~, index)
-        if ismember(index, 1:5)
-            force_label = "Lift force";
-        elseif ismember(index, 6:10)
-            force_label = "Drag force";
-        else
+    function force_label = get_force_legend_label(obj, index)
+        relative_idx = obj.get_force_relative_index(index);
+
+        if isempty(relative_idx)
             force_label = "Force";
+        elseif relative_idx <= 3
+            force_label = "Lift force";
+        else
+            force_label = "Drag force";
         end
     end
 
@@ -658,10 +669,35 @@ methods (Access = private)
     end
 
     function marker = get_piv_force_marker(obj, index)
-        if ismember(index, 1:10)
+        if obj.is_force_index(index)
             marker = obj.get_force_marker(index);
         else
             marker = "";
+        end
+    end
+
+    function tf = is_force_index(obj, index)
+        tf = index <= 2 * length(obj.force_var_types);
+    end
+
+    function relative_idx = get_force_relative_index(obj, index)
+        if ~obj.is_force_index(index)
+            relative_idx = [];
+            return
+        end
+
+        relative_idx = mod(index - 1, length(obj.force_var_types)) + 1;
+    end
+
+    function force_idx = get_force_measurement_index(obj, index)
+        relative_idx = obj.get_force_relative_index(index);
+
+        if isempty(relative_idx)
+            force_idx = [];
+        elseif relative_idx <= 3
+            force_idx = 3;
+        else
+            force_idx = 1;
         end
     end
 
@@ -818,7 +854,7 @@ methods (Access = private)
 
             var_name = obj.active_names(index);
 
-            if contains("Lift (N)",obj.active_labels) && obj.calc_bool
+            if obj.is_force_index(index) && obj.calc_bool
                 avg_type = 1;
                 norm_bool = false;
                 % Compute forces from flow field live
@@ -860,7 +896,7 @@ methods (Access = private)
             % added_mass = get_added_mass(phase_avg_pos, phase_avg_speed, phase_avg_acc);
             added_mass = get_added_mass(phase_avg_wing_pos, phase_avg_wing_speed, phase_avg_wing_acc);
 
-            if ismember(index,1:10) && obj.PIV_sub
+            if obj.is_force_index(index) && obj.PIV_sub
                 % filename = "body_phase_avg.mat";
                 filename = "ring_time_avg";
                 file_path_t = obj.PIV_path + "time_avg/" + filename + ".mat";
@@ -888,7 +924,7 @@ methods (Access = private)
 
             % Shift data given convection time downstream to target
             % for curves using imaging plane data only
-            if ismember(index,1:10)
+            if obj.is_force_index(index)
             dist = 0.9;
             sep_dist = 0.37;
             if contains(type, "UP_two")
@@ -946,13 +982,7 @@ methods (Access = private)
             force = [];
             if obj.force_bool && ~contains(type, "UP")
             
-            if (ismember(index, [1,2,3,4,5]))
-                    idx = 3;
-            elseif (ismember(index, [6,7,8,9,10]))
-                    idx = 1;
-            else
-                    idx = [];
-            end
+            idx = obj.get_force_measurement_index(index);
 
             if ~isempty(idx)
             % var_name_F = "wingbeat_avg_forces_raw";
