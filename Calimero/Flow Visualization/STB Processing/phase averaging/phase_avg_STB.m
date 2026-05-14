@@ -1,11 +1,20 @@
-function S = phase_avg_STB(file_path, nondim_bool, U, L, save_filepath_local, PIV_case_name, turbine_bool, plot_bool, RPCA_bool)
+function S = phase_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, bools)
 tic
 
+% Prepare path and name for file to be saved
+if bools.RPCA
+    save_filename = PIV_case_name + "_RPCA_phase_avg.mat";
+else
+    save_filename = PIV_case_name + "_phase_avg.mat";
+end
+save_path = fullfile(save_filepath_local, save_filename);
+
+if bools.proc_vel
 num_images = 2500;
 disp("Assuming num images = " + num_images)
 % get bin number associated with each frame from DAQ measurements
 [norm_frame_pos, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_freq]...
-    = frame_to_bin(PIV_case_name, num_images, turbine_bool, plot_bool);
+    = frame_to_bin(PIV_case_name, num_images, bools.turbine, bools.plot);
 
 % Find matching DAQ file
 [daq_data_filename, ~] = get_daq_paths(PIV_case_name);
@@ -35,7 +44,7 @@ for i = 1:num_bins
 
     % Import data (using a temporary struct or list)
     [x, y, z, data{1:length(fields)}] = ...
-        import_STB_data(file_path, nondim_bool, U, L, bin_indices, RPCA_bool);
+        import_STB_data(file_path, bools.nondim, U, L, bin_indices, bools.RPCA);
 
     avg_type = 2;
 
@@ -112,12 +121,6 @@ S.PIV_case_name = PIV_case_name;
 S.lift_phase_avg = lift_phase_avg; S.drag_phase_avg = drag_phase_avg;
 
 % Save the entire structure
-if RPCA_bool
-    save_filename = PIV_case_name + "_RPCA_phase_avg.mat";
-else
-    save_filename = PIV_case_name + "_phase_avg.mat";
-end
-save_path = fullfile(save_filepath_local, save_filename);
 disp("Saving data to: " + save_path)
 save(save_path, '-struct', 'S');
 
@@ -125,5 +128,15 @@ fprintf('Processing and saving data took %.4f seconds.\n', toc);
 
 % Calculate secondary values (Q, power, integral values) and save in
 % separate file
-calc_secondary_vals(S, turbine_bool, plot_bool, save_filepath_local);
+calc_secondary_vals(S, bools.turbine, bools.plot, save_filepath_local);
+
+else
+
+% load in processed velocity field struct from an earlier run
+S = load(save_path);
+
+% Calculate secondary values (Q, power, integral values) and save in
+% separate file
+calc_secondary_vals(S, bools.turbine, bools.plot, save_filepath_local);
+end
 end

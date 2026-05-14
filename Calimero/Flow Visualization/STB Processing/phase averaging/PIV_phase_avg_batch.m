@@ -18,15 +18,16 @@ save_filepath_local = "Y:\Processed Results\";
 avg_type = 1; % 0 - time average, 1 - phase average
 down_dist = [0, 1, 2]; % 0 - closest to FoV, 2 - furthest from FoV
 % down_dist = [0]; % 0 - closest to FoV, 2 - furthest from FoV
-nondim_bool = true; % non-dimensionalize data
-RPCA_bool = false; % RPCA filtering of vector fields
+bools.nondim = true; % non-dimensionalize data
+bools.RPCA = false; % RPCA filtering of vector fields
+bools.proc_vel = false; % false if just calculating secondary values
 
 % If you want to make plots here, you can. However, it is NOT recommended.
 % Intead, use main_analysis to produce plots easily in a GUI interface.
 PIV_plot_bool = false;
 
 % Plot bin histograms, speed, current, voltage (small overhead, quick)
-plot_bool = false;
+bools.plot = false;
 
 circ_plot_bool = false;
 movie_plot_bool = false;
@@ -67,13 +68,13 @@ PIV_case_name = sel_case_names(i);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % ------------------------ Dependent parameters --------------------------
 if contains(PIV_case_name,"turbine")
-    turbine_bool = true;
+    bools.turbine = true;
 else
-    turbine_bool = false;
+    bools.turbine = false;
 end
 
 % characteristic windspeed (freestream) and characteristic length
-if turbine_bool
+if bools.turbine
     U = 6;
     L = 0.07; % temp value, replace with diameter of turbine
 else
@@ -91,16 +92,16 @@ switch avg_type
     case 0
         disp("Time Average: Loading file: " + file_path)
         num_files = 1000; % TEMPORARY LINE ---- DELETE
-        S = time_avg_STB(file_path, nondim_bool, U, L, num_files, save_filepath_local,...
-            PIV_case_name, RPCA_bool);
+        S = time_avg_STB(file_path, bools.nondim, U, L, num_files, save_filepath_local,...
+            PIV_case_name, bools.RPCA);
         
         if PIV_plot_bool
             time_avg_plots(S);
         end
     case 1
         disp("Phase Average: Loading file: " + file_path)
-        S = phase_avg_STB(file_path, nondim_bool, U, L, save_filepath_local,...
-            PIV_case_name, turbine_bool, plot_bool, RPCA_bool);
+        S = phase_avg_STB(file_path, U, L, save_filepath_local,...
+            PIV_case_name, bools);
 
         if PIV_plot_bool
             error("Plotting phase averaged results not currently supported")
