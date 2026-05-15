@@ -1,0 +1,113 @@
+% Use to extract data before StRe_plot.m
+
+clc
+clear
+close all
+
+cd(fileparts(mfilename('fullpath')));
+addpath(genpath('../../../'))
+
+DELIM = string(filesep);
+
+h = helpdlg("Please select the batch folder of processed wing data.");
+uiwait(h);     % ensure the user reads it before continuing
+
+% Open a file selection dialog and get the file path
+if strcmp(DELIM, "\")
+    data_path = uigetdir(".", "Select the batch folder") + DELIM;
+    if isequal(data_path, 0)
+        disp('User canceled folder selection.');
+    else
+        disp(['Selected folder: ', data_path]);
+    end
+else  % For Zachary's Mac to directly open file
+    data_path = uigetdir("/Users/zjrosoff/Documents/GitHub/wind-tunnel-Control-Daq/Calimero/data analysis/processing", "Select the batch folder") + DELIM;
+    if isequal(data_path, 0)
+        disp('User canceled folder selection.');
+    else
+        disp(['Selected folder: ', data_path]);
+    end
+end
+
+% create path to the cases I care about
+batch_cases = dir(data_path);
+
+% filter out the processing log (not dir) and then ., .., store in batch cases
+is_valid_dir_batch = [batch_cases.isdir] & ~startsWith({batch_cases.name}, ".");
+batch_cases = batch_cases(is_valid_dir_batch);
+
+% now count how many cases I have
+num_cases = length(batch_cases); 
+
+% Preallocating St and Re
+all_St = [];
+all_Re = [];
+
+percent_complete = 0;
+for i=1:num_cases
+
+    disp(strcat("Processing ", batch_cases(i).name))
+    
+    wing_path1 = fullfile(data_path, batch_cases(i).name);
+
+    % next folder in Wing_plot is the trail folder
+    d1 = dir(wing_path1);
+    d1 = d1([d1.isdir]);                         % keep only directories
+    d1 = d1(~ismember({d1.name},{'.','..'}));    % drop . and .. and processing log
+    wing_path2 = fullfile(wing_path1, d1(1).name); % click on first subfolder
+
+    % next folder is 3 m.s or 6 m.s
+    d2 = dir(wing_path2);
+    d2 = d2([d2.isdir]);
+    d2 = d2(~ismember({d2.name},{'.','..'}));
+    wing_path3 = fullfile(wing_path2, d2(1).name) + DELIM; % again assume exactly one subfolder
+
+    % next folder is name again
+    d3 = dir(wing_path3);
+    d3 = d3([d3.isdir]);
+    d3 = d3(~ismember({d3.name},{'.','..'}));
+    wing_path4 = fullfile(wing_path2, d2(1).name) + DELIM; % again assume exactly one subfolder
+
+    % next folder is called "processed data"
+    d4 = dir(wing_path4);
+    d4 = d4([d4.isdir]);
+    d4 = d4(~ismember({d4.name},{'.','..'}));
+    proc_idx = find(strcmp({d4.name}, 'processed data'), 1);
+    if ~isempty(proc_idx)
+        trials_path = fullfile(wing_path3, d4(proc_idx).name, filesep);
+    else
+        error('No "processed data" folder found in %s', wing_path2);
+    end
+
+    % Now we have path to all the trials in each case
+    trials = dir(trials_path);
+
+    % same filter to only keep directories in trials
+    is_valid_dir_trials = ~startsWith({trials.name}, ".");
+    trials = trials(is_valid_dir_trials);
+    num_trials = length(trials); % because 1,2 are other directories
+
+    for j=1:num_trials
+     
+        % load individual trial names by making path
+        trial_name = trials(j).name;
+        disp(strcat("Processing ", trial_name)) 
+        one_trial_path = fullfile(trials_path, trial_name) + DELIM;
+        load(one_trial_path);
+
+        % add St and Re to array
+        all_St = [all_St, St];
+        all_Re = [all_Re, Re];
+
+        percent_complete = percent_complete + ((1/(num_cases)/num_trials));
+        disp(strcat(string(percent_complete*100), "% complete"))
+    end
+
+    disp(strcat("Finished ",batch_cases(i).name))
+end
+
+% Save this data into new folder
+newFolder = data_path + "StRe_data";
+mkdir(newFolder)
+save(fullfile(newFolder, 'StRe_data.mat'), 'all_St', 'all_Re');
+disp("Saved data into StRe_data folder")

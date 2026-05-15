@@ -1,11 +1,7 @@
-function batch_compare_trials_AoA(data_path, sub_data_path, sub_bool)
+function batch_compare_trials_AoA(data_path, sub_data_path, sub_bool, shift_bool, shift_type)
 
-% Author: Ronan Gissler
-% Last updated: October 2023
-
-% TO DO:
-% ADD SUPPORT FOR SUBTRACT CASES
-% ADD SUPPORT FOR MULTI-FILE PROCESSING
+% Author: Ronan Gissler / Zachary Rosoff
+% Last updated: March 2026
 
 slack_bool = false;
 user = "Z"; % "Z": Zachary or "R": Ronan
@@ -26,32 +22,21 @@ elseif ispc && strcmp(user,"R")
                  DELIM + "Ronan" + DELIM;
 end
 
-sub_params_path = sub_data_path + "raw data" + DELIM + "experiment parameters" + DELIM;
+if sub_bool
+    sub_params_path = sub_data_path + "raw data" + DELIM + "experiment parameters" + DELIM;
 
-% Might not need eval_params, as we are making sub_strings the
-% clean_body_type from main, as this will allow for subtraction matching
-[sub_wind_speed_sel, sub_type_sel, sub_wing_freq_sel, sub_AoA_sel, sub_wing_amp_sel] = eval_params(sub_params_path);
-sub_strings = sub_type_sel;
+    % Might not need eval_params, as we are making sub_strings the
+    % clean_body_type from main, as this will allow for subtraction matching
+    [sub_wind_speed_sel, sub_type_sel, sub_wing_freq_sel, sub_AoA_sel, sub_wing_amp_sel] = eval_params(sub_params_path);
+    sub_strings = sub_type_sel;
+else
+    sub_strings = "";
+end
 
 params_path = data_path + "raw data" + DELIM + "experiment parameters" + DELIM;
 
 [wind_speed_sel, type_sel, wing_freq_sel, AoA_sel, wing_amp_sel] = eval_params(params_path);
 AoA_sel = unique(AoA_sel);
-
-% type_sel = strjoin(split(type_sel, "_"));
-% sub_strings = []; % "body"
-
-% wing_freq_sel = [0, 2, 4, 6, 8];
-% wing_amp_sel = [10];
-% wind_speed_sel = [4];
-% type_sel = ["flexible"];
-% AoA_sel = [-16:2:16];
-% sub_strings = []; % "body"
-
-% make type list from type and subtraction types to add all
-% associated folders to the search
-% type_list = [type_sel sub_strings];
-% type_list = strrep(type_list, ' ', '_');
 
 path_parts = split(extractBefore(data_path, "m.s"), DELIM);
 root_path = strjoin(path_parts(1:end-1), DELIM);
@@ -69,21 +54,22 @@ s = slackMsg(slack_path);
 bot = slackProgressBar(slack_path);
 end
 
+% I am separating wing and body data so that it is handled separately
+% (quicker). Offsets is still one folder which is fine.
+
 % path to folders where processed data (.mat files) are stored
 processed_data_path = [];
+% path to folders where processed body data (.mat files) are stored
+processed_body_path = [];
 % path to folders where offsets data (.mat files) are stored
 offsets_path = [];
 
-processed_data_path = [processed_data_path data_path + DELIM + "processed data" + DELIM];
-offsets_path = [offsets_path data_path + DELIM + "raw data" + DELIM + "offsets data" + DELIM];
+processed_data_path = [processed_data_path data_path + "processed data" + DELIM];
 
+% offsets include both wing and body data (if sub_bool)
+offsets_path = [offsets_path data_path + "raw data" + DELIM + "offsets data" + DELIM];
 if sub_bool
-    processed_data_path = [processed_data_path sub_data_path + DELIM + "processed data" + DELIM];
-    offsets_path = [offsets_path sub_data_path + DELIM + "raw data" + DELIM + "offsets data" + DELIM];
-end
-
-if isempty(processed_data_path)
-    error("Oops, no processed data path found")
+    offsets_path = [offsets_path sub_data_path + "raw data" + DELIM + "offsets data" + DELIM];
 end
 
 % Get a list of all 'processed data' files
@@ -100,8 +86,25 @@ for i = 1:length(filePattern)
     offsets_files = [offsets_files; dir(filePattern(i))];
 end
 
+if isempty(processed_data_path)
+    error("Oops, no processed data path found")
+end
+
+if sub_bool
+    processed_body_path = sub_data_path + "processed data" + DELIM;
+
+    % Get a list of all 'processed body' files
+    filePattern = fullfile(processed_body_path, '*.mat');
+    processed_body_files = [];
+    for i = 1:length(filePattern)
+        processed_body_files = [processed_body_files; dir(filePattern(i))];
+    end
+else
+    processed_body_files = [];
+end
+
+% shift_bool and sub_bool are defined by function
 norm_bool = true;
-shift_bool = false;
 regress_bool = false;
 sub_drift_bool = true;
 
@@ -131,32 +134,39 @@ for i = 1:2
 
             [avg_forces, avg_up_forces, avg_down_forces, err_forces, ...
              err_up_forces, err_down_forces, names, sub_title, norm_factors, drift_vals, offsets_before_vals, offsets_after_vals] = ...
-    get_data_AoA(selected_vars, processed_files, offsets_files, norm_bool, sub_strings, shift_bool, sub_drift_bool, config_idx, num_config, sub_bool, type_sel);
+    batch_get_data_AoA(selected_vars, processed_files, processed_body_files, offsets_files, norm_bool, shift_bool, sub_drift_bool, ...
+                        config_idx, num_config, sub_bool, sub_strings, shift_type);
             
             if slack_bool
             bot.updateProgress(channelID, messageTs, config_idx*(100/8));
             end
-            % (k + 2*(j-1) + 4*(i-1))*(100/8))
 
             time_now = datetime;
             time_now.Format = 'yyyy_MM_dd HH_mm_ss';
             
-            name = type_sel + "_" + wing_amp_sel + "_" + wind_speed_sel + "m.s.";
+            % I want it to say shift or sub right after type_sel for
+            % plotting GUI
+            if sub_bool && shift_bool
+                name = type_sel + "_sub_shift_" + wing_amp_sel + "_" + wind_speed_sel + "m.s.";
+            elseif sub_bool
+                name = type_sel + "_sub_" + wing_amp_sel + "_" + wind_speed_sel + "m.s.";
+            elseif shift_bool
+                name = type_sel + "_shift_" + wing_amp_sel + "_" + wind_speed_sel + "m.s.";
+            else % if no shift or sub, this is the default
+                name = type_sel + "_" + wing_amp_sel + "_" + wind_speed_sel + "m.s.";
+            end
+
+            % these go at the very end for plotting GUI
             if (norm_bool)
                name = name + "_norm"; 
             end
-            % if (shift_bool)
-            %     name = name + "_shift"; 
-            % end
             if (sub_drift_bool)
                 name = name + "_drift"; 
             end
+            
+            % give it a time stamp
             name = name + "_saved_" + string(time_now);
-
-            if sub_bool
-                name = name + "_sub_" + sub_strings;
-            end
-
+        
             save(plot_data_path + name + ".mat","avg_forces", "avg_up_forces", "avg_down_forces",...
                 "err_forces", "err_up_forces", "err_down_forces", "norm_factors", "names", "drift_vals", "offsets_before_vals", "offsets_after_vals")
 
@@ -174,53 +184,3 @@ time_now.Format = 'yyyy_MM_dd HH_mm_ss';
 if slack_bool
 s.send("Finished making plots at: " + string(time_now))
 end
-
-% figure
-% hold on
-% plot(AoA_sel(1:7), COP(1:7), Color=[0, 0.4470, 0.7410])
-% plot(AoA_sel(11:end), COP(11:end), Color=[0, 0.4470, 0.7410])
-% % plot(AoA_sel, COP)
-% plot(AoA_sel, 25*ones(1,length(AoA_sel)), 'k--')
-% hold off
-% xlabel("Angle of Attack (deg)")
-% ylabel("Center of Pressure Location (% Chord)")
-% title(type_sel + " " + wind_speed_sel + " m/s " + wing_freq_sel + " Hz")
-
-% [NP_pos, NP_mom] = findNP(avg_forces, AoA_sel, true, sub_title);
-
-% [distance_vals_chord, slopes] = findCOMrange(avg_forces, AoA_sel, true);
-
-% plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title, norm_bool, 0, regress_bool, err_bool, shift_bool);
-% plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title, norm_bool, 1, regress_bool, err_bool, shift_bool);
-% plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title, norm_bool, 3, regress_bool, err_bool, shift_bool);
-% plot_forces_AoA(selected_vars, avg_forces, err_forces, names, sub_title, norm_bool, 5, regress_bool, err_bool, shift_bool);
-
-% [avg_forces, err_forces, names, sub_title] = get_data_AoA_combo(freq_speed_combos, selected_vars, processed_data_path, bool);
-% 
-% plot_forces_AoA_combo(freq_speed_combos, selected_vars, avg_forces, err_forces, names, sub_title, bool.norm, forceIndex);
-
-% pitchMom = [];
-% AoA = [];
-% freq = [];
-% for j=1:3
-%     pitchMom = [pitchMom avg_forces(5, :, j, 1, 1)];
-%     AoA = [AoA AoA_sel];
-%     freq = [freq wing_freq_sel(j)*ones(1,length(AoA_sel))];
-% end
-% [h,atab,ctab,stats] = aoctool(AoA, pitchMom, freq);
-
-% function name = type2filename(type)
-%     if (type == "no wings")
-%         name = "full_body";
-%     elseif(type == "no wings half body" || type == "half body no wings")
-%         name = "half_body";
-%     elseif(type == "blue wings")
-%         name = "full_wings";
-%     elseif(type == "blue wings half body")
-%         name = "half_wings";
-%     elseif(type == "tail_blue_wings")
-%         name = tail_blue_wings';
-%     else
-%         name = type;
-%     end
-% end

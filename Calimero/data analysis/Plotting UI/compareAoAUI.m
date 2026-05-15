@@ -46,7 +46,7 @@ methods
 
         obj.selection = strings(0);
         obj.index = 0;
-        obj.axes_labels = ["All", "Drag", "Transverse Lift", "Lift",...
+        obj.axes_labels = ["All", "Drag", "Transverse Force", "Lift",...
             "Roll Moment", "Pitch Moment", "Yaw Moment", "Voltage", "Current", "Power"];
         obj.stroke_index = 0;
         obj.stroke_labels = ["Full", "Upstroke", "Downstroke"];
@@ -438,7 +438,7 @@ methods
                 src.BackgroundColor = [0.3010 0.7450 0.9330];
 
                 % replace freqs with strouhal numbers in dropdown -->
-                % COMMENTING OUT BECAUSE DIFFERENT WINGS HAVE DIFFERENT St - Zachary
+                % COMMENTING OUT BECAUSE DIFFERENT WINGS HAVE DIFFERENT St - for Zachary
 
                 % for i = 1:length(d2.Items)
                 %     wing_freq = str2double(extractBefore(d2.Items{i}, " Hz"));
@@ -858,12 +858,27 @@ methods (Access = private)
                 ax = nexttile(tcl, idx);
                 title(ax, titles(idx));
                 xlabel(ax, x_label);
-                ylabel(ax, y_labels(idx))
+                ylabel(ax, y_labels(idx));
                 grid(ax, 'on');
                 legend(ax);
+
+                % defining axis intervals to help for comparisons - for Zachary
+                % if obj.norm
+                %     switch idx
+                %         case  1
+                %             ylim(ax, [0 0.6]);
+                %         case 3
+                %             ylim(ax, [-1 1.25]);
+                %         case  5
+                %             ylim(ax, [-0.2 0.75]);
+                %     end
+                % end
+
                 tiles = [tiles ax];
             end
             title(tcl, sub_title)
+           
+           
 
             if (obj.regress)
                 error("No point doing regression on all axes")
@@ -973,7 +988,8 @@ methods (Access = private)
                     e.MarkerFaceColor = colors(ind_c_trial, ind_c_dir);
                     e.MarkerEdgeColor = colors(ind_c_trial, ind_c_dir);
                 else
-                    err = zeros(size(lim_err_forces(idx,:,freq_index)));
+                    % err = zeros(size(lim_err_forces(idx,:,freq_index)));
+                    err = lim_err_forces(idx,:,freq_index);
                     e = errorbar(ax, lim_AoA_sel, lim_avg_forces(idx,:,freq_index), err,'.');
                     e.MarkerSize = 25;
                     e.Color = colors(ind_c_trial, ind_c_dir);

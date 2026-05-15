@@ -1,3 +1,6 @@
+% NOTE: COMBINE ALL FOLDERS FROM [Wind Tunnel Test > main.m] INTO ONE FOLDER (STILL
+% SEPARATED BY TRIAL) AND RUN HERE
+
 clear
 close all
 

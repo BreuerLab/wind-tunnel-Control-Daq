@@ -10,7 +10,7 @@ clear
 clc
 close all force
 
-addpath(genpath('../../'))
+addpath(genpath('../../../'))
 
 DELIM = string(filesep);
 
@@ -24,7 +24,7 @@ if strcmp(DELIM, "\")
         disp(['Selected folder: ', data_path]);
     end
 else  % For Zachary's Mac to directly open file
-    data_path = uigetdir("/Volumes/LRSResearch/ENG_Breuer_Shared/group/Zachary/Final Tests/Deleted Body Batch/Batch Processed/_PLOT_DATA/", "Select a 'plot data' folder") + DELIM;
+    data_path = uigetdir("/Volumes/LRSResearch/ENG_Breuer_Shared/group/Zachary/Final Tests/Processed Data/_PLOT_DATA", "Select a 'plot data' folder") + DELIM;
     if isequal(data_path, 0)
         disp('User canceled folder selection.');
     else
