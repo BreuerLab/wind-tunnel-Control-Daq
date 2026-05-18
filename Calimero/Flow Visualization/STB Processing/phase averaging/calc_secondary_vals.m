@@ -27,6 +27,7 @@ S.KE_diff_field = 2 * D.Utot_diff_phase_avg.^2; % x2 for L and R wings
 S.power_field = S.KE_diff_field .* -D.u_phase_avg; % remove +1 next to u_tr
 % negative sign added since -1.1 velocity means power added, acceleration
 
+if ~turbine_bool
 num_bins = D.num_bins;
 speed = D.U_act * D.U;
 [~, ~, freq] = parse_name(D.PIV_case_name);
@@ -34,6 +35,7 @@ dt = 1 / (freq * num_bins);
 x_conv = zeros(1, num_bins);
 for k = 1:num_bins
     x_conv(k) =  speed * dt * (k - 1);
+end
 end
 
 % ------------------------------------------------------------
@@ -84,6 +86,10 @@ u_tr = nanToMedian(u_tr);
 v_tr = nanToMedian(v_tr);
 w_tr = nanToMedian(w_tr);
 
+y_arr = squeeze(y_tr(:,1));
+z_arr = squeeze(z_tr(1,:));
+
+if ~turbine_bool
 F.x = x_conv; F.y = y_tr; F.z = z_tr;
 F.u = u_tr; F.v = v_tr; F.w = w_tr;
 F.vortX = vortX_tr; F.vortY = vortY_tr; F.vortZ = vortZ_tr;
@@ -96,10 +102,16 @@ avg_type = 1;
 S.lift = lift; S.drag = drag; S.lift_vel = lift_vel; S.drag_vel = drag_vel;
 
 % Calculate extrapolated field using Helmholtz decomposition
-y_arr = squeeze(y_tr(:,1));
-z_arr = squeeze(z_tr(1,:));
 [y_B, z_B, velX_B, velY_B, velZ_B] = helm_decomp(x_conv, y_arr, z_arr, D.L, F);
 S.y_B = y_B; S.z_B = z_B; S.velX_B = velX_B; S.velY_B = velY_B; S.velZ_B = velZ_B;
+
+% Caclulate KE from extrapolated field
+Utot_full = velX_B.^2 + velY_B.^2 + velZ_B.^2;
+KE_tot_field = permute(Utot_full,[2 3 1]);
+KE_tot = trapz(squeeze(y_B(:,1)), KE_tot_field, 1);
+KE_tot = trapz(squeeze(z_B(1,:)), KE_tot, 2);
+S.KE_tot = squeeze(KE_tot);
+end
 
 % Total KE including freestream KE
 KE_field = Utot_tr.^2;
@@ -118,12 +130,6 @@ power = trapz(y_arr, power_tr, 1);
 power = trapz(z_arr, power, 2);
 power = squeeze(power);
 
-Utot_full = velX_B.^2 + velY_B.^2 + velZ_B.^2;
-KE_tot_field = permute(Utot_full,[2 3 1]);
-KE_tot = trapz(squeeze(y_B(:,1)), KE_tot_field, 1);
-KE_tot = trapz(squeeze(z_B(1,:)), KE_tot, 2);
-KE_tot = squeeze(KE_tot);
-
 enst_field = vortTot_tr.^2;
 enst = trapz(y_arr, enst_field, 1);
 enst = trapz(z_arr, enst, 2);
@@ -131,7 +137,7 @@ enst = squeeze(enst);
 
 div_field = D.dudx_phase_avg + D.dvdy_phase_avg + D.dwdz_phase_avg;
 
-S.KE = KE; S.KE_diff = KE_diff; S.KE_tot = KE_tot; S.enst = enst;
+S.KE = KE; S.KE_diff = KE_diff; S.enst = enst;
 S.power = power; S.div = div_field;
 
 % ----------------------------------------------------------------

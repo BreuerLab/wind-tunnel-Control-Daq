@@ -204,8 +204,8 @@ methods
                       -1, 1;
                       -1, 1;
                       -0.3, 0.3;
-                      0, 0.2;
-                      0, 0.2];
+                      0, 0.1;
+                      0, 0.1];
 
         % for std plots
         obj.std_clims = [0, 0.1;...
@@ -232,8 +232,8 @@ methods
                       -1, 1;
                       -1, 1;
                       -1, 1;
-                      0, 0.2;
-                      0, 0.2];
+                      0, 0.1;
+                      0, 0.1];
 
         obj.mean_clim_dict = obj.build_clim_dict(obj.movie_3D_avg_vars, obj.mean_clims);
         obj.std_clim_dict = obj.build_clim_dict(obj.movie_3D_std_vars, obj.std_clims);

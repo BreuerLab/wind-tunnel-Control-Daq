@@ -67,10 +67,7 @@ for i = 1:num_bins
     F.u = u_tr; F.v = v_tr; F.w = w_tr;
     F.vortX = vortX_tr; F.vortY = vortY_tr; F.vortZ = vortZ_tr;
     F.unc = unc_tr;
-    
-    if ~bools.turbine
     [lift_vals, drag_vals] = get_wake_lift(speed, L, F, avg_type, true, S.rho_act);
-    end
         
     if i == 1
         % Initialize structure with zeros based on first file size
@@ -78,7 +75,6 @@ for i = 1:num_bins
             S.([fields{f} '_phase_avg']) = zeros(size(x,1), size(x,2), size(x,3), num_bins);
         end
 
-        if ~bools.turbine
         lift_fields = fieldnames(lift_vals);
         for f = 1:length(lift_fields)
             lift_phase_avg.(lift_fields{f}) = zeros(1,num_bins);
@@ -87,7 +83,6 @@ for i = 1:num_bins
         drag_fields = fieldnames(drag_vals);
         for f = 1:length(drag_fields)
             drag_phase_avg.(drag_fields{f}) = zeros(1,num_bins);
-        end
         end
     end
 
