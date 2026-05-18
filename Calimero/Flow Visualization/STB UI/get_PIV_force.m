@@ -14,7 +14,7 @@ function [var, err] = get_PIV_force(file_name, case_name, force_var_name, avg_ty
             end
             vars = [vars, "mean_uncTot"];
             case 1
-            vars = {"L","U","U_act","rho_act","y","z","u_phase_avg","v_phase_avg","w_phase_avg"};
+            vars = {"L","U","U_act","rho_act","cycle_freq","y","z","u_phase_avg","v_phase_avg","w_phase_avg"};
             if vort_bool
                 vars = [vars, "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg",...
                     ]; % "dudy_phase_avg", "dudz_phase_avg"
@@ -36,6 +36,12 @@ function [var, err] = get_PIV_force(file_name, case_name, force_var_name, avg_ty
         % Use frozen flow assumption, i.e. convection of vortices, to get z-axis
         if avg_type ~= 0
             [~, ~, freq] = parse_name(case_name);
+            if freq <= 0 && isfield(d, 'cycle_freq')
+                freq = d.cycle_freq;
+            end
+            if freq <= 0
+                error("Unable to determine cycle frequency for " + string(case_name))
+            end
             num_bins = size(d.u_phase_avg,4);
             dt = 1 / (freq * num_bins);
             x_conv = zeros(1, num_bins);

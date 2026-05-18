@@ -14,8 +14,12 @@ properties
     mon_num;
     file_path;
     file_suffix;
+    source_mode;
+    source_modes;
     case_name;
     case_name_list;
+    flapper_case_name_list;
+    turbine_case_name_list;
     current_downstream_type;
     downstream_types;
     distance_labels;
@@ -92,6 +96,8 @@ methods
         obj.case_name = "";
         obj.variable_name = "";
         obj.file_path = file_path;
+        obj.source_modes = ["flapper", "turbine"];
+        obj.source_mode = "flapper";
 
         obj.num_bins = 5;
         obj.frame_ind = 1;
@@ -119,14 +125,9 @@ methods
 
         obj.file_suffix = "_phase_avg";
 
-        % Convert file names to a string array
-        fileNames = string({files.name});
-        
-        % Create a logical mask: true where the suffix exists
-        hasSuffix = contains(fileNames, obj.file_suffix);
-        
-        % Only apply extractBefore to the matching files
-        fileNames(hasSuffix) = extractBefore(fileNames(hasSuffix), obj.file_suffix);
+        phase_avg_stems = obj.get_phase_avg_stems(files);
+        turbine_stems = phase_avg_stems(contains(phase_avg_stems, "turbine"));
+        flapper_stems = phase_avg_stems(~contains(phase_avg_stems, "turbine"));
 
         available_selections = get_sel_from_file(files);
 
@@ -140,8 +141,9 @@ methods
 
         obj.downstream_type_by_distance = containers.Map(obj.distance_labels, obj.downstream_types);
 
-        cleaned_case_names = extractAfter(erase(fileNames, obj.downstream_types), "_");
-        obj.case_name_list = unique(cleaned_case_names);
+        obj.flapper_case_name_list = obj.get_flapper_case_names(flapper_stems);
+        obj.turbine_case_name_list = obj.get_turbine_case_names(turbine_stems);
+        obj.case_name_list = obj.flapper_case_name_list;
 
         obj.movie_3D_avg_vars = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
                     "Q_x","Q_y","Q_z","|Q|","u_unc","v_unc","w_unc","|unc|","helicity", "# particles",...
@@ -304,8 +306,15 @@ methods
         screen_height = screen_size(4);
         unit_height = round(0.03*screen_height);
 
+        source_dropdown_y = screen_height*0.85 - 30;
+        source_dropdown = uidropdown(option_panel);
+        source_dropdown.Position = [10 source_dropdown_y 180 30];
+        source_dropdown.Items = obj.source_modes;
+        source_dropdown.Value = obj.source_mode;
+        source_dropdown.ValueChangedFcn = @(src, event) source_change(src, event, plot_panel);
+
         % Dropdown box for which cases axes to display
-        distance_dropdown_y = screen_height*0.85 - 30;
+        distance_dropdown_y = source_dropdown_y - 35;
         distance_dropdown = uidropdown(option_panel);
         distance_dropdown.Position = [10 distance_dropdown_y 180 30];
         distance_dropdown.Items = obj.distance_labels;
@@ -494,6 +503,28 @@ methods
         obj.update_plot(plot_panel);
 
         % Callbacks are nested so each handler mutates this handle object.
+
+        function source_change(src, ~, plot_panel)
+            obj.source_mode = src.Value;
+            if obj.source_mode == "turbine"
+                distance_dropdown.Visible = "off";
+                obj.case_name_list = obj.turbine_case_name_list;
+            else
+                distance_dropdown.Visible = "on";
+                obj.current_downstream_type = obj.downstream_type_by_distance(distance_dropdown.Value);
+                obj.case_name_list = obj.flapper_case_name_list;
+            end
+
+            case_dropdown.Items = obj.case_name_list;
+            obj.case_name = case_dropdown.Value;
+
+            % Force frame slider back to 1 since not all datasets have the
+            % same number of frames
+            obj.frame_ind = 1;
+            obj.slider.Value = obj.frame_ind;
+
+            obj.update_plot(plot_panel);
+        end
 
         function distance_change(src, ~, plot_panel)
             obj.current_downstream_type = obj.downstream_type_by_distance(src.Value);
@@ -749,6 +780,51 @@ methods
 end
 
 methods (Access = private)
+    function phase_avg_stems = get_phase_avg_stems(obj, files)
+        file_names = string({files.name});
+        phase_avg_files = endsWith(file_names, obj.file_suffix + ".mat");
+        phase_avg_stems = erase(file_names(phase_avg_files), obj.file_suffix + ".mat");
+    end
+
+    function case_names = get_flapper_case_names(obj, phase_avg_stems)
+        case_names = strings(0);
+        for i = 1:length(obj.downstream_types)
+            downstream_type = obj.downstream_types(i);
+            prefix = downstream_type + "_";
+            matching_stems = phase_avg_stems(startsWith(phase_avg_stems, prefix));
+            case_names = [case_names, extractAfter(matching_stems, prefix)];
+        end
+        case_names = unique(case_names, 'stable');
+    end
+
+    function case_names = get_turbine_case_names(~, phase_avg_stems)
+        case_names = strings(size(phase_avg_stems));
+        for i = 1:length(phase_avg_stems)
+            case_name = phase_avg_stems(i);
+            if startsWith(case_name, "turbine_")
+                case_name = extractAfter(case_name, "turbine_");
+            end
+            case_names(i) = case_name;
+        end
+        case_names = unique(case_names, 'stable');
+    end
+
+    function case_id = get_current_case_id(obj)
+        if obj.source_mode == "turbine"
+            if startsWith(obj.case_name, "turbine")
+                case_id = obj.case_name;
+            else
+                case_id = "turbine_" + obj.case_name;
+            end
+        else
+            case_id = obj.current_downstream_type + "_" + obj.case_name;
+        end
+    end
+
+    function file_base = get_current_file_base(obj)
+        file_base = obj.file_path + obj.get_current_case_id() + obj.file_suffix;
+    end
+
     % Update the active plot after a selection or display setting changes.
     function update_plot(obj, plot_panel)
         ax = findobj(plot_panel.Children, 'Type', 'axes');
@@ -820,7 +896,11 @@ methods (Access = private)
                 "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg"};
         end
 
-        full_file_path = obj.file_path + obj.current_downstream_type + "_" + obj.case_name + obj.file_suffix;
+        if strlength(obj.case_name) == 0
+            return
+        end
+
+        full_file_path = obj.get_current_file_base();
 
         if ~isempty(cur_secondary_vars)
             d1 = load(full_file_path + "_integral.mat", cur_secondary_vars{:});
@@ -1068,7 +1148,7 @@ methods (Access = private)
         elseif plot_idx == 7
             avg_type = 1;
             norm_bool = false;
-            case_id = obj.current_downstream_type + "_" + obj.case_name;
+            case_id = obj.get_current_case_id();
             val = get_PIV_force(full_file_path, case_id, var_name, avg_type, norm_bool);
 
             plot(ax, val)
