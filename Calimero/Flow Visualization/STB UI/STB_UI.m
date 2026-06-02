@@ -7,6 +7,8 @@ properties (Constant, Access = private)
     MIRROR_CENTER_Y = -2.26;
     secondary_vars = ["Q_x","Q_y","Q_z","|Q|","div",...
         "KE", "power"];
+    KNOWN_DOWNSTREAM_TYPES = ["flexible";"UP_one_flexible";"UP_two_flexible"];
+    KNOWN_DISTANCE_LABELS = ["x = 0.9m";"x = 1.3m";"x = 1.7m"];
 end
 
 properties
@@ -96,8 +98,8 @@ methods
         obj.case_name = "";
         obj.variable_name = "";
         obj.file_path = file_path;
-        obj.source_modes = ["flapper", "turbine"];
-        obj.source_mode = "flapper";
+        obj.source_modes = strings(0);
+        obj.source_mode = "";
 
         obj.num_bins = 5;
         obj.frame_ind = 1;
@@ -129,21 +131,27 @@ methods
         turbine_stems = phase_avg_stems(contains(phase_avg_stems, "turbine"));
         flapper_stems = phase_avg_stems(~contains(phase_avg_stems, "turbine"));
 
-        available_selections = get_sel_from_file(files);
-
-        obj.downstream_types = ["flexible";"UP_one_flexible";"UP_two_flexible"];
-        if ~isequal(sort(obj.downstream_types), sort(unique(string(available_selections(:, 1)))))
-            error("Downstream type mismatch. Check types...")
+        [obj.downstream_types, obj.distance_labels] = obj.get_available_downstream_options(flapper_stems);
+        if isempty(obj.downstream_types)
+            obj.current_downstream_type = "";
+            obj.downstream_type_by_distance = containers.Map('KeyType', 'char', 'ValueType', 'char');
+        else
+            obj.current_downstream_type = obj.downstream_types(1);
+            obj.downstream_type_by_distance = containers.Map(obj.distance_labels, obj.downstream_types);
         end
-        
-        obj.current_downstream_type = obj.downstream_types(1);
-        obj.distance_labels = ["x = 0.9m","x = 1.3m","x = 1.7m"];
-
-        obj.downstream_type_by_distance = containers.Map(obj.distance_labels, obj.downstream_types);
 
         obj.flapper_case_name_list = obj.get_flapper_case_names(flapper_stems);
         obj.turbine_case_name_list = obj.get_turbine_case_names(turbine_stems);
-        obj.case_name_list = obj.flapper_case_name_list;
+        obj.source_modes = obj.get_available_source_modes();
+        if isempty(obj.source_modes)
+            error("No STB phase-average files found in %s. Expected *_phase_avg.mat files for Calimero or turbine data.", obj.file_path)
+        end
+        obj.source_mode = obj.source_modes(1);
+        if obj.source_mode == "turbine"
+            obj.case_name_list = obj.turbine_case_name_list;
+        else
+            obj.case_name_list = obj.flapper_case_name_list;
+        end
 
         obj.movie_3D_avg_vars = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
                     "Q_x","Q_y","Q_z","|Q|","u_unc","v_unc","w_unc","|unc|","helicity", "# particles",...
@@ -317,7 +325,18 @@ methods
         distance_dropdown_y = source_dropdown_y - 35;
         distance_dropdown = uidropdown(option_panel);
         distance_dropdown.Position = [10 distance_dropdown_y 180 30];
-        distance_dropdown.Items = obj.distance_labels;
+        if isempty(obj.distance_labels)
+            distance_dropdown.Items = "No Calimero data";
+            distance_dropdown.Value = "No Calimero data";
+            distance_dropdown.Visible = "off";
+            distance_dropdown.Enable = "off";
+        else
+            distance_dropdown.Items = obj.distance_labels;
+            distance_dropdown.Value = obj.distance_labels(1);
+            if obj.source_mode == "turbine"
+                distance_dropdown.Visible = "off";
+            end
+        end
         distance_dropdown.ValueChangedFcn = @(src, event) distance_change(src, event, plot_panel);
 
         case_dropdown_y = distance_dropdown_y - 35;
@@ -784,6 +803,31 @@ methods (Access = private)
         file_names = string({files.name});
         phase_avg_files = endsWith(file_names, obj.file_suffix + ".mat");
         phase_avg_stems = erase(file_names(phase_avg_files), obj.file_suffix + ".mat");
+    end
+
+    function [downstream_types, distance_labels] = get_available_downstream_options(obj, flapper_stems)
+        downstream_types = strings(0, 1);
+        distance_labels = strings(0, 1);
+
+        for i = 1:length(obj.KNOWN_DOWNSTREAM_TYPES)
+            downstream_type = obj.KNOWN_DOWNSTREAM_TYPES(i);
+            if any(startsWith(flapper_stems, downstream_type + "_"))
+                downstream_types(end + 1, 1) = downstream_type;
+                distance_labels(end + 1, 1) = obj.KNOWN_DISTANCE_LABELS(i);
+            end
+        end
+    end
+
+    function source_modes = get_available_source_modes(obj)
+        source_modes = strings(0);
+
+        if ~isempty(obj.flapper_case_name_list)
+            source_modes(end + 1) = "flapper";
+        end
+
+        if ~isempty(obj.turbine_case_name_list)
+            source_modes(end + 1) = "turbine";
+        end
     end
 
     function case_names = get_flapper_case_names(obj, phase_avg_stems)
