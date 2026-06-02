@@ -10,7 +10,6 @@ load([daq_data_path daq_data_filename]);
 phase_type = 1;
 
 if turbine_bool
-num_bins = 25;
 
 mid_indices = find(las_count_orig ~= 0 & las_count_orig ~= las_count_orig(end));
 % if removed all mid_indices, would miss first and last pulse
@@ -49,6 +48,9 @@ switch phase_type
         disp("Using time for phase")
         norm_signal = norm_time;
 end
+
+num_bins = 40;
+% [num_bins, bin_ind_arr, bin_count, bin_std] = findBestNumBins(norm_signal);
 
 disp("Using " + num_bins + " bins")
 % num_bins = 25; % for 4 Hz

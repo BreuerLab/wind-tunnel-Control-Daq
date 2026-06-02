@@ -1058,7 +1058,7 @@ methods (Access = private)
             hold(ax_target, 'off');
             return
         end
-        maxLength = max(lengths);
+        maxLength = min(lengths);
         time_interp = 1:maxLength;
         time_interp = time_interp / length(time_interp);
 

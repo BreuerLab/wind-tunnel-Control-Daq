@@ -269,9 +269,9 @@ methods
                             "KE","power"];
         movie_3D_std_labels = [movie_3D_avg_labels(1:8) movie_3D_avg_labels(13:end)];
 
-        keys = cellstr([obj.movie_3D_avg_vars obj.hist_vars]);
-        values = [movie_3D_avg_values hist_vals];
-        labels = [movie_3D_avg_labels hist_labels];
+        keys = cellstr(obj.movie_3D_avg_vars);
+        values = movie_3D_avg_values;
+        labels = movie_3D_avg_labels;
         obj.variable_name_dict = containers.Map(keys, values);
         obj.label_dict = containers.Map(keys, labels);
 
@@ -956,11 +956,6 @@ methods (Access = private)
             end
     
             if plot_idx == 4
-                params.cb_lab = obj.label_dict(obj.variable_name);
-                cFlip = false;
-            else
-                params.cb_lab = obj.label_dict(obj.variable_name);
-    
                 if any(contains(["v","ω_z","ω_x"],obj.variable_name))
                     cFlip = true;
                 else
@@ -1029,6 +1024,13 @@ methods (Access = private)
         % Create a fresh axes unless the 3D patch can be updated in place.
         if ~obj.plot_hold_bool
             ax = axes(plot_panel);
+        end
+
+        switch plot_idx
+        case {1,2,4}
+            params.cb_lab = obj.label_dict(obj.variable_name);
+        case 3
+            params.cb_lab = obj.std_label_dict(obj.variable_name);
         end
 
         if plot_idx == 1

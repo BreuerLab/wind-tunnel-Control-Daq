@@ -25,6 +25,7 @@ if ~bools.turbine
     speed = WT_d.Speed_m_s_;
     S.rho_act = WT_d.Density_kg_m3_;
     S.U_act = speed / U;
+    S.Re = (WT_d.Density_kg_m3_ *speed * L) / WT_d.Viscosity_N_s_m2_;
 end 
 
 bin_count = zeros(1,num_bins);
@@ -67,7 +68,7 @@ for i = 1:num_bins
     F.u = u_tr; F.v = v_tr; F.w = w_tr;
     F.vortX = vortX_tr; F.vortY = vortY_tr; F.vortZ = vortZ_tr;
     F.unc = unc_tr;
-    
+
     if ~bools.turbine
     [lift_vals, drag_vals] = get_wake_lift(speed, L, F, avg_type, true, S.rho_act);
     end

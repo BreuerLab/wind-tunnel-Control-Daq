@@ -1,6 +1,6 @@
 function St = freqToSt(wing_freq, wind_speed, amp)
     wing_length = 0.21; % meters
-    arm_length = 0.063; % 0.063;
+    arm_length = 0.013; % 0.063;
     full_length = wing_length + arm_length; % distance from wingtip to axis of rotation
     
     [angle_up, angle_down] = getRangeWingbeat(amp);

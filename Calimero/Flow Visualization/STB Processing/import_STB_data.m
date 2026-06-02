@@ -1,6 +1,7 @@
 function [x, y, z, u, v, w, Utot, vortX, vortY, vortZ, vortTot, uncU, uncV, uncW, uncTot, hel, num_particles,...
     dudx, dudy, dudz, dvdx, dvdy, dvdz, dwdx, dwdy, dwdz, Utot_diff] = ...
     import_STB_data(file_path, nondim_bool, U, L, sel_frames, RPCA_bool)
+
 D = loadpiv(file_path,"extractAllVariables","frameSelect",sel_frames); % "Validate", minCorrelationValue
 
 if RPCA_bool
@@ -57,8 +58,10 @@ for i = 1:size(D.u, 4)
 end
 end
 
-init_W = round((max(D.x,[],"all") - min(D.x,[],"all"))*100);
-init_L = round((max(D.y,[],"all") - min(D.y,[],"all"))*100);
+% initial dimensions before cropping
+init_t = round((max(D.x,[],"all") - min(D.x,[],"all"))*1000); 
+init_W = round((max(D.y,[],"all") - min(D.y,[],"all"))*1000);
+init_L = round((max(D.z,[],"all") - min(D.z,[],"all"))*1000);
 
 if nondim_bool % Non-dimensionalize variables
     u_full = D.u/U;

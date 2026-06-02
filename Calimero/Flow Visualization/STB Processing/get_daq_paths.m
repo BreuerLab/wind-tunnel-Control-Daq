@@ -60,6 +60,7 @@ function [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name)
     % Turbine Data
     cases.turbine     = {'turbine_6ms_S_2026_02_16_16_15_13.mat', base_group};
     cases.turbine_ext = {'turbine_6ms_S_ext_2026_02_17_16_55_48.mat', base_group};
+    cases.turbine_F_ext = {'turbine_6ms_F_ext_2026_02_17_17_27_12.mat', base_group};
 
     % Retrieve the data
     if isfield(cases, PIV_case_name)
