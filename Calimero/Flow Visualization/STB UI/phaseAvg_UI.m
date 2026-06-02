@@ -3,7 +3,7 @@
 % functionality. The property was update in obj.update_plot but
 % not in the callback function. I guess I always thought it was
 % pass by reference, but default is to pass a copy
-classdef compareWingbeatUI < handle
+classdef phaseAvg_UI < handle
 
     properties (Constant)
         COLOR_ACTIVE = [0.3010 0.7450 0.9330];
@@ -92,7 +92,7 @@ end
 methods
     % Constructor Function
     % Defines constants and default values for parameters
-    function obj = compareWingbeatUI(mon_num, data_path)
+    function obj = phaseAvg_UI(mon_num, data_path)
         obj.mon_num = mon_num;
         obj.root_path = data_path;
         obj.PIV_path = obj.root_path + "Processed Results\";

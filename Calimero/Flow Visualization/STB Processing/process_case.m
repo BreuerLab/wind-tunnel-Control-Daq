@@ -1,4 +1,4 @@
-function phase_avg_helper(PIV_case_name, save_filepath_local, bools)
+function process_case(PIV_case_name, save_filepath_local, bools)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % ------------------------ Dependent parameters --------------------------

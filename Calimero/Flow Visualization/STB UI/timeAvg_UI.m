@@ -3,7 +3,7 @@
 % functionality. The property was update in obj.update_plot but
 % not in the callback function. I guess I always thought it was
 % pass by reference, but default is to pass a copy
-classdef avgForceUI < handle
+classdef timeAvg_UI < handle
     
     properties (Constant)
         COLOR_ACTIVE = [0.3010 0.7450 0.9330];
@@ -64,7 +64,7 @@ classdef avgForceUI < handle
     methods
         % Constructor Function
         % Defines constants and default values for parameters
-        function obj = avgForceUI(mon_num, data_path)
+        function obj = timeAvg_UI(mon_num, data_path)
             obj.mon_num = mon_num;
             obj.root_path = data_path;
             obj.PIV_path = obj.root_path + "Processed Results\";
@@ -446,6 +446,7 @@ classdef avgForceUI < handle
                             % gain = 0.01;
                             % gain = 0.001;
                             errors(j) = mean(d.bin_std);
+                            % errors(j) = 0;
                             wind_speed = d.U;
                             density = d.rho_act;
                             area = d.L * d.L * 3 * 2;
@@ -457,8 +458,8 @@ classdef avgForceUI < handle
                             [var, err] = get_PIV_force(filepath, name, obj.force_var, avg_type, obj.y_norm, obj.y_cen);
 
                             if obj.PIV_sub
-                                filename = "body_time_avg.mat";
-                                % filename = "ring_time_avg.mat";
+                                % filename = "body_time_avg.mat";
+                                filename = "ring_time_avg.mat";
                                 bod_filepath = obj.PIV_path + "time_avg/" + filename;
                                 [bod_var, ~] = get_PIV_force(bod_filepath, "", obj.force_var, 0, obj.y_norm, obj.y_cen);
                                 var = var - bod_var;
@@ -484,8 +485,15 @@ classdef avgForceUI < handle
                             if obj.PIV_sub
                                 % filename = "body_time_avg.mat";
                                 filename = "ring_time_avg_integral.mat";
-                                bod = load(obj.PIV_path + "time_avg/" + filename, obj.force_var);
-                                var = var - bod.(obj.force_var);
+                                if contains(obj.force_var, ".")
+                                    abbrv_name = extractBefore(obj.force_var, ".");
+                                    bod = load(obj.PIV_path + "time_avg/" + filename, abbrv_name);
+                                    bod_var = eval("bod." + obj.force_var);
+                                else
+                                    bod = load(obj.PIV_path + "time_avg/" + filename, obj.force_var);
+                                    bod_var = bod.(obj.force_var);
+                                end
+                                var = var - bod_var;
                             end  
                         end                    
                         

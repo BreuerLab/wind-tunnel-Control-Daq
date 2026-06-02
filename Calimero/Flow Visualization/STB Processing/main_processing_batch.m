@@ -60,7 +60,7 @@ end
 myFuncTimer = tic;
 for i = 1:length(sel_case_names)
     PIV_case_name = sel_case_names(i);
-    phase_avg_helper(PIV_case_name, save_filepath_local, bools);
+    process_case(PIV_case_name, save_filepath_local, bools);
 end
 elapsed = toc(myFuncTimer);
 fprintf('Batch took: %.4f seconds\n', elapsed);

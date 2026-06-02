@@ -1,4 +1,4 @@
-classdef STB_UI < handle
+classdef flowField_UI < handle
 properties (Constant, Access = private)
     ACTIVE_COLOR = [0.3010 0.7450 0.9330];
     INACTIVE_COLOR = [1 1 1];
@@ -93,11 +93,11 @@ end
 methods
     % Constructor Function
     % Defines constants and default values for parameters
-    function obj = STB_UI(mon_num, file_path)
+    function obj = flowField_UI(mon_num, file_path)
         obj.mon_num = mon_num;
         obj.case_name = "";
         obj.variable_name = "";
-        obj.file_path = file_path;
+        obj.file_path = file_path + "Processed Results\";
         obj.source_modes = strings(0);
         obj.source_mode = "";
 

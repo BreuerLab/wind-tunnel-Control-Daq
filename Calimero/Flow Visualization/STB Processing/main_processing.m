@@ -31,5 +31,5 @@ bools.PIV_plot = false;
 % Plot bin histograms, speed, current, voltage (small overhead, quick)
 bools.plot = false;
 
-phase_avg_helper(PIV_case_name, save_filepath_local, bools);
+process_case(PIV_case_name, save_filepath_local, bools);
 return

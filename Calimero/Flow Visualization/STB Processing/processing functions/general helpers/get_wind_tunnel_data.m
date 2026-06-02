@@ -1,5 +1,8 @@
 function d = get_wind_tunnel_data(DAQ_file)
 
+% ----------------------------------------------------------------------
+% -------------------- Get date from file name -------------------------
+% ----------------------------------------------------------------------
 string_end = extractAfter(extractBefore(DAQ_file, "experiment"), "Hz");
 
 % Extract all digits
@@ -11,23 +14,13 @@ targetDT = datetime(timeArray);
 % Rewrite date string in American format
 date = string(targetDT, "MM_dd_uuuu");
 
-map = {
-        '02_08_2026',  "AFAM_2026_02_08_11_21_48_log_file.csv"
-        '02_09_2026',  "AFAM_2026_02_09_09_11_01_log_file.csv"
-        '02_11_2026',  "AFAM_2026_02_11_10_04_52_log_file.csv"
-        '02_12_2026',  "AFAM_2026_02_12_08_50_09_log_file.csv"
-        '02_15_2026',  "AFAM_2026_02_15_09_06_19_log_file.csv"
-    };
+wind_tunnel_filepath = get_wind_tunnel_paths(date);
 
-% Convert to Map and Retrieve
-WT_dict = containers.Map(map(:,1), map(:,2));
+% ----------------------------------------------------------------------
+% ------ Get data from the row with timestamp closest to DAQ_file ------
+% ----------------------------------------------------------------------
 
-wind_tunnel_file = WT_dict(date);
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-root_path = "R:\ENG_Breuer_Shared\rgissler\Calimero Force Data\STB Final\";
-
-data = readtable(root_path + wind_tunnel_file);
+data = readtable(wind_tunnel_filepath);
 
 % Get datetime for each row of csv file
 windTunnelDT = datetime(data.Year, data.Month, data.Day, ...

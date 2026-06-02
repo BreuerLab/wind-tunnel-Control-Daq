@@ -5,18 +5,19 @@ close all force
 cd(fileparts(mfilename('fullpath')));
 addpath(genpath('../../../'))
 
-data_file_path = "Y:\Processed Results\";
-% data_file_path = "/Volumes/ENG_Breuer_Shared/group/Ronan/STB Analysis/Processed Results/";
+% Data should be moved locally. Using this GUI with data stored on the LRS
+% is slow
+data_file_path = "Y:\";
+% data_file_path = "R:\ENG_Breuer_Shared\group\Ronan\STB Analysis\";
 
 % GUI for plotting vector fields and wake topology
-c = STB_UI(2,data_file_path);
+c = flowField_UI(2,data_file_path);
 c.dynamic_plotting();
 
-root_path = "Y:\";
 % % GUI for plotting phase averaged quantities
-% a = compareWingbeatUI(2,root_path);
+% a = phaseAvg_UI(2,data_file_path);
 % a.dynamic_plotting();
 
 % % GUI for plotting time averaged quantities
-% b = avgForceUI(2, root_path);
+% b = timeAvg_UI(2, data_file_path);
 % b.dynamic_plotting();
