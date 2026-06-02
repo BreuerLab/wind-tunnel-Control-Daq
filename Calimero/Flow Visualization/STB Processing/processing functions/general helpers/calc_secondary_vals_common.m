@@ -1,0 +1,123 @@
+function S = calc_secondary_vals_common(D, config)
+%CALC_SECONDARY_VALS_COMMON Shared secondary calculations for STB averages.
+
+config = set_defaults(config);
+
+% Spatial resolution
+dx = abs(D.x(2,1,1) - D.x(1,1,1));
+dy = abs(D.y(1,2,1) - D.y(1,1,1));
+dz = abs(D.z(1,1,2) - D.z(1,1,1));
+
+% Compute Q-Criterion
+[Qx,Qy,Qz,Q] = calQlate3D(D.(config.uField), D.(config.vField), D.(config.wField), dx,dy,dz);
+S.Qx = Qx; S.Qy = Qy; S.Qz = Qz; S.Q = Q;
+
+% Calculated using streamwise speed with freestream speed subtracted.
+KE_diff_field = config.keDiffScale * D.(config.UtotDiffField).^2;
+power_field = KE_diff_field .* -D.(config.uField);
+
+if config.storeEnergyFields
+    S.KE_diff_field = KE_diff_field;
+    S.power_field = power_field;
+end
+
+trim_source.u = D.(config.uField);
+trim_source.v = D.(config.vField);
+trim_source.w = D.(config.wField);
+trim_source.vortX = D.(config.vortXField);
+trim_source.vortY = D.(config.vortYField);
+trim_source.vortZ = D.(config.vortZField);
+trim_source.unc = D.(config.uncField);
+trim_source.Utot = D.(config.UtotField);
+trim_source.Utot_diff = D.(config.UtotDiffField);
+trim_source.vortTot = D.(config.vortTotField);
+trim_source.numP = D.(config.numPField);
+trim_source.hel = D.(config.helField);
+trim_source.dudx = D.(config.dudxField);
+trim_source.dvdx = D.(config.dvdxField);
+trim_source.dwdx = D.(config.dwdxField);
+trim_source.KE_diff = KE_diff_field;
+trim_source.power = power_field;
+
+[F, y_tr, z_tr, T] = prepare_STB_wake_field(D.y, D.z, trim_source, config.xConv, true);
+
+y_arr = squeeze(y_tr(:,1));
+z_arr = squeeze(z_tr(1,:));
+
+if config.doWakeLift
+    if config.includeVelocityWakeLift
+        [lift_vel, drag_vel] = get_wake_lift(config.wakeSpeed, config.wakeLength, F, config.wakeAvgType, false, config.wakeDensity);
+        S.lift_vel = lift_vel; S.drag_vel = drag_vel;
+    end
+
+    [lift, drag] = get_wake_lift(config.wakeSpeed, config.wakeLength, F, config.wakeAvgType, true, config.wakeDensity);
+    S.lift = lift; S.drag = drag;
+end
+
+if config.includeHelmDecomp
+    [y_B, z_B, velX_B, velY_B, velZ_B] = helm_decomp(config.xConv, y_arr, z_arr, config.wakeLength, F);
+    S.y_B = y_B; S.z_B = z_B; S.velX_B = velX_B; S.velY_B = velY_B; S.velZ_B = velZ_B;
+
+    Utot_full = velX_B.^2 + velY_B.^2 + velZ_B.^2;
+    KE_tot_field = permute(Utot_full,[2 3 1]);
+    KE_tot = trapz(squeeze(y_B(:,1)), KE_tot_field, 1);
+    KE_tot = trapz(squeeze(z_B(1,:)), KE_tot, 2);
+    S.KE_tot = squeeze(KE_tot);
+end
+
+% Integral quantities
+S.KE = integrate_planar(y_arr, z_arr, T.Utot.^2);
+S.KE_diff = integrate_planar(y_arr, z_arr, T.KE_diff);
+S.power = integrate_planar(y_arr, z_arr, T.power);
+S.enst = integrate_planar(y_arr, z_arr, T.vortTot.^2);
+S.div = D.(config.dudxField) + D.(config.dvdyField) + D.(config.dwdzField);
+
+% Planar averages
+S.u_avg = mean(T.u, [1, 2]);
+S.v_avg = mean(T.v, [1, 2]);
+S.w_avg = mean(T.w, [1, 2]);
+S.vortX_avg = mean(T.vortX, [1, 2]);
+S.vortY_avg = mean(T.vortY, [1, 2]);
+S.vortZ_avg = mean(T.vortZ, [1, 2]);
+S.numP_avg = mean(T.numP, [1, 2]);
+S.unc_avg = mean(T.unc, [1, 2]);
+S.hel_avg = mean(T.hel, [1, 2]);
+
+if config.includeDerivativePlanarAverages
+    S.dudx_avg = mean(T.dudx, [1, 2]);
+    S.dvdx_avg = mean(T.dvdx, [1, 2]);
+    S.dwdx_avg = mean(T.dwdx, [1, 2]);
+end
+end
+
+function config = set_defaults(config)
+if ~isfield(config, 'xConv')
+    config.xConv = 0;
+end
+
+if ~isfield(config, 'doWakeLift')
+    config.doWakeLift = false;
+end
+
+if ~isfield(config, 'includeVelocityWakeLift')
+    config.includeVelocityWakeLift = false;
+end
+
+if ~isfield(config, 'includeHelmDecomp')
+    config.includeHelmDecomp = false;
+end
+
+if ~isfield(config, 'includeDerivativePlanarAverages')
+    config.includeDerivativePlanarAverages = false;
+end
+
+if ~isfield(config, 'storeEnergyFields')
+    config.storeEnergyFields = false;
+end
+end
+
+function value = integrate_planar(y_arr, z_arr, field)
+value = trapz(y_arr, field, 1);
+value = trapz(z_arr, value, 2);
+value = squeeze(value);
+end

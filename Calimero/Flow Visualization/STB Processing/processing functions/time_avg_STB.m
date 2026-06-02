@@ -13,10 +13,7 @@ function S = time_avg_STB(file_path, nondim_bool, U, L, num_files, save_filepath
     lift_vals = zeros(1,num_files);
     drag_vals = zeros(1,num_files);
 
-    % Define the field names we want to average (must be same order as
-    % import_STB)
-    fields = {'u', 'v', 'w', 'Utot', 'vortX', 'vortY', 'vortZ', 'vortTot', 'uncU', 'uncV', 'uncW', 'uncTot', 'hel', 'numP',...
-        'dudx', 'dudy', 'dudz', 'dvdx', 'dvdy', 'dvdz', 'dwdx', 'dwdy', 'dwdz', 'Utot_diff'};
+    fields = get_STB_processing_fields();
     
     for i = 1:num_files
         % Import data (using a temporary struct or list)
@@ -38,25 +35,7 @@ function S = time_avg_STB(file_path, nondim_bool, U, L, num_files, save_filepath
         end
 
         avg_type = 2;
-
-        x_conv = 0;
-
-        u_tr = data{1}; v_tr = data{2}; w_tr = data{3};
-        vortX_tr = data{5}; vortY_tr = data{6}; vortZ_tr = data{7};
-        unc_tr = data{12};
-    
-        [y_tr, z_tr, u_tr] = trim_vel_field(y, z, u_tr);
-        [~, ~, v_tr] = trim_vel_field(y, z, v_tr);
-        [~, ~, w_tr] = trim_vel_field(y, z, w_tr);
-        [~, ~, vortX_tr] = trim_vel_field(y, z, vortX_tr);
-        [~, ~, vortY_tr] = trim_vel_field(y, z, vortY_tr);
-        [~, ~, vortZ_tr] = trim_vel_field(y, z, vortZ_tr);
-        [~, ~, unc_tr] = trim_vel_field(y, z, unc_tr);
-    
-        F.x = x_conv; F.y = y_tr; F.z = z_tr;
-        F.u = u_tr; F.v = v_tr; F.w = w_tr;
-        F.vortX = vortX_tr; F.vortY = vortY_tr; F.vortZ = vortZ_tr;
-        F.unc = unc_tr;
+        F = prepare_STB_wake_field(y, z, data, 0);
 
         [lift, drag] = get_wake_lift(speed, L, F, avg_type, true, density);
         lift_vals(i) = lift.vortX;
