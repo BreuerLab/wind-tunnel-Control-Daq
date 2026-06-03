@@ -26,7 +26,8 @@ if ~bools.turbine
     S.rho_act = WT_d.Density_kg_m3_;
     S.U_act = speed / U;
     S.Re = (WT_d.Density_kg_m3_ *speed * L) / WT_d.Viscosity_N_s_m2_;
-end 
+end
+density = 1.225;
 
 % variable preallocation
 bin_count = zeros(1,num_bins);
@@ -108,7 +109,7 @@ for i = 1:num_bins
 end
 
 % Add metadata to the struct
-S.x = x; S.y = y; S.z = z; S.L = L; S.U = U; S.cycle_freq = cycle_freq;
+S.x = x; S.y = y; S.z = z; S.L = L; S.U = U; S.rho = density; S.cycle_freq = cycle_freq;
 S.num_bins = num_bins; S.tick_frame_pos = tick_frame_pos; S.full_cycle = full_cycle;
 S.bin_ind_arr = bin_ind_arr; S.bin_count = bin_count; S.bin_std = bin_std;
 S.PIV_case_name = PIV_case_name;

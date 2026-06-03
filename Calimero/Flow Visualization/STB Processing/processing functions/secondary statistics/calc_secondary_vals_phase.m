@@ -23,23 +23,26 @@ config.dvdyField = 'dvdy_phase_avg';
 config.dwdzField = 'dwdz_phase_avg';
 
 if ~turbine_bool
-num_bins = D.num_bins;
-speed = D.U_act * D.U;
-[~, ~, freq] = parse_name(D.PIV_case_name);
-dt = 1 / (freq * num_bins);
-x_conv = zeros(1, num_bins);
-for k = 1:num_bins
-    x_conv(k) =  speed * dt * (k - 1);
+    num_bins = D.num_bins;
+    speed = D.U_act * D.U;
+    [~, ~, freq] = parse_name(D.PIV_case_name);
+    dt = 1 / (freq * num_bins);
+    x_conv = zeros(1, num_bins);
+    for k = 1:num_bins
+        x_conv(k) =  speed * dt * (k - 1);
+    end
+    
+    config.xConv = x_conv;
+    config.includeHelmDecomp = true;
+    
+    config.speed = speed;
+    config.density = D.rho_act;
+else
+    config.speed = D.U;
+    config.density = D.rho;
 end
 
-config.xConv = x_conv;
-config.includeHelmDecomp = true;
-
-config.wakeSpeed = speed;
-config.wakeLength = D.L;
-config.wakeAvgType = 1;
-config.density = D.rho_act;
-end
+config.length = D.L;
 
 S = calc_secondary_vals_common(D, config);
 
