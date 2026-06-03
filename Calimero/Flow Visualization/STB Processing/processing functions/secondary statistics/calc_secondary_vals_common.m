@@ -1,5 +1,5 @@
 function S = calc_secondary_vals_common(D, config)
-%CALC_SECONDARY_VALS_COMMON Shared secondary calculations for STB averages.
+% Shared secondary calculations for STB averages.
 
 config = set_defaults(config);
 
@@ -32,22 +32,24 @@ trim_source.hel = D.(config.helField);
 trim_source.dudx = D.(config.dudxField);
 trim_source.dvdx = D.(config.dvdxField);
 trim_source.dwdx = D.(config.dwdxField);
-trim_source.KE_diff = KE_diff_field;
-trim_source.power = power_field;
+trim_source.KE_diff = S.KE_diff_field;
+trim_source.power = S.power_field;
 
-[F, y_tr, z_tr, T] = prepare_STB_wake_field(D.y, D.z, trim_source, config.xConv, true);
+print_dim_bool = false;
+fill_velocity_nans = true;
+[F, y_tr, z_tr, T] = prepare_STB_wake_field(D.L, D.y, D.z, print_dim_bool, trim_source, config.xConv, fill_velocity_nans);
 
 y_arr = squeeze(y_tr(:,1));
 z_arr = squeeze(z_tr(1,:));
 
-[lift_vel, drag_vel] = get_wake_lift(config.wakeSpeed, config.wakeLength, F, config.wakeAvgType, false, config.density);
+[lift_vel, drag_vel] = get_wake_lift(config.speed, config.length, F, false, config.density);
 S.lift_vel = lift_vel; S.drag_vel = drag_vel;
 
-[lift, drag] = get_wake_lift(config.wakeSpeed, config.wakeLength, F, config.wakeAvgType, true, config.density);
+[lift, drag] = get_wake_lift(config.speed, config.length, F, true, config.density);
 S.lift = lift; S.drag = drag;
 
 if config.includeHelmDecomp
-    [y_B, z_B, velX_B, velY_B, velZ_B] = helm_decomp(config.xConv, y_arr, z_arr, config.wakeLength, F);
+    [y_B, z_B, velX_B, velY_B, velZ_B] = helm_decomp(config.xConv, y_arr, z_arr, config.length, F);
     S.y_B = y_B; S.z_B = z_B; S.velX_B = velX_B; S.velY_B = velY_B; S.velZ_B = velZ_B;
 
     Utot_full = velX_B.^2 + velY_B.^2 + velZ_B.^2;

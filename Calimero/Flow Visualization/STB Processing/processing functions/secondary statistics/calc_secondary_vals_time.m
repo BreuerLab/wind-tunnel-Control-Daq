@@ -22,9 +22,8 @@ config.dwdxField = 'mean_dwdx';
 config.dvdyField = 'mean_dvdy';
 config.dwdzField = 'mean_dwdz';
 
-config.wakeSpeed = D.U;
-config.wakeLength = D.L;
-config.wakeAvgType = 0;
+config.speed = D.U;
+config.length = D.L;
 config.density = D.rho;
 
 S = calc_secondary_vals_common(D, config);

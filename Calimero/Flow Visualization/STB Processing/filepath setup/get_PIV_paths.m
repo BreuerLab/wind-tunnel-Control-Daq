@@ -57,8 +57,8 @@ function file_path = get_PIV_paths(PIV_case_name)
         
         'body',                       "body" + BIN
         'ring',                       "ring" + BIN
-        'turbine',                    "turbine_6ms_S" + BIN
-        'turbine_ext',                "turbine_6ms_S_ext" + BIN
+        'turbine_S',                    "turbine_6ms_S" + BIN
+        'turbine_S_ext',                "turbine_6ms_S_ext" + BIN
         'turbine_F_ext'               "turbine_6ms_F_ext" + BIN
     };
 
