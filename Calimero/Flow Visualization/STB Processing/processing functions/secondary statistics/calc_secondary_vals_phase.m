@@ -1,4 +1,4 @@
-function calc_secondary_vals(D, turbine_bool, plot_bool, save_filepath_local)
+function calc_secondary_vals_phase(D, turbine_bool, plot_bool, save_filepath_local)
 tic
 
 config.uField = 'u_phase_avg';
@@ -6,21 +6,21 @@ config.vField = 'v_phase_avg';
 config.wField = 'w_phase_avg';
 config.UtotField = 'Utot_phase_avg';
 config.UtotDiffField = 'Utot_diff_phase_avg';
+
 config.vortXField = 'vortX_phase_avg';
 config.vortYField = 'vortY_phase_avg';
 config.vortZField = 'vortZ_phase_avg';
 config.vortTotField = 'vortTot_phase_avg';
+
 config.uncField = 'uncTot_phase_avg';
 config.numPField = 'numP_phase_avg';
 config.helField = 'hel_phase_avg';
+
 config.dudxField = 'dudx_phase_avg';
 config.dvdxField = 'dvdx_phase_avg';
 config.dwdxField = 'dwdx_phase_avg';
 config.dvdyField = 'dvdy_phase_avg';
 config.dwdzField = 'dwdz_phase_avg';
-config.keDiffScale = 2; % x2 for L and R wings
-config.storeEnergyFields = true;
-config.includeDerivativePlanarAverages = true;
 
 if ~turbine_bool
 num_bins = D.num_bins;
@@ -33,13 +33,12 @@ for k = 1:num_bins
 end
 
 config.xConv = x_conv;
-config.doWakeLift = true;
-config.includeVelocityWakeLift = true;
 config.includeHelmDecomp = true;
+
 config.wakeSpeed = speed;
 config.wakeLength = D.L;
 config.wakeAvgType = 1;
-config.wakeDensity = D.rho_act;
+config.density = D.rho_act;
 end
 
 S = calc_secondary_vals_common(D, config);

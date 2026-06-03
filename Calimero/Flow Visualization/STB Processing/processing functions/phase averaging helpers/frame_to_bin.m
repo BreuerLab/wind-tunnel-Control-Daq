@@ -11,32 +11,53 @@ phase_type = 1;
 
 if turbine_bool
 
+% trim beginning and end of recording session
 mid_indices = find(las_count_orig ~= 0 & las_count_orig ~= las_count_orig(end));
 % if removed all mid_indices, would miss first and last pulse
 mid_indices_adj = [mid_indices(1) - 1; mid_indices; mid_indices(end) + 1];
 las_count_tr = las_count_orig(mid_indices_adj);
+
+% find indices where laser counter increments
 las_count_diff = diff(las_count_tr);
 whole_idx = find(las_count_diff ~= 0);
-las_rep_rate = diff(whole_idx);
-
 laser_ind = whole_idx + mid_indices_adj(1);
 
+% confirm laser fired at expected rate
+frames_bw_pulses = diff(whole_idx);
+las_rep_rate = rate / mean(frames_bw_pulses);
+disp("Laser recorded firing at: " + las_rep_rate + " Hz on average")
+
+% motor phase position associated with each laser pulse
 enc_pos = enc(laser_ind);
 
 full_cycle = 0.5:1:ticksPerRev+0.5;
+
+% normalized signal where 1 now represents 1 full rotation
 norm_frame_pos = enc_pos / ticksPerRev;
+
+% wrap values so only expressed between 0 and 1
 norm_frame_pos = mod(norm_frame_pos, 1);
 tick_frame_pos = round(norm_frame_pos * ticksPerRev);
 
-cycle_freq = mean(speed(mid_indices(1):mid_indices(end)));
+dt = time(2) - time(1);
+order = 3;
+framelen = 1501;
+[~,speed,~] = savitskyGolayDiff(enc, order, framelen, dt);
+speed = speed / ticksPerRev;
+
+speed_tr = speed(mid_indices(1):mid_indices(end));
+cycle_freq = mean(speed_tr);
+
+% plot(time(mid_indices(1):mid_indices(end)),speed_tr)
+% xlabel("Time (sec)")
+% ylabel("Speed (Hz)")
+% set(gca, FontSize=16)
 
 time_frame = time(laser_ind);
 time_frame = time_frame(end-(num_images - 1):end); % cropping time array
 norm_time = mod((time_frame - time_frame(1)) * cycle_freq, 1);
 
 disp("Cropped off " + (length(norm_frame_pos) - num_images) + " extra laser pulses from beginning")
-% crop off last few extra pulses
-% bin_ind_arr = bin_ind_arr(1:num_images);
 % crop off first few extra pulses
 norm_frame_pos = norm_frame_pos(end-(num_images - 1):end);
 
@@ -51,9 +72,8 @@ end
 
 num_bins = 40;
 % [num_bins, bin_ind_arr, bin_count, bin_std] = findBestNumBins(norm_signal);
-
 disp("Using " + num_bins + " bins")
-% num_bins = 25; % for 4 Hz
+
 bins = linspace(0,1,num_bins+1);
 bin_ind_arr = discretize(norm_signal, bins);
 
@@ -65,7 +85,6 @@ bin_std = zeros(1,num_bins);
 
 for i = 1:num_bins
     bin_indices = find(bin_ind_arr == i);
-    % bin_indices_all{i} = bin_indices;
     bin_count(i) = length(bin_indices);
 
     % Account for cases at overlap which would otherwise artificially raise
@@ -78,6 +97,9 @@ for i = 1:num_bins
     bin_std(i) = std(adj_norm_frame_pos); % removed for turbine case
 end
 
+% ------------------------------------------------------------------------
+% ------------------ Phase Averaging Code from Taylor --------------------
+% ------------------------------------------------------------------------
 % CPR = 500;
 % trigger_int = 80;
 % 
@@ -141,7 +163,9 @@ else
     full_cycle = zeros(size(norm_signal));
 end
 
-[num_bins, bin_ind_arr, bin_count, bin_std] = findBestNumBins(norm_signal);
+bins_list = 10:5:150;
+minFrames = 10;
+[num_bins, bin_ind_arr, bin_count, bin_std] = findBestNumBins(norm_signal, bins_list, minFrames);
 disp("Using " + num_bins + " bins")
 
 % rough estimate of number of cycles based on value resetting to zero

@@ -13,13 +13,9 @@ dz = abs(D.z(1,1,2) - D.z(1,1,1));
 S.Qx = Qx; S.Qy = Qy; S.Qz = Qz; S.Q = Q;
 
 % Calculated using streamwise speed with freestream speed subtracted.
-KE_diff_field = config.keDiffScale * D.(config.UtotDiffField).^2;
-power_field = KE_diff_field .* -D.(config.uField);
-
-if config.storeEnergyFields
-    S.KE_diff_field = KE_diff_field;
-    S.power_field = power_field;
-end
+% 1/2 and 2 (from x2 wings) cancel each other out
+S.KE_diff_field = config.density * D.(config.UtotDiffField).^2;
+S.power_field = S.KE_diff_field .* -D.(config.uField);
 
 trim_source.u = D.(config.uField);
 trim_source.v = D.(config.vField);
@@ -44,15 +40,11 @@ trim_source.power = power_field;
 y_arr = squeeze(y_tr(:,1));
 z_arr = squeeze(z_tr(1,:));
 
-if config.doWakeLift
-    if config.includeVelocityWakeLift
-        [lift_vel, drag_vel] = get_wake_lift(config.wakeSpeed, config.wakeLength, F, config.wakeAvgType, false, config.wakeDensity);
-        S.lift_vel = lift_vel; S.drag_vel = drag_vel;
-    end
+[lift_vel, drag_vel] = get_wake_lift(config.wakeSpeed, config.wakeLength, F, config.wakeAvgType, false, config.density);
+S.lift_vel = lift_vel; S.drag_vel = drag_vel;
 
-    [lift, drag] = get_wake_lift(config.wakeSpeed, config.wakeLength, F, config.wakeAvgType, true, config.wakeDensity);
-    S.lift = lift; S.drag = drag;
-end
+[lift, drag] = get_wake_lift(config.wakeSpeed, config.wakeLength, F, config.wakeAvgType, true, config.density);
+S.lift = lift; S.drag = drag;
 
 if config.includeHelmDecomp
     [y_B, z_B, velX_B, velY_B, velZ_B] = helm_decomp(config.xConv, y_arr, z_arr, config.wakeLength, F);
@@ -62,11 +54,11 @@ if config.includeHelmDecomp
     KE_tot_field = permute(Utot_full,[2 3 1]);
     KE_tot = trapz(squeeze(y_B(:,1)), KE_tot_field, 1);
     KE_tot = trapz(squeeze(z_B(1,:)), KE_tot, 2);
-    S.KE_tot = squeeze(KE_tot);
+    S.KE_tot = squeeze(KE_tot) * config.density;
 end
 
 % Integral quantities
-S.KE = integrate_planar(y_arr, z_arr, T.Utot.^2);
+S.KE = integrate_planar(y_arr, z_arr, T.Utot.^2 * config.density);
 S.KE_diff = integrate_planar(y_arr, z_arr, T.KE_diff);
 S.power = integrate_planar(y_arr, z_arr, T.power);
 S.enst = integrate_planar(y_arr, z_arr, T.vortTot.^2);
@@ -82,12 +74,9 @@ S.vortZ_avg = mean(T.vortZ, [1, 2]);
 S.numP_avg = mean(T.numP, [1, 2]);
 S.unc_avg = mean(T.unc, [1, 2]);
 S.hel_avg = mean(T.hel, [1, 2]);
-
-if config.includeDerivativePlanarAverages
-    S.dudx_avg = mean(T.dudx, [1, 2]);
-    S.dvdx_avg = mean(T.dvdx, [1, 2]);
-    S.dwdx_avg = mean(T.dwdx, [1, 2]);
-end
+S.dudx_avg = mean(T.dudx, [1, 2]);
+S.dvdx_avg = mean(T.dvdx, [1, 2]);
+S.dwdx_avg = mean(T.dwdx, [1, 2]);
 end
 
 function config = set_defaults(config)
@@ -95,24 +84,8 @@ if ~isfield(config, 'xConv')
     config.xConv = 0;
 end
 
-if ~isfield(config, 'doWakeLift')
-    config.doWakeLift = false;
-end
-
-if ~isfield(config, 'includeVelocityWakeLift')
-    config.includeVelocityWakeLift = false;
-end
-
 if ~isfield(config, 'includeHelmDecomp')
     config.includeHelmDecomp = false;
-end
-
-if ~isfield(config, 'includeDerivativePlanarAverages')
-    config.includeDerivativePlanarAverages = false;
-end
-
-if ~isfield(config, 'storeEnergyFields')
-    config.storeEnergyFields = false;
 end
 end
 

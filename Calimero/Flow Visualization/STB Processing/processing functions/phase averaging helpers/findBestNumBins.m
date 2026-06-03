@@ -1,5 +1,4 @@
-function [best_num_bins, best_bin_ind_arr, best_bin_count, best_bin_std] = findBestNumBins(norm_signal)
-    bins_list = 10:5:150;
+function [best_num_bins, best_bin_ind_arr, best_bin_count, best_bin_std] = findBestNumBins(norm_signal, bins_list, minFrames)
     best_num_bins = 0;
     best_bin_count = [];
     best_bin_ind_arr = [];
@@ -8,18 +7,18 @@ function [best_num_bins, best_bin_ind_arr, best_bin_count, best_bin_std] = findB
         bins = linspace(0,1,num_bins+1);
         bin_ind_arr = discretize(norm_signal, bins);
     
-        bin_count = zeros(1,num_bins);
-        bin_std = zeros(1,num_bins);
+        % variable preallocation
+        [bin_count, bin_std] = deal(zeros(1, num_bins));
     
         for j = 1:num_bins
             bin_indices = find(bin_ind_arr == j);
-            % bin_indices_all{i} = bin_indices;
             bin_count(j) = length(bin_indices);
             bin_std(j) = std(norm_signal(bin_indices));
         end
     
-        % ensure at least 10 images per bin and number of bins is divis by 5
-        if min(bin_count) > 10 && mod(num_bins,5) == 0
+        % ensure at least minFrames images per bin and number of bins is
+        % divisible by 5
+        if min(bin_count) > minFrames && mod(num_bins,5) == 0
             best_num_bins = num_bins;
             best_bin_count = bin_count;
             best_bin_ind_arr = bin_ind_arr;

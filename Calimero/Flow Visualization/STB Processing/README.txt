@@ -29,5 +29,11 @@ filepath setup ->
 vc7 data, DAQ data (time series of laser firing and motor encoder), wind tunnel
 data.
 
-phase averaging ->
-	files used in the phase averaging processing
+processing functions ->
+	files that do the brunt of the 'processing' work, which includes the
+phase averaging, time averaging, and calculation of secondary statistics (e.g.
+lift force).
+
+general functions ->
+	functions that are used in the processing but are highly general and
+could be used in any other code (e.g. calculating vorticity)

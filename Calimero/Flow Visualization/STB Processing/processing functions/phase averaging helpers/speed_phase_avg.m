@@ -2,7 +2,7 @@ function [norm_time_speed, phase_avg_pos, phase_std_pos,...
     phase_avg_speed, phase_std_speed, phase_avg_acc, phase_std_acc,...
     phase_avg_wing_pos, phase_std_wing_pos,...
     phase_avg_wing_speed, phase_std_wing_speed, phase_avg_wing_acc, phase_std_wing_acc,...
-    bin_count_speed, bin_std_speed, phase_avg_volt, phase_std_volt,...
+    bin_count, bin_std, phase_avg_volt, phase_std_volt,...
     phase_avg_cur, phase_std_cur] = speed_phase_avg(PIV_case_name, plot_bool)
 
 [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name);
@@ -17,7 +17,7 @@ cal_mat = zeros(6,6);
 
 ticksPerRev = 18432;
 OC_pulse_step = 4;
-[time_data, force_data, voltAdj, curAdj, pos, speed, acc, wing_pos, wing_speed, wing_acc] = ...
+[time_data, ~, voltAdj, curAdj, pos, speed, acc, wing_pos, wing_speed, wing_acc] = ...
     process_data(results, offsets, cal_mat, ticksPerRev, OC_pulse_step, amp, true);
 
 OC_pulse_count = results(:,11);
@@ -41,75 +41,27 @@ wing_acc_tr = wing_acc(mid_indices_adj);
 volt_tr = voltAdj(mid_indices_adj);
 cur_tr = curAdj(mid_indices_adj);
 
-% figure
-% plot(time_tr,wing_pos_tr)
-
 norm_frame_pos_full = mod(raw_pos_tr,1);
 
-% figure
-% plot(norm_frame_pos_full)
+bins_list = 500:50:1500;
+minFrames = 100;
+[num_bins, bin_ind_arr, bin_count, bin_std] = findBestNumBins(norm_frame_pos_full, bins_list, minFrames);
+disp("Using " + num_bins + " bins for speed phase averaging")
 
-bins_list_speed = 500:50:1500;
-best_num_bins_speed = 0;
-for num_bins_speed = bins_list_speed
-bins_speed = linspace(0,1,num_bins_speed+1);
-bin_ind_arr_speed = discretize(norm_frame_pos_full, bins_speed);
-
-bin_count_speed = zeros(1,num_bins_speed);
-
-for j = 1:num_bins_speed
-    bin_indices_speed = find(bin_ind_arr_speed == j);
-    bin_count_speed(j) = length(bin_indices_speed);
-end
-
-% ensure at least 100 frames per bin and number of bins is divis by 5
-if min(bin_count_speed) > 100 && mod(num_bins_speed,5) == 0
-    best_num_bins_speed = num_bins_speed;
-end
-end
-
-num_bins_speed = best_num_bins_speed;
-% num_bins_speed = 1000;
-disp("Using " + num_bins_speed + " bins for speed phase averaging")
-
-bins_speed = linspace(0,1,num_bins_speed+1);
-bin_ind_arr_speed = discretize(norm_frame_pos_full, bins_speed);
-
-bin_count_speed = zeros(1,num_bins_speed);
-bin_std_speed = zeros(1,num_bins_speed);
-
-phase_avg_pos = zeros(1,num_bins_speed);
-phase_std_pos = zeros(1,num_bins_speed);
-
-phase_avg_speed = zeros(1,num_bins_speed);
-phase_std_speed = zeros(1,num_bins_speed);
-
-phase_avg_acc = zeros(1,num_bins_speed);
-phase_std_acc = zeros(1,num_bins_speed);
-
-phase_avg_wing_pos = zeros(1,num_bins_speed);
-phase_std_wing_pos = zeros(1,num_bins_speed);
-
-phase_avg_wing_speed = zeros(1,num_bins_speed);
-phase_std_wing_speed = zeros(1,num_bins_speed);
-
-phase_avg_wing_acc = zeros(1,num_bins_speed);
-phase_std_wing_acc = zeros(1,num_bins_speed);
-
-phase_avg_volt = zeros(1,num_bins_speed);
-phase_std_volt = zeros(1,num_bins_speed);
-
-phase_avg_cur = zeros(1,num_bins_speed);
-phase_std_cur = zeros(1,num_bins_speed);
+% Array preallocation
+[phase_avg_pos, phase_std_pos, ...
+ phase_avg_speed, phase_std_speed, ...
+ phase_avg_acc, phase_std_acc, ...
+ phase_avg_wing_pos, phase_std_wing_pos, ...
+ phase_avg_wing_speed, phase_std_wing_speed, ...
+ phase_avg_wing_acc, phase_std_wing_acc, ...
+ phase_avg_volt, phase_std_volt, ...
+ phase_avg_cur, phase_std_cur] = deal(zeros(1, num_bins));
 
 pos_tr_adj = mod(pos_tr, 2*pi);
 % no adjustment needed for wing position
 
-for j = 1:num_bins_speed
-    bin_indices_speed = find(bin_ind_arr_speed == j);
-    bin_count_speed(j) = length(bin_indices_speed);
-    bin_std_speed(j) = std(norm_frame_pos_full(bin_indices_speed))*100;
-
+for j = 1:num_bins
     phase_avg_pos(j) = mean(pos_tr_adj(bin_indices_speed));
     phase_std_pos(j) = std(pos_tr_adj(bin_indices_speed));
 
@@ -135,16 +87,16 @@ for j = 1:num_bins_speed
     phase_std_cur(j) = std(cur_tr(bin_indices_speed));
 end
 
-norm_time_speed = linspace(0,1,num_bins_speed);
+norm_time_speed = linspace(0,1,num_bins);
 
 if plot_bool
 figure
-bar(bin_count_speed)
+bar(bin_count)
 xlabel("Bin number", FontSize=16)
 ylabel("Number of frames per bin", FontSize=16)
 
 figure
-bar(bin_std_speed)
+bar(bin_std)
 xlabel("Bin number", FontSize=16)
 ylabel("Phase variability per bin (% cycle)", FontSize=16)
 

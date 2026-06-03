@@ -1,4 +1,4 @@
-function [lift, drag] = get_wake_lift(U, L, D, avg_type, vort_bool, density)
+function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density)
 
     % ---------------------------------------------
     % --------- Make values dimensional -----------
@@ -59,6 +59,9 @@ function [lift, drag] = get_wake_lift(U, L, D, avg_type, vort_bool, density)
     %     % disp("Q mask active")
     % end
 
+    % Flooring the noise below some threshold makes the trends with
+    % wingbeat frequency appear smoother, but appears to worsen agreement
+    % for phase averaged data (b/w load cell and STB)
     if ndims(vortX) == 3
     % thresh = 0.1 * (U/L);
     % vortX(vortX < thresh & vortX > -thresh) = default_value;

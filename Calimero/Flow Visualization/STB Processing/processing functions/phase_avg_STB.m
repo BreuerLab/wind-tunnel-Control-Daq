@@ -28,16 +28,17 @@ if ~bools.turbine
     S.Re = (WT_d.Density_kg_m3_ *speed * L) / WT_d.Viscosity_N_s_m2_;
 end 
 
+% variable preallocation
 bin_count = zeros(1,num_bins);
 bin_std = zeros(1,num_bins);
 lift_phase_avg = struct();
 drag_phase_avg = struct();
+print_dim_bool = true;
 
 fields = get_STB_processing_fields();
 
 for i = 1:num_bins
     bin_indices = find(bin_ind_arr == i);
-    % bin_indices_all{i} = bin_indices;
     bin_count(i) = length(bin_indices);
     bin_std(i) = std(norm_frame_pos(bin_indices))*100;
 
@@ -45,13 +46,13 @@ for i = 1:num_bins
     [x, y, z, data{1:length(fields)}] = ...
         import_STB_data(file_path, bools.nondim, U, L, bin_indices, bools.RPCA);
 
-    avg_type = 2;
-    F = prepare_STB_wake_field(y, z, data, 0);
+    F = prepare_STB_wake_field(L, y, z, print_dim_bool, data, 0); % trimming fields
 
     if ~bools.turbine
-    [lift_vals, drag_vals] = get_wake_lift(speed, L, F, avg_type, true, S.rho_act);
+    [lift_vals, drag_vals] = get_wake_lift(speed, L, F, true, S.rho_act);
     end
         
+    % Variable preallocation that is dependent on the data content 
     if i == 1
         % Initialize structure with zeros based on first file size
         for f = 1:length(fields)
@@ -69,9 +70,13 @@ for i = 1:num_bins
             drag_phase_avg.(drag_fields{f}) = zeros(1,num_bins);
         end
         end
+
+        % turn printing boolean off for printing of trimmed dimensions
+        print_dim_bool = false;
+        disp("Trimming for force calculation only")
     end
 
-
+    % Phase average computation
     for f = 1:length(fields)
         fname = [fields{f}, '_phase_avg'];
         % Compute mean along the 4th dimension
@@ -97,7 +102,6 @@ for i = 1:num_bins
     end
     end
 
-
     if mod(i,5) == 0
         disp(['processed ',num2str(i),'/',num2str(num_bins)])
     end
@@ -121,7 +125,7 @@ fprintf('Processing and saving data took %.4f seconds.\n', toc);
 
 % Calculate secondary values (Q, power, integral values) and save in
 % separate file
-calc_secondary_vals(S, bools.turbine, bools.plot, save_filepath_local);
+calc_secondary_vals_phase(S, bools.turbine, bools.plot, save_filepath_local);
 
 else
 
@@ -130,6 +134,6 @@ S = load(save_path);
 
 % Calculate secondary values (Q, power, integral values) and save in
 % separate file
-calc_secondary_vals(S, bools.turbine, bools.plot, save_filepath_local);
+calc_secondary_vals_phase(S, bools.turbine, bools.plot, save_filepath_local);
 end
 end

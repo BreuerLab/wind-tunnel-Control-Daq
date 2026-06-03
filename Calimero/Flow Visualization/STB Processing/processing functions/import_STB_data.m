@@ -58,117 +58,68 @@ for i = 1:size(D.u, 4)
 end
 end
 
-% initial dimensions before cropping
-init_t = round((max(D.x,[],"all") - min(D.x,[],"all"))*1000); 
-init_W = round((max(D.y,[],"all") - min(D.y,[],"all"))*1000);
-init_L = round((max(D.z,[],"all") - min(D.z,[],"all"))*1000);
-
 if nondim_bool % Non-dimensionalize variables
-    u_full = D.u/U;
-    u_full_diff = u_full + 1;
-    v_full = D.v/U;
-    w_full = D.w/U;
-    vort_z_full = D.vortZ*(L/U);
-    vort_x_full = D.vortX*(L/U);
-    vort_y_full = D.vortY*(L/U);
-    x_full = D.x/L;
-    y_full = D.y/L;
-    z_full = D.z/L;
-    uncU_full = D.uncU/U;
-    uncV_full = D.uncV/U;
-    uncW_full = D.uncW/U;
-    dudx_full = D.dudx*(L/U);
-    dudy_full = D.dudy*(L/U);
-    dudz_full = D.dudz*(L/U);
-    dvdx_full = D.dvdx*(L/U);
-    dvdy_full = D.dvdy*(L/U);
-    dvdz_full = D.dvdz*(L/U);
-    dwdx_full = D.dwdx*(L/U);
-    dwdy_full = D.dwdy*(L/U);
-    dwdz_full = D.dwdz*(L/U);
+    u = D.u/U;
+    u_diff = u + 1;
+    v = D.v/U;
+    w = D.w/U;
+    vortZ = D.vortZ*(L/U);
+    vortX = D.vortX*(L/U);
+    vortY = D.vortY*(L/U);
+    x = D.x/L;
+    y = D.y/L;
+    z = D.z/L;
+    uncU = D.uncU/U;
+    uncV = D.uncV/U;
+    uncW = D.uncW/U;
+    dudx = D.dudx*(L/U);
+    dudy = D.dudy*(L/U);
+    dudz = D.dudz*(L/U);
+    dvdx = D.dvdx*(L/U);
+    dvdy = D.dvdy*(L/U);
+    dvdz = D.dvdz*(L/U);
+    dwdx = D.dwdx*(L/U);
+    dwdy = D.dwdy*(L/U);
+    dwdz = D.dwdz*(L/U);
 else
-    u_full = D.u;
-    u_full_diff = u_full + U;
-    v_full = D.v;
-    w_full = D.w;
-    vort_z_full = D.vortZ;
-    vort_x_full = D.vortX;
-    vort_y_full = D.vortY;
-    x_full = D.x;
-    y_full = D.y;
-    z_full = D.z;
-    uncU_full = D.uncU;
-    uncV_full = D.uncV;
-    uncW_full = D.uncW;
-    dudx_full = D.dudx;
-    dudy_full = D.dudy;
-    dudz_full = D.dudz;
-    dvdx_full = D.dvdx;
-    dvdy_full = D.dvdy;
-    dvdz_full = D.dvdz;
-    dwdx_full = D.dwdx;
-    dwdy_full = D.dwdy;
-    dwdz_full = D.dwdz;
+    u = D.u;
+    u_diff = u + U;
+    v = D.v;
+    w = D.w;
+    vortZ = D.vortZ;
+    vortX = D.vortX;
+    vortY = D.vortY;
+    x = D.x;
+    y = D.y;
+    z = D.z;
+    uncU = D.uncU;
+    uncV = D.uncV;
+    uncW = D.uncW;
+    dudx = D.dudx;
+    dudy = D.dudy;
+    dudz = D.dudz;
+    dvdx = D.dvdx;
+    dvdy = D.dvdy;
+    dvdz = D.dvdz;
+    dwdx = D.dwdx;
+    dwdy = D.dwdy;
+    dwdz = D.dwdz;
 end
 
 num_particles = D.numP;
 
-x = x_full;
-y = y_full;
-z = z_full;
-u = u_full;
-u_diff = u_full_diff;
-v = v_full;
-w = w_full;
-vortZ = vort_z_full;
-vortX = vort_x_full;
-vortY = vort_y_full;
-uncU = uncU_full;
-uncV = uncV_full;
-uncW = uncW_full;
-
-dudx = dudx_full;
-dudy = dudy_full;
-dudz = dudz_full;
-dvdx = dvdx_full;
-dvdy = dvdy_full;
-dvdz = dvdz_full;
-dwdx = dwdx_full;
-dwdy = dwdy_full;
-dwdz = dwdz_full;
-
 % Total vel calculated without NaNs
-tmp = u;
-tmp(isnan(tmp)) = median(u,"all", "omitnan");
-u_tmp = tmp;
-
-tmp = u_diff;
-tmp(isnan(tmp)) = median(u_diff,"all", "omitnan");
-u_diff_tmp = tmp;
-
-tmp = v;
-tmp(isnan(tmp)) = median(v,"all", "omitnan");
-v_tmp = tmp;
-
-tmp = w;
-tmp(isnan(tmp)) = median(w,"all", "omitnan");
-w_tmp = tmp;
+u_tmp = nanToMedian(u);
+u_diff_tmp = nanToMedian(u_diff);
+v_tmp = nanToMedian(v);
+w_tmp = nanToMedian(w);
 
 % Calculate totals using vector sum
 Utot = (u_tmp.^2 + v_tmp.^2 + w_tmp.^2).^(1/2);
 Utot_diff = (u_diff_tmp.^2 + v_tmp.^2 + w_tmp.^2).^(1/2);
 vortTot = (vortX.^2 + vortY.^2 + vortZ.^2).^(1/2);
 uncTot = (uncU.^2 + uncV.^2 + uncW.^2).^(1/2);
+
 hel = (u .* vortX) + (v .* vortY) + (w .* vortZ);
 hel = hel ./ (vortTot .* Utot);
-
-fin_W = round((max(x,[],"all") - min(x,[],"all")) * L * 100);
-fin_L = round((max(y,[],"all") - min(y,[],"all")) * L * 100);
-
-init_size = size(x_full);
-fin_size = size(x);
-% fprintf("Data trimmed from: (%d, %d) to (%d, %d)\n", ...
-%              init_size(1), init_size(2), fin_size(1), fin_size(2));
-% fprintf("Data trimmed from: (%d x %d cm) to (%d x %d cm)\n", ...
-%              init_W, init_L, fin_W, fin_L);
 end

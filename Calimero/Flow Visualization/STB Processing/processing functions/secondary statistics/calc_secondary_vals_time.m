@@ -6,25 +6,26 @@ config.vField = 'mean_v';
 config.wField = 'mean_w';
 config.UtotField = 'mean_Utot';
 config.UtotDiffField = 'mean_Utot_diff';
+
 config.vortXField = 'mean_vortX';
 config.vortYField = 'mean_vortY';
 config.vortZField = 'mean_vortZ';
 config.vortTotField = 'mean_vortTot';
+
 config.uncField = 'mean_uncTot';
 config.numPField = 'mean_numP';
 config.helField = 'mean_hel';
+
 config.dudxField = 'mean_dudx';
 config.dvdxField = 'mean_dvdx';
 config.dwdxField = 'mean_dwdx';
 config.dvdyField = 'mean_dvdy';
 config.dwdzField = 'mean_dwdz';
-config.keDiffScale = 1;
-config.doWakeLift = true;
-config.includeVelocityWakeLift = true;
+
 config.wakeSpeed = D.U;
 config.wakeLength = D.L;
 config.wakeAvgType = 0;
-config.wakeDensity = D.rho;
+config.density = D.rho;
 
 S = calc_secondary_vals_common(D, config);
 

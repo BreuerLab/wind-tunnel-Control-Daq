@@ -1,17 +1,14 @@
 function S = time_avg_STB(file_path, nondim_bool, U, L, num_files, save_filepath_local, PIV_case_name, RPCA_bool)
     tic;
 
-    avg_type = 0;
-
+    % wind tunnel properties were not measured for gliding data
     speed = U;
     density = 1.225;
 
-    y_cen = -2.26;
-    z_cen = -0.03 / L;
-    x_conv = 0;
-
+    % variable preallocation
     lift_vals = zeros(1,num_files);
     drag_vals = zeros(1,num_files);
+    print_dim_bool = true;
 
     fields = get_STB_processing_fields();
     
@@ -24,6 +21,10 @@ function S = time_avg_STB(file_path, nondim_bool, U, L, num_files, save_filepath
             for f = 1:length(fields)
                 S.(['mean_' fields{f}]) = zeros(size(x));
             end
+
+            % turn printing boolean off for printing of trimmed dimensions
+            print_dim_bool = false;
+            disp("Trimming for force calculation only")
         end
         
         % Accumulate sums dynamically
@@ -34,10 +35,9 @@ function S = time_avg_STB(file_path, nondim_bool, U, L, num_files, save_filepath
             S.(fn) = S.(fn) + current_data;
         end
 
-        avg_type = 2;
-        F = prepare_STB_wake_field(y, z, data, 0);
+        F = prepare_STB_wake_field(L, y, z, print_dim_bool, data, 0); % trimming
 
-        [lift, drag] = get_wake_lift(speed, L, F, avg_type, true, density);
+        [lift, drag] = get_wake_lift(speed, L, F, true, density);
         lift_vals(i) = lift.vortX;
         drag_vals(i) = drag.tot;
         
