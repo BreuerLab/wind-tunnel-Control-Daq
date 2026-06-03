@@ -709,16 +709,16 @@ methods (Access = private)
                 minSt = 0;
                 maxSt = 0.55;
                 zmap = linspace(minSt, maxSt, length(cmap));
-                clim(ax, [minSt, maxSt])
-                cb = colorbar(ax);
-                ylabel(cb,'Strouhal Number','FontSize',16,'Rotation',270)
+                % clim(ax, [minSt, maxSt])
+                % cb = colorbar(ax);
+                % ylabel(cb,'Strouhal Number','FontSize',16,'Rotation',270)
             else
                 minFreq = 0;
                 maxFreq = 5;
                 zmap = linspace(minFreq, maxFreq, length(cmap));
-                clim(ax, [minFreq, maxFreq])
-                cb = colorbar(ax);
-                ylabel(cb,'Wingbeat Frequency','FontSize',16,'Rotation',270)
+                % clim(ax, [minFreq, maxFreq])
+                % cb = colorbar(ax);
+                % ylabel(cb,'Wingbeat Frequency','FontSize',16,'Rotation',270)
             end
         end
 
@@ -771,7 +771,8 @@ methods (Access = private)
             norm_factors_filename = compareStabilityUI.get_norm_factors_name(norm_factors_path, cur_struct_match.dir_name);
 
             cur_file = norm_factors_path + norm_factors_filename;
-            disp("Loading " + cur_file)
+            disp("Loading norm factors from: ")
+            disp(cur_file)
             load(cur_file, "norm_factors")
 
             % Also strip norm from filename as we want to hand
@@ -792,6 +793,10 @@ methods (Access = private)
             load(cur_file, "avg_forces", "err_forces")
             lim_avg_forces = avg_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
             lim_err_forces = err_forces(:,cur_bird.angles >= obj.range(1) & cur_bird.angles <= obj.range(2),:);
+            
+            % rescale error for gliding case, by using standard error of
+            % 180 chunks of signal (analagous to 180 wingbeats)
+            lim_err_forces(:,:,1) = lim_err_forces(:,:,1) / sqrt(180);
 
             if cur_bird.name == "Flapperoo"
                 if (wind_speed == 6)
@@ -818,7 +823,9 @@ methods (Access = private)
             b = x\y;
             model = x*b;
             % Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
-            SE_slope = (sum((y - model).^2) / (sum((lim_AoA_sel - mean(lim_AoA_sel)).^2)*(length(lim_AoA_sel) - 2)) ).^(1/2);
+            SSE = sum((y - model).^2); % sum of squared residuals
+            Sxx = sum((lim_AoA_sel - mean(lim_AoA_sel)).^2);
+            SE_slope = (SSE / (Sxx*(length(lim_AoA_sel) - 2)) ).^(1/2);
             x_int = - b(1) / b(2);
             glide_slope = b(2);
             
@@ -831,13 +838,27 @@ methods (Access = private)
             NP_positions = [];
             NP_pos_errs = [];
             NP_moms = [];
+            NP_mom_errs = [];
             COPs = [];
             COP_SDs = [];
             [init_NP_pos, ~, ~] = findNP(lim_avg_forces(:,:,1), lim_AoA_sel);
-            for k = 1:length(wing_freqs)
+
+            % Added 02/28/20226, reduce number of lines
+            % wing_freqs = wing_freqs([2,6,8,10]);
+            % for ii = 1:length(wing_freqs)
+            %     St_nums(ii) = freqToSt(cur_bird.name, wing_freqs(ii), wind_speed, obj.data_path, -1);
+            % end
+            % ind_select = find(round(St_nums,3) == 0.515 | ...
+            %         round(St_nums,3) == 0.360 | round(St_nums,3) == 0.206);
+            % ind_select = [2,4,8,10];
+            ind_select = 1:1:length(wing_freqs); % default 
+            % replaced k with cur_ind = ind_select(k);
+
+            for k = 1:length(ind_select)
+                cur_ind = ind_select(k);
                 if (obj.u_eff)
                     amp = -1;
-                    [time, ang_disp, ang_vel, ang_acc] = get_kinematics(obj.data_path, wing_freqs(k), amp);
+                    [time, ang_disp, ang_vel, ang_acc] = get_kinematics(obj.data_path, wing_freqs(cur_ind), amp);
                     
                     full_length = wing_length + arm_length;
                     r = arm_length:0.001:full_length;
@@ -850,23 +871,25 @@ methods (Access = private)
                         [eff_AoA, u_rel] = get_eff_wind(time, lin_vel, AoA, wind_speed);
                         u_rel_avg = mean(u_rel,"all");
     
-                        lim_avg_forces(:,m,k) = lim_avg_forces(:,m,k) * (wind_speed / u_rel_avg)^2;
+                        lim_avg_forces(:,m,cur_ind) = lim_avg_forces(:,m,cur_ind) * (wind_speed / u_rel_avg)^2;
                     end
                 end
 
                 idx = 5; % pitch moment
                 x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
-                y = lim_avg_forces(idx,:,k)';
+                y = lim_avg_forces(idx,:,cur_ind)';
                 b = x\y;
                 model = x*b;
                 % Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
-                SE_slope = (sum((y - model).^2) / (sum((lim_AoA_sel - mean(lim_AoA_sel)).^2)*(length(lim_AoA_sel) - 2)) ).^(1/2);
+                SSE = sum((y - model).^2); % sum of squared residuals
+                Sxx = sum((lim_AoA_sel - mean(lim_AoA_sel)).^2);
+                SE_slope = (SSE / (Sxx*(length(lim_AoA_sel) - 2)) ).^(1/2);
                 x_int = - b(1) / b(2);
                 slope = b(2);
 
                 [center_to_LE, chord, ~, ~, ~] = getWingMeasurements(cur_bird.name);
 
-                [COP] = getCOP(squeeze(lim_avg_forces(:,:,k)), lim_AoA_sel, center_to_LE, chord);
+                [COP] = getCOP(squeeze(lim_avg_forces(:,:,cur_ind)), lim_AoA_sel, center_to_LE, chord);
 
                 % try removing stuff around zero angle of attack where COP
                 % is singular as normal force goes to zero
@@ -884,32 +907,45 @@ methods (Access = private)
                 end
 
                 if (obj.y_var == 3 || obj.y_var == 4 || obj.constSM)
-                    [NP_pos, NP_pos_err, NP_mom] = findNP(lim_avg_forces(:,:,k), lim_AoA_sel);
+                    [NP_pos, NP_pos_err, NP_mom] = findNP(lim_avg_forces(:,:,cur_ind), lim_AoA_sel);
+                    pitch_mom_err = mean(squeeze(lim_err_forces(5,:,cur_ind)));
+                    drag_err = mean(squeeze(lim_err_forces(1,:,cur_ind)));
+                    lift_err = mean(squeeze(lim_err_forces(3,:,cur_ind)));
+                    NP_mom_err = pitch_mom_err + abs(NP_pos * (drag_err + lift_err));
                 end
 
                 if (obj.y_var == 3 || obj.y_var == 4)
                     if (obj.norm)
-                        NP_mom = NP_mom / norm_factors(2);
+                        mom_norm = mean(norm_factors(2,:,:), "all");
+                        NP_mom = NP_mom / mom_norm;
+                        NP_mom_err = NP_mom_err / mom_norm;
+                        if NP_mom_err > 0.05
+                            disp("wait")
+                        end
                     end
                     % NP_pos_chord = (NP_pos / chord) * 100;
                     % Assuming lim_avg_forces fed into findNP was from LE
                     % Otherwise need, shift pitch moment to be off
                     [NP_pos_LE, NP_pos_chord] = posToChord(NP_pos, center_to_LE, chord);
+                    NP_pos_err_chord = (NP_pos_err / chord) * 100;
                     NP_positions = [NP_positions NP_pos_chord];
                     NP_moms = [NP_moms NP_mom];
-                    NP_pos_errs = [NP_pos_errs NP_pos_err];
+                    NP_mom_errs = [NP_mom_errs NP_mom_err];
+                    NP_pos_errs = [NP_pos_errs NP_pos_err_chord];
                 end
 
                 if (obj.constSM)
                     shift_distance = (NP_pos - init_NP_pos);
-                    [mod_avg_data] = shiftPitchMom(squeeze(lim_avg_forces(:,:,k)), shift_distance, lim_AoA_sel);
+                    [mod_avg_data] = shiftPitchMom(squeeze(lim_avg_forces(:,:,cur_ind)), shift_distance, lim_AoA_sel);
                     idx = 5; % pitch moment
                     x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
                     y = mod_avg_data(idx,:)';
                     b = x\y;
                     model = x*b;
                     % Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
-                    SE_slope = (sum((y - model).^2) / (sum((lim_AoA_sel - mean(lim_AoA_sel)).^2)*(length(lim_AoA_sel) - 2)) ).^(1/2);
+                    SSE = sum((y - model).^2); % sum of squared residuals
+                    Sxx = sum((lim_AoA_sel - mean(lim_AoA_sel)).^2);
+                    SE_slope = (SSE / (Sxx*(length(lim_AoA_sel) - 2)) ).^(1/2);
                     x_int = - b(1) / b(2);
                     slope = b(2);
                 end
@@ -920,7 +956,7 @@ methods (Access = private)
 
                 if (obj.x_var == 2 || obj.x_var == 3)
                     [distance_vals_chord, static_margin, slopes_pos, x_ints] = ...
-                        findCOMrange(lim_avg_forces(:,:,k), lim_AoA_sel, center_to_LE, chord, obj.norm, norm_factors);
+                        findCOMrange(lim_avg_forces(:,:,cur_ind), lim_AoA_sel, center_to_LE, chord, obj.norm, norm_factors);
                     
                     if (obj.x_var == 2)
                         x_vals = distance_vals_chord;
@@ -937,16 +973,17 @@ methods (Access = private)
                     end
 
                     if (obj.st)
-                    St = freqToSt(cur_bird.name, wing_freqs(k), wind_speed, obj.data_path, -1);
+                    St = freqToSt(cur_bird.name, wing_freqs(cur_ind), wind_speed, obj.data_path, -1);
                     line_color = interp1(zmap, cmap, St);
                     % slopes_pos = slopes_pos / (wing_freqs(k));
                     else
-                    line_color = interp1(zmap, cmap, wing_freqs(k));
+                    line_color = interp1(zmap, cmap, wing_freqs(cur_ind));
                     end
 
                     line = plot(ax, x_vals, y_vals);
                     line.LineWidth = 2;
-                    line.HandleVisibility = 'off';
+                    line.DisplayName  = "St: " + St;% Added 02/28/2026
+                    % line.HandleVisibility = 'off';
                     line.Color = line_color;
 
                     % % For making dots showing M about LE only
@@ -956,7 +993,8 @@ methods (Access = private)
                     % ylim(ax, [-0.2, 0.3])
                     
                     if obj.x_var == 2
-                        xlim(ax, [min(x_vals) max(x_vals)])
+                        % xlim(ax, [min(x_vals) max(x_vals)])
+                        xlim(ax, [-50 250])
                     elseif (obj.x_var == 3)
                         xlim(ax, [-50 50])
                     end
@@ -1004,6 +1042,7 @@ methods (Access = private)
             % Get Quasi-Steady Model Force
             % Predictions
             mod_slopes = [];
+            mod_err_slopes = [];
             mod_x_intercepts = [];
             mod_NPs = [];
             mod_NP_moms = [];
@@ -1019,10 +1058,13 @@ methods (Access = private)
                     % amplitude_list = 40*(pi/180);
                 end
                 % higher resolution wingbeat frequency
-                wing_freqs_fine = [0:0.005:0.02 linspace(0.1, max(wing_freqs), 15)];
+                % wing_freqs_fine = [0:0.005:0.02 linspace(0.1, max(wing_freqs), 15) linspace(max(wing_freqs) + 0.1, 15, 15)];
                 % wing_freqs_fine = wing_freqs;
+                % wing_freqs_fine = [0.6390, 0.7378, 6.3898, 4.0581];
+                wing_freqs_fine = [0.6390, 4.0581];
 
                 mod_slopes = zeros(length(amplitude_list), length(wing_freqs_fine));
+                mod_err_slopes = zeros(length(amplitude_list), length(wing_freqs_fine));
                 mod_x_intercepts = zeros(length(amplitude_list), length(wing_freqs_fine));
                 mod_NPs = zeros(length(amplitude_list), length(wing_freqs_fine));
                 mod_NP_moms = zeros(length(amplitude_list), length(wing_freqs_fine));
@@ -1078,12 +1120,16 @@ methods (Access = private)
                 x = [ones(size(lim_AoA_sel')), lim_AoA_sel'];
                 y = aero_force(idx,:)';
                 b = x\y;
-                % model = x*b;
+                model = x*b;
                 % Rsq = 1 - sum((y - model).^2)/sum((y - mean(y)).^2);
                 x_int = - b(1) / b(2);
+                SSE = sum((y - model).^2); % sum of squared residuals
+                Sxx = sum((lim_AoA_sel - mean(lim_AoA_sel)).^2);
+                SE_slope = (SSE / (Sxx*(length(lim_AoA_sel) - 2)) ).^(1/2);
 
                 mod_slopes(j,k) = b(2);
                 mod_x_intercepts(j,k) = x_int;
+                mod_err_slopes(j,k) = SE_slope;
 
                 if (obj.x_var == 2 || obj.x_var == 3)
                 % To find NP, force needs to be non-normalized since
@@ -1131,10 +1177,8 @@ methods (Access = private)
                 if (obj.aero_model)
                 x_vals_mod = zeros(length(amplitude_list), length(wing_freqs_fine));
                 for j = 1:length(amplitude_list)
-                    for k = 1:length(wing_freqs_fine)
-                        x_vals_mod(j,k) = x_vals(k);
-                        % x_vals_mod(j,k) = amplitude_list(j);
-                    end
+                    x_vals_mod(j,:) = wing_freqs_fine;
+                    % x_vals_mod(j,k) = amplitude_list(j);
                 end
                 end
             end
@@ -1142,19 +1186,24 @@ methods (Access = private)
             if (obj.y_var == 1)
                 y_vals = slopes;
                 err_vals = err_slopes;
+                disp("PRINTING DATA ERR")
+                disp(err_slopes*(10^5))
                 y_vals_mod = mod_slopes;
+                err_vals_mod = mod_err_slopes;
+                disp("PRINTING MOD ERR")
+                disp(mod_err_slopes*(10^5))
             elseif (obj.y_var == 2)
                 y_vals = x_intercepts;
                 err_vals = zeros(1,length(x_intercepts));
                 y_vals_mod = mod_x_intercepts;
             elseif (obj.y_var == 3)
                 y_vals = NP_positions;
-                % err_vals = NP_pos_errs * 10^4;
-                err_vals = zeros(size(NP_pos_errs));
+                err_vals = NP_pos_errs;
+                % err_vals = zeros(size(NP_pos_errs));
                 y_vals_mod = mod_NPs;
             elseif (obj.y_var == 4)
                 y_vals = NP_moms;
-                err_vals = zeros(1,length(NP_moms));
+                err_vals = NP_mom_errs;
                 y_vals_mod = mod_NP_moms;
             elseif (obj.y_var == 5)
                 y_vals = COPs;
@@ -1230,6 +1279,7 @@ methods (Access = private)
                     % s.DisplayName = wind_speed + " m/s, \theta_m = " + rad2deg(amplitude_list(j)) + "°"; % + ", Model: " + abbr_sel(i);
                     % s.Marker = marker_list(j); % + "\textbf{^{\circ}}"
 
+                    % scatter(ax, x_vals_mod(j,:), y_vals_mod(j,:));
                     l_f = plot(ax, x_vals_mod(j,:), y_vals_mod(j,:));
                     l_f.LineWidth = 2;
                     l_f.DisplayName = "\theta_m = " + rad2deg(amplitude_list(j)) + "°";
@@ -1241,6 +1291,19 @@ methods (Access = private)
                     % Plot model as line rather than scatter
                     % Only plot 3 m/s as this is the longest line
                     if (wind_speed == 3)
+                        upper_results = y_vals_mod + err_vals_mod;
+                        lower_results = y_vals_mod - err_vals_mod;
+
+                        original_color = "#000000";
+                        lighter_color = getLightColor(original_color); % RGB
+                        
+                        xconf = [x_vals_mod, x_vals_mod(end:-1:1)];
+                        yconf = [upper_results, lower_results(end:-1:1)];
+
+                        p = fill(ax, xconf, yconf, lighter_color);
+                        p.HandleVisibility = 'off';
+                        p.EdgeColor = 'none';
+
                         l_f = plot(ax, x_vals_mod, y_vals_mod);
                         l_f.LineWidth = 2;
                         l_f.DisplayName = "QSBE Model";
@@ -1483,9 +1546,10 @@ methods (Access = private)
         xlabel(ax, x_label);
         ylabel(ax, y_label)
         grid(ax, 'on');
-        if ~(obj.x_var == 2 || obj.x_var == 3)
-            l = legend(ax, Location="best");
-        end
+        % if ~(obj.x_var == 2 || obj.x_var == 3)
+        %     l = legend(ax, Location="best");
+        % end
+        l = legend(ax, Location="best"); % Added 02/28/2026
         if (obj.logScale)
             set(ax, 'XScale', 'log');
             set(ax, 'YScale', 'log');

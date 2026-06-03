@@ -1,0 +1,676 @@
+function varargout = loadpiv(folderPIV, varargin)
+% This MATLAB function extracts data from LaVision DaVis PIV files.
+% Extracts and formats data from "vc7" files contained in "folderPIV".
+%
+% **IMPORTANT: For this function to work, the user must download the [MATLAB add-on provided by LaVision](https://www.lavision.de/en/downloads/software/matlab_add_ons.php) (i.e., the *readimx_WIN* or *readimx_MAC* folder).
+% Make sure the add-on corresponds to the correct Operating System.**
+%
+%  **IMPORTANT NOTES:**
+%  - For this function to work, the *readimx* folder **MUST** be in your PATH.
+%  - Whenever new updates are made, PLEASE UPDATE THE DOCUMENTATION AND ADD A
+%    VERSION DESCRIPTION IN THE FORMAT SPECIFIED.
+%  -------------------------------------------------------------------------
+%  ## Syntax:
+%
+%  `D = loadpiv(folderPIV)`
+%
+%  `D = loadpiv(folderPIV, params, "nondim")`
+%
+%  `D = loadpiv(folderPIV, "extractAllVariables")`
+%
+%  `D = loadpiv(folderPIV, "numCamFields", 2)`
+%
+%  `D = loadpiv(folderPIV, "frameRange", [1:2:100])`
+%
+%  `D = loadpiv(folderPIV, "fovCenter", [-0.2, 3.1])`
+%
+%  `D = loadpiv(folderPIV, "fovRot", 0.23)`
+%
+%  `D = loadpiv(folderPIV, "Validate", 0.4)`
+%
+%  -------------------------------------------------------------------------
+%  ### Mandatory inputs:
+%
+%  `D = loadpiv(folderPIV)` : Extracts PIV data from directory "`folderPIV`" and stores it in the structure `D`.
+%            The directory must contain the ".vc7" files. Only extracts
+%            coordinates, velocity components, and z-vorticity. Depending on
+%            the dataset, the extracted variables might include the
+%            following: <br />
+% - `D.x` : x-coordinates matrix <br />
+% - `D.y` : y-coordinates matrix <br />
+% - `D.u` : x-velocity component <br />
+% - `D.v` : y-velocity component <br />
+% - `D.w` : z-velocity component <br />
+% - `D.vort` : z-vorticity component
+%
+%  -------------------------------------------------------------------------
+%  ### Optional inputs:
+%
+%  `D = loadpiv(__, params, "nondim")` : Extracts and non-dimensionalizes
+%            data using parameters contained in the structure "`params`".
+%            "`params`" must have the form: <br />
+% - `params.L` = characteristic_length <br />
+% - `params.U` = characteristic_velocity <br />
+%
+%  `D = loadpiv(__, params, "extractAllVariables")` : Extracts all data
+%            found in the ".vc7" files. Depending on the dataset, the extracted
+%            variables might include the following: <br />
+% - `D.x` : x-coordinates matrix <br />
+% - `D.y` : y-coordinates matrix <br />
+% - `D.u` : x-velocity component <br />
+% - `D.v` : y-velocity component <br />
+% - `D.w` : z-velocity component <br />
+% - `D.vort` : z-vorticity component <br />
+% - `D.corr` : correlation values <br />
+% - `D.uncU` : x-velocity uncertainty <br />
+% - `D.uncV` : y-velocity uncertainty <br />
+% - `D.uncW` : z-velocity uncertainty <br />
+%
+%  -------------------------------------------------------------------------
+%  ### Name-value arguments:
+%
+%  `D = loadpiv(__, "numCamFields", numCamera)` : Number of independent fields
+%                from different cameras. Used for processing.
+%
+%  `D = loadpiv(__, "frameRange", frames)` : Specifies specific frames to
+%                be extracted instead of the full dataset. Must be followed
+%                by a 1D array containing the frame numbers.
+%
+%  `D = loadpiv(__, "fovCenter", [xcntr, ycntr])` : Specifies the location
+%                of the desired origin of the coordinate axis. Must be
+%                followed by a `[xcntr, ycntr]` array specified in meters.
+%
+%  `D = loadpiv(__, "fovRot", rotAngle)` : Specifies the rotation of the
+%                fov with respect to the origin. Must be followed by the
+%                angle's value in radians.
+%
+%  `D = loadpiv(__, "Validate", minCorrelationValue)` : Sets a minimum
+%                correlation value, otherwise passes NaN-values.
+%
+%  -------------------------------------------------------------------------
+%  ### Output arguments
+%
+%  `D = loadpiv(__)` : outputs flow data in structure `D`.
+%
+%  `[D,A] = loadpiv(__)` : outputs flow data in structure `D`, and recording
+%                attributes in structure `A`. Currently only outputs
+%                **total acquisition time** in seconds.
+%
+%  -------------------------------------------------------------------------
+%  ### Output flow data - data structure "D":
+%
+% `x` : array containing x-coordinates with size `[n, m]`.
+%
+% `y` : array containing y-coordinates with size `[n, m]`.
+%
+% `u` : array containing x-component of flow velocity with size `[n, m, N]`.
+%
+% `v` : array containing y-component of flow velocity with size `[n, m, N]`.
+%
+% `w` : array containing z-component of flow velocity with size `[n, m, N]`.
+%
+% `vort` : array containing z-component of vorticity with size `[n, m, N]`.
+%
+% `corr` : array containing correlation values with size `[n, m, N]`.
+%
+% `uncU` : array containing u-velocity uncertainty with size `[n, m, N]`.
+%
+% `uncV` : array containing v-velocity uncertainty with size `[n, m, N]`.
+%
+% `uncW` : array containing z-velocity uncertainty with size `[n, m, N]`.
+%
+%  -------------------------------------------------------------------------
+%  ### Output recording attributes - structure "A":
+%
+% `totalAcquisitionTime` : total PIV acquisition time in seconds.
+%
+%  -------------------------------------------------------------------------
+%  ## UPDATES:
+%
+%  #### Version 1.0.0
+%  2024/10/31 - Eric Handy (with snippets from Alex, Siyang, and Kenny)
+%
+%  #### Version 1.1.0
+%  2024/11/06 - Eric Handy
+%  - Bug fixes.
+%  - Changed vorticity calculation from MATLAB's "curl()" function to the
+%    algorithm specified by Raffel's PIV Handbook.
+%
+%  #### Version 1.1.1
+%  2025/05/12 - Eric Handy
+%  - Fixed bug that immediately identified any second parameter as "params".
+%  - Fixed a bug that did not assign all output variables specified when
+%    using the "extractAllVariables" option.
+%  NOTE: These issues have not been robustly tested.
+%
+%  #### Version 2.0.0
+%  2025/08/06 - Kenny Breuer
+%  - Added a "validate" option that returns data only if it meets a correlation
+%    threshold.
+%  - Output data is NaN if there is no value (instead of 0).
+%  - Returns results in a structure - solves several problems with ordering
+%    output results.
+%  - Doesn't return "isvalid" - that doesn't seem to be present in all the PIV
+%    data.
+%
+%  #### Version 2.1.0
+%  2025/09/30 - Pedro C Ormonde
+%  - Fixed hard-coded indices for field names ('U0','V0','TS:Correlation
+%    value', etc). Now the function reads from available field names.
+%  - Added optional input "numCameraField" if data contains multiple monoPIV
+%    fields from multiple cameras. Default: numCameraField = 1.
+%
+% #### Version 2.1.1
+%  2025/10/01 - Eric Handy
+%  - Bug fixes.
+%
+% #### Version 2.2.0
+%  2025/10/15 - Eric Handy
+%  - Added option to output a recording attributes structure `A`.
+%  - Bug fixes.
+% --------------------------------------------------------------------------
+%  **SYNTAX FOR UPDATES:**
+%  #### Version N1.N2.N3
+%  YYYY/MM/DD - Name Last
+%  - N1 for large structural overhauls to the function (new data structure,
+%    new input/output format, new algorithm, etc.).
+%  - N2 for small additions to fn (new arguments, new outputs, etc.).
+%  - N3 for bug fixes and compatibility updates.
+% --------------------------------------------------------------------------
+
+
+%% Check input parameters
+
+nargoutchk(1, 2);
+
+if nargin < 1 || isempty(folderPIV)
+    error('Missing input argument: "folderPIV".');
+elseif isstring(folderPIV)
+    folderPIV = convertStringsToChars(folderPIV);
+elseif ~ischar(folderPIV)
+    error('Input "folderPIV" must be a character vector or string scalar.');
+end
+
+options = parseInputs(varargin{:});
+[L, U] = getNormalizationScales(options);
+if options.correlationThreshold > 0
+    warning('The "Validate" option is parsed, but this STB reader does not currently expose correlation data to mask vectors.')
+end
+
+%% Load data
+
+originalFolder = cd();
+restoreFolder = onCleanup(@() cd(originalFolder));
+
+files = dir(fullfile(folderPIV, '*.vc7'));
+if isempty(files)
+    error('No ".vc7" files found in specified directory "folderPIV". Check path.')
+end
+
+selectedFrames = options.selectedFrames;
+if isempty(selectedFrames)
+    selectedFrames = 1:length(files);
+end
+validateFrameSelection(selectedFrames, length(files));
+
+configureReadimxPath();
+
+numSelectedFrames = length(selectedFrames);
+for frameCounter = 1:numSelectedFrames
+    fileIndex = selectedFrames(frameCounter);
+    rawFrame = readimx(fullfile(folderPIV, files(fileIndex).name));
+
+    if nargout == 2
+        attributes = rawFrame.Frames{1}.Attributes;
+        for attributeIndex = 1:length(attributes)
+            if strcmp(attributes{attributeIndex}.Name, 'AcqTimeSeries')
+                acquisitionTime = str2double(attributes{attributeIndex}.Value(1:end-3)) * 10^-6;
+                if frameCounter == 1
+                    acquisitionStartTime = acquisitionTime;
+                end
+                if frameCounter == numSelectedFrames
+                    acquisitionEndTime = acquisitionTime;
+                end
+                break
+            end
+        end
+    end
+
+    frameData = extractData(rawFrame, options.numCameraField);
+
+    if frameCounter == 1
+        if frameData.dimNum > 3
+            error(['Data structure contains an unrecognized data structure; ' ...
+                'number of dimensions exceeds 3D data structure. Review data structure.']);
+        end
+
+        D.x = ((frameData.xRaw - options.fovCenter(1)) .* cos(options.fovRot) - ...
+            (frameData.yRaw - options.fovCenter(2)) .* sin(options.fovRot));
+        D.y = ((frameData.xRaw - options.fovCenter(1)) .* sin(options.fovRot) + ...
+            (frameData.yRaw - options.fovCenter(2)) .* cos(options.fovRot));
+        D.z = frameData.zRaw;
+
+        frameArraySize = [size(frameData.uRaw) numSelectedFrames];
+        D.u = nan(frameArraySize);
+        D.v = nan(frameArraySize);
+        D.vortZ = nan(frameArraySize);
+        D.vortX = nan(frameArraySize);
+        D.vortY = nan(frameArraySize);
+
+        D.dudx = nan(frameArraySize); D.dudy = nan(frameArraySize); D.dudz = nan(frameArraySize);
+        D.dvdx = nan(frameArraySize); D.dvdy = nan(frameArraySize); D.dvdz = nan(frameArraySize);
+        D.dwdx = nan(frameArraySize); D.dwdy = nan(frameArraySize); D.dwdz = nan(frameArraySize);
+        
+        D.numP = nan(frameArraySize);
+
+        if frameData.dimNum == 3
+            D.w = nan(frameArraySize);
+        end
+
+        if options.extractAllVariables
+            D.uncU = nan(frameArraySize);
+            D.uncV = nan(frameArraySize);
+            if frameData.dimNum == 3
+                D.uncW = nan(frameArraySize);
+            end
+        end
+    end
+
+    D.numP(:,:,:,frameCounter) = frameData.numP;
+
+    uRotated = frameData.uRaw .* cos(options.fovRot) - frameData.vRaw .* sin(options.fovRot);
+    D.u(:,:,:,frameCounter) = zeroToNaN(uRotated);
+
+    vRotated = frameData.uRaw .* sin(options.fovRot) + frameData.vRaw .* cos(options.fovRot);
+    D.v(:,:,:,frameCounter) = zeroToNaN(vRotated);
+
+    D.vortZ(:,:,:,frameCounter) = frameData.vortZRaw;
+    D.vortX(:,:,:,frameCounter) = frameData.vortXRaw;
+    D.vortY(:,:,:,frameCounter) = frameData.vortYRaw;
+
+    D.dudx(:,:,:,frameCounter) = frameData.dudx;
+    D.dudy(:,:,:,frameCounter) = frameData.dudy;
+    D.dudz(:,:,:,frameCounter) = frameData.dudz;
+    D.dvdx(:,:,:,frameCounter) = frameData.dvdx;
+    D.dvdy(:,:,:,frameCounter) = frameData.dvdy;
+    D.dvdz(:,:,:,frameCounter) = frameData.dvdz;
+    D.dwdx(:,:,:,frameCounter) = frameData.dwdx;
+    D.dwdy(:,:,:,frameCounter) = frameData.dwdy;
+    D.dwdz(:,:,:,frameCounter) = frameData.dwdz;
+
+    if options.extractAllVariables
+        D.uncU(:,:,:,frameCounter) = zeroToNaN(frameData.uncURaw);
+        D.uncV(:,:,:,frameCounter) = zeroToNaN(frameData.uncVRaw);
+    end
+
+    if frameData.dimNum == 3
+        D.w(:,:,:,frameCounter) = zeroToNaN(frameData.wRaw);
+        if options.extractAllVariables
+            D.uncW(:,:,:,frameCounter) = zeroToNaN(frameData.uncWRaw);
+        end
+    end
+
+    if mod(frameCounter, 100) == 0
+        disp(['loadPIV: processed ', num2str(frameCounter), '/', num2str(numSelectedFrames)])
+    end
+end
+
+%% Non-dimensionalize
+
+D.u = D.u / U;
+D.v = D.v / U;
+
+D.vortZ = D.vortZ * L / U;
+D.vortX = D.vortX * L / U;
+D.vortY = D.vortY * L / U;
+
+D.x = D.x / L;
+D.y = D.y / L;
+
+if options.extractAllVariables
+    D.uncU = D.uncU / U;
+    D.uncV = D.uncV / U;
+end
+
+if frameData.dimNum == 3
+    D.w = D.w / U;
+    if options.extractAllVariables
+        D.uncW = D.uncW / U;
+    end
+end
+
+switch nargout
+    case 1
+        varargout{1} = D;
+    case 2
+        A.totalAcquisitionTime = acquisitionEndTime - acquisitionStartTime;
+        varargout{1} = D;
+        varargout{2} = A;
+end
+
+if numSelectedFrames > 100
+    disp('Done')
+end
+
+end
+
+%% Subroutines
+
+function options = parseInputs(varargin)
+options.params = struct;
+options.correlationThreshold = 0;
+options.extractAllVariables = false;
+options.nondimensionalize = false;
+options.fovCenter = [0, 0];
+options.fovRot = 0;
+options.numCameraField = 1;
+options.selectedFrames = [];
+
+skipNext = false;
+for optionIndex = 1:length(varargin)
+    if skipNext
+        skipNext = false;
+        continue;
+    end
+
+    optionValue = varargin{optionIndex};
+    if isstruct(optionValue)
+        options.params = optionValue;
+        continue;
+    end
+
+    if isempty(optionValue)
+        error('Empty argument "[]" is not valid syntax.');
+    end
+
+    if isnumeric(optionValue)
+        error(['Input not recognized:', newline, num2str(optionValue)]);
+    end
+
+    optionName = char(optionValue);
+    switch optionName
+        case {'frameRange', 'frameSelect'}
+            selectedFrames = getFollowingValue(varargin, optionIndex, optionName);
+            if ~isnumeric(selectedFrames)
+                error('Value of "%s" must be a numeric integer array.', optionName);
+            end
+            options.selectedFrames = selectedFrames;
+            skipNext = true;
+
+        case 'nondim'
+            options.nondimensionalize = true;
+
+        case 'extractAllVariables'
+            options.extractAllVariables = true;
+
+        case 'fovCenter'
+            fovCenter = getFollowingValue(varargin, optionIndex, optionName);
+            if ~isnumeric(fovCenter) || ~isvector(fovCenter) || numel(fovCenter) ~= 2
+                error('"fovCenter" coordinates invalid, must be a numeric vector [x, y].')
+            end
+            options.fovCenter = fovCenter;
+            skipNext = true;
+
+        case 'fovRot'
+            fovRot = getFollowingValue(varargin, optionIndex, optionName);
+            if ~isnumeric(fovRot) || ~isscalar(fovRot)
+                error('"fovRot" value invalid, must be a numeric value in radians.')
+            end
+            options.fovRot = fovRot;
+            skipNext = true;
+
+        case 'Validate'
+            correlationThreshold = getFollowingValue(varargin, optionIndex, optionName);
+            if ~isnumeric(correlationThreshold) || ~isscalar(correlationThreshold)
+                error('"Validate" value invalid, must be a numeric scalar.')
+            end
+            options.correlationThreshold = correlationThreshold;
+            fprintf('Minimum correlation: %6.2f\n', options.correlationThreshold);
+            skipNext = true;
+
+        case 'numCamFields'
+            numCameraField = getFollowingValue(varargin, optionIndex, optionName);
+            if ~isnumeric(numCameraField) || ~isscalar(numCameraField)
+                error('"numCamFields" value invalid, must be a numeric scalar.')
+            end
+            options.numCameraField = numCameraField;
+            fprintf('Extracting fields for camera: %1.0d\n', options.numCameraField);
+            skipNext = true;
+
+        otherwise
+            error(['Invalid argument: "', optionName, '" for input "options."']);
+    end
+end
+end
+
+function value = getFollowingValue(args, currentIndex, optionName)
+if currentIndex == length(args)
+    error('Missing value after option "%s".', optionName);
+end
+value = args{currentIndex + 1};
+end
+
+function [normalizationLength, normalizationVelocity] = getNormalizationScales(options)
+normalizationLength = 1;
+normalizationVelocity = 1;
+
+if ~options.nondimensionalize
+    return
+end
+
+if ~isfield(options.params, 'L') || ~isfield(options.params, 'U')
+    warning('"L" (length) and "U" (velocity) fields in struct "params" not passed. Output will be dimensional.')
+elseif ~isnumeric(options.params.L) || ~isnumeric(options.params.U)
+    warning('Values for "params.L" and/or "params.U" invalid, values must be numeric and in SI units. Output will be dimensional.')
+else
+    normalizationLength = options.params.L;
+    normalizationVelocity = options.params.U;
+end
+end
+
+function validateFrameSelection(selectedFrames, numFiles)
+if any(selectedFrames < 1) || any(selectedFrames > numFiles) || any(mod(selectedFrames, 1) ~= 0)
+    error('Selected frames must be integer indices between 1 and the number of ".vc7" files.');
+end
+end
+
+function configureReadimxPath()
+if exist('readimx', 'file') == 3
+    return
+end
+
+if ismac
+    cd('readimx_MAC');
+elseif ispc
+    cd('readimx_WIN');
+else
+    error('System not identified (if using LINUX I do not know what to do).')
+end
+end
+
+function data = zeroToNaN(data)
+data(data == 0) = NaN;
+end
+
+function data = zeroToMedian(data)
+data(data == 0) = median(data,"all");
+end
+
+function out1 = extractData(dataStructure, numCameraField)
+
+frame = dataStructure.Frames{numCameraField, 1};
+components = frame.Components;
+scales = frame.Scales;
+grids = frame.Grids;
+
+fieldNames = cell(1, length(components));
+for fieldIndex = 1:length(components)
+    fieldNames{fieldIndex} = components{fieldIndex, 1}.Name;
+end
+
+uIndex = find(strcmp(fieldNames, 'U0'), 1);
+vIndex = find(strcmp(fieldNames, 'V0'), 1);
+wIndex = find(strcmp(fieldNames, 'W0'), 1);
+uncUIndex = find(strcmp(fieldNames, 'TS:Uncertainty Vx'), 1);
+uncVIndex = find(strcmp(fieldNames, 'TS:Uncertainty Vy'), 1);
+uncWIndex = find(strcmp(fieldNames, 'TS:Uncertainty Vz'), 1);
+numParticlesIndex = find(strcmp(fieldNames, 'TS:Number of particles'), 1);
+
+if isempty(wIndex)
+    out1.dimNum = 2;
+else
+    out1.dimNum = 3;
+end
+
+numPlanes = length(components{1, 1}.Planes);
+sizeXY = size(components{1, 1}.Planes{1, 1});
+
+trimBoundaryPlanes = true;
+if trimBoundaryPlanes
+    planeIndices = 2:numPlanes-1;
+    numTrimmedPlanes = numPlanes - 2;
+else
+    planeIndices = 1:numPlanes;
+    numTrimmedPlanes = numPlanes;
+end
+
+out1.uRaw = nan([sizeXY numTrimmedPlanes]);
+out1.vRaw = nan(size(out1.uRaw));
+out1.wRaw = nan(size(out1.uRaw));
+out1.numP = nan(size(out1.uRaw));
+
+planeCount = 0;
+for planeIndex = planeIndices
+    planeCount = planeCount + 1;
+    out1.uRaw(:,:,planeCount) = components{uIndex, 1}.Planes{planeIndex, 1} * scales.I.Slope + components{uIndex, 1}.Scale.Offset;
+    out1.vRaw(:,:,planeCount) = components{vIndex, 1}.Planes{planeIndex, 1} * scales.I.Slope + components{vIndex, 1}.Scale.Offset;
+    if out1.dimNum == 3
+        out1.wRaw(:,:,planeCount) = components{wIndex, 1}.Planes{planeIndex, 1} * scales.I.Slope + components{wIndex, 1}.Scale.Offset;
+    end
+    out1.numP(:,:,planeCount) = components{numParticlesIndex, 1}.Planes{planeIndex, 1};
+end
+
+xRaw = (1:size(out1.uRaw, 1)) - 0.5;
+yRaw = (1:size(out1.uRaw, 2)) - 0.5;
+zRaw = (1:numPlanes) - 0.5;
+
+if trimBoundaryPlanes
+    zRaw = zRaw(2:end-1);
+end
+
+[out1.xRaw, out1.yRaw, out1.zRaw] = ndgrid((xRaw * grids.X * scales.X.Slope + scales.X.Offset) / 1000, ...
+    (yRaw * grids.Y * scales.Y.Slope + scales.Y.Offset) / 1000, ...
+    (zRaw * grids.Z * scales.Z.Slope + scales.Z.Offset) / 1000);
+
+% DaVis STB output is mirrored relative to the analysis coordinate system.
+rotateStbVolume = @(data) flip(flip(flip(data, 2), 3), 1);
+
+out1.xRaw = rotateStbVolume(-out1.xRaw);
+out1.yRaw = rotateStbVolume(out1.yRaw);
+out1.zRaw = rotateStbVolume(-out1.zRaw);
+out1.uRaw = rotateStbVolume(-out1.uRaw);
+out1.vRaw = rotateStbVolume(-out1.vRaw);
+out1.wRaw = rotateStbVolume(-out1.wRaw);
+
+permutationOrder = [3, 1, 2];
+
+xTmp = out1.zRaw;
+yTmp = out1.xRaw;
+zTmp = out1.yRaw;
+uTmp = out1.wRaw;
+vTmp = out1.uRaw;
+wTmp = out1.vRaw;
+
+out1.xRaw = permute(xTmp, permutationOrder);
+out1.yRaw = permute(yTmp, permutationOrder);
+out1.zRaw = permute(zTmp, permutationOrder);
+out1.uRaw = permute(uTmp, permutationOrder);
+out1.vRaw = permute(vTmp, permutationOrder);
+out1.wRaw = permute(wTmp, permutationOrder);
+
+[out1.vortXRaw, out1.vortYRaw, out1.vortZRaw] = ...
+    calculateVorticity(out1.xRaw, out1.yRaw, out1.zRaw, out1.uRaw, out1.vRaw, out1.wRaw);
+
+[out1.dudx, out1.dudy, out1.dudz] = ...
+    get_gradients(out1.xRaw, out1.yRaw, out1.zRaw, out1.uRaw);
+[out1.dvdx, out1.dvdy, out1.dvdz] = ...
+    get_gradients(out1.xRaw, out1.yRaw, out1.zRaw, out1.vRaw);
+[out1.dwdx, out1.dwdy, out1.dwdz] = ...
+    get_gradients(out1.xRaw, out1.yRaw, out1.zRaw, out1.wRaw);
+
+out1.uncURaw = nan([sizeXY numTrimmedPlanes]);
+out1.uncVRaw = nan(size(out1.uncURaw));
+out1.uncWRaw = nan(size(out1.uncURaw));
+
+planeCount = 0;
+for planeIndex = planeIndices
+    planeCount = planeCount + 1;
+    out1.uncURaw(:,:,planeCount) = components{uncUIndex, 1}.Planes{planeIndex, 1};
+    out1.uncVRaw(:,:,planeCount) = components{uncVIndex, 1}.Planes{planeIndex, 1};
+    if out1.dimNum == 3
+        out1.uncWRaw(:,:,planeCount) = components{uncWIndex, 1}.Planes{planeIndex, 1};
+    end
+end
+
+out1.uncURaw = rotateStbVolume(out1.uncURaw);
+out1.uncVRaw = rotateStbVolume(out1.uncVRaw);
+if out1.dimNum == 3
+    out1.uncWRaw = rotateStbVolume(out1.uncWRaw);
+end
+
+uUncertaintyTmp = out1.uncWRaw;
+vUncertaintyTmp = out1.uncURaw;
+wUncertaintyTmp = out1.uncVRaw;
+
+out1.uncURaw = permute(uUncertaintyTmp, permutationOrder);
+out1.uncVRaw = permute(vUncertaintyTmp, permutationOrder);
+out1.uncWRaw = permute(wUncertaintyTmp, permutationOrder);
+
+out1.numP = permute(rotateStbVolume(out1.numP), permutationOrder);
+end
+
+function dudx = central_diff_4th_3D(x, u)
+    % Calculates the 1st derivative of 3D matrix u along the dimension
+    % defined by the coordinate matrix x.
+    
+    % Determine which dimension varies in x
+    if any(diff(x, 1, 1), 'all')
+        dim = 1;
+    elseif any(diff(x, 1, 2), 'all')
+        dim = 2;
+    elseif any(diff(x, 1, 3), 'all')
+        dim = 3;
+    else
+        error('Coordinate matrix x does not appear to vary along any dimension.');
+    end
+    
+    % Calculate spacing h
+    if dim == 1
+        h = x(2,1,1) - x(1,1,1);
+    elseif dim == 2
+        h = x(1,2,1) - x(1,1,1);
+    else
+        h = x(1,1,2) - x(1,1,1);
+    end
+    
+    % Initialize output
+    dudx = NaN(size(u));
+    n = size(u, dim);
+    
+    % Apply 4th-order central difference along the detected dimension
+    if dim == 1
+        dudx(3:n-2,:,:) = (-u(5:n,:,:) + 8*u(4:n-1,:,:) - 8*u(2:n-3,:,:) + u(1:n-4,:,:)) / (12 * h);
+    elseif dim == 2
+        dudx(:,3:n-2,:) = (-u(:,5:n,:) + 8*u(:,4:n-1,:) - 8*u(:,2:n-3,:) + u(:,1:n-4,:)) / (12 * h);
+    elseif dim == 3
+        dudx(:,:,3:n-2) = (-u(:,:,5:n) + 8*u(:,:,4:n-1) - 8*u(:,:,2:n-3) + u(:,:,1:n-4)) / (12 * h);
+    end
+end
+
+function [dudx, dudy, dudz] = get_gradients(x, y, z, u)
+    u = zeroToMedian(u);
+
+    dudx = central_diff_4th_3D(squeeze(x(:,1,1)), u);
+    dudy = central_diff_4th_3D(squeeze(y(1,:,1)), u);
+    dudz = central_diff_4th_3D(squeeze(z(1,1,:)), u);
+end

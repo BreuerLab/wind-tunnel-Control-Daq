@@ -4,7 +4,7 @@ function screenshot(filepath)
     % Take screen capture
     robot = java.awt.Robot();
     % pos = [1100 40 800 440]; % [left top width height]
-    pos = [-830,270,840,440]; % above compareAoA on vertical monitor
+    pos = [-840,160,840,440]; % above compareAoA on vertical monitor
     rect = java.awt.Rectangle(pos(1),pos(2),pos(3),pos(4));
     cap = robot.createScreenCapture(rect);
     % Convert to an RGB image

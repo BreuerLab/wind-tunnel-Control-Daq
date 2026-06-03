@@ -739,6 +739,10 @@ methods (Access = private)
 
         % count is number of type + speed combos
         colors = getColors(1, num_dir, num_freq, length(obj.selection));
+
+        % temp code to make colors for plots blue
+        % colors = getColors(1, 3, num_freq, length(obj.selection));
+        % colors = colors(:,3);
         % colors = getColors(1, num_freq, num_dir, length(obj.selection));
         end
         [sub_title, abbr_sel] = compareAoAUI.get_abbr_names(obj.selection);

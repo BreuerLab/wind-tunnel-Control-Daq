@@ -1,0 +1,4 @@
+ST; 'Stop program and and motion for all motors
+MO; 'Turns off all motors
+
+EN; 'End program

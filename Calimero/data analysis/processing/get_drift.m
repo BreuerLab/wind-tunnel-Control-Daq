@@ -1,0 +1,40 @@
+% returns drift since beginning of experiment
+% offsets now - offsets from before first freq with wind on
+function [drift, offsets_before, offsets_after] = get_drift(experiment_filename, offsets_files, freq_vals)
+    % wing_freqs = [10, 4, 8, 0, 2, 6];
+    % freq_vals = [4, 8, 0, 2, 6];
+    offsets_string = "before_offsets";
+    calibration_filepath = "../../DAQ/Calibration Files/Mini40/FT52907.cal";
+    cal_mat = obtain_cal(calibration_filepath);
+
+    [case_name_exp, time_stamp_exp, type_exp, wing_freq_exp, AoA_exp, wind_speed_exp, amp_exp, file_type_exp] = parse_filename(experiment_filename);
+
+    [offsets_cur, offsets_cur_filename] = findMatchingOffset...
+        (offsets_files, offsets_string, wing_freq_exp, amp_exp, AoA_exp, wind_speed_exp, type_exp, time_stamp_exp);
+    disp("Current offsets: " + offsets_cur_filename)
+
+    [offsets_first, offsets_first_filename] = findMatchingOffset...
+        (offsets_files, offsets_string, freq_vals(1), amp_exp, AoA_exp, wind_speed_exp, type_exp, time_stamp_exp);
+    % disp("Original offsets: " + offsets_first_filename)
+    % changed code for offsets_first which used to have nested for loop on
+    % 10/08/2025, also no longer using first wingbeat frequency
+    % [offsets_first, offsets_first_filename] = findMatchingOffset...
+    %     (offsets_files, "offsets", -1, AoA_exp, wind_speed_exp, type_exp, time_stamp_exp);
+    disp("Original offsets: " + offsets_first_filename)
+
+    drift_volt = offsets_cur - offsets_first;
+    drift_volt_force = drift_volt(1:6); % dropping voltage, current, encoder data
+    drift_force = cal_mat * drift_volt_force';
+    drift = coordinate_transformation(drift_force, AoA_exp);
+    drift = [drift; drift_volt(7:8)']; % encoder data still excluded
+
+    % Get offsets to return
+    offsets_before = coordinate_transformation(cal_mat * offsets_cur(1:6)', AoA_exp);
+    offsets_before = [offsets_before; offsets_cur(7:8)']; % encoder data still excluded
+
+    offsets_string = "after_offsets";
+    [offsets_fin, offsets_fin_filename] = findMatchingOffset...
+    (offsets_files, offsets_string, wing_freq_exp, amp_exp, AoA_exp, wind_speed_exp, type_exp, time_stamp_exp);
+    offsets_after = coordinate_transformation(cal_mat * offsets_fin(1:6)', AoA_exp);
+    offsets_after = [offsets_after; offsets_fin(7:8)']; % encoder data still excluded
+end

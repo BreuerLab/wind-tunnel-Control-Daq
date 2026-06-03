@@ -1,0 +1,81 @@
+function [time, data] = runDAQ(durationSeconds)
+% runDAQ(durationSeconds)  Acquire analog + counter channels for the
+% specified duration and return time and data matrices.
+%
+% Returns:
+%   time : Nx1 vector of sample times (seconds since start)
+%   data : NxM matrix where M = number of channels added to the DAQ
+
+if nargin < 1
+    durationSeconds = 5;
+end
+
+% Create DAQ and channels - change Dev1/ai0 etc to your device/channels.
+daq_ID = "Dev4";
+dq = daq("ni");
+ch1 = dq.addinput(daq_ID, 1, "Voltage");
+ch2 = dq.addinput(daq_ID, 2, "Voltage");
+% addinput(dq, "Dev1", "ctr0", "EdgeCount"); % counter channel for OC pulses
+
+% Sampling parameters
+dq.Rate = 20000;                 % 20 kHz
+dq.ScansAvailableFcnCount = 2000; % callback every 1000 scans (0.05 s at 20 kHz)
+
+% Preallocate/initialize shared variables (parent workspace for the nested fn)
+allData = zeros(0, 3);    % adjust second dim if you change number of channels
+allTime = zeros(0, 1);
+totalScans = 0;
+
+% For debugging: enable a simple flag to print when callback runs
+DEBUG = true;
+
+% Assign callback (nested function shares variables above)
+dq.ScansAvailableFcn = @processData;
+
+% Start in background so the main function continues and callback runs
+start(dq, "continuous");
+
+% Wait the requested duration (or you could use wait(dq, timeout) or other logic)
+pause(durationSeconds);
+
+% Stop acquisition and cleanup
+stop(dq);
+
+% Return accumulated data
+time = allTime;
+data = allData;
+
+% ---------------------------------------------------------------------
+    function processData(src, evt)
+        % Callback: read newly available scans and append to allData/allTime.
+        try
+            nScans = evt.ElementsAvailable;
+            if nScans == 0
+                return;
+            end
+            % Read exactly the available scans (this drains them from the device buffer)
+            newData = read(src, nScans, "OutputFormat", "Matrix");
+            if isempty(newData)
+                return;
+            end
+
+            % Build timestamps (seconds) for these new scans
+            newTime = (totalScans + (0:(size(newData,1)-1))') / src.Rate;
+
+            % Append (grow arrays) - for long runs consider matfile or file streaming
+            allData = [allData; newData];
+            allTime = [allTime; newTime];
+
+            % Update total scans consumed
+            totalScans = totalScans + size(newData,1);
+
+            if DEBUG
+                fprintf("Callback: got %d scans — total %d\n", size(newData,1), totalScans);
+            end
+        catch ME
+            % If an error occurs inside the callback it can silently stop further callbacks.
+            % Print it so you can see and debug.
+            warning("Error inside processData callback:\n%s", getReport(ME));
+        end
+    end
+end

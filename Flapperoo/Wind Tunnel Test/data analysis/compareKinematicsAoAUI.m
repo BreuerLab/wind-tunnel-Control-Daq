@@ -63,7 +63,8 @@ methods
         drop_y2 = drop_y1 - (unit_height + unit_spacing);
         d2 = uidropdown(option_panel);
         d2.Position = [10 drop_y2 180 30];
-        d2.Items = [pi/10,pi/8,pi/6,pi/5,pi/4] + " rad";
+        d2.Items = [-1,pi/10,pi/8,pi/6,pi/5,pi/4] + " rad";
+        d2.Value = d2.Items(1);
         d2.ValueChangedFcn = @(src, event) amp_change(src, event);
 
         % Dropdown box for wingbeat frequency selection
@@ -109,7 +110,7 @@ methods
         drop_y6 = list_y - (unit_height + unit_spacing);
         d6 = uidropdown(option_panel);
         d6.Position = [10 drop_y6 180 unit_height];
-        d6.Items = ["Effective AoA", "Difference AoA", "Effective Wind"];
+        d6.Items = ["Effective AoA", "Scaled Effective AoA", "Effective Wind", "Scaled Effective Wind"];
         d6.ValueChangedFcn = @(src, event) plot_type_change(src, event, plot_panel);
 
         button3_y = drop_y6 - (unit_height + unit_spacing);
@@ -329,12 +330,15 @@ methods (Access = private)
         if (obj.plot_id == "Effective AoA")
             y_label = "Effective AoA (deg)";
             sub_title = "Effective AoA";
-        elseif (obj.plot_id == "Difference AoA")
-            y_label = "Effective AoA - AoA (deg)";
-            sub_title = "Effective AoA - AoA";
+        elseif (obj.plot_id == "Scaled Effective AoA")
+            y_label = "Effective AoA / AoA (deg)";
+            sub_title = "Effective AoA / AoA";
         elseif (obj.plot_id == "Effective Wind")
             y_label = "Effective Wind Speed (m/s)";
             sub_title = "Effective Wind Speed";
+        elseif (obj.plot_id == "Scaled Effective Wind")
+            y_label = "Effective Wind / Wind (m/s)";
+            sub_title = "Effective Wind / Wind";
         end
 
         if (~isempty(obj.selection))
@@ -376,9 +380,10 @@ methods (Access = private)
             
             full_length = wing_length + arm_length;
             r = arm_length:0.001:full_length;
-            lin_disp = cosd(ang_disp) * r;
-            lin_vel = (deg2rad(ang_vel) .* cosd(ang_disp)) * r;
-            lin_acc = (deg2rad(ang_acc) .* cosd(ang_disp)) * r;
+            % lin_disp = cosd(ang_disp) * r;
+            % lin_vel = (deg2rad(ang_vel) .* cosd(ang_disp)) * r;
+            % lin_acc = (deg2rad(ang_acc) .* cosd(ang_disp)) * r;
+            lin_vel = deg2rad(ang_vel) * r;
             
             mean_eff_AoA = zeros(size(AoA_vals));
             mean_u_rel = zeros(size(AoA_vals));
@@ -391,10 +396,12 @@ methods (Access = private)
 
             if (obj.plot_id == "Effective AoA")
                 y_var = mean_eff_AoA;
-            elseif (obj.plot_id == "Difference AoA")
-                y_var = mean_eff_AoA - AoA_vals;
+            elseif (obj.plot_id == "Scaled Effective AoA")
+                y_var = mean_eff_AoA ./ AoA_vals;
             elseif (obj.plot_id == "Effective Wind")
                 y_var = mean_u_rel;
+            elseif (obj.plot_id == "Scaled Effective Wind")
+                y_var = mean_u_rel / cur_speed;
             end
 
             p = plot(ax, AoA_vals, y_var);

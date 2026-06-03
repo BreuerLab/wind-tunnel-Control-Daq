@@ -13,7 +13,9 @@
 % results_lab - (n x 6) rotated force transducer data
 function results_lab = coordinate_transformation(results, pitch_d)
     pitch = deg2rad(-pitch_d);
-    yaw_d = 180; % At 0 pitch angle, x- rotated 180 degrees from downstream
+    yaw_d = 180; % At 0 pitch angle, x- rotated 150 degrees from downstream
+    % yaw_d = 180; % At 0 pitch angle, x- rotated 180 degrees from downstream
+    % or 210 degrees
     yaw = deg2rad(yaw_d);
 
     dcm_F = angle2dcm(yaw, pitch, 0,'ZYX');

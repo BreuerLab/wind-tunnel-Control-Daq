@@ -1,0 +1,28 @@
+#SETUP
+ST                      ; 'Stop all motion
+CO 1;' Configures bank 2 as outputs on extended I/O
+
+AGA=0                   ; 'Amplifier gain (0-2), 0 -> 0.4 A/Phase
+BRA=1                   ; 'Brushed Motor
+AUA=0.5                 ; 'Chopper Mode
+SH A                    ; 'Servo here (turn on motor)
+DPA=0                   ; 'Define zero position
+CEA=dir_TEMP            ; 'Configure encoder
+TM 1000                 ;
+
+PRA=ticks_TEMP*revs_TEMP      ;
+SPA=ticks_TEMP*speed_TEMP     ; 'Set desired speed in counts/sec (e.g. 5000)
+ACA=ticks_TEMP*acc_TEMP       ; 'Acceleration in counts/sec^2
+DCA=ticks_TEMP*acc_TEMP       ; 'Deceleration in counts/sec^2
+
+KPA=1.5                 ; 'Proportional gain
+KIA=0.05              ; 'Integral gain
+KDA=8                 ; 'Derivative gain
+ILA=-2                ; 'Integral limit 2V, only kicks in after motion
+OCA=0,OC_TEMP       ;'Output compare pulse every 4 encoder pulses
+
+WT waittime_TEMP;
+
+BG A; 'Begin motion
+
+EN

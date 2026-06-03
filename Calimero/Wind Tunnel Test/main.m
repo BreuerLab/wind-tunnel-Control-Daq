@@ -12,26 +12,30 @@ clc;
 clear;
 close all;
 
-% restoredefaultpath
+% Change current working directory to the directory where this file is
+cd(fileparts(mfilename('fullpath')));
+% 'restoredefaultpath' also an option, but caused some bugs in the past
+
+% ensure all helper functions are made accessible
 addpath(genpath("../."))
 
 % -----------------------------------------------------------------------
 % ----------Parameters to Adjust for Your Specific Experiment------------
 % -----------------------------------------------------------------------
-AoA = [-16:2:16]; % angle of attack, set by MPS system
-AoA = ladder_sort(AoA); % rearrange in nonascending ladder order
+AoA = [6 6 6:1:8 8.5:0.5:11.5 12:1:14]; % angle of attack, set by MPS system
+% AoA = [8 8.5:0.5:11.5]; % angle of attack, set by MPS system
+% AoA = flip(AoA);
+% AoA = ladder_sort(AoA); % rearrange in nonascending ladder order
+% AoA = 0;
 % [-16:1.5:-12 -12:1:-8 -8:0.5:8 8:1:12 12:1.5:16]
-% freq = [0, 4, 6, 8, 10]; % wingbeat frequency, set by motor RPM
-% freq = [6, 10, 0, 4, 8]; % freq2 = freq(randperm(length(freq)))
-freq = [120, 180, 0, 90, 150]; % freq2 = freq(randperm(length(freq)))
+freq = [4, 0, 2, 6]; % freq2 = freq(randperm(length(freq)))
 measure_revs = 180; % number of wingbeats
+hold_time = 15; % seconds for glide trials
 
-speed = 0; % wind tunnel air speed
+speed = 4; % wind tunnel air speed
 wing_type = "flexible"; % whatever name you'd like to use
+amp = 30; % degrees from midstroke to top of upstroke (or bottom of downstroke)
 automatic = true; % run through trials automatically?
 debug = false; % testing on personal computer?
 
-run_experiment(AoA, freq, speed, wing_type, measure_revs, automatic, debug);
-
-% NEED A setFlapSpeed() FUNCTION
-% If you want to run just the flapper, call setFlapSpeed()
+run_experiment(AoA, freq, speed, wing_type, amp, measure_revs, hold_time, automatic, debug);

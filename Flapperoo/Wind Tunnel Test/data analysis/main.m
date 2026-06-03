@@ -9,16 +9,21 @@ addpath(genpath('../data processing'))
 addpath UI_functions/
 
 clear
-close all force
+% close all force
+
+% Local data path on Ronan's PC
+data_path = "F:\Final Force Data";
+
+% % LRS data path
+% data_path = "F:\Final Force Data";
 
 % Sets up UI for comparing data over angles of attack
 % monitor_num = 1;
-% data_path = "F:\Final Force Data";
 % a = compareAoAUI(monitor_num, data_path);
 % a.dynamic_plotting();
 
 % Sets up UI for comparing data over phase averaged wingbeat
-% monitor_num = 1;
+% monitor_num = 2;
 % data_path = "F:\Final Force Data/";
 % b = compareWingbeatUI(monitor_num, data_path);
 % b.dynamic_plotting();

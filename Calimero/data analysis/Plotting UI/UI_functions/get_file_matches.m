@@ -1,0 +1,92 @@
+function struct_matches = get_file_matches(selection_list, norm_bool, shift_bool, drift_bool, sub_bool, Calimero)
+    struct_matches = [];
+
+    DELIM = string(filesep);
+    
+    for i = 1:length(selection_list)
+        flapper_name = string(extractBefore(selection_list(i), DELIM));
+        dir_name = string(extractAfter(selection_list(i), DELIM));
+
+        % for compareAoAUI where selection_list string has
+        % different form
+        if (contains(dir_name, "Hz") || contains(dir_name, "St") || contains(dir_name, "PWM"))
+            dir_name = extractBefore(dir_name, DELIM);
+        end
+
+        cur_bird = getBirdFromName(flapper_name, Calimero);
+
+        if (sub_bool)
+                dir_parts = split(dir_name, '_');
+                % find first numeric entry in dir_parts
+                idx = find(~isnan(str2double(dir_parts)), 1, 'first');
+                dir_name = strjoin([dir_parts(1:idx-1); "Sub"; dir_parts(idx:end)], "_");
+        end
+
+        if (norm_bool)
+            if (shift_bool)
+                if (drift_bool)
+                    shortened_list = intersect(intersect([cur_bird.norm_list.file_name], [cur_bird.shift_list.file_name]),...
+                                               [cur_bird.drift_list.file_name]);
+                    name_match = shortened_list(contains(shortened_list, dir_name));
+                else
+                    shortened_list = setdiff(intersect([cur_bird.norm_list.file_name], [cur_bird.shift_list.file_name]),...
+                                             [cur_bird.drift_list.file_name]);
+                    name_match = shortened_list(contains(shortened_list, dir_name));
+                end
+            else
+                if (drift_bool)
+                    shortened_list = intersect(setdiff([cur_bird.norm_list.file_name], [cur_bird.shift_list.file_name]),...
+                                               [cur_bird.drift_list.file_name]);
+                    name_match = shortened_list(contains(shortened_list, dir_name));
+                else
+                    shortened_list = setdiff(setdiff([cur_bird.norm_list.file_name], [cur_bird.shift_list.file_name]),...
+                                             [cur_bird.drift_list.file_name]);
+                    name_match = shortened_list(contains(shortened_list, dir_name));
+                end
+            end
+        else
+            if (shift_bool)
+                if (drift_bool)
+                    shortened_list = intersect(intersect(setdiff([cur_bird.file_list.file_name], [cur_bird.norm_list.file_name]),...
+                    [cur_bird.shift_list.file_name]), [cur_bird.drift_list.file_name]);
+                    name_match = shortened_list(contains(shortened_list, dir_name));
+                else
+                    shortened_list = setdiff(intersect(setdiff([cur_bird.file_list.file_name], [cur_bird.norm_list.file_name]),...
+                    [cur_bird.shift_list.file_name]), [cur_bird.drift_list.file_name]);
+                    name_match = shortened_list(contains(shortened_list, dir_name));
+                end
+            else
+                if (drift_bool)
+                    shortened_list = intersect(setdiff(setdiff([cur_bird.file_list.file_name], [cur_bird.norm_list.file_name]),...
+                    [cur_bird.shift_list.file_name]), [cur_bird.drift_list.file_name]);
+                    name_match = shortened_list(contains(shortened_list, dir_name));
+                else
+                    shortened_list = setdiff(setdiff(setdiff([cur_bird.file_list.file_name], [cur_bird.norm_list.file_name]),...
+                    [cur_bird.shift_list.file_name]), [cur_bird.drift_list.file_name]);
+                    name_match = shortened_list(contains(shortened_list, dir_name));
+                end
+            end
+        end
+
+        for j = 1:length(cur_bird.file_list)
+            if (cur_bird.file_list(j).file_name == name_match)
+                struct_match = cur_bird.file_list(j);
+                selector = char(selection_list(i));
+                struct_match.selector = string(selector);
+            end
+        end
+
+        % Add structure match to list if list is empty or if it doesn't
+        % match the selector of any others in the list so far
+        try
+            % Replaced following line on 09/29/2025 to get different Hz
+            % cases to save as unique struct_matches
+            % if (length(struct_matches) == 0 || sum(contains([struct_matches.dir_name], struct_match.dir_name)) == 0)
+            if (length(struct_matches) == 0 || sum(contains([struct_matches.selector], struct_match.selector)) == 0)
+                struct_matches = [struct_matches struct_match];
+            end
+        catch ME
+            error("Oops! Had trouble matching a file to your selection...")
+        end
+    end
+end

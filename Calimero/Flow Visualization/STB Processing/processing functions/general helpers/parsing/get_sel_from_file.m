@@ -1,0 +1,25 @@
+function available_selections = get_sel_from_file(files)
+    available_selections = cell(length(files),3);
+
+    for i = 1:length(files)
+        name = files(i).name;
+        
+        % skip body and ring cases, and secondary files
+        if ~contains(name, "Hz") || contains(name, "integral")
+            continue
+        end
+
+        name = erase(name, ["_time_avg.mat", "_phase_avg.mat"]);
+        
+        [amp, type, freq] = parse_name(name);
+
+        % Add to list of amplitudes and frequencies
+        available_selections{i,1} = type;
+        available_selections{i,2} = amp;
+        available_selections{i,3} = freq;
+    end
+
+    % Deletes rows where all elements are 0 - body/ring case
+    % available_selections(~any(available_selections, 2), :) = [];
+    available_selections(all(cellfun(@isempty, available_selections), 2), :) = [];
+end

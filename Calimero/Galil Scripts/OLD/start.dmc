@@ -1,0 +1,25 @@
+ST; 'Stop program and and motion for all motors
+MO; 'Turns off all motors
+
+
+'(all commands ending with B in regards to that motor)
+AGA=0; 'Amplifier gain (0-2), 0 -> 0.4 A/Phase
+BRA=1; 'Brushed Motor
+AUA=0.5; 'Chopper Mode
+
+
+'Set all PIDs to zero
+KPA=0;
+KDA=0;
+KIA=0;
+ 
+OFA=0.25;
+SHA;
+
+WT50; 'Allow DAQ to record some data before start
+
+'Output 100 mA, 0.25*0.4 = 0.1
+OFA=of_placeholder;
+SHA;
+
+EN;

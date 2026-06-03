@@ -1,0 +1,51 @@
+#SETUP
+ST                     ; 'Stop all motion
+MO                     ; 'Motor off
+CO 1                   ; 'Configures bank 2 as outputs on extended I/O
+ticks = 18432          ; 'number of encoder ticks per rev  
+
+AGA=0                  ; 'Amplifier gain (0-2), 0 -> 0.4 A/Phase
+BRA=1                  ; 'Brushed Motor
+AUA=0.5                ; 'Chopper Mode
+SH A                   ; 'Servo here (turn on motor)
+DPA=0                  ; 'Define zero position
+CEA=0                  ; 'Configure encoder feedback direction
+TM 1000                ; 'Servo update time of controller
+
+PRA=ticks*60           ; 'Set desired distance (60 revs here)
+SPA=ticks*3            ; 'Set desired speed in counts/sec (3 Hz here)
+ACA=ticks*3            ; 'Acceleration in counts/sec^2
+DCA=ticks*3            ; 'Deceleration in counts/sec^2
+
+KPA=2                  ; 'Proportional gain
+KIA=0.05               ; 'Integral gain
+KDA=8                  ; 'Derivative gain
+ILA = -2               ; 'KI bit limited to 2V and starts after motion complete
+
+BG A                   ; 'Begin motion
+
+'Allocate memory for arrays
+DM TimeArr[4000],Torque[4000],DesPos[4000],ActPos[4000],ActVel[4000];
+
+'Record time, torque, actual and desired position, velocity
+RA TimeArr[],Torque[],DesPos[],ActPos[],ActVel[];
+RD TIME,_TTA,_RPA,_TPA,_TVA;
+RC 2; 'Record data at 4 ms intervals
+
+'Code to send regular pulses via DO at different points of wingbeat
+NEXT = (ticks/18);
+n = 0;
+#MAIN
+    AR NEXT;
+    n = n+1;
+    IF ((n % 18) == 0)
+        SB 17            ; 'set output bit
+        WT 4            ; 'wait 1 ms
+        CB 17            ; 'clear output bit
+    ELSE
+        SB 17            ; 'set output bit
+        WT 2            ; 'wait 1 ms
+        CB 17            ; 'clear output bit
+    ENDIF
+JP #MAIN
+EN

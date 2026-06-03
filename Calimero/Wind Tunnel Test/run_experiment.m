@@ -1,66 +1,100 @@
-function run_experiment(AoA_vals, freq_vals, speed, wing_type, measure_revs, automatic, debug)
+function run_experiment(AoA_vals, freq_vals, speed, wing_type, amp, measure_revs, hold_time, automatic, debug)
 
 time_now = datetime;
 time_now.Format = 'yyyy-MM-dd HH-mm-ss';
 diary("data\output logs\" + speed + "ms_" + string(time_now) + ".txt")
 
 % DAQ Parameters
-rate = 10000; % measurement rate of NI DAQ, in Hz
-offset_duration = 5; % in seconds
+rate = 15000; % measurement rate of NI DAQ, in Hz
+offset_duration = 6; % in seconds
 calibration_filepath = "../DAQ/Calibration Files/Mini40/FT52907.cal"; 
 voltage = 5; % 5 or 10 volts for load cell
+async = true;
 
-% ESP Serial Communication
-% --- CONFIGURATION ---
-portName = "COM32";      % Change to your ESP32 port
-baudRate = 115200;
-timeoutSeconds = 10;
-% --- Create serialport object ---
-esp32 = serialport(portName, baudRate, "Timeout", timeoutSeconds);
-configureTerminator(esp32, "LF");
-flush(esp32);
-disp("Connected to ESP32 on " + portName);
+% Galil Parameters
+galil_address = "192.168.1.3";
+dmc_motion_filename = "motion.dmc";
+dmc_hold_filename = "hold.dmc";
+ticksPerRev = 18432;
+acc = 3; % Hz^2
+padding_revs = 4;
+wait_time = 4000; % ms
+galil_direction = 0; % 0 - clockwise, slow downstroke), 1 - reverse
+OC_pulse_step = 4; % in ticks
 
-% --- AUTOMATIC SEQUENCE ---
-keepRunning = true;
-sentInitialZero = false;
-while keepRunning
-    % Read incoming messages from ESP32
-    if esp32.NumBytesAvailable > 0 &&keepRunning
-        line = readline(esp32);
-        disp("ESP32: " + line);
-        % Detect the message asking to press a key
-        if ~sentInitialZero && contains(line, "ESP32 SETUP")
-            pause(1);  % Optional delay before responding
-            writeline(esp32, '0');
-            disp(">> Sent automatic '0' to continue initialization.");
-            sentInitialZero = true;
-            keepRunning =false;
-        end
-    end
-end
-disp("ESP32 SETUP OK, ZERO POSITION SET");
-pause(1);
+% save data recording parameters
+currentDateTime = datetime('now', 'Format', 'yyyy_MM_dd_HH_mm_ss');
+currentDateTimeStr = char(currentDateTime);
+file_name = strjoin(["experiment_params", currentDateTimeStr], "_");
+full_file_name = "data\experiment parameters\" + file_name + ".mat";
+save(full_file_name);
 
 % Remind user of setup procedure
 procedure_UI();
 
 % Make figure to keep track of average values vs. AoA
-[f, tiles] = compare_AoA_fig();
+AFAM_bool = true;
+[f, tiles] = compare_AoA_fig(AFAM_bool);
 [f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4] = makeForceFigures();
+
+% Connect to galil
+try
+    galil = galil_setup(galil_address);
+    % Ensure Galil stops motor when the run_trial function completes
+    % (either on its own or termination by user)
+    cleanup = onCleanup(@()myCleanupFun(galil, f, wing_type, speed));
+catch
+    disp("Oops couldn't connect to Galil, trying again...")
+    pause(2)
+
+    galil = galil_setup(galil_address);
+    % Ensure Galil stops motor when the run_trial function completes
+    % (either on its own or termination by user)
+    cleanup = onCleanup(@()myCleanupFun(galil, f, wing_type, speed));
+end
+
+% Allow user to set wings at midstroke and then galil will hold that
+% position afterwards
+% Define the total countdown time in seconds
+totalTime = 10; 
+
+% Define the update interval in seconds (how frequently the display updates)
+interval = 2; 
+
+fprintf('Countdown starting...\n');
+
+for i = totalTime:-interval:interval
+    fprintf('Time remaining: %d seconds\n', i);
+    pause(interval); 
+end
+
+dmc = fileread(dmc_hold_filename);
+dmc = string(dmc);
+% Replace the place holders in the .dmc file with the values specified
+% here. Other parameters can be changed directly in .dmc file.
+if galil_direction == 1
+    dmc = strrep(dmc, "dir_TEMP", "2");
+else
+    dmc = strrep(dmc, "dir_TEMP", "0");
+end
+
+% Load the program described by the .dmc file to the Galil device.
+galil.programDownload(dmc);
+% Command the galil to execute the program
+galil.command("XQ");
 
 diary off % IS THIS INITIAL DIARY NECESSARY, WHAT IS GETTING OUTPUT?
 
 % Make Calimero data collection object
-flapper_obj = Calimero(rate, voltage);
+if async
+    flapper_obj = Calimero_parallel();
+    flapper_obj.setup_DAQ(voltage, rate);
+else
+    flapper_obj = Calimero_serial(rate, voltage);
+end
 
 % Get calibration matrix from calibration file
 cal_matrix = obtain_cal(calibration_filepath);
-
-% Ensure motor is commanded to stop when the run_trial function completes
-% (either on its own or termination by user)
-% NEED TO UPDATE THIS FUNCTION TO COMMAND ESP32 APPROPRIATELY
-cleanup = onCleanup(@()myCleanupFun(f));
 
 % ----------------------------------------
 % ---- Loop through pitch angles ---------
@@ -72,7 +106,7 @@ diary("data\output logs\" + speed + "ms_" + AoA_vals(j) + "deg.txt")
 % -----------------------------------------------
 % Tare measurement at desired angle with wind off
 % -----------------------------------------------
-offsets = initial_tare(flapper_obj, offset_duration, wing_type, speed, AoA_vals(j), automatic);
+offsets = initial_tare(flapper_obj, offset_duration*2, wing_type, speed, AoA_vals(j), automatic, amp);
 
 % ------------------------------------------------
 % ---- Loop through wingbeat frequencies ---------
@@ -84,20 +118,17 @@ disp(msg);
 dictate(msg);
 
 % Set case name and wingbeat frequency for this trial
-case_name = wing_type + "_" + speed + "m.s_" + AoA_vals(j) + "deg_" + freq_vals(i) + "Hz";
-
-% wingbeat frequency is used to calculate session duration
-padding_revs = 4;
-hold_time = 10; % sec
+case_name = wing_type + "_" + amp + "_" + speed + "m.s_" + AoA_vals(j) + "deg_" + freq_vals(i) + "Hz";
 
 % ----------------------------------------------------------
 % Collect data for single trial, turning flapper on and off
 % ----------------------------------------------------------
-force = run_trial(flapper_obj, esp32, cal_matrix, case_name, offset_duration,...
-    offsets, freq_vals(i), measure_revs, padding_revs, hold_time,...
-    f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4);
+[force] = run_trial(flapper_obj, cal_matrix, case_name, offset_duration,...
+    offsets, ticksPerRev, freq_vals(i), acc, measure_revs, padding_revs, hold_time, wait_time,...
+    galil_direction, OC_pulse_step, galil, dmc_motion_filename,...
+    f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4, async);
 
-process_and_plot(force, i, AoA_vals(j), tiles, freq_vals);
+process_and_plot(force, i, AoA_vals, j, tiles, freq_vals);
 
 % -------------------------------------------------
 % -------- Move to next wingbeat frequency --------
@@ -122,7 +153,7 @@ if (j < length(AoA_vals) && ~automatic)
 end
 
 % Get final offset data
-offset_name = wing_type + "_" + speed + "m.s_" + AoA_vals(j) + "deg_final";
+offset_name = wing_type + "_" + amp + "_" + speed + "m.s_" + AoA_vals(j) + "deg_final";
 flapper_obj.get_force_offsets(offset_name, offset_duration);
 disp("Final offset data at this AoA has been gathered");
 beep2;
@@ -136,11 +167,15 @@ end
 % -------------------------------------
 time_now = datetime;
 time_now.Format = 'yyyy-MM-dd HH-mm-ss';
-saveas(f,'data\plots\compareAoA_' + speed + "ms_" + string(time_now) + ".fig")
+saveas(f, "data\plots\compareAoA_" + wing_type + "_" + speed + "ms_" + string(time_now) + ".fig")
 
 if (~debug)
     % Clean up
     delete(cleanup);
     delete(flapper_obj);
+    VFD_stop;
+    msg = "Experiments complete!";
+    disp(msg);
+    dictate(msg);
 end
 end

@@ -1,0 +1,273 @@
+clear
+close all
+clc
+
+% Author: Ronan Gissler
+% Date: 09/12/2025
+
+% Galil Setup
+galil_IP_address = "192.168.1.3";
+DR_bool = false; % false - store data in arrays (RA), true - data record packets (DR)
+ticksPerRev = 18432;
+freq = 4; % Hz
+acc = 3; % Hz
+measure_revs = 50;
+padding_revs = 4;
+hold_time = 15; % sec
+wait_time = 1000; % ms
+OC_pulse_step = 4; % in ticks
+% REMEMBER MOTOR WIRES NEED TO BE FLIPPED TOO WHEN CHANGING DIRECTION
+galil_direction = 0; % 0 - forward, 1 - reverse
+if DR_bool
+    dmc_benchtop_filename = "benchtop_test_DR.dmc";
+else
+    dmc_benchtop_filename = "benchtop_test_RA.dmc";
+end
+
+case_name = "benchtop_" + 0 + "m.s_" + 0 + "deg_" + freq + "Hz_";
+time_now = datetime;
+time_now.Format = 'yyyy-MM-dd HH-mm-ss';
+case_name = case_name + string(time_now);
+
+daq_bool = true;
+async = false;
+% DAQ Setup
+if daq_bool
+[f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4] = makeForceFigures();
+
+% DAQ Parameters
+rate = 12000; % measurement rate of NI DAQ, in Hz
+offset_duration = 2; % in seconds
+calibration_filepath = "../DAQ/Calibration Files/Mini40/FT52907.cal"; 
+voltage = 5; % 5 or 10 volts for load cell
+
+if async
+    flapper_obj = Calimero();
+    flapper_obj.setup_DAQ(voltage, rate);
+else
+    flapper_obj = Calimero(rate, voltage);
+end
+
+% Get calibration matrix from calibration file
+cal_matrix = obtain_cal(calibration_filepath);
+end
+
+% estimate recording length based on parameters
+[num_revs, session_duration, time_to_speed, at_speed_pos] = estimate_duration(freq, acc, measure_revs, padding_revs, hold_time, wait_time, true);
+
+% save data recording parameters
+currentDateTime = datetime('now', 'Format', 'yyyy_MM_dd_HH_mm_ss');
+currentDateTimeStr = char(currentDateTime);
+file_name = strjoin(["experiment_params", currentDateTimeStr], "_");
+full_file_name = "data\params\" + file_name + ".mat";
+
+vars = whos;
+saveVars = {};
+excludeNames = ["flapper_obj", "tiles_1", "tiles_2", "tiles_3", "tiles_4"];
+
+for k = 1:numel(vars)
+    val = evalin('base', vars(k).name);
+    if ~isa(val, 'matlab.ui.Figure') && ...
+       ~any(strcmp(vars(k).name, excludeNames))
+        saveVars{end+1} = vars(k).name;
+    end
+end
+
+save(full_file_name, saveVars{:});
+
+try
+    galil = galil_setup(galil_IP_address);
+    % Ensure Galil stops motor when the run_trial function completes
+    % (either on its own or termination by user)
+    cleanup = onCleanup(@()myCleanupFunB(galil));
+catch
+    disp("Oops couldn't connect to Galil, trying again...")
+    pause(2)
+
+    galil = galil_setup(galil_IP_address);
+    % Ensure Galil stops motor when the run_trial function completes
+    % (either on its own or termination by user)
+    cleanup = onCleanup(@()myCleanupFunB(galil));
+end
+
+% ---------------------------
+if DR_bool
+% Create a buffer to hold incoming records
+% Use a property or appdata to keep it accessible in callback
+ref = RefHolder();
+ref.Data = [];
+
+% Define callback for onRecord event
+% Use a cell callback that passes the COM object as an input
+% galil.onRecord = {@recCallback, galil, data};
+listener = addlistener(galil, 'onRecord', @(src, event) recCallback(src, event, ref));
+
+% Start recording at 4 ms interval
+dt = 10;
+galil.recordsStart(dt);
+end
+% ---------------------------
+
+dmc = fileread(dmc_benchtop_filename);
+dmc = string(dmc);
+
+% Replace the place holders in the .dmc file with the values specified
+% here. Other parameters can be changed directly in .dmc file.
+if galil_direction == 1
+    dmc = strrep(dmc, "dir_TEMP", "2");
+else
+    dmc = strrep(dmc, "dir_TEMP", "0");
+end
+dmc = strrep(dmc, "ticks_TEMP", num2str(ticksPerRev));
+dmc = strrep(dmc, "revs_TEMP", num2str(num_revs));
+dmc = strrep(dmc, "speed_TEMP", num2str(freq));
+dmc = strrep(dmc, "acc_TEMP", num2str(acc));
+dmc = strrep(dmc, "waittime_TEMP", num2str(wait_time));
+dmc = strrep(dmc, "OC_TEMP", num2str(OC_pulse_step));
+if ~DR_bool
+    dmc = strrep(dmc, "revsRec_TEMP", num2str(round(at_speed_pos) + padding_revs));
+end
+
+% Load the program described by the .dmc file to the Galil device.
+galil.programDownload(dmc);
+
+if daq_bool
+% Get the offsets before experiment
+offsets_before = flapper_obj.get_force_offsets(case_name + "_before", offset_duration);
+offsets_before = offsets_before(1,:); % just taking means, no SDs
+disp("Initial offset data has been gathered");
+beep2;
+end
+
+% fig = uifigure;
+% fig.Position = [600 500 430 160];
+% movegui(fig,'center')
+% message = ["Offsets collected! Ready for experiment"];
+% title = "Experiment Setup Reminder";
+% uiconfirm(fig,message,title,'CloseFcn',@(h,e) close(fig));
+% uiwait(fig);
+
+pause(1);
+
+% Command the galil to execute the program
+galil.command("XQ");
+
+if daq_bool
+% Collect experiment data during flapping
+disp("Experiment data collection has begun");
+results = flapper_obj.measure_force(case_name, session_duration);
+disp("Experiment data has been gathered");
+beep2;
+
+pause(1);
+
+% Are we approaching limits of load cell?
+checkLimits(results);
+
+ticksPerRev = 18432;
+% Translate data from raw values into meaningful values
+[time, force, voltAdj, curAdj, enc_pulse, speed] = process_data(results, offsets_before, cal_matrix, ticksPerRev, OC_pulse_step);
+
+fc = 100;
+fs = rate;
+[b,a] = butter(6,fc/(fs/2));
+filtered_speed = filtfilt(b,a,speed);
+
+OC_f = figure;
+plot(time, speed)
+xlabel("Time (seconds)")
+ylabel("Filtered Speed (Hz)")
+title("Speed measured from OC pulses")
+saveas(OC_f,'data\plots\' + case_name + "_OC.png")
+
+% 1, 2, 3, 4, 6, 8, 9, 12, 16, 18, 24, 32, 36, 48, 64, 72, 96, 128,
+% 144, 192, 256, 288, 384, 512, 576, 768, 1024, 1152, 1536, 2048,
+% 2304, 3072, 4608, 6144, 9216, 18432
+
+
+pulsesPerStep = 18432 / OC_pulse_step;
+% trim beginning and end
+pulse_count = results(8*rate:end-8*rate,11);
+pulse_count = pulse_count(pulse_count ~= 0 & pulse_count ~= pulse_count(end));
+whole_idx = find(mod(pulse_count, pulsesPerStep) <3);
+diff_idx = diff(whole_idx);
+diff_idx = diff_idx(diff_idx ~= 1);
+eff_freq = rate ./ diff_idx;
+% wingbeat frequency error over a single wingbeat
+err = abs(eff_freq - freq);
+laser_freq = 192;
+cycle_frames = 96;
+err_frames = err*(1/freq)*laser_freq;
+
+% What's most important for phase averaging PIV is that a full cycle
+% has some repeatable time
+
+
+pause(3);
+else
+    pause(session_duration + 9)
+end
+
+% -----------------
+if DR_bool
+% Stop recording
+galil.recordsStart(0);
+% -----------------
+
+galil_data = cell2mat(ref.Data);
+
+galil_traj_plot_DR(galil_data, dt);
+else
+[TimeArr, Current, DesPos, ActPos, ActVel] = galil_traj_plot(galil);
+
+currentDateTime = datetime('now', 'Format', 'yyyy_MM_dd_HH_mm_ss');
+currentDateTimeStr = char(currentDateTime);
+file_name = strjoin([case_name, currentDateTimeStr], "_");
+full_file_name = "data\galil\" + file_name + ".mat";
+
+saveVars = {"TimeArr", "Current", "DesPos", "ActPos", "ActVel"};
+save(full_file_name, saveVars{:});
+
+plot_current_comp(time, curAdj, TimeArr, Current, freq, padding_revs, time_to_speed, case_name)
+end
+% ------------------
+
+if daq_bool
+disp("Collecting final offset")
+% Get offset data after flapping at this angle and windspeed
+offsets_after = flapper_obj.get_force_offsets(case_name + "_after", offset_duration);
+offsets_after = offsets_after(1,:); % just taking means, no SDs
+disp("Final offset data has been gathered");
+beep2;
+
+drift = offsets_after - offsets_before; % over one trial
+
+% Convert drift from voltages into forces and moments
+drift = cal_matrix * drift(1:6)';
+
+drift_string = string(drift);
+% separate numbers by space
+drift_string = [sprintf('%s   ',drift_string{1:end-1}), drift_string{end}];
+disp("Drift since tare with tunnel off: ")
+disp(drift_string)
+
+try
+    % clf([f1 f2 f3], 'reset')
+    for k = 1:6
+        cla([tiles_1{k} tiles_2{k}])
+    end
+    for k = 1:3
+        cla([tiles_3{k} tiles_4{k}])
+    end
+catch
+    % disp("No figures to clear")
+    disp("No axes to clear")
+end
+
+fc = 100;  % cutoff frequency in Hz for filter
+% Display preliminary data
+raw_plot(time, force, voltAdj, curAdj, enc_pulse, speed, case_name, drift, flapper_obj.DAQ.Rate, fc,...
+    f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4, async);
+end
+
+clear cleanup

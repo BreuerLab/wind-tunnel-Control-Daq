@@ -6,7 +6,11 @@ function wind_tunnel_save(case_name)
     trial_name = strjoin(["data\wind tunnel data\" + case_name, "wind_tunnel", string(time_now)], "_");
     filepath = trial_name + ".mat";
     filepath_string = "'" + filepath + "'";
-    evalin('base',"save(" + filepath_string + ", 'AFAM_Tunnel');");
+
+    AFAM_Tunnel = load_afam_data;
+    % not needed if AFAM_Tunnel already in base workspace
+    % (i.e. running experiment code on AFAM PC)
+    eval("save(" + filepath_string + ", 'AFAM_Tunnel');");
     
     % Only keep wind tunnel file if values aren't NaN
     load(filepath)

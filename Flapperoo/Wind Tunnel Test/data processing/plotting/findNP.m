@@ -26,7 +26,7 @@ function [NP_pos, NP_pos_err, NP_mom] = findNP(avg_results, AoA_sel)
 
     shift_distance = 0;
     iter = 0;
-    max_iter = 200000;
+    max_iter = 500000;
     Rsq_vals = zeros(1,max_iter);
     res_vals = zeros(1,max_iter);
     % keep adjusting COP position until slope falls within
@@ -69,8 +69,82 @@ function [NP_pos, NP_pos_err, NP_mom] = findNP(avg_results, AoA_sel)
             res_vals(iter) = res;
         end
     end
+    shift_bound_A = shift_distance;
 
-    NP_pos_err = cur_slope;
+    count = 0;
+    % found beginning of region where slope falls below slope margin
+    while(abs(cur_slope) < slope_margin)
+        prev_slope = cur_slope;
+        shift_distance = shift_distance + sign * diff_shift;
+    
+        shifted_results = shiftPitchMom(avg_results, shift_distance, AoA_sel);
+        shifted_pitch_moment = shifted_results(5,:);
+    
+        x = [ones(size(AoA_sel')), AoA_sel'];
+        y = shifted_pitch_moment';
+        b = x\y;
+        model = x*b;
+        cur_slope = b(2);
+
+        count = count + 1;
+    end
+    shift_bound_B = shift_distance;
+
+    % find shifted moment for optimal shift half way in between region
+    % where slope falls below minimum margin
+    shift_distance_cen = shift_distance - sign * diff_shift * (count/2);
+
+    shifted_results = shiftPitchMom(avg_results, shift_distance_cen, AoA_sel);
+    shifted_pitch_moment = shifted_results(5,:);
+
+    x = [ones(size(AoA_sel')), AoA_sel'];
+    y = shifted_pitch_moment';
+    b = x\y;
+    model = x*b;
+    Rsq = 1 - sum((y - model).^2) / sum((y - mean(y)).^2);
+    res = sum((y - model).^2);
+    cur_slope = b(2);
+
+    SSE = sum((y - model).^2); % sum of squared residuals
+    Sxx = sum((AoA_sel - mean(AoA_sel)).^2);
+    SE_slope = (SSE / (Sxx*(length(AoA_sel) - 2)) ).^(1/2);
+
+    disp("Shift distance bounded by: [" + shift_bound_A + ", " + shift_bound_B + "]")
+    disp("Final shift distance: " + shift_distance_cen)
+
+    % Find shift distance where slope = SE_slope
+    iter = 0;
+    shift_distance = shift_distance_cen;
+
+    while(abs(cur_slope - SE_slope) > slope_margin && iter < 10000)
+        prev_slope = cur_slope;
+        shift_distance = shift_distance - sign * diff_shift;
+    
+        shifted_results = shiftPitchMom(avg_results, shift_distance, AoA_sel);
+        shifted_pitch_moment = shifted_results(5,:);
+    
+        x = [ones(size(AoA_sel')), AoA_sel'];
+        y = shifted_pitch_moment';
+        b = x\y;
+        model = x*b;
+        cur_slope = b(2);
+
+        % if (abs(cur_slope) > abs(prev_slope) && iter == 0)
+        %     sign = -sign;
+        %     cur_slope = prev_slope;
+        %     prev_slope = cur_slope*2;
+        %     shift_distance = shift_distance + sign * diff_shift;
+        % else
+            iter = iter + 1;
+        % end
+    end
+    if iter == 100000
+        error("Max iter reached")
+    end
+
+    NP_pos_err = shift_distance - shift_distance_cen;
+    disp("Final error: " + NP_pos_err)
+    % NP_pos_err = cur_slope;
     NP_mom = mean(shifted_pitch_moment);
     NP_pos = shift_distance;
 

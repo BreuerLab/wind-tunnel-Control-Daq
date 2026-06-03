@@ -1,0 +1,6 @@
+function time_val = timeStr2num(time_str)
+    parts = split(time_str, "_");
+    time_val = datetime(str2double(parts{1}), str2double(parts{2}), ...
+        str2double(parts{3}), str2double(parts{4}), ...
+        str2double(parts{5}), str2double(parts{6}));
+end

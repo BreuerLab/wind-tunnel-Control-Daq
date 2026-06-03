@@ -1,13 +1,21 @@
-function raw_force_plot(f, tiles, time, force, case_name, drift, rate, fc, titles)
+function raw_force_plot(f, tiles, time, force, case_name, drift, rate, fc, titles, zoomed_bool)
     figure(f);
    
-    force_means = round(mean(force), 3);
-    force_SDs = round(std(force), 3);
-    force_maxs = round(max(force), 3);
-    force_mins = round(min(force), 3);
-
     % --- Filtering forces and moments (6 channels)
     filtered_force = filter_data(force, rate, fc);
+
+    force_means = round(mean(filtered_force, 2), 3);
+    force_SDs = round(std(filtered_force, 0, 2), 3);
+    force_maxs = round(max(filtered_force, [], 2), 3);
+    force_mins = round(min(filtered_force, [], 2), 3);
+
+    if (zoomed_bool)
+    forces_max = round(max(max(filtered_force(1:3, :), [], 2)), 3);
+    forces_min = round(min(min(filtered_force(1:3, :), [], 2)), 3);
+    moments_max = round(max(max(filtered_force(4:6, :), [], 2)), 3);
+    moments_min = round(min(min(filtered_force(4:6, :), [], 2)), 3);
+    mult_fac = 1.2;
+    end
     
     % Plot forces and moments (6 plots)
     for k = 1:6
@@ -19,7 +27,14 @@ function raw_force_plot(f, tiles, time, force, case_name, drift, rate, fc, title
         title([titles(k), " avg: " + force_means(k) + ...
                "    SD: " + force_SDs(k) + ...
                "    max: " + force_maxs(k) + ...
-               "    min: " + force_mins(k)]);
+               "    min: " + force_mins(k)], FontSize=8);
+        if (zoomed_bool)
+        if (k < 4)
+            ylim([mult_fac*forces_min mult_fac*forces_max])
+        else
+            ylim([mult_fac*moments_min mult_fac*moments_max])
+        end
+        end
         % xlabel(axes_labels(1));
         % ylabel(axes_labels(1 + ceil(k/3)));
         % legend;
