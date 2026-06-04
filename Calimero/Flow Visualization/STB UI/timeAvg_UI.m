@@ -9,6 +9,7 @@ classdef timeAvg_UI < handle
         COLOR_ACTIVE = [0.3010 0.7450 0.9330];
         COLOR_INACTIVE = [1 1 1];
         operations = ["mean", "range"];
+        cur_types = ["flexible";"UP_one_flexible";"UP_two_flexible"];
     end
 
     properties
@@ -72,11 +73,11 @@ classdef timeAvg_UI < handle
 
             obj.index = 1;
             obj.box_labels = ["lift vortX", "lift vortY", "lift vel diff", "lift vel", "drag_vort", "drag_vel",...
-                            "speed", "voltage", "current", "electric power", "KE",...
+                            "speed", "speed error", "voltage", "current", "electric power", "KE",...
                             "KE wake", "power wake", "KE Full", "enstrophy",...
                             "helicity", "avg u", "avg v", "avg w", "pitot U", "total uncertainty", "# particles", "# bins"];
             obj.var_names = ["lift.vortX", "lift.vortY", "lift.vel", "lift_vel", "drag.tot", "drag_vel",...
-                "phase_avg_speed", "phase_avg_volt", "phase_avg_cur", "phase_avg_power", "KE",...
+                "phase_avg_speed", "phase_avg_speed_error", "phase_avg_volt", "phase_avg_cur", "phase_avg_power", "KE",...
                 "KE_diff", "power", "KE_tot", "enst", "hel_avg",...
                 "u_avg", "v_avg", "w_avg", "U_act", "unc_avg", "numP_avg", "num_bins"];
             % obj.var_names = ["lift_phase_avg", "lift_vel", "drag_phase_avg", "drag_vel",...
@@ -86,7 +87,7 @@ classdef timeAvg_UI < handle
             obj.y_labels = ["Lift (N): $\frac{2\rho}{N} \sum\limits_{n_f = 1}^{N} \int_S -u \omega_x y dA$",...
                 "Lift (N)", "Lift (N)","Lift (N)","Drag (N)",...
                 "Drag (N): $\frac{2\rho}{N} \sum\limits_{n_f = 1}^{N} \int_S -u(u + U) dA$",...
-                "Speed (Hz)", "Voltage (V)", "Current (mA)", "Power (mW)",...
+                "Speed (Hz)", "Speed (Hz)", "Voltage (V)", "Current (mA)", "Power (mW)",...
                 "KE: $\frac{1}{N c^2} \sum\limits_{n_f = 1}^{N} \int_S \frac{\mathbf{u}^2}{U^2} dA$",...
                 "KE: $\frac{1}{N c^2} \sum\limits_{n_f = 1}^{N} \int_S \frac{(\mathbf{u} + U)^2}{U^2} dA$",...
                 "Power: $\frac{1}{N c^2} \sum\limits_{n_f = 1}^{N} \int_S \frac{-(\mathbf{u} + U)^2 \mathbf{u}}{U^3} dA$",...
@@ -115,18 +116,16 @@ classdef timeAvg_UI < handle
             % Get amps, freqs, types from file names
             obj.available_selections = get_sel_from_file(files);
 
-            obj.sel_amp = obj.available_selections{1,2};
+            if isempty(obj.available_selections)
+                error("No STB files found in %s. Expected *_phase_avg.mat or *_time_avg.mat files.", obj.PIV_path)
+            end
 
             obj.plot_curves = [];
 
-            cur_types = ["flexible";"UP_one_flexible";"UP_two_flexible"];
-            obj.sel_type = cur_types(1);
-            if ~isequal(sort(cur_types), sort(unique(string(obj.available_selections(:, 1)))))
-                error("Downstream type mismatch. Check types...")
-            end
-
-            obj.distance_labels = ["x = 0.9m","x = 1.3m","x = 1.7m"];
-            obj.distance_type_dict = containers.Map(obj.distance_labels, cur_types);
+            [selection_types, obj.distance_labels] = obj.get_available_type_options();
+            obj.sel_type = selection_types(1);
+            obj.sel_amp = obj.get_first_amp(obj.sel_type);
+            obj.distance_type_dict = containers.Map(cellstr(obj.distance_labels), cellstr(selection_types));
         end
 
         % Builds figure with all UI elements and defines all callback
@@ -143,16 +142,16 @@ classdef timeAvg_UI < handle
             drop_y1 = screen_height*0.85 - 30;
             type_dropdown = uidropdown(option_panel);
             type_dropdown.Position = [10 drop_y1 180 30];
-            type_dropdown.Items = obj.distance_labels;
-            type_dropdown.ValueChangedFcn = @(src, event) type_change(src, event);
+            type_dropdown.Items = obj.distance_labels(:);
 
             % Dropdown box for wingbeat amplitude selection
             drop_y3 = drop_y1 - (unit_height + unit_spacing);
             amp_dropdown = uidropdown(option_panel);
             amp_dropdown.Position = [10 drop_y3 180 unit_height];
-            cur_amps = unique(cell2mat(obj.available_selections(:, 2)));
+            cur_amps = obj.get_amp_options(obj.sel_type);
             amp_dropdown.Items = string(cur_amps) + " deg";
             amp_dropdown.ValueChangedFcn = @(src, event) amp_change(src, event);
+            type_dropdown.ValueChangedFcn = @(src, event) type_change(src, event, amp_dropdown);
 
             % Button to add entry
             button2_y = drop_y3 - (unit_height + unit_spacing);
@@ -272,8 +271,10 @@ classdef timeAvg_UI < handle
 
             % ===== Nested Callback Functions =====
             
-            function type_change(src, ~)
-                obj.sel_type = obj.distance_type_dict(src.Value);
+            function type_change(src, ~, amp_dropdown)
+                obj.sel_type = string(obj.distance_type_dict(char(src.Value)));
+                obj.sel_amp = obj.get_first_amp(obj.sel_type);
+                obj.update_amp_dropdown(amp_dropdown);
             end
 
             function amp_change(src, ~)
@@ -377,6 +378,43 @@ classdef timeAvg_UI < handle
     end
 
     methods (Access = private)
+        function [selection_types, selection_labels] = get_available_type_options(obj)
+            available_types = unique(string(obj.available_selections(:, 1)), 'stable');
+            available_types = available_types(strlength(available_types) > 0);
+            selection_types = strings(0, 1);
+            selection_labels = strings(0, 1);
+
+            known_distance_labels = ["x = 0.9m"; "x = 1.3m"; "x = 1.7m"];
+            for i = 1:length(obj.cur_types)
+                type = obj.cur_types(i);
+                if any(available_types == type)
+                    selection_types(end + 1, 1) = type;
+                    selection_labels(end + 1, 1) = known_distance_labels(i);
+                end
+            end
+
+            other_types = setdiff(available_types, selection_types, 'stable');
+            selection_types = [selection_types; other_types(:)];
+            selection_labels = [selection_labels; other_types(:)];
+        end
+
+        function amps = get_amp_options(obj, selected_type)
+            selection_types = string(obj.available_selections(:, 1));
+            selection_amps = cell2mat(obj.available_selections(:, 2));
+            amps = unique(selection_amps(selection_types == string(selected_type)));
+        end
+
+        function amp = get_first_amp(obj, selected_type)
+            amps = obj.get_amp_options(selected_type);
+            amp = amps(1);
+        end
+
+        function update_amp_dropdown(obj, dropdown)
+            amps = obj.get_amp_options(obj.sel_type);
+            dropdown.Items = string(amps(:)) + " deg";
+            dropdown.Value = string(obj.sel_amp) + " deg";
+        end
+
         % Helper function to get button color based on state
         function color = get_button_color(obj, is_active)
             if is_active

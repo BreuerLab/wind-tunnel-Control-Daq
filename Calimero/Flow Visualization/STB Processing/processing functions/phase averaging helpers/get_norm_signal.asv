@@ -23,7 +23,6 @@ end
 % wrap values so only expressed between 0 and 1
 norm_signal = mod(norm_signal, 1);
 
-% phase averaging STB fields requires laser firing info
 if nargin > 4
 % find signal value corresponding to laser pulse
 norm_signal = norm_signal(laser_ind);

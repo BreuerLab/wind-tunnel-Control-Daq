@@ -9,14 +9,12 @@ else
 end
 save_path = fullfile(save_filepath_local, save_filename);
 
-[~, ~, freq] = parse_name(PIV_case_name);
-
 % ----------------------------------------------------------------
 % -------- Calculate phase averaged kinematics and power ---------
 % ----------------------------------------------------------------
-if ~bools.turbine
+if ~turbine_bool
 % Define the field names in the order they are returned by the function
-fNames = {'freq_avg', 'norm_time_speed', 'phase_avg_pos', 'phase_std_pos', ...
+fNames = {'norm_time_speed', 'phase_avg_pos', 'phase_std_pos', ...
           'phase_avg_speed', 'phase_std_speed',...
           'phase_avg_acc', 'phase_std_acc',...
           'phase_avg_wing_pos', 'phase_std_wing_pos',...
@@ -28,15 +26,18 @@ fNames = {'freq_avg', 'norm_time_speed', 'phase_avg_pos', 'phase_std_pos', ...
 
 % Capture all outputs into a cell array
 outputs = cell(1, numel(fNames));
-[outputs{:}] = speed_phase_avg(PIV_case_name, bools.plot);
+[outputs{:}] = speed_phase_avg(D.PIV_case_name, plot_bool);
 
 % Map cell array to struct fields
 for i = 1:numel(fNames)
-    F.(fNames{i}) = outputs{i};
+    S.(fNames{i}) = outputs{i};
 end
 
-F.phase_avg_speed_error = abs(F.phase_avg_speed - freq);
-F.phase_avg_power = F.phase_avg_volt .* F.phase_avg_cur;
+S.phase_avg_speed_error = abs(S.phase_avg_speed - freq);
+S.phase_avg_power = S.phase_avg_volt .* S.phase_avg_cur;
+
+% actual wingbeat frequency
+freq_cor = mean(phase_avg_speed);
 end
 
 % ----------------------------------------------------------------
@@ -47,7 +48,7 @@ num_images = 2500;
 disp("Assuming num images = " + num_images)
 % get bin number associated with each frame from DAQ measurements
 [norm_frame_pos, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_freq]...
-    = frame_to_bin(PIV_case_name, num_images, F.freq_avg, bools.turbine, bools.plot);
+    = frame_to_bin(PIV_case_name, num_images, bools.turbine, bools.plot);
 
 % Find matching DAQ file
 [daq_data_filename, ~] = get_daq_paths(PIV_case_name);
@@ -159,7 +160,7 @@ fprintf('Processing and saving data took %.4f seconds.\n', toc);
 
 % Calculate secondary values (Q, power, integral values) and save in
 % separate file
-calc_secondary_vals_phase(S, F, bools.turbine, bools.plot, save_filepath_local);
+calc_secondary_vals_phase(S, bools.turbine, bools.plot, save_filepath_local);
 
 else
 
@@ -168,6 +169,6 @@ S = load(save_path);
 
 % Calculate secondary values (Q, power, integral values) and save in
 % separate file
-calc_secondary_vals_phase(S, F, bools.turbine, bools.plot, save_filepath_local);
+calc_secondary_vals_phase(S, bools.turbine, bools.plot, save_filepath_local);
 end
 end
