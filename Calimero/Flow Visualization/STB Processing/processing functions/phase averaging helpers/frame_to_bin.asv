@@ -153,7 +153,7 @@ norm_signal = get_norm_signal(results, phase_type, pulsesPerRev, freq_cor, laser
 norm_pos = get_norm_signal(results, 0, pulsesPerRev, cycle_freq, laser_ind, num_images);
 
 % associate t = 0 with theta = 0
-[~,I] = min(norm_pos);
+[M,I] = min(norm_pos);
 t_phase_zero = norm_signal(I);
 norm_signal(norm_signal < t_phase_zero) = norm_signal(norm_signal < t_phase_zero) + 1;
 norm_signal = norm_signal - t_phase_zero;
@@ -166,7 +166,7 @@ else
     full_cycle = zeros(size(norm_signal));
 end
 
-bins_list = 20:5:125;
+bins_list = 10:5:150;
 minFrames = 10;
 [num_bins, bin_ind_arr, bin_count, bin_std] = findBestNumBins(norm_signal, bins_list, minFrames);
 disp("Using " + num_bins + " bins")

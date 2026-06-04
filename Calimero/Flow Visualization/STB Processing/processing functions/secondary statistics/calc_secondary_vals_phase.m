@@ -1,4 +1,4 @@
-function calc_secondary_vals_phase(D, turbine_bool, plot_bool, save_filepath_local)
+function calc_secondary_vals_phase(D, F, turbine_bool, plot_bool, save_filepath_local)
 tic
 
 config.uField = 'u_phase_avg';
@@ -46,32 +46,10 @@ config.length = D.L;
 
 S = calc_secondary_vals_common(D, config);
 
-% ----------------------------------------------------------------
-% -------------- Calculate values from DAQ data ------------------
-% ----------------------------------------------------------------
-if ~turbine_bool
-% Define the field names in the order they are returned by the function
-fNames = {'norm_time_speed', 'phase_avg_pos', 'phase_std_pos', ...
-          'phase_avg_speed', 'phase_std_speed',...
-          'phase_avg_acc', 'phase_std_acc',...
-          'phase_avg_wing_pos', 'phase_std_wing_pos',...
-          'phase_avg_wing_speed', 'phase_std_wing_speed',...
-          'phase_avg_wing_acc', 'phase_std_wing_acc',...
-          'bin_count_speed', 'bin_std_speed',...
-          'phase_avg_volt', 'phase_std_volt',...
-          'phase_avg_cur', 'phase_std_cur'};
-
-% Capture all outputs into a cell array
-outputs = cell(1, numel(fNames));
-[outputs{:}] = speed_phase_avg(D.PIV_case_name, plot_bool);
-
-% Map cell array to struct fields
-for i = 1:numel(fNames)
-    S.(fNames{i}) = outputs{i};
-end
-
-S.phase_avg_speed_error = abs(S.phase_avg_speed - freq);
-S.phase_avg_power = S.phase_avg_volt .* S.phase_avg_cur;
+% copy over data from phase averaged kinematics and power
+fnames = fieldnames(F);
+for i = 1:numel(fnames)
+    S.(fnames{i}) = F.(fnames{i});
 end
 
 % Save the entire structure
