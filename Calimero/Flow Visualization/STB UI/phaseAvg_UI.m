@@ -128,21 +128,22 @@ methods
         % Get amps, freqs, types from file names
         obj.available_selections = get_sel_from_file(files);
 
-        obj.sel_type = obj.available_selections{1,1};
+        if isempty(obj.available_selections)
+            error("No STB files found in %s. Expected *_phase_avg.mat or *_time_avg.mat files.", obj.PIV_path)
+        end
+
+        obj.sel_type = string(obj.available_selections{1,1});
         obj.sel_amp = obj.available_selections{1,2};
         obj.sel_freq = obj.available_selections{1,3};
 
         obj.plot_curves = [];
         % attachFileListsToBird(path, cur_bird);
 
-        obj.sel_type = obj.cur_types(1);
-        if ~isequal(sort(obj.cur_types), sort(unique(string(obj.available_selections(:, 1)))))
-            error("Downstream type mismatch. Check types...")
-        end
-
-        obj.distance_labels = ["x = 0.9m","x = 1.3m","x = 1.7m"];
-        obj.distance_type_dict = containers.Map(obj.distance_labels, obj.cur_types);
-        obj.type_distance_dict = containers.Map(obj.cur_types, obj.distance_labels);
+        [selection_types, obj.distance_labels] = obj.get_available_type_options();
+        obj.sel_type = selection_types(1);
+        [obj.sel_amp, obj.sel_freq] = obj.get_first_selection(obj.sel_type);
+        obj.distance_type_dict = containers.Map(cellstr(obj.distance_labels), cellstr(selection_types));
+        obj.type_distance_dict = containers.Map(cellstr(selection_types), cellstr(obj.distance_labels));
     end
 
     % Builds figure with all UI elements and defines all callback
@@ -159,26 +160,24 @@ methods
         drop_y1 = screen_height*0.875 - unit_spacing;
         d1 = uidropdown(option_panel);
         d1.Position = [10 drop_y1 180 30];
-        d1.ValueChangedFcn = @(src, event) type_change(src, event);
-        d1.Items = [obj.distance_labels, "all"];
+        d1.Items = [obj.distance_labels(:); "all"];
 
         % Dropdown box for wingbeat frequency selection
         drop_y2 = drop_y1 - (unit_height + unit_spacing);
         d2 = uidropdown(option_panel);
         d2.Position = [10 drop_y2 180 unit_height];
-        cur_freqs = obj.available_selections(cell2mat(obj.available_selections(:,2)) == obj.sel_amp ...
-            & strcmp(string(obj.available_selections(:,1)), obj.sel_type),3);
-        freqs_string = string(cur_freqs) + " Hz";
+        cur_freqs = obj.get_freq_options(obj.sel_type, obj.sel_amp);
+        freqs_string = string(cur_freqs(:)) + " Hz";
         d2.Items = [freqs_string; "all"];
 
         % Dropdown box for wingbeat amplitude selection
         drop_y3 = drop_y2 - (unit_height + unit_spacing);
         d3 = uidropdown(option_panel);
         d3.Position = [10 drop_y3 180 unit_height];
-        cur_amps = obj.available_selections(cell2mat(obj.available_selections(:,3)) == obj.sel_freq ...
-            & strcmp(string(obj.available_selections(:,1)), obj.sel_type),2);
-        d3.Items = [string(cur_amps) + " deg"; "all"];
+        cur_amps = obj.get_amp_options(obj.sel_type, obj.sel_freq);
+        d3.Items = [string(cur_amps(:)) + " deg"; "all"];
 
+        d1.ValueChangedFcn = @(src, event) type_change(src, event, d2, d3);
         d2.ValueChangedFcn = @(src, event) freq_change(src, event, d3);
         d3.ValueChangedFcn = @(src, event) amp_change(src, event, d2);
 
@@ -349,12 +348,16 @@ methods
         %-----------------------------------------------------%
 
         % update type variable with new value selected by user
-        function type_change(src, ~)
+        function type_change(src, ~, freq_dropdown, amp_dropdown)
             if src.Value == "all"
-            obj.sel_type = src.Value;
+                obj.sel_type = string(src.Value);
             else
-            obj.sel_type = obj.distance_type_dict(src.Value);
+                obj.sel_type = string(obj.distance_type_dict(char(src.Value)));
             end
+
+            [obj.sel_amp, obj.sel_freq] = obj.get_first_selection(obj.sel_type);
+            obj.update_frequency_dropdown(freq_dropdown);
+            obj.update_amp_dropdown(amp_dropdown);
         end
 
         % update frequency variable with new value selected by user
@@ -365,16 +368,7 @@ methods
             obj.sel_freq = str2double(regexp(src.Value, '\d+', 'match'));
             end
             
-            % Change amplitude list to only show those available at this
-            % wingbeat frequency
-            if obj.sel_freq == -1
-                amps = obj.available_selections(strcmp(string(obj.available_selections(:,1)), obj.cur_types(1)),2);
-            else
-            amps = obj.available_selections(cell2mat(obj.available_selections(:,3)) == obj.sel_freq ...
-            & strcmp(string(obj.available_selections(:,1)), obj.cur_types(1)),2);
-            end
-            amps = unique(cell2mat(amps));
-            d.Items = [string(amps) + " deg"; "all"];
+            obj.update_amp_dropdown(d);
         end
 
         % update speed variable with new value selected by user
@@ -385,16 +379,7 @@ methods
                 obj.sel_amp = str2double(regexp(src.Value, '\d+', 'match'));
             end
 
-            % Change frequency list to only show those available at this
-            % wingbeat amplitude
-            if obj.sel_amp == -1
-                freqs = obj.available_selections(strcmp(string(obj.available_selections(:,1)), obj.cur_types(1)),3);
-            else
-                freqs = obj.available_selections(cell2mat(obj.available_selections(:,2)) == obj.sel_amp ...
-                & strcmp(string(obj.available_selections(:,1)), obj.cur_types(1)),3);
-            end
-            freqs = unique(cell2mat(freqs));
-            d.Items = [string(freqs) + " Hz"; "all"];
+            obj.update_frequency_dropdown(d);
         end
 
         function PIV_sub_change(src, ~, plot_panel)
@@ -570,6 +555,101 @@ end
 %---------------------------------------------------------------%
 % The only function contained in this section is update_plot
 methods (Access = private)
+    function [selection_types, selection_labels] = get_available_type_options(obj)
+        available_types = unique(string(obj.available_selections(:, 1)), 'stable');
+        available_types = available_types(strlength(available_types) > 0);
+        selection_types = strings(0, 1);
+        selection_labels = strings(0, 1);
+
+        known_distance_labels = ["x = 0.9m"; "x = 1.3m"; "x = 1.7m"];
+        for i = 1:length(obj.cur_types)
+            type = obj.cur_types(i);
+            if any(available_types == type)
+                selection_types(end + 1, 1) = type;
+                selection_labels(end + 1, 1) = known_distance_labels(i);
+            end
+        end
+
+        other_types = setdiff(available_types, selection_types, 'stable');
+        selection_types = [selection_types; other_types(:)];
+        selection_labels = [selection_labels; other_types(:)];
+    end
+
+    function mask = get_type_mask(~, selection_types, selected_type)
+        if string(selected_type) == "all"
+            mask = true(size(selection_types));
+        else
+            mask = selection_types == string(selected_type);
+        end
+    end
+
+    function [amp, freq] = get_first_selection(obj, selected_type)
+        selection_types = string(obj.available_selections(:, 1));
+        mask = obj.get_type_mask(selection_types, selected_type);
+        first_index = find(mask, 1);
+
+        amp = obj.available_selections{first_index, 2};
+        freq = obj.available_selections{first_index, 3};
+    end
+
+    function freqs = get_freq_options(obj, selected_type, selected_amp)
+        selection_types = string(obj.available_selections(:, 1));
+        selection_amps = cell2mat(obj.available_selections(:, 2));
+        selection_freqs = cell2mat(obj.available_selections(:, 3));
+
+        mask = obj.get_type_mask(selection_types, selected_type);
+        if selected_amp ~= -1
+            mask = mask & selection_amps == selected_amp;
+        end
+
+        freqs = unique(selection_freqs(mask));
+    end
+
+    function amps = get_amp_options(obj, selected_type, selected_freq)
+        selection_types = string(obj.available_selections(:, 1));
+        selection_amps = cell2mat(obj.available_selections(:, 2));
+        selection_freqs = cell2mat(obj.available_selections(:, 3));
+
+        mask = obj.get_type_mask(selection_types, selected_type);
+        if selected_freq ~= -1
+            mask = mask & selection_freqs == selected_freq;
+        end
+
+        amps = unique(selection_amps(mask));
+    end
+
+    function update_frequency_dropdown(obj, dropdown)
+        freqs = obj.get_freq_options(obj.sel_type, obj.sel_amp);
+        dropdown.Items = [string(freqs(:)) + " Hz"; "all"];
+        if obj.sel_freq == -1
+            dropdown.Value = "all";
+        elseif isempty(freqs)
+            obj.sel_freq = -1;
+            dropdown.Value = "all";
+        elseif ~ismember(obj.sel_freq, freqs)
+            obj.sel_freq = freqs(1);
+            dropdown.Value = string(obj.sel_freq) + " Hz";
+        else
+            dropdown.Value = string(obj.sel_freq) + " Hz";
+        end
+    end
+
+    function update_amp_dropdown(obj, dropdown)
+        amps = obj.get_amp_options(obj.sel_type, obj.sel_freq);
+        dropdown.Items = [string(amps(:)) + " deg"; "all"];
+        if obj.sel_amp == -1
+            dropdown.Value = "all";
+        elseif isempty(amps)
+            obj.sel_amp = -1;
+            dropdown.Value = "all";
+        elseif ~ismember(obj.sel_amp, amps)
+            obj.sel_amp = amps(1);
+            dropdown.Value = string(obj.sel_amp) + " deg";
+        else
+            dropdown.Value = string(obj.sel_amp) + " deg";
+        end
+    end
+
     % Helper function to get button color based on state
     function color = get_button_color(obj, is_active)
         if is_active
@@ -617,7 +697,7 @@ methods (Access = private)
 
     function legend_entry = get_aligned_legend_entry(obj, cur_sel, index, is_force)
         [amp, type, freq] = parse_name(cur_sel);
-        distance_label = obj.type_distance_dict(char(type));
+        distance_label = string(obj.type_distance_dict(char(type)));
         name = distance_label + ", " + amp + " deg, " + freq + " Hz";
         case_label = strrep(string(name), "_", " ");
         index_label = obj.active_types(index);
