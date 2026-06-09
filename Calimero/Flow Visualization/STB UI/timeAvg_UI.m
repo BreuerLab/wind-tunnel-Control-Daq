@@ -10,6 +10,10 @@ classdef timeAvg_UI < handle
         COLOR_INACTIVE = [1 1 1];
         operations = ["mean", "range", "shift"];
         cur_types = ["flexible";"UP_one_flexible";"UP_two_flexible"];
+        x_axis_types = ["wingbeat frequency", "wingbeat amplitude", "downstream distance"];
+        x_axis_labels = ["Wingbeat Frequency", "Wingbeat Amplitude", "Downstream Distance"];
+        downstream_distances = [0.9; 1.3; 1.7];
+        downstream_distance_labels = ["x = 0.9m"; "x = 1.3m"; "x = 1.7m"];
     end
 
     properties
@@ -31,6 +35,7 @@ classdef timeAvg_UI < handle
         % boolean, normalization/non-dimensionalization on or off
         y_norm;
         x_norm;
+        x_axis_type;
 
         filt_num;
 
@@ -121,11 +126,14 @@ classdef timeAvg_UI < handle
             end
 
             obj.plot_curves = [];
+            obj.selection = strings(0);
 
             [selection_types, obj.distance_labels] = obj.get_available_type_options();
             obj.sel_type = selection_types(1);
             obj.sel_amp = obj.get_first_amp(obj.sel_type);
+            obj.sel_freq = obj.get_first_freq(obj.sel_type, obj.sel_amp);
             obj.distance_type_dict = containers.Map(cellstr(obj.distance_labels), cellstr(selection_types));
+            obj.x_axis_type = obj.x_axis_types(1);
         end
 
         % Builds figure with all UI elements and defines all callback
@@ -138,20 +146,23 @@ classdef timeAvg_UI < handle
             unit_height = round(0.03*screen_height);
             unit_spacing = round(0.005*screen_height);
 
-            % Dropdown box for flapper type selection
-            drop_y1 = screen_height*0.85 - 30;
-            type_dropdown = uidropdown(option_panel);
-            type_dropdown.Position = [10 drop_y1 180 30];
-            type_dropdown.Items = obj.distance_labels(:);
+            % Dropdown box for selecting the x-axis variable
+            drop_y0 = screen_height*0.85 - 30;
+            x_axis_dropdown = uidropdown(option_panel);
+            x_axis_dropdown.Position = [10 drop_y0 180 30];
+            x_axis_dropdown.Items = obj.x_axis_labels(:);
+            x_axis_dropdown.Value = obj.get_x_axis_label(obj.x_axis_type);
 
-            % Dropdown box for wingbeat amplitude selection
+            % Dropdown boxes for variables held fixed while the x-axis varies
+            drop_y1 = drop_y0 - (unit_height + unit_spacing);
+            fixed_dropdown_1 = uidropdown(option_panel);
+            fixed_dropdown_1.Position = [10 drop_y1 180 unit_height];
+
             drop_y3 = drop_y1 - (unit_height + unit_spacing);
-            amp_dropdown = uidropdown(option_panel);
-            amp_dropdown.Position = [10 drop_y3 180 unit_height];
-            cur_amps = obj.get_amp_options(obj.sel_type);
-            amp_dropdown.Items = string(cur_amps) + " deg";
-            amp_dropdown.ValueChangedFcn = @(src, event) amp_change(src, event);
-            type_dropdown.ValueChangedFcn = @(src, event) type_change(src, event, amp_dropdown);
+            fixed_dropdown_2 = uidropdown(option_panel);
+            fixed_dropdown_2.Position = [10 drop_y3 180 unit_height];
+            obj.reset_fixed_variable_defaults();
+            obj.update_fixed_dropdowns(fixed_dropdown_1, fixed_dropdown_2);
 
             % Button to add entry
             button2_y = drop_y3 - (unit_height + unit_spacing);
@@ -171,6 +182,9 @@ classdef timeAvg_UI < handle
             lbox.Items = strings(0);
             lbox.Position = [10 list_y 180 list_h];
 
+            x_axis_dropdown.ValueChangedFcn = @(src, event) x_axis_change(src, event, fixed_dropdown_1, fixed_dropdown_2, plot_panel, lbox);
+            fixed_dropdown_1.ValueChangedFcn = @(src, event) fixed_1_change(src, event, fixed_dropdown_2);
+            fixed_dropdown_2.ValueChangedFcn = @(src, event) fixed_2_change(src, event);
             add_button.ButtonPushedFcn = @(src, event) addToList(src, event, plot_panel, lbox);
             delete_button.ButtonPushedFcn = @(src, event) removeFromList(src, event, plot_panel, lbox);
 
@@ -271,14 +285,25 @@ classdef timeAvg_UI < handle
 
             % ===== Nested Callback Functions =====
             
-            function type_change(src, ~, amp_dropdown)
-                obj.sel_type = string(obj.distance_type_dict(char(src.Value)));
-                obj.sel_amp = obj.get_first_amp(obj.sel_type);
-                obj.update_amp_dropdown(amp_dropdown);
+            function x_axis_change(src, ~, fixed_dropdown_1, fixed_dropdown_2, plot_panel, lbox)
+                obj.x_axis_type = obj.get_x_axis_type(src.Value);
+                obj.reset_fixed_variable_defaults();
+                obj.update_fixed_dropdowns(fixed_dropdown_1, fixed_dropdown_2);
+                obj.selection = strings(0);
+                lbox.Items = strings(0);
+                obj.update_plot(plot_panel);
             end
 
-            function amp_change(src, ~)
-                obj.sel_amp = str2double(regexp(src.Value, '\d+', 'match'));
+            function fixed_1_change(src, ~, fixed_dropdown_2)
+                fixed_vars = obj.get_fixed_variable_names();
+                obj.set_selected_value_from_item(fixed_vars(1), src.Value);
+                obj.set_first_available_value(fixed_vars(2));
+                obj.update_fixed_dropdown(fixed_dropdown_2, fixed_vars(2));
+            end
+
+            function fixed_2_change(src, ~)
+                fixed_vars = obj.get_fixed_variable_names();
+                obj.set_selected_value_from_item(fixed_vars(2), src.Value);
             end
 
             function force_var_change(src, ~, plot_panel)
@@ -342,11 +367,12 @@ classdef timeAvg_UI < handle
             end
 
             function addToList(~, ~, plot_panel, lbox)
-                case_name = obj.sel_type + "_" + obj.sel_amp + "deg";
+                selection_key = obj.encode_current_selection();
+                case_name = obj.get_selection_label(selection_key);
 
-                if (sum(strcmp(string(lbox.Items), case_name)) == 0)
+                if (sum(strcmp(obj.selection, selection_key)) == 0)
                     lbox.Items = [lbox.Items, case_name];
-                    obj.selection = [obj.selection, case_name];
+                    obj.selection = [obj.selection, selection_key];
                 end
 
                 obj.update_plot(plot_panel);
@@ -359,7 +385,6 @@ classdef timeAvg_UI < handle
                 lbox.Items = lbox.Items(new_list_indices);
 
                 % removing value from list used for plotting
-                new_list_indices = obj.selection ~= case_name;
                 obj.selection = obj.selection(new_list_indices);
                 obj.update_plot(plot_panel);
             end
@@ -381,21 +406,12 @@ classdef timeAvg_UI < handle
         function [selection_types, selection_labels] = get_available_type_options(obj)
             available_types = unique(string(obj.available_selections(:, 1)), 'stable');
             available_types = available_types(strlength(available_types) > 0);
-            selection_types = strings(0, 1);
-            selection_labels = strings(0, 1);
+            selection_types = obj.get_ordered_type_options(available_types);
+            selection_labels = strings(length(selection_types), 1);
 
-            known_distance_labels = ["x = 0.9m"; "x = 1.3m"; "x = 1.7m"];
-            for i = 1:length(obj.cur_types)
-                type = obj.cur_types(i);
-                if any(available_types == type)
-                    selection_types(end + 1, 1) = type;
-                    selection_labels(end + 1, 1) = known_distance_labels(i);
-                end
+            for i = 1:length(selection_types)
+                selection_labels(i) = obj.get_type_label(selection_types(i));
             end
-
-            other_types = setdiff(available_types, selection_types, 'stable');
-            selection_types = [selection_types; other_types(:)];
-            selection_labels = [selection_labels; other_types(:)];
         end
 
         function amps = get_amp_options(obj, selected_type)
@@ -404,15 +420,310 @@ classdef timeAvg_UI < handle
             amps = unique(selection_amps(selection_types == string(selected_type)));
         end
 
+        function freqs = get_freq_options(obj, selected_type, selected_amp)
+            selection_types = string(obj.available_selections(:, 1));
+            selection_amps = cell2mat(obj.available_selections(:, 2));
+            selection_freqs = cell2mat(obj.available_selections(:, 3));
+            mask = selection_types == string(selected_type) & selection_amps == selected_amp;
+            freqs = unique(selection_freqs(mask));
+        end
+
         function amp = get_first_amp(obj, selected_type)
             amps = obj.get_amp_options(selected_type);
             amp = amps(1);
         end
 
-        function update_amp_dropdown(obj, dropdown)
-            amps = obj.get_amp_options(obj.sel_type);
-            dropdown.Items = string(amps(:)) + " deg";
-            dropdown.Value = string(obj.sel_amp) + " deg";
+        function freq = get_first_freq(obj, selected_type, selected_amp)
+            freqs = obj.get_freq_options(selected_type, selected_amp);
+            freq = freqs(1);
+        end
+
+        function label = get_x_axis_label(obj, x_axis_type)
+            label = obj.x_axis_labels(obj.x_axis_types == string(x_axis_type));
+        end
+
+        function x_axis_type = get_x_axis_type(obj, label)
+            x_axis_type = obj.x_axis_types(obj.x_axis_labels == string(label));
+        end
+
+        function fixed_vars = get_fixed_variable_names(obj)
+            switch obj.x_axis_type
+                case "wingbeat frequency"
+                    fixed_vars = ["type", "amp"];
+                case "wingbeat amplitude"
+                    fixed_vars = ["type", "freq"];
+                case "downstream distance"
+                    fixed_vars = ["amp", "freq"];
+                otherwise
+                    error("Unknown x-axis type: %s", obj.x_axis_type)
+            end
+        end
+
+        function reset_fixed_variable_defaults(obj)
+            fixed_vars = obj.get_fixed_variable_names();
+            for i = 1:length(fixed_vars)
+                obj.set_first_available_value(fixed_vars(i));
+            end
+        end
+
+        function set_first_available_value(obj, variable_name)
+            options = obj.get_fixed_variable_options(variable_name);
+            if isempty(options)
+                return
+            end
+
+            switch variable_name
+                case "type"
+                    obj.sel_type = string(options(1));
+                case "amp"
+                    obj.sel_amp = options(1);
+                case "freq"
+                    obj.sel_freq = options(1);
+            end
+        end
+
+        function update_fixed_dropdowns(obj, dropdown_1, dropdown_2)
+            fixed_vars = obj.get_fixed_variable_names();
+            obj.update_fixed_dropdown(dropdown_1, fixed_vars(1));
+            obj.update_fixed_dropdown(dropdown_2, fixed_vars(2));
+        end
+
+        function update_fixed_dropdown(obj, dropdown, variable_name)
+            options = obj.get_fixed_variable_options(variable_name);
+
+            if isempty(options)
+                dropdown.Items = strings(0);
+                return
+            end
+
+            switch variable_name
+                case "type"
+                    obj.ensure_selected_value(variable_name, options);
+                    labels = strings(length(options), 1);
+                    for i = 1:length(options)
+                        labels(i) = obj.get_type_label(options(i));
+                    end
+                    dropdown.Items = labels;
+                    dropdown.Value = obj.get_type_label(obj.sel_type);
+                case "amp"
+                    obj.ensure_selected_value(variable_name, options);
+                    dropdown.Items = string(options(:)) + " deg";
+                    dropdown.Value = string(obj.sel_amp) + " deg";
+                case "freq"
+                    obj.ensure_selected_value(variable_name, options);
+                    dropdown.Items = string(options(:)) + " Hz";
+                    dropdown.Value = string(obj.sel_freq) + " Hz";
+            end
+        end
+
+        function ensure_selected_value(obj, variable_name, options)
+            selected_value = obj.get_selected_value(variable_name);
+            if isempty(selected_value) || ~ismember(selected_value, options)
+                obj.set_first_available_value(variable_name);
+            end
+        end
+
+        function selected_value = get_selected_value(obj, variable_name)
+            switch variable_name
+                case "type"
+                    selected_value = obj.sel_type;
+                case "amp"
+                    selected_value = obj.sel_amp;
+                case "freq"
+                    selected_value = obj.sel_freq;
+            end
+        end
+
+        function set_selected_value_from_item(obj, variable_name, item)
+            switch variable_name
+                case "type"
+                    obj.sel_type = string(obj.distance_type_dict(char(item)));
+                case "amp"
+                    obj.sel_amp = str2double(erase(string(item), " deg"));
+                case "freq"
+                    obj.sel_freq = str2double(erase(string(item), " Hz"));
+            end
+        end
+
+        function options = get_fixed_variable_options(obj, variable_name)
+            selection_types = string(obj.available_selections(:, 1));
+            selection_amps = cell2mat(obj.available_selections(:, 2));
+            selection_freqs = cell2mat(obj.available_selections(:, 3));
+            mask = true(size(selection_amps));
+
+            fixed_vars = obj.get_fixed_variable_names();
+            target_index = find(fixed_vars == string(variable_name), 1);
+            for i = 1:target_index - 1
+                prior_var = fixed_vars(i);
+                prior_value = obj.get_selected_value(prior_var);
+                mask = mask & obj.get_variable_mask(selection_types, selection_amps, selection_freqs, prior_var, prior_value);
+            end
+
+            switch variable_name
+                case "type"
+                    options = obj.get_ordered_type_options(selection_types(mask));
+                case "amp"
+                    options = unique(selection_amps(mask));
+                case "freq"
+                    options = unique(selection_freqs(mask));
+            end
+        end
+
+        function mask = get_variable_mask(~, selection_types, selection_amps, selection_freqs, variable_name, value)
+            switch variable_name
+                case "type"
+                    mask = selection_types == string(value);
+                case "amp"
+                    mask = selection_amps == value;
+                case "freq"
+                    mask = selection_freqs == value;
+            end
+        end
+
+        function selection_types = get_ordered_type_options(obj, available_types)
+            selection_types = strings(0, 1);
+
+            for i = 1:length(obj.cur_types)
+                type = obj.cur_types(i);
+                if any(available_types == type)
+                    selection_types(end + 1, 1) = type;
+                end
+            end
+
+            other_types = setdiff(available_types(:), selection_types, 'stable');
+            selection_types = [selection_types; other_types(:)];
+        end
+
+        function label = get_type_label(obj, type)
+            type = string(type);
+            type_index = find(obj.cur_types == type, 1);
+            if isempty(type_index)
+                label = type;
+            else
+                label = obj.downstream_distance_labels(type_index);
+            end
+        end
+
+        function selection_key = encode_current_selection(obj)
+            fixed_vars = obj.get_fixed_variable_names();
+            selection_key = obj.x_axis_type;
+
+            for i = 1:length(fixed_vars)
+                variable_name = fixed_vars(i);
+                selection_key = selection_key + "|" + variable_name + "=" + string(obj.get_selected_value(variable_name));
+            end
+        end
+
+        function info = decode_selection(~, selection_key)
+            parts = split(string(selection_key), "|");
+            info = struct("x_axis_type", parts(1), "type", "", "amp", NaN, "freq", NaN);
+
+            for i = 2:length(parts)
+                variable_name = extractBefore(parts(i), "=");
+                value = extractAfter(parts(i), "=");
+                switch variable_name
+                    case "type"
+                        info.type = value;
+                    case "amp"
+                        info.amp = str2double(value);
+                    case "freq"
+                        info.freq = str2double(value);
+                end
+            end
+        end
+
+        function label = get_selection_label(obj, selection_key)
+            info = obj.decode_selection(selection_key);
+
+            switch info.x_axis_type
+                case "wingbeat frequency"
+                    label = "Freq | " + obj.get_type_label(info.type) + " | " + info.amp + " deg";
+                case "wingbeat amplitude"
+                    label = "Amp | " + obj.get_type_label(info.type) + " | " + info.freq + " Hz";
+                case "downstream distance"
+                    label = "Distance | " + info.amp + " deg | " + info.freq + " Hz";
+            end
+        end
+
+        function points = get_selection_points(obj, info)
+            selection_types = string(obj.available_selections(:, 1));
+            selection_amps = cell2mat(obj.available_selections(:, 2));
+            selection_freqs = cell2mat(obj.available_selections(:, 3));
+
+            switch info.x_axis_type
+                case "wingbeat frequency"
+                    mask = selection_types == info.type & selection_amps == info.amp;
+                    freqs = unique(selection_freqs(mask));
+                    points.types = repmat(info.type, 1, length(freqs));
+                    points.amps = repmat(info.amp, 1, length(freqs));
+                    points.freqs = freqs(:)';
+                    points.x_values = points.freqs;
+                case "wingbeat amplitude"
+                    mask = selection_types == info.type & selection_freqs == info.freq;
+                    amps = unique(selection_amps(mask));
+                    points.types = repmat(info.type, 1, length(amps));
+                    points.amps = amps(:)';
+                    points.freqs = repmat(info.freq, 1, length(amps));
+                    points.x_values = points.amps;
+                case "downstream distance"
+                    mask = selection_amps == info.amp & selection_freqs == info.freq;
+                    types = obj.get_ordered_type_options(selection_types(mask));
+                    x_values = NaN(size(types));
+                    for i = 1:length(types)
+                        x_values(i) = obj.get_downstream_distance(types(i));
+                    end
+                    valid_indices = isfinite(x_values);
+                    points.types = types(valid_indices)';
+                    points.amps = repmat(info.amp, 1, sum(valid_indices));
+                    points.freqs = repmat(info.freq, 1, sum(valid_indices));
+                    points.x_values = x_values(valid_indices)';
+            end
+        end
+
+        function distance = get_downstream_distance(obj, type)
+            type_index = find(obj.cur_types == string(type), 1);
+            if isempty(type_index)
+                distance = NaN;
+            else
+                distance = obj.downstream_distances(type_index);
+            end
+        end
+
+        function [x_var, x_label] = get_x_axis_values(obj, x_axis_type, points, measured_freqs, wind_speed_acts)
+            switch x_axis_type
+                case "wingbeat frequency"
+                    if obj.x_norm
+                        x_var = NaN(1, length(measured_freqs));
+                        for i = 1:length(measured_freqs)
+                            if measured_freqs(i) == 0
+                                x_var(i) = 0;
+                            elseif isfinite(wind_speed_acts(i))
+                                x_var(i) = freqToSt(measured_freqs(i), wind_speed_acts(i), points.amps(i));
+                            end
+                        end
+                        x_label = "Strouhal Number";
+                    else
+                        x_var = measured_freqs;
+                        x_label = "Wingbeat Frequency (Hz)";
+                    end
+                case "wingbeat amplitude"
+                    x_var = points.amps;
+                    x_label = "Wingbeat Amplitude (deg)";
+                case "downstream distance"
+                    x_var = points.x_values;
+                    x_label = "Downstream Distance (m)";
+            end
+        end
+
+        function label = get_curve_label(obj, info)
+            switch info.x_axis_type
+                case "wingbeat frequency"
+                    label = strrep(info.type, "_", " ") + ", " + info.amp + " deg";
+                case "wingbeat amplitude"
+                    label = strrep(info.type, "_", " ") + ", " + info.freq + " Hz";
+                case "downstream distance"
+                    label = info.amp + " deg, " + info.freq + " Hz";
+            end
         end
 
         % Helper function to get button color based on state
@@ -437,41 +748,44 @@ classdef timeAvg_UI < handle
         function update_plot(obj, plot_panel)
             delete(plot_panel.Children)
 
-            uniq_types = unique(string(obj.available_selections(:,1)));
-            uniq_amps = unique(cell2mat(obj.available_selections(:,2)));
-
-            colors = getColors(1,...
-                       length(uniq_types),...
-                       length(uniq_amps),...
-                       length(obj.selection));
-
             ax = axes(plot_panel);
             hold(ax, 'on');
             l = legend(ax, Location="best");
             set(ax, FontSize=18)
 
             is_shift_operation = strcmp(obj.operation, "shift");
+            curve_colors = lines(max(1, length(obj.selection)));
 
             for i = 1:length(obj.selection) % Loop through each selection
-                [amp, type] = parse_name(obj.selection(i));
+                info = obj.decode_selection(obj.selection(i));
+                points = obj.get_selection_points(info);
+                num_points = length(points.freqs);
 
-                original_color = colors(find(uniq_amps == amp), find(uniq_types == type));
+                if num_points == 0
+                    continue
+                end
 
-                mask = cell2mat(obj.available_selections(:,2)) == amp & strcmp(string(obj.available_selections(:,1)), type);
-                freqs = cell2mat(obj.available_selections(mask,3));
-                forces = zeros(2, length(freqs));
+                original_color = curve_colors(i,:);
+                curve_label = obj.get_curve_label(info);
+
+                forces = zeros(2, num_points);
                 if is_shift_operation
                     forces(:) = NaN;
                 end
-                errors = zeros(1, length(freqs));
-                measured_freqs = freqs;
-                PIV_signals = cell(1, length(freqs));
-                force_signals = cell(1, length(freqs));
+                errors = zeros(1, num_points);
+                measured_freqs = points.freqs;
+                wind_speed_acts = NaN(1, num_points);
+                PIV_signals = cell(1, num_points);
+                force_signals = cell(1, num_points);
                 
-                for j = 1:length(freqs) % Loop through all wingbeat frequencies
+                for j = 1:num_points % Loop through all matching cases
+                    type = points.types(j);
+                    amp = points.amps(j);
+                    freq = points.freqs(j);
+
                     if obj.PIV_bool
-                        name = type + "_" + amp + "deg_" + freqs(j) + "Hz";
-                        if freqs(j) == 0
+                        name = type + "_" + amp + "deg_" + freq + "Hz";
+                        if freq == 0
                             suffix = "_time_avg";
                         else
                             suffix = "_phase_avg";
@@ -479,7 +793,7 @@ classdef timeAvg_UI < handle
                         filepath = obj.PIV_path + name + suffix + ".mat";
                         secondary_filepath = obj.PIV_path + name + suffix + "_integral.mat";
 
-                        if freqs(j) == 0
+                        if freq == 0
                             avg_type = 0;
                             measured_freqs(j) = 0;
                             errors(j) = 0;
@@ -495,11 +809,11 @@ classdef timeAvg_UI < handle
                             wind_speed = d.U;
                             density = d.rho_act;
                             area = d.L * d.L * 3 * 2;
-                            wind_speed_act = d.U_act * d.U;
+                            wind_speed_acts(j) = d.U_act * d.U;
                             % errors(j) = 0.2 / length(d.bin_std);
                         end
 
-                        if is_shift_operation && freqs(j) == 0
+                        if is_shift_operation && freq == 0
                             disp("Skipping 0 Hz time-average case for phase shift")
                         elseif obj.calc_bool
                             [var, err] = get_PIV_force(filepath, name, obj.force_var, avg_type, obj.y_norm, obj.y_cen);
@@ -511,7 +825,7 @@ classdef timeAvg_UI < handle
                                 [bod_var, ~] = get_PIV_force(bod_filepath, "", obj.force_var, 0, obj.y_norm, obj.y_cen);
                                 var = var - bod_var;
                             end
-                        elseif ~is_shift_operation || freqs(j) > 0
+                        elseif ~is_shift_operation || freq > 0
                             if contains(obj.force_var, ".")
                                 abbrv_name = extractBefore(obj.force_var, ".");
                                 d = load(secondary_filepath, abbrv_name);
@@ -545,7 +859,7 @@ classdef timeAvg_UI < handle
                         end
                         
                         % Calculate mean force and store in array for plotting
-                        if is_shift_operation && freqs(j) > 0
+                        if is_shift_operation && freq > 0
                             if obj.is_piv_force_variable()
                                 var = obj.apply_convection_shift(var, type, measured_freqs(j));
                             end
@@ -561,7 +875,7 @@ classdef timeAvg_UI < handle
                         var_name_F = "results_lab";
                         % var_name_F = "filtered_data";
                         % var_name_F = "wingbeat_avg_forces_smoothest";
-                        if freqs(j) == 0
+                        if freq == 0
                             var_name_F = "results_lab";
                             % var_name_F = "filtered_data";
                         end
@@ -572,10 +886,10 @@ classdef timeAvg_UI < handle
                             idx = 3;
                         end
 
-                        if is_shift_operation && freqs(j) == 0
+                        if is_shift_operation && freq == 0
                             disp("Skipping 0 Hz force case for phase shift")
                         else
-                            force_signal = get_force(obj.force_path, type, amp, freqs(j), idx, var_name_F);
+                            force_signal = get_force(obj.force_path, type, amp, freq, idx, var_name_F);
 
                             if is_shift_operation
                                 force_signals{j} = force_signal;
@@ -590,7 +904,7 @@ classdef timeAvg_UI < handle
                                 if body_amp == 30
                                     body_amp = 20;
                                 end
-                                body_force = get_force(obj.force_path, "body", body_amp, freqs(j), idx, var_name_F);
+                                body_force = get_force(obj.force_path, "body", body_amp, freq, idx, var_name_F);
                                 if is_shift_operation
                                     force_signals{j} = obj.subtract_alignment_body_signal(force_signal, body_force);
                                 else
@@ -599,14 +913,14 @@ classdef timeAvg_UI < handle
                             end
                         end
                     end
-                    disp(j + " of " + length(freqs) + " complete")
+                    disp(j + " of " + num_points + " complete")
                 end
 
                 if is_shift_operation
                     if obj.PIV_bool
                         forces(1,:) = obj.calculate_phase_shifts(PIV_signals);
                     end
-                    if obj.force_bool && ~contains(type, "UP")
+                    if obj.force_bool
                         forces(2,:) = obj.calculate_phase_shifts(force_signals);
                     end
                 end
@@ -617,16 +931,19 @@ classdef timeAvg_UI < handle
                     errors = gain * errors;
                 end
 
-                % x-axis is either wingbeat frequency or Strouhal number
-                if obj.x_norm
-                    Sts = freqToSt(measured_freqs, wind_speed_act, amp);
-                    x_var = Sts;
-                    x_label = "Strouhal Number";
-                else
-                    x_var = measured_freqs;
-                    x_label = "Wingbeat Frequency (Hz)";
+                if info.x_axis_type == "wingbeat frequency" && obj.x_norm
+                    missing_wind_indices = find(~isfinite(wind_speed_acts) & points.freqs > 0);
+                    for k = missing_wind_indices
+                        type = points.types(k);
+                        amp = points.amps(k);
+                        freq = points.freqs(k);
+                        name = type + "_" + amp + "deg_" + freq + "Hz";
+                        d = load(obj.PIV_path + name + "_phase_avg.mat", "U", "U_act");
+                        wind_speed_acts(k) = d.U_act * d.U;
+                    end
                 end
 
+                [x_var, x_label] = obj.get_x_axis_values(info.x_axis_type, points, measured_freqs, wind_speed_acts);
                 xlabel(ax, x_label, Interpreter="latex")
 
                 if is_shift_operation
@@ -637,14 +954,14 @@ classdef timeAvg_UI < handle
                         s1.Marker = "o";
                         s1.MarkerFaceColor = original_color;
                         s1.MarkerEdgeColor = original_color;
-                        s1.DisplayName = "PIV shift: " + strrep(type,"_"," ") + ", " + amp + " deg";
+                        s1.DisplayName = "PIV shift: " + curve_label;
                     end
 
-                    if obj.force_bool && ~contains(type, "UP")
+                    if obj.force_bool
                         s2 = scatter(ax, x_var, forces(2,:), 125, "filled");
                         s2.Marker = "p";
                         s2.MarkerFaceColor = original_color;
-                        s2.DisplayName = "Force shift: " + strrep(type,"_"," ") + ", " + amp + " deg";
+                        s2.DisplayName = "Force shift: " + curve_label;
                     end
                 elseif obj.err_bool
                     ylabel(ax, "Error (N)")
@@ -656,25 +973,25 @@ classdef timeAvg_UI < handle
                     s1.Color = original_color;
                     s1.MarkerEdgeColor = original_color;
                     s1.MarkerFaceColor = original_color;
-                    s1.DisplayName = strrep(type,"_"," ") + ", " + amp + " deg";
+                    s1.DisplayName = curve_label;
                 else
-                ylabel(ax, obj.y_labels(obj.var_names == obj.force_var), Interpreter="latex")
+                    ylabel(ax, obj.y_labels(obj.var_names == obj.force_var), Interpreter="latex")
 
-                if obj.PIV_bool
-                    s1 = errorbar(ax, x_var, forces(1,:), errors, 'o');
-                    s1.MarkerSize = 10;
-                    s1.Color = original_color;
-                    s1.MarkerEdgeColor = original_color;
-                    s1.MarkerFaceColor = original_color;
-                    s1.DisplayName = strrep(type,"_"," ") + ", " + amp + " deg";
-                end
-                
-                if obj.force_bool && ~contains(type, "UP")
-                    s2 = scatter(ax, x_var, forces(2,:), 125,"filled");
-                    s2.Marker = "p";
-                    s2.MarkerFaceColor = original_color;
-                    s2.DisplayName = "Force: " + strrep(type,"_"," ") + ", " + amp + " deg";
-                end
+                    if obj.PIV_bool
+                        s1 = errorbar(ax, x_var, forces(1,:), errors, 'o');
+                        s1.MarkerSize = 10;
+                        s1.Color = original_color;
+                        s1.MarkerEdgeColor = original_color;
+                        s1.MarkerFaceColor = original_color;
+                        s1.DisplayName = curve_label;
+                    end
+
+                    if obj.force_bool
+                        s2 = scatter(ax, x_var, forces(2,:), 125,"filled");
+                        s2.Marker = "p";
+                        s2.MarkerFaceColor = original_color;
+                        s2.DisplayName = "Force: " + curve_label;
+                    end
                 end
             end
 
