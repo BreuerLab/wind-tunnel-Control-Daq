@@ -718,16 +718,6 @@ classdef timeAvg_UI < handle
             end
         end
 
-        function selection_key = encode_current_selection(obj)
-            fixed_vars = obj.get_fixed_variable_names();
-            selection_key = obj.x_axis_type;
-
-            for i = 1:length(fixed_vars)
-                variable_name = fixed_vars(i);
-                selection_key = selection_key + "|" + variable_name + "=" + string(obj.get_selected_value(variable_name));
-            end
-        end
-
         function info = decode_selection(~, selection_key)
             parts = split(string(selection_key), "|");
             info = struct("x_axis_type", parts(1), "type", "", "amp", NaN, "freq", NaN);
