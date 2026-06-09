@@ -63,7 +63,6 @@ classdef timeAvg_UI < handle
 
         distance_labels;
         distance_type_dict;
-        type_distance_dict;
 
         operation;
     end
@@ -134,7 +133,6 @@ classdef timeAvg_UI < handle
             obj.sel_amp = obj.get_first_amp(obj.sel_type);
             obj.sel_freq = obj.get_first_freq(obj.sel_type, obj.sel_amp);
             obj.distance_type_dict = containers.Map(cellstr(obj.distance_labels), cellstr(selection_types));
-            obj.type_distance_dict = containers.Map(cellstr(selection_types), cellstr(obj.distance_labels));
             obj.x_axis_type = obj.x_axis_types(1);
         end
 
