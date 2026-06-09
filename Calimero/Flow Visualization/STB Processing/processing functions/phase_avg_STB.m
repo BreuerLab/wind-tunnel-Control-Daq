@@ -32,11 +32,11 @@ outputs = cell(1, numel(fNames));
 
 % Map cell array to struct fields
 for i = 1:numel(fNames)
-    F.(fNames{i}) = outputs{i};
+    D.(fNames{i}) = outputs{i};
 end
 
-F.phase_avg_speed_error = abs(F.phase_avg_speed - freq);
-F.phase_avg_power = F.phase_avg_volt .* F.phase_avg_cur;
+D.phase_avg_speed_error = abs(D.phase_avg_speed - freq);
+D.phase_avg_power = D.phase_avg_volt .* D.phase_avg_cur;
 end
 
 % ----------------------------------------------------------------
@@ -47,7 +47,7 @@ num_images = 2500;
 disp("Assuming num images = " + num_images)
 % get bin number associated with each frame from DAQ measurements
 [norm_frame_pos, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_freq]...
-    = frame_to_bin(PIV_case_name, num_images, F.freq_avg, bools.turbine, bools.plot);
+    = frame_to_bin(PIV_case_name, num_images, D.freq_avg, bools.turbine, bools.plot);
 
 % Find matching DAQ file
 [daq_data_filename, ~] = get_daq_paths(PIV_case_name);
@@ -159,7 +159,7 @@ fprintf('Processing and saving data took %.4f seconds.\n', toc);
 
 % Calculate secondary values (Q, power, integral values) and save in
 % separate file
-calc_secondary_vals_phase(S, F, bools.turbine, bools.plot, save_filepath_local);
+calc_secondary_vals_phase(S, D, bools.turbine, bools.plot, save_filepath_local);
 
 else
 
@@ -168,6 +168,6 @@ S = load(save_path);
 
 % Calculate secondary values (Q, power, integral values) and save in
 % separate file
-calc_secondary_vals_phase(S, F, bools.turbine, bools.plot, save_filepath_local);
+calc_secondary_vals_phase(S, D, bools.turbine, bools.plot, save_filepath_local);
 end
 end

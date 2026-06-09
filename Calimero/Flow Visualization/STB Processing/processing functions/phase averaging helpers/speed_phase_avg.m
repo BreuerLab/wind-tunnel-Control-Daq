@@ -71,29 +71,31 @@ pos_tr_adj = mod(pos_tr, 2*pi);
 % no adjustment needed for wing position
 
 for j = 1:num_bins
-    phase_avg_pos(j) = mean(pos_tr_adj(bin_ind_arr));
-    phase_std_pos(j) = std(pos_tr_adj(bin_ind_arr));
+    bin_indices = find(bin_ind_arr == j);
 
-    phase_avg_speed(j) = mean(speed_tr(bin_ind_arr));
-    phase_std_speed(j) = std(speed_tr(bin_ind_arr));
+    phase_avg_pos(j) = mean(pos_tr_adj(bin_indices));
+    phase_std_pos(j) = std(pos_tr_adj(bin_indices));
 
-    phase_avg_acc(j) = mean(acc_tr(bin_ind_arr));
-    phase_std_acc(j) = std(acc_tr(bin_ind_arr));
+    phase_avg_speed(j) = mean(speed_tr(bin_indices));
+    phase_std_speed(j) = std(speed_tr(bin_indices));
 
-    phase_avg_wing_pos(j) = mean(wing_pos_tr(bin_ind_arr));
-    phase_std_wing_pos(j) = std(wing_pos_tr(bin_ind_arr));
+    phase_avg_acc(j) = mean(acc_tr(bin_indices));
+    phase_std_acc(j) = std(acc_tr(bin_indices));
 
-    phase_avg_wing_speed(j) = mean(wing_speed_tr(bin_ind_arr));
-    phase_std_wing_speed(j) = std(wing_speed_tr(bin_ind_arr));
+    phase_avg_wing_pos(j) = mean(wing_pos_tr(bin_indices));
+    phase_std_wing_pos(j) = std(wing_pos_tr(bin_indices));
 
-    phase_avg_wing_acc(j) = mean(wing_acc_tr(bin_ind_arr));
-    phase_std_wing_acc(j) = std(wing_acc_tr(bin_ind_arr));
+    phase_avg_wing_speed(j) = mean(wing_speed_tr(bin_indices));
+    phase_std_wing_speed(j) = std(wing_speed_tr(bin_indices));
 
-    phase_avg_volt(j) = mean(volt_tr(bin_ind_arr));
-    phase_std_volt(j) = std(volt_tr(bin_ind_arr));
+    phase_avg_wing_acc(j) = mean(wing_acc_tr(bin_indices));
+    phase_std_wing_acc(j) = std(wing_acc_tr(bin_indices));
 
-    phase_avg_cur(j) = mean(cur_tr(bin_ind_arr));
-    phase_std_cur(j) = std(cur_tr(bin_ind_arr));
+    phase_avg_volt(j) = mean(volt_tr(bin_indices));
+    phase_std_volt(j) = std(volt_tr(bin_indices));
+
+    phase_avg_cur(j) = mean(cur_tr(bin_indices));
+    phase_std_cur(j) = std(cur_tr(bin_indices));
 end
 
 norm_time_speed = linspace(0,1,num_bins);

@@ -19,7 +19,7 @@ down_dist = [0, 1, 2]; % 0 - closest to FoV, 2 - furthest from FoV
 % down_dist = [0]; % 0 - closest to FoV, 2 - furthest from FoV
 bools.nondim = true; % non-dimensionalize data
 bools.RPCA = false; % RPCA filtering of vector fields
-bools.proc_vel = false; % false if just calculating secondary values
+bools.proc_vel = true; % false if just calculating secondary values
 
 % If you want to make plots here, you can. However, it is NOT recommended.
 % Intead, use main_analysis to produce plots easily in a GUI interface.
