@@ -546,6 +546,9 @@ classdef timeAvg_UI < handle
                         
                         % Calculate mean force and store in array for plotting
                         if is_shift_operation && freqs(j) > 0
+                            if obj.is_piv_force_variable()
+                                var = obj.apply_convection_shift(var, type, measured_freqs(j));
+                            end
                             PIV_signals{j} = var;
                         elseif strcmp(obj.operation, "mean")
                             forces(1,j) = mean(var);
@@ -734,6 +737,28 @@ classdef timeAvg_UI < handle
 
             signal = signal(:);
             valid = length(signal) > 1 && all(isfinite(signal)) && std(signal) > 0;
+        end
+
+        function signal = apply_convection_shift(~, signal, type, freq_cor)
+            dist = 0.9;
+            sep_dist = 0.37;
+            if contains(type, "UP_two")
+                dist = dist + sep_dist*2;
+            elseif contains(type, "UP_one")
+                dist = dist + sep_dist;
+            end
+
+            speed = 4;
+            conv_time = dist / speed;
+            shift = conv_time * freq_cor;
+            shift_samples = round(shift*length(signal));
+            signal = circshift(signal, shift_samples);
+            disp("Shifted by: " + shift_samples + " / " + length(signal))
+        end
+
+        function force_variable = is_piv_force_variable(obj)
+            force_index = find(obj.var_names == obj.force_var, 1);
+            force_variable = ~isempty(force_index) && force_index <= 6;
         end
 
         function signal = subtract_alignment_body_signal(~, signal, body_signal)
