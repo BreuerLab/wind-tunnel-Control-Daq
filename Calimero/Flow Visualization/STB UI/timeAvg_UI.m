@@ -569,26 +569,30 @@ classdef timeAvg_UI < handle
                             idx = 3;
                         end
 
-                        force_signal = get_force(obj.force_path, type, amp, freqs(j), idx, var_name_F);
+                        if is_shift_operation && freqs(j) == 0
+                            disp("Skipping 0 Hz force case for phase shift")
+                        else
+                            force_signal = get_force(obj.force_path, type, amp, freqs(j), idx, var_name_F);
 
-                        if is_shift_operation && freqs(j) > 0
-                            force_signals{j} = force_signal;
-                        elseif strcmp(obj.operation, "mean")
-                            forces(2,j) = mean(force_signal);
-                        elseif strcmp(obj.operation, "range")
-                            forces(2,j) = range(force_signal);
-                        end
-
-                        if obj.force_sub
-                            body_amp = amp;
-                            if body_amp == 30
-                                body_amp = 20;
+                            if is_shift_operation
+                                force_signals{j} = force_signal;
+                            elseif strcmp(obj.operation, "mean")
+                                forces(2,j) = mean(force_signal);
+                            elseif strcmp(obj.operation, "range")
+                                forces(2,j) = range(force_signal);
                             end
-                            body_force = get_force(obj.force_path, "body", body_amp, freqs(j), idx, var_name_F);
-                            if is_shift_operation && freqs(j) > 0
-                                force_signals{j} = obj.subtract_alignment_body_signal(force_signal, body_force);
-                            else
-                                forces(2,j) = forces(2,j) - mean(body_force);
+
+                            if obj.force_sub
+                                body_amp = amp;
+                                if body_amp == 30
+                                    body_amp = 20;
+                                end
+                                body_force = get_force(obj.force_path, "body", body_amp, freqs(j), idx, var_name_F);
+                                if is_shift_operation
+                                    force_signals{j} = obj.subtract_alignment_body_signal(force_signal, body_force);
+                                else
+                                    forces(2,j) = forces(2,j) - mean(body_force);
+                                end
                             end
                         end
                     end
