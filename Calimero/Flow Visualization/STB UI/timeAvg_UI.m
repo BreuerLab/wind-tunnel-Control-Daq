@@ -188,8 +188,16 @@ classdef timeAvg_UI < handle
             add_button.ButtonPushedFcn = @(src, event) addToList(src, event, plot_panel, lbox);
             delete_button.ButtonPushedFcn = @(src, event) removeFromList(src, event, plot_panel, lbox);
 
+            clear_button_y = list_y - (unit_height + unit_spacing);
+            clear_button = uibutton(option_panel);
+            clear_button.Text = "Clear Entries";
+            clear_button.FontSize = 18;
+            clear_button.Position = [20 clear_button_y 160 unit_height];
+            clear_button.BackgroundColor = [1 1 1];
+            clear_button.ButtonPushedFcn = @(src, event) clearList(src, event, plot_panel, lbox);
+
             % Dropdown box for force variable selection
-            drop_y4 = list_y - 35;
+            drop_y4 = clear_button_y - 35;
             force_var_dropdown = uidropdown(option_panel);
             force_var_dropdown.Position = [10 drop_y4 180 30];
             force_var_dropdown.Items = obj.box_labels;
@@ -367,12 +375,16 @@ classdef timeAvg_UI < handle
             end
 
             function addToList(~, ~, plot_panel, lbox)
-                selection_key = obj.encode_current_selection();
-                case_name = obj.get_selection_label(selection_key);
+                selection_keys = obj.get_current_selection_keys();
 
-                if (sum(strcmp(obj.selection, selection_key)) == 0)
-                    lbox.Items = [lbox.Items, case_name];
-                    obj.selection = [obj.selection, selection_key];
+                for n = 1:length(selection_keys)
+                    selection_key = selection_keys(n);
+                    case_name = obj.get_selection_label(selection_key);
+
+                    if (sum(strcmp(obj.selection, selection_key)) == 0)
+                        lbox.Items = [lbox.Items, case_name];
+                        obj.selection = [obj.selection, selection_key];
+                    end
                 end
 
                 obj.update_plot(plot_panel);
@@ -386,6 +398,12 @@ classdef timeAvg_UI < handle
 
                 % removing value from list used for plotting
                 obj.selection = obj.selection(new_list_indices);
+                obj.update_plot(plot_panel);
+            end
+
+            function clearList(~, ~, plot_panel, lbox)
+                lbox.Items = strings(0);
+                obj.selection = strings(0);
                 obj.update_plot(plot_panel);
             end
 
@@ -492,7 +510,8 @@ classdef timeAvg_UI < handle
             options = obj.get_fixed_variable_options(variable_name);
 
             if isempty(options)
-                dropdown.Items = strings(0);
+                dropdown.Items = "all";
+                dropdown.Value = "all";
                 return
             end
 
@@ -503,21 +522,37 @@ classdef timeAvg_UI < handle
                     for i = 1:length(options)
                         labels(i) = obj.get_type_label(options(i));
                     end
-                    dropdown.Items = labels;
-                    dropdown.Value = obj.get_type_label(obj.sel_type);
+                    dropdown.Items = [labels; "all"];
+                    if obj.sel_type == "all"
+                        dropdown.Value = "all";
+                    else
+                        dropdown.Value = obj.get_type_label(obj.sel_type);
+                    end
                 case "amp"
                     obj.ensure_selected_value(variable_name, options);
-                    dropdown.Items = string(options(:)) + " deg";
-                    dropdown.Value = string(obj.sel_amp) + " deg";
+                    dropdown.Items = [string(options(:)) + " deg"; "all"];
+                    if obj.sel_amp == -1
+                        dropdown.Value = "all";
+                    else
+                        dropdown.Value = string(obj.sel_amp) + " deg";
+                    end
                 case "freq"
                     obj.ensure_selected_value(variable_name, options);
-                    dropdown.Items = string(options(:)) + " Hz";
-                    dropdown.Value = string(obj.sel_freq) + " Hz";
+                    dropdown.Items = [string(options(:)) + " Hz"; "all"];
+                    if obj.sel_freq == -1
+                        dropdown.Value = "all";
+                    else
+                        dropdown.Value = string(obj.sel_freq) + " Hz";
+                    end
             end
         end
 
         function ensure_selected_value(obj, variable_name, options)
             selected_value = obj.get_selected_value(variable_name);
+            if obj.is_all_value(variable_name, selected_value)
+                return
+            end
+
             if isempty(selected_value) || ~ismember(selected_value, options)
                 obj.set_first_available_value(variable_name);
             end
@@ -537,11 +572,23 @@ classdef timeAvg_UI < handle
         function set_selected_value_from_item(obj, variable_name, item)
             switch variable_name
                 case "type"
-                    obj.sel_type = string(obj.distance_type_dict(char(item)));
+                    if string(item) == "all"
+                        obj.sel_type = "all";
+                    else
+                        obj.sel_type = string(obj.distance_type_dict(char(item)));
+                    end
                 case "amp"
-                    obj.sel_amp = str2double(erase(string(item), " deg"));
+                    if string(item) == "all"
+                        obj.sel_amp = -1;
+                    else
+                        obj.sel_amp = str2double(erase(string(item), " deg"));
+                    end
                 case "freq"
-                    obj.sel_freq = str2double(erase(string(item), " Hz"));
+                    if string(item) == "all"
+                        obj.sel_freq = -1;
+                    else
+                        obj.sel_freq = str2double(erase(string(item), " Hz"));
+                    end
             end
         end
 
@@ -572,11 +619,32 @@ classdef timeAvg_UI < handle
         function mask = get_variable_mask(~, selection_types, selection_amps, selection_freqs, variable_name, value)
             switch variable_name
                 case "type"
-                    mask = selection_types == string(value);
+                    if string(value) == "all"
+                        mask = true(size(selection_types));
+                    else
+                        mask = selection_types == string(value);
+                    end
                 case "amp"
-                    mask = selection_amps == value;
+                    if value == -1
+                        mask = true(size(selection_amps));
+                    else
+                        mask = selection_amps == value;
+                    end
                 case "freq"
-                    mask = selection_freqs == value;
+                    if value == -1
+                        mask = true(size(selection_freqs));
+                    else
+                        mask = selection_freqs == value;
+                    end
+            end
+        end
+
+        function all_value = is_all_value(~, variable_name, value)
+            switch variable_name
+                case "type"
+                    all_value = string(value) == "all";
+                case {"amp", "freq"}
+                    all_value = value == -1;
             end
         end
 
@@ -601,6 +669,52 @@ classdef timeAvg_UI < handle
                 label = type;
             else
                 label = obj.downstream_distance_labels(type_index);
+            end
+        end
+
+        function selection_keys = get_current_selection_keys(obj)
+            selection_types = string(obj.available_selections(:, 1));
+            selection_amps = cell2mat(obj.available_selections(:, 2));
+            selection_freqs = cell2mat(obj.available_selections(:, 3));
+            fixed_vars = obj.get_fixed_variable_names();
+            mask = true(size(selection_amps));
+
+            for i = 1:length(fixed_vars)
+                variable_name = fixed_vars(i);
+                value = obj.get_selected_value(variable_name);
+                mask = mask & obj.get_variable_mask(selection_types, selection_amps, selection_freqs, variable_name, value);
+            end
+
+            matching_indices = find(mask);
+            [~, type_order] = ismember(selection_types(matching_indices), obj.cur_types);
+            type_order(type_order == 0) = length(obj.cur_types) + 1;
+            [~, sort_order] = sortrows([type_order(:),...
+                                        selection_amps(matching_indices),...
+                                        selection_freqs(matching_indices)]);
+            matching_indices = matching_indices(sort_order);
+            selection_keys = strings(0);
+
+            for n = 1:length(matching_indices)
+                cur_idx = matching_indices(n);
+                selection_key = obj.x_axis_type;
+
+                for i = 1:length(fixed_vars)
+                    variable_name = fixed_vars(i);
+                    switch variable_name
+                        case "type"
+                            value = selection_types(cur_idx);
+                        case "amp"
+                            value = selection_amps(cur_idx);
+                        case "freq"
+                            value = selection_freqs(cur_idx);
+                    end
+
+                    selection_key = selection_key + "|" + variable_name + "=" + string(value);
+                end
+
+                if sum(strcmp(selection_keys, selection_key)) == 0
+                    selection_keys(end + 1) = selection_key;
+                end
             end
         end
 
