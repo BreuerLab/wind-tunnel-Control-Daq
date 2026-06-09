@@ -985,7 +985,7 @@ classdef timeAvg_UI < handle
                         s1.MarkerFaceColor = original_color;
                         s1.DisplayName = curve_label;
                     end
-                    
+
                     if obj.force_bool
                         s2 = scatter(ax, x_var, forces(2,:), 125,"filled");
                         s2.Marker = "p";
