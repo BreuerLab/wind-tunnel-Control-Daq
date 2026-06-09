@@ -8,7 +8,7 @@ classdef timeAvg_UI < handle
     properties (Constant)
         COLOR_ACTIVE = [0.3010 0.7450 0.9330];
         COLOR_INACTIVE = [1 1 1];
-        operations = ["mean", "range"];
+        operations = ["mean", "range", "shift"];
         cur_types = ["flexible";"UP_one_flexible";"UP_two_flexible"];
     end
 
@@ -450,6 +450,8 @@ classdef timeAvg_UI < handle
             l = legend(ax, Location="best");
             set(ax, FontSize=18)
 
+            is_shift_operation = strcmp(obj.operation, "shift");
+
             for i = 1:length(obj.selection) % Loop through each selection
                 [amp, type] = parse_name(obj.selection(i));
 
@@ -458,8 +460,13 @@ classdef timeAvg_UI < handle
                 mask = cell2mat(obj.available_selections(:,2)) == amp & strcmp(string(obj.available_selections(:,1)), type);
                 freqs = cell2mat(obj.available_selections(mask,3));
                 forces = zeros(2, length(freqs));
+                if is_shift_operation
+                    forces(:) = NaN;
+                end
                 errors = zeros(1, length(freqs));
-                measured_freqs = zeros(1, length(freqs));
+                measured_freqs = freqs;
+                PIV_signals = cell(1, length(freqs));
+                force_signals = cell(1, length(freqs));
                 
                 for j = 1:length(freqs) % Loop through all wingbeat frequencies
                     if obj.PIV_bool
@@ -492,7 +499,9 @@ classdef timeAvg_UI < handle
                             % errors(j) = 0.2 / length(d.bin_std);
                         end
 
-                        if obj.calc_bool
+                        if is_shift_operation && freqs(j) == 0
+                            disp("Skipping 0 Hz time-average case for phase shift")
+                        elseif obj.calc_bool
                             [var, err] = get_PIV_force(filepath, name, obj.force_var, avg_type, obj.y_norm, obj.y_cen);
 
                             if obj.PIV_sub
@@ -502,7 +511,7 @@ classdef timeAvg_UI < handle
                                 [bod_var, ~] = get_PIV_force(bod_filepath, "", obj.force_var, 0, obj.y_norm, obj.y_cen);
                                 var = var - bod_var;
                             end
-                        else
+                        elseif ~is_shift_operation || freqs(j) > 0
                             if contains(obj.force_var, ".")
                                 abbrv_name = extractBefore(obj.force_var, ".");
                                 d = load(secondary_filepath, abbrv_name);
@@ -533,10 +542,12 @@ classdef timeAvg_UI < handle
                                 end
                                 var = var - bod_var;
                             end  
-                        end                    
+                        end
                         
                         % Calculate mean force and store in array for plotting
-                        if strcmp(obj.operation, "mean")
+                        if is_shift_operation && freqs(j) > 0
+                            PIV_signals{j} = var;
+                        elseif strcmp(obj.operation, "mean")
                             forces(1,j) = mean(var);
                         elseif strcmp(obj.operation, "range")
                             forces(1,j) = range(var);
@@ -558,10 +569,14 @@ classdef timeAvg_UI < handle
                             idx = 3;
                         end
 
-                        if strcmp(obj.operation, "mean")
-                            forces(2,j) = mean(get_force(obj.force_path, type, amp, freqs(j), idx, var_name_F));
+                        force_signal = get_force(obj.force_path, type, amp, freqs(j), idx, var_name_F);
+
+                        if is_shift_operation && freqs(j) > 0
+                            force_signals{j} = force_signal;
+                        elseif strcmp(obj.operation, "mean")
+                            forces(2,j) = mean(force_signal);
                         elseif strcmp(obj.operation, "range")
-                            forces(2,j) = range(get_force(obj.force_path, type, amp, freqs(j), idx, var_name_F));
+                            forces(2,j) = range(force_signal);
                         end
 
                         if obj.force_sub
@@ -569,16 +584,31 @@ classdef timeAvg_UI < handle
                             if body_amp == 30
                                 body_amp = 20;
                             end
-                            body_force = mean(get_force(obj.force_path, "body", body_amp, freqs(j), idx, var_name_F));
-                            forces(2,j) = forces(2,j) - body_force;
+                            body_force = get_force(obj.force_path, "body", body_amp, freqs(j), idx, var_name_F);
+                            if is_shift_operation && freqs(j) > 0
+                                force_signals{j} = obj.subtract_alignment_body_signal(force_signal, body_force);
+                            else
+                                forces(2,j) = forces(2,j) - mean(body_force);
+                            end
                         end
                     end
                     disp(j + " of " + length(freqs) + " complete")
                 end
 
+                if is_shift_operation
+                    if obj.PIV_bool
+                        forces(1,:) = obj.calculate_phase_shifts(PIV_signals);
+                    end
+                    if obj.force_bool && ~contains(type, "UP")
+                        forces(2,:) = obj.calculate_phase_shifts(force_signals);
+                    end
+                end
+
                 % Calculate gain based on range of values
-                gain = range(forces(1,:))/2;
-                errors = gain * errors;
+                if ~is_shift_operation
+                    gain = range(forces(1,:))/2;
+                    errors = gain * errors;
+                end
 
                 % x-axis is either wingbeat frequency or Strouhal number
                 if obj.x_norm
@@ -592,7 +622,24 @@ classdef timeAvg_UI < handle
 
                 xlabel(ax, x_label, Interpreter="latex")
 
-                if obj.err_bool
+                if is_shift_operation
+                    ylabel(ax, "Phase shift (cycles)")
+
+                    if obj.PIV_bool
+                        s1 = scatter(ax, x_var, forces(1,:), 125, "filled");
+                        s1.Marker = "o";
+                        s1.MarkerFaceColor = original_color;
+                        s1.MarkerEdgeColor = original_color;
+                        s1.DisplayName = "PIV shift: " + strrep(type,"_"," ") + ", " + amp + " deg";
+                    end
+
+                    if obj.force_bool && ~contains(type, "UP")
+                        s2 = scatter(ax, x_var, forces(2,:), 125, "filled");
+                        s2.Marker = "p";
+                        s2.MarkerFaceColor = original_color;
+                        s2.DisplayName = "Force shift: " + strrep(type,"_"," ") + ", " + amp + " deg";
+                    end
+                elseif obj.err_bool
                     ylabel(ax, "Error (N)")
 
                     error = (forces(1,:) - forces(2,:));
@@ -641,6 +688,63 @@ classdef timeAvg_UI < handle
                 savefig(fignew,filename);
                 delete(fignew);
             end
+        end
+
+        function phase_shifts = calculate_phase_shifts(obj, signals)
+            phase_shifts = NaN(1, length(signals));
+            valid_indices = find(cellfun(@(signal) obj.is_valid_alignment_signal(signal), signals));
+
+            if isempty(valid_indices)
+                return
+            end
+
+            lengths = cellfun(@(signal) length(signal), signals(valid_indices));
+            interp_length = min(lengths);
+            time_interp = (1:interp_length) / interp_length;
+            interp_signals = cell(1, length(signals));
+
+            for i = 1:length(valid_indices)
+                signal_idx = valid_indices(i);
+                signal = signals{signal_idx};
+                signal = signal(:)';
+                time = (1:length(signal)) / length(signal);
+                interp_signals{signal_idx} = interp1(time, signal, time_interp, 'pchip');
+            end
+
+            reference_idx = valid_indices(1);
+            reference_signal = interp_signals{reference_idx};
+            phase_shifts(reference_idx) = 0;
+
+            for i = 2:length(valid_indices)
+                signal_idx = valid_indices(i);
+                [~, lag_in_samples] = align_signals(reference_signal, interp_signals{signal_idx});
+                phase_shifts(signal_idx) = lag_in_samples / interp_length;
+            end
+        end
+
+        function valid = is_valid_alignment_signal(~, signal)
+            if isempty(signal)
+                valid = false;
+                return
+            end
+
+            signal = signal(:);
+            valid = length(signal) > 1 && all(isfinite(signal)) && std(signal) > 0;
+        end
+
+        function signal = subtract_alignment_body_signal(~, signal, body_signal)
+            signal = signal(:)';
+            body_signal = body_signal(:)';
+
+            if length(signal) == length(body_signal)
+                signal = signal - body_signal;
+                return
+            end
+
+            signal_time = (1:length(signal)) / length(signal);
+            body_time = (1:length(body_signal)) / length(body_signal);
+            body_signal = interp1(body_time, body_signal, signal_time, 'pchip');
+            signal = signal - body_signal;
         end
     end
 end
