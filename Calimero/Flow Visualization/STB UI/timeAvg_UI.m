@@ -975,23 +975,23 @@ classdef timeAvg_UI < handle
                     s1.MarkerFaceColor = original_color;
                     s1.DisplayName = curve_label;
                 else
-                ylabel(ax, obj.y_labels(obj.var_names == obj.force_var), Interpreter="latex")
+                    ylabel(ax, obj.y_labels(obj.var_names == obj.force_var), Interpreter="latex")
 
-                if obj.PIV_bool
-                    s1 = errorbar(ax, x_var, forces(1,:), errors, 'o');
-                    s1.MarkerSize = 10;
-                    s1.Color = original_color;
-                    s1.MarkerEdgeColor = original_color;
-                    s1.MarkerFaceColor = original_color;
-                    s1.DisplayName = curve_label;
-                end
-                
-                if obj.force_bool
-                    s2 = scatter(ax, x_var, forces(2,:), 125,"filled");
-                    s2.Marker = "p";
-                    s2.MarkerFaceColor = original_color;
-                    s2.DisplayName = "Force: " + curve_label;
-                end
+                    if obj.PIV_bool
+                        s1 = errorbar(ax, x_var, forces(1,:), errors, 'o');
+                        s1.MarkerSize = 10;
+                        s1.Color = original_color;
+                        s1.MarkerEdgeColor = original_color;
+                        s1.MarkerFaceColor = original_color;
+                        s1.DisplayName = curve_label;
+                    end
+                    
+                    if obj.force_bool
+                        s2 = scatter(ax, x_var, forces(2,:), 125,"filled");
+                        s2.Marker = "p";
+                        s2.MarkerFaceColor = original_color;
+                        s2.DisplayName = "Force: " + curve_label;
+                    end
                 end
             end
 
