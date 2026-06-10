@@ -7,7 +7,7 @@ properties (Constant, Access = private)
     MIRROR_CENTER_Y = -2.26;
     secondary_vars = ["Q_x","Q_y","Q_z","|Q|","div",...
         "KE", "power"];
-    KNOWN_DOWNSTREAM_TYPES = ["flexible";"UP_one_flexible";"UP_two_flexible"];
+    UPSTREAM_DISTANCE_MARKERS = ["";"UP_one_";"UP_two_"];
     KNOWN_DISTANCE_LABELS = ["x = 0.9m";"x = 1.3m";"x = 1.7m"];
 end
 
@@ -873,12 +873,55 @@ methods (Access = private)
         downstream_types = strings(0, 1);
         distance_labels = strings(0, 1);
 
-        for i = 1:length(obj.KNOWN_DOWNSTREAM_TYPES)
-            downstream_type = obj.KNOWN_DOWNSTREAM_TYPES(i);
-            if any(startsWith(flapper_stems, downstream_type + "_"))
+        for i = 1:length(obj.UPSTREAM_DISTANCE_MARKERS)
+            matching_stems = obj.get_downstream_stems_for_distance(flapper_stems, i);
+            downstream_type = obj.get_downstream_type_from_stems(matching_stems);
+            if strlength(downstream_type) > 0
                 downstream_types(end + 1, 1) = downstream_type;
                 distance_labels(end + 1, 1) = obj.KNOWN_DISTANCE_LABELS(i);
             end
+        end
+    end
+
+    function matching_stems = get_downstream_stems_for_distance(obj, flapper_stems, distance_index)
+        one_up_marker = obj.UPSTREAM_DISTANCE_MARKERS(2);
+        two_up_marker = obj.UPSTREAM_DISTANCE_MARKERS(3);
+
+        switch distance_index
+            case 1
+                mask = ~contains(flapper_stems, one_up_marker) & ~contains(flapper_stems, two_up_marker);
+            case 2
+                mask = contains(flapper_stems, one_up_marker);
+            case 3
+                mask = contains(flapper_stems, two_up_marker);
+            otherwise
+                mask = false(size(flapper_stems));
+        end
+
+        matching_stems = flapper_stems(mask);
+    end
+
+    function downstream_type = get_downstream_type_from_stems(obj, stems)
+        downstream_type = "";
+        for i = 1:length(stems)
+            type = obj.get_downstream_type_from_stem(stems(i));
+            if strlength(type) > 0
+                downstream_type = type;
+                return
+            end
+        end
+    end
+
+    function downstream_type = get_downstream_type_from_stem(~, stem)
+        name_parts = split(stem, "_");
+        case_start_index = find(contains(name_parts, "deg") | contains(name_parts, "Hz"), 1);
+
+        if isempty(case_start_index)
+            downstream_type = stem;
+        elseif case_start_index == 1
+            downstream_type = "";
+        else
+            downstream_type = strjoin(name_parts(1:case_start_index - 1), "_");
         end
     end
 
@@ -919,10 +962,23 @@ methods (Access = private)
         for i = 1:length(obj.downstream_types)
             downstream_type = obj.downstream_types(i);
             prefix = downstream_type + "_";
-            matching_stems = phase_avg_stems(startsWith(phase_avg_stems, prefix));
-            case_names = [case_names, extractAfter(matching_stems, prefix)];
+            matching_stems = phase_avg_stems(phase_avg_stems == downstream_type | startsWith(phase_avg_stems, prefix));
+            case_names = [case_names, obj.get_case_names_from_stems(matching_stems, downstream_type)];
         end
         case_names = unique(case_names, 'stable');
+    end
+
+    function case_names = get_case_names_from_stems(~, stems, downstream_type)
+        case_names = strings(size(stems));
+        prefix = downstream_type + "_";
+
+        for i = 1:length(stems)
+            if stems(i) == downstream_type
+                case_names(i) = "";
+            else
+                case_names(i) = extractAfter(stems(i), prefix);
+            end
+        end
     end
 
     function case_names = get_turbine_case_names(~, phase_avg_stems)
@@ -945,7 +1001,11 @@ methods (Access = private)
                 case_id = "turbine_" + obj.case_name;
             end
         else
-            case_id = obj.current_downstream_type + "_" + obj.case_name;
+            if strlength(obj.case_name) == 0
+                case_id = obj.current_downstream_type;
+            else
+                case_id = obj.current_downstream_type + "_" + obj.case_name;
+            end
         end
     end
 
