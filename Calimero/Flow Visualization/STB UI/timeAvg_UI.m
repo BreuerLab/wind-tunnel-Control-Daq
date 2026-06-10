@@ -1051,21 +1051,21 @@ classdef timeAvg_UI < handle
                 xlabel(ax, x_label, Interpreter="latex")
 
                 if is_shift_operation
-                    ylabel(ax, "Phase shift (cycles)")
+                    ylabel(ax, "Phase shift magnitude (cycles)")
 
                     if obj.PIV_bool
                         s1 = scatter(ax, x_var, forces(1,:), 125, "filled");
                         s1.Marker = "o";
                         s1.MarkerFaceColor = original_color;
                         s1.MarkerEdgeColor = original_color;
-                        s1.DisplayName = "PIV shift: " + curve_label;
+                        s1.DisplayName = curve_label;
                     end
 
                     if obj.force_bool
                         s2 = scatter(ax, x_var, forces(2,:), 125, "filled");
                         s2.Marker = "p";
                         s2.MarkerFaceColor = original_color;
-                        s2.DisplayName = "Force shift: " + curve_label;
+                        s2.DisplayName = curve_label;
                     end
                 elseif obj.err_bool
                     ylabel(ax, "Error (N)")
