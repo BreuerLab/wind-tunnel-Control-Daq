@@ -97,6 +97,8 @@ properties
     extrapolate_bool;
     floor_bool;
     thresh;
+    q_mask_bool;
+    q_mask_thresh;
 end
 
 methods
@@ -134,6 +136,8 @@ methods
         obj.extrapolate_bool = false;
         obj.floor_bool = false;
         obj.thresh = 0.1;
+        obj.q_mask_bool = false;
+        obj.q_mask_thresh = 0.025;
 
         obj.file_suffix = "_phase_avg";
 
@@ -445,6 +449,20 @@ methods
         floor_field.Position = [20 edit1_y 160 unit_height];
         floor_field.ValueChangedFcn = @(src, event) thresh_change(src, event, plot_panel);
 
+        q_mask_button_y = edit1_y - 35;
+        q_mask_button = uibutton(option_panel,"state");
+        q_mask_button.Text = "Q-mask";
+        q_mask_button.FontSize = 18;
+        q_mask_button.Position = [30 q_mask_button_y 120 unit_height];
+        q_mask_button.BackgroundColor = obj.INACTIVE_COLOR;
+        q_mask_button.ValueChangedFcn = @(src, event) q_mask_change(src, event, plot_panel);
+
+        q_mask_field_y = q_mask_button_y - 35;
+        q_mask_field = uieditfield(option_panel, 'numeric');
+        q_mask_field.Value = obj.q_mask_thresh;
+        q_mask_field.Position = [20 q_mask_field_y 160 unit_height];
+        q_mask_field.ValueChangedFcn = @(src, event) q_mask_thresh_change(src, event, plot_panel);
+
         panel_width = plot_panel.Position(3);
         frame_slider_width = panel_width * (3/4);
         frame_slider_x = (panel_width - frame_slider_width)/2; % end of right monitor around 1690
@@ -467,7 +485,7 @@ methods
 
         param_panel_height = 380;
         param_panel_width = 180;
-        param_panel_y = edit1_y - 10 - param_panel_height;
+        param_panel_y = q_mask_field_y - 10 - param_panel_height;
         obj.param_panel = uipanel(option_panel);
         obj.param_panel.Visible = "off";
         obj.param_panel.Title = "3D Plot Parameters";
@@ -810,6 +828,23 @@ methods
             obj.update_plot(plot_panel);
         end
 
+        function q_mask_change(src, ~, plot_panel)
+            if (src.Value)
+                obj.q_mask_bool = true;
+                src.BackgroundColor = obj.ACTIVE_COLOR;
+            else
+                obj.q_mask_bool = false;
+                src.BackgroundColor = obj.INACTIVE_COLOR;
+            end
+
+            obj.update_plot(plot_panel);
+        end
+
+        function q_mask_thresh_change(src, ~, plot_panel)
+            obj.q_mask_thresh = src.Value;
+            obj.update_plot(plot_panel);
+        end
+
         function view_change_handler(event, plot_panel)
             selected_text = event.NewValue.Text;
 
@@ -1067,6 +1102,8 @@ methods (Access = private)
         plot_idx = find(obj.plot_types == obj.plot_type);
         using_time_avg_file = obj.is_time_avg_file_selected();
         use_extrapolated_data = obj.extrapolate_bool && ~using_time_avg_file;
+        q_mask_enabled = obj.q_mask_bool && ismember(plot_idx, [1, 2]) && ~use_extrapolated_data;
+        q_mask_var_name = "Q";
 
         cur_secondary_vars = {};
 
@@ -1090,6 +1127,10 @@ methods (Access = private)
                 cur_secondary_vars{end+1} = var_name;
             else
                 vars{end+1} = var_name;
+            end
+
+            if q_mask_enabled && ~any(strcmp(string(cur_secondary_vars), q_mask_var_name))
+                cur_secondary_vars{end+1} = q_mask_var_name;
             end
         end
         
@@ -1165,6 +1206,10 @@ methods (Access = private)
             val = d.(var_name);
         end
 
+        if q_mask_enabled
+            q_mask_val = d.(q_mask_var_name);
+        end
+
         if ismember(plot_idx, [1, 2, 3, 4, 8])
             if use_extrapolated_data
                 y = d.y_B;
@@ -1177,10 +1222,16 @@ methods (Access = private)
                 y = squeeze(d.y(3,:,:));
                 z = squeeze(d.z(3,:,:));
                 val = squeeze(val(3,:,:));
+                if q_mask_enabled
+                    q_mask_val = squeeze(q_mask_val(3,:,:));
+                end
             else
                 y = squeeze(d.y(3,:,:));
                 z = squeeze(d.z(3,:,:));
                 val = squeeze(val(3,:,:,:));
+                if q_mask_enabled
+                    q_mask_val = squeeze(q_mask_val(3,:,:,:));
+                end
             end
 
             params.U = d.U;
@@ -1208,8 +1259,14 @@ methods (Access = private)
                 z = z(y_idx, z_idx);
                 if using_time_avg_file
                     val = val(y_idx,z_idx);
+                    if q_mask_enabled
+                        q_mask_val = q_mask_val(y_idx,z_idx);
+                    end
                 else
                     val = val(y_idx,z_idx,:);
+                    if q_mask_enabled
+                        q_mask_val = q_mask_val(y_idx,z_idx,:);
+                    end
                 end
             end
             if obj.mirror_bool && ~use_extrapolated_data
@@ -1220,8 +1277,14 @@ methods (Access = private)
                 z = z(y_idx_m, :);
                 if using_time_avg_file
                     val = val(y_idx_m,:);
+                    if q_mask_enabled
+                        q_mask_val = q_mask_val(y_idx_m,:);
+                    end
                 else
                     val = val(y_idx_m,:,:);
+                    if q_mask_enabled
+                        q_mask_val = q_mask_val(y_idx_m,:,:);
+                    end
                 end
                 
                 % Shift so the mirror center is the origin.
@@ -1246,18 +1309,36 @@ methods (Access = private)
                 y = [y_add; y];
                 z = [z_add; z];
                 val = [val_add; val]; 
+                if q_mask_enabled
+                    if using_time_avg_file
+                        q_mask_val_add = flip(q_mask_val(2:end,:),1);
+                    else
+                        q_mask_val_add = flip(q_mask_val(2:end,:,:),1);
+                    end
+                    q_mask_val = [q_mask_val_add; q_mask_val];
+                end
             end
 
             if obj.filter_bool
                 if using_time_avg_file
                     val = medfilt2(val);
+                    if q_mask_enabled
+                        q_mask_val = medfilt2(q_mask_val);
+                    end
                 else
                     val = medfilt3(val);
+                    if q_mask_enabled
+                        q_mask_val = medfilt3(q_mask_val);
+                    end
                 end
             end
 
             if obj.floor_bool
                 val(val < (params.zero + obj.thresh) & val > (params.zero - obj.thresh)) = params.zero;
+            end
+
+            if q_mask_enabled && plot_idx == 2
+                val(q_mask_val <= obj.q_mask_thresh) = NaN;
             end
         end
 
@@ -1295,9 +1376,20 @@ methods (Access = private)
 
             if using_time_avg_file
                 mean_val = val;
+                if q_mask_enabled
+                    q_mask_plot_val = q_mask_val;
+                end
             else
                 mean_val = mean(val,3);
+                if q_mask_enabled
+                    q_mask_plot_val = mean(q_mask_val,3);
+                end
             end
+
+            if q_mask_enabled
+                mean_val(q_mask_plot_val <= obj.q_mask_thresh) = NaN;
+            end
+
             PIV_plot(y, z, mean_val, params, ax);
         elseif plot_idx == 2 || plot_idx == 3
 
