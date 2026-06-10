@@ -970,10 +970,10 @@ methods (Access = private)
     end
 
     function plot_types = get_available_plot_types_for_current_case(obj)
-        if obj.current_case_has_phase_avg()
-            plot_types = obj.plot_types;
-        else
+        if obj.is_time_avg_file_selected() || ~obj.current_case_has_phase_avg()
             plot_types = obj.plot_types(1);
+        else
+            plot_types = obj.plot_types;
         end
     end
 
