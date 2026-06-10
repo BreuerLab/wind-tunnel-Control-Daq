@@ -11,13 +11,13 @@ data_file_path = "Y:\";
 % data_file_path = "R:\ENG_Breuer_Shared\group\Wind turbine\Turbine_STB\Turbine_STB_02_17_2026\Processed Data\";
 
 % GUI for plotting vector fields and wake topology
-c = flowField_UI(2,data_file_path);
-c.dynamic_plotting();
+% c = flowField_UI(2,data_file_path);
+% c.dynamic_plotting();
 
 % % GUI for plotting phase averaged quantities
-% a = phaseAvg_UI(2,data_file_path);
-% a.dynamic_plotting();
+a = phaseAvg_UI(2,data_file_path);
+a.dynamic_plotting();
 
 % % GUI for plotting time averaged quantities
-% b = timeAvg_UI(2, data_file_path);
-% b.dynamic_plotting();
+b = timeAvg_UI(2, data_file_path);
+b.dynamic_plotting();

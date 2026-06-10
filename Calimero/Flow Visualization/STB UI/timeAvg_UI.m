@@ -73,7 +73,7 @@ classdef timeAvg_UI < handle
         function obj = timeAvg_UI(mon_num, data_path)
             obj.mon_num = mon_num;
             obj.root_path = data_path;
-            obj.PIV_path = obj.root_path + "Processed Results\";
+            obj.PIV_path = obj.root_path + "Processed Results\phase_avg\";
             obj.force_path = obj.root_path + "Force Measurements\";
 
             obj.index = 1;

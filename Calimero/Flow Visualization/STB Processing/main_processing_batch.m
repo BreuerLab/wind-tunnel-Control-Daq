@@ -39,6 +39,10 @@ for i = 1:length(case_names)
                 contains(cur_name, "flexible") && ...
                 ~contains(cur_name, "0Hz");
 
+    % for time averaged cases
+    is_valid_base = ~contains(cur_name, "flexible") || ...
+                    contains(cur_name, "0Hz");
+
     if is_valid_base
         is_match = false;
         
