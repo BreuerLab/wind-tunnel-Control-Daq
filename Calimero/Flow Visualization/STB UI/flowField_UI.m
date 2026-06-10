@@ -974,7 +974,7 @@ methods (Access = private)
 
         for i = 1:length(stems)
             if stems(i) == downstream_type
-                case_names(i) = "";
+                case_names(i) = stems(i);
             else
                 case_names(i) = extractAfter(stems(i), prefix);
             end
@@ -1001,7 +1001,10 @@ methods (Access = private)
                 case_id = "turbine_" + obj.case_name;
             end
         else
-            if strlength(obj.case_name) == 0
+            if obj.current_downstream_type == obj.case_name && ...
+                    (any(obj.phase_avg_case_ids == obj.case_name) || any(obj.time_avg_case_ids == obj.case_name))
+                case_id = obj.case_name;
+            elseif strlength(obj.case_name) == 0
                 case_id = obj.current_downstream_type;
             else
                 case_id = obj.current_downstream_type + "_" + obj.case_name;
