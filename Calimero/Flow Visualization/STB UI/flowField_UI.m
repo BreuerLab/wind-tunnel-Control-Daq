@@ -97,7 +97,7 @@ methods
         obj.mon_num = mon_num;
         obj.case_name = "";
         obj.variable_name = "";
-        obj.file_path = file_path + "Processed Results\";
+        obj.file_path = file_path + "Processed Results\phase_avg\";
         obj.source_modes = strings(0);
         obj.source_mode = "";
 

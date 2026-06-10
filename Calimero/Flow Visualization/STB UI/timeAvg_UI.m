@@ -904,8 +904,8 @@ classdef timeAvg_UI < handle
                         else
                             avg_type = 1;
                             d = load(filepath, "U", "L", "U_act", "rho_act", "bin_std");
-                            F = load(secondary_filepath, "phase_avg_speed");
-                            measured_freqs(j) = mean(F.phase_avg_speed);
+                            F = load(secondary_filepath, "freq_avg");
+                            measured_freqs(j) = mean(F.freq_avg);
                             % gain = 0.01;
                             % gain = 0.001;
                             errors(j) = mean(d.bin_std);
@@ -936,7 +936,7 @@ classdef timeAvg_UI < handle
 
                                 var = eval("d." + obj.force_var);
                             else
-                                if obj.force_var == "U_act"
+                                if ismember(obj.force_var, ["U_act", "num_bins"])
                                     d = load(filepath, obj.force_var);
                                 else
                                     d = load(secondary_filepath, obj.force_var);
