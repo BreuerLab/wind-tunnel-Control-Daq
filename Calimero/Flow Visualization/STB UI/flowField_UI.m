@@ -959,10 +959,21 @@ methods (Access = private)
 
     function case_names = get_flapper_case_names(obj, phase_avg_stems)
         case_names = strings(0);
-        for i = 1:length(obj.downstream_types)
-            downstream_type = obj.downstream_types(i);
+        downstream_types = obj.downstream_types;
+        distance_labels = obj.distance_labels;
+        if isempty(downstream_types)
+            [downstream_types, distance_labels] = obj.get_available_downstream_options(phase_avg_stems);
+        end
+
+        for i = 1:length(downstream_types)
+            downstream_type = downstream_types(i);
             prefix = downstream_type + "_";
             matching_stems = phase_avg_stems(phase_avg_stems == downstream_type | startsWith(phase_avg_stems, prefix));
+            if i <= length(distance_labels) && distance_labels(i) == obj.KNOWN_DISTANCE_LABELS(1)
+                default_distance_stems = obj.get_downstream_stems_for_distance(phase_avg_stems, 1);
+                bare_default_stems = default_distance_stems(~contains(default_distance_stems, "_"));
+                matching_stems = unique([matching_stems, bare_default_stems], 'stable');
+            end
             case_names = [case_names, obj.get_case_names_from_stems(matching_stems, downstream_type)];
         end
         case_names = unique(case_names, 'stable');
@@ -973,7 +984,7 @@ methods (Access = private)
         prefix = downstream_type + "_";
 
         for i = 1:length(stems)
-            if stems(i) == downstream_type
+            if stems(i) == downstream_type || ~startsWith(stems(i), prefix)
                 case_names(i) = stems(i);
             else
                 case_names(i) = extractAfter(stems(i), prefix);
