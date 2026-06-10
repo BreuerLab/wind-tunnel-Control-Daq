@@ -1146,7 +1146,8 @@ classdef timeAvg_UI < handle
             for i = 2:length(valid_indices)
                 signal_idx = valid_indices(i);
                 [~, lag_in_samples] = align_signals(reference_signal, interp_signals{signal_idx});
-                phase_shifts(signal_idx) = lag_in_samples / interp_length;
+                circular_lag_in_samples = mod(lag_in_samples, interp_length);
+                phase_shifts(signal_idx) = circular_lag_in_samples / interp_length;
             end
         end
 
