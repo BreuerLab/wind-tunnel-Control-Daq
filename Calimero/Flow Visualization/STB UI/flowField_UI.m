@@ -375,7 +375,7 @@ methods
         case_dropdown = uidropdown(option_panel);
         case_dropdown.Position = [10 case_dropdown_y 180 30];
         case_dropdown.Items = obj.case_name_list;
-        obj.case_name = case_dropdown.Value; % use current value in box
+        obj.case_name = string(case_dropdown.Value); % use current value in box
         case_dropdown.ValueChangedFcn = @(src, event) case_change(src, event, plot_panel);
 
         plot_type_dropdown_y = case_dropdown_y - 35;
@@ -576,7 +576,7 @@ methods
                 distance_dropdown.Visible = "off";
             else
                 distance_dropdown.Visible = "on";
-                obj.current_downstream_type = obj.downstream_type_by_distance(distance_dropdown.Value);
+                obj.current_downstream_type = string(obj.downstream_type_by_distance(distance_dropdown.Value));
             end
 
             refresh_case_dropdown();
@@ -593,7 +593,7 @@ methods
 
         function distance_change(src, ~, plot_panel)
             previous_plot_type = obj.plot_type;
-            obj.current_downstream_type = obj.downstream_type_by_distance(src.Value);
+            obj.current_downstream_type = string(obj.downstream_type_by_distance(src.Value));
             refresh_case_dropdown();
             refresh_plot_type_dropdown();
             refresh_variable_dropdown(previous_plot_type);
@@ -608,7 +608,7 @@ methods
 
         function case_change(src, ~, plot_panel)
             previous_plot_type = obj.plot_type;
-            obj.case_name = src.Value;
+            obj.case_name = string(src.Value);
             refresh_plot_type_dropdown();
             refresh_variable_dropdown(previous_plot_type);
 
@@ -649,7 +649,7 @@ methods
 
             case_dropdown.Items = obj.case_name_list;
             if ~any(obj.case_name_list == obj.case_name)
-                obj.case_name = case_dropdown.Value;
+                obj.case_name = string(case_dropdown.Value);
             else
                 case_dropdown.Value = obj.case_name;
             end
@@ -1040,22 +1040,25 @@ methods (Access = private)
     end
 
     function case_id = get_current_case_id(obj)
+        case_name = string(obj.case_name);
+        current_downstream_type = string(obj.current_downstream_type);
+
         if obj.source_mode == "turbine"
-            if startsWith(obj.case_name, "turbine")
-                case_id = obj.case_name;
+            if startsWith(case_name, "turbine")
+                case_id = case_name;
             else
-                case_id = "turbine_" + obj.case_name;
+                case_id = "turbine_" + case_name;
             end
         else
-            if obj.plot_type == obj.plot_types(1) && any(obj.time_avg_case_ids == obj.case_name)
-                case_id = obj.case_name;
-            elseif obj.current_downstream_type == obj.case_name && ...
-                    (any(obj.phase_avg_case_ids == obj.case_name) || any(obj.time_avg_case_ids == obj.case_name))
-                case_id = obj.case_name;
-            elseif strlength(obj.case_name) == 0
-                case_id = obj.current_downstream_type;
+            if obj.plot_type == obj.plot_types(1) && any(obj.time_avg_case_ids == case_name)
+                case_id = case_name;
+            elseif current_downstream_type == case_name && ...
+                    (any(obj.phase_avg_case_ids == case_name) || any(obj.time_avg_case_ids == case_name))
+                case_id = case_name;
+            elseif strlength(case_name) == 0
+                case_id = current_downstream_type;
             else
-                case_id = obj.current_downstream_type + "_" + obj.case_name;
+                case_id = current_downstream_type + "_" + case_name;
             end
         end
     end
