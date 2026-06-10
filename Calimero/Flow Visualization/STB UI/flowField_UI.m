@@ -1012,7 +1012,9 @@ methods (Access = private)
                 case_id = "turbine_" + obj.case_name;
             end
         else
-            if obj.current_downstream_type == obj.case_name && ...
+            if obj.plot_type == obj.plot_types(1) && any(obj.time_avg_case_ids == obj.case_name)
+                case_id = obj.case_name;
+            elseif obj.current_downstream_type == obj.case_name && ...
                     (any(obj.phase_avg_case_ids == obj.case_name) || any(obj.time_avg_case_ids == obj.case_name))
                 case_id = obj.case_name;
             elseif strlength(obj.case_name) == 0
