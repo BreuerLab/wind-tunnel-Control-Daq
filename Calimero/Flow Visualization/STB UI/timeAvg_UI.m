@@ -1022,10 +1022,10 @@ classdef timeAvg_UI < handle
 
                 if is_shift_operation
                     if obj.PIV_bool
-                        forces(1,:) = obj.calculate_phase_shifts(PIV_signals);
+                        forces(1,:) = obj.calculate_phase_shifts(PIV_signals, measured_freqs);
                     end
                     if obj.force_bool
-                        forces(2,:) = obj.calculate_phase_shifts(force_signals);
+                        forces(2,:) = obj.calculate_phase_shifts(force_signals, measured_freqs);
                     end
                 end
 
@@ -1118,8 +1118,12 @@ classdef timeAvg_UI < handle
             end
         end
 
-        function phase_shifts = calculate_phase_shifts(obj, signals)
+        function phase_shifts = calculate_phase_shifts(obj, signals, frequencies)
             phase_shifts = NaN(1, length(signals));
+            if nargin < 3
+                frequencies = [];
+            end
+
             valid_indices = find(cellfun(@(signal) obj.is_valid_alignment_signal(signal), signals));
 
             if isempty(valid_indices)
@@ -1141,14 +1145,49 @@ classdef timeAvg_UI < handle
 
             reference_idx = valid_indices(1);
             reference_signal = interp_signals{reference_idx};
-            phase_shifts(reference_idx) = 0;
+            default_phase_shifts = phase_shifts;
+            reverse_phase_shifts = phase_shifts;
+            default_phase_shifts(reference_idx) = 0;
+            reverse_phase_shifts(reference_idx) = 0;
 
             for i = 2:length(valid_indices)
                 signal_idx = valid_indices(i);
                 [~, lag_in_samples] = align_signals(reference_signal, interp_signals{signal_idx});
                 circular_lag_in_samples = mod(lag_in_samples, interp_length);
-                phase_shifts(signal_idx) = circular_lag_in_samples / interp_length;
+                reverse_lag_in_samples = mod(-lag_in_samples, interp_length);
+                default_phase_shifts(signal_idx) = circular_lag_in_samples / interp_length;
+                reverse_phase_shifts(signal_idx) = reverse_lag_in_samples / interp_length;
             end
+
+            phase_shifts = obj.select_monotonic_phase_direction(default_phase_shifts, reverse_phase_shifts, frequencies);
+        end
+
+        function phase_shifts = select_monotonic_phase_direction(obj, default_phase_shifts, reverse_phase_shifts, frequencies)
+            phase_shifts = default_phase_shifts;
+
+            if nargin < 4 || isempty(frequencies) || length(frequencies) ~= length(default_phase_shifts)
+                return
+            end
+
+            valid = isfinite(default_phase_shifts) & isfinite(reverse_phase_shifts) & isfinite(frequencies);
+            if nnz(valid) < 2 || length(unique(frequencies(valid))) < 2
+                return
+            end
+
+            default_is_monotonic = obj.is_monotonic_with_frequency(default_phase_shifts, frequencies);
+            reverse_is_monotonic = obj.is_monotonic_with_frequency(reverse_phase_shifts, frequencies);
+
+            if reverse_is_monotonic && ~default_is_monotonic
+                phase_shifts = reverse_phase_shifts;
+            end
+        end
+
+        function monotonic = is_monotonic_with_frequency(~, phase_shifts, frequencies)
+            valid = isfinite(phase_shifts) & isfinite(frequencies);
+            sorted_values = sortrows([frequencies(valid)' phase_shifts(valid)'], 1);
+            frequency_diffs = diff(sorted_values(:,1));
+            phase_diffs = diff(sorted_values(:,2));
+            monotonic = all(phase_diffs(frequency_diffs > 0) >= 0);
         end
 
         function valid = is_valid_alignment_signal(~, signal)
