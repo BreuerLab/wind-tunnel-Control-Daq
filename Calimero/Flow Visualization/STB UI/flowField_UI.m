@@ -872,10 +872,13 @@ methods (Access = private)
     function [downstream_types, distance_labels] = get_available_downstream_options(obj, flapper_stems)
         downstream_types = strings(0, 1);
         distance_labels = strings(0, 1);
+        unprefixed_flapper_stems = obj.get_unprefixed_flapper_stems(flapper_stems);
 
         for i = 1:length(obj.KNOWN_DOWNSTREAM_TYPES)
             downstream_type = obj.KNOWN_DOWNSTREAM_TYPES(i);
-            if any(startsWith(flapper_stems, downstream_type + "_"))
+            has_prefixed_stem = any(startsWith(flapper_stems, downstream_type + "_"));
+            has_default_stem = i == 1 && ~isempty(unprefixed_flapper_stems);
+            if has_prefixed_stem || has_default_stem
                 downstream_types(end + 1, 1) = downstream_type;
                 distance_labels(end + 1, 1) = obj.KNOWN_DISTANCE_LABELS(i);
             end
@@ -921,6 +924,9 @@ methods (Access = private)
             prefix = downstream_type + "_";
             matching_stems = phase_avg_stems(startsWith(phase_avg_stems, prefix));
             case_names = [case_names, extractAfter(matching_stems, prefix)];
+            if downstream_type == obj.KNOWN_DOWNSTREAM_TYPES(1)
+                case_names = [case_names, obj.get_unprefixed_flapper_stems(phase_avg_stems)];
+            end
         end
         case_names = unique(case_names, 'stable');
     end
@@ -945,7 +951,26 @@ methods (Access = private)
                 case_id = "turbine_" + obj.case_name;
             end
         else
-            case_id = obj.current_downstream_type + "_" + obj.case_name;
+            prefixed_case_id = obj.current_downstream_type + "_" + obj.case_name;
+            has_bare_default_time_avg = obj.plot_type == obj.plot_types(1) && ...
+                obj.current_downstream_type == obj.KNOWN_DOWNSTREAM_TYPES(1) && ...
+                any(obj.time_avg_case_ids == obj.case_name);
+            has_prefixed_avg = any(obj.phase_avg_case_ids == prefixed_case_id) || ...
+                any(obj.time_avg_case_ids == prefixed_case_id);
+            has_bare_default_avg = obj.current_downstream_type == obj.KNOWN_DOWNSTREAM_TYPES(1) && ...
+                (any(obj.phase_avg_case_ids == obj.case_name) || any(obj.time_avg_case_ids == obj.case_name));
+            if has_bare_default_time_avg || (~has_prefixed_avg && has_bare_default_avg)
+                case_id = obj.case_name;
+            else
+                case_id = prefixed_case_id;
+            end
+        end
+    end
+
+    function unprefixed_stems = get_unprefixed_flapper_stems(obj, flapper_stems)
+        unprefixed_stems = flapper_stems;
+        for i = 1:length(obj.KNOWN_DOWNSTREAM_TYPES)
+            unprefixed_stems = unprefixed_stems(~startsWith(unprefixed_stems, obj.KNOWN_DOWNSTREAM_TYPES(i) + "_"));
         end
     end
 
