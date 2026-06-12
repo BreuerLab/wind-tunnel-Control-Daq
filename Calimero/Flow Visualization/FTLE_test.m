@@ -61,9 +61,11 @@ u_phase_avg = u_phase_avg(y_sort_idx,z_sort_idx,x_sort_idx);
 v_phase_avg = v_phase_avg(y_sort_idx,z_sort_idx,x_sort_idx);
 w_phase_avg = w_phase_avg(y_sort_idx,z_sort_idx,x_sort_idx);
 
+x_bounds = [min(x_axis), max(x_axis)];
+wrap_x_periodic = @(x_query) wrap_periodic_coordinate(x_query, x_bounds(1), x_bounds(2));
+
 is_inside_volume = @(x_query, y_query, z_query) isfinite(x_query) & ...
     isfinite(y_query) & isfinite(z_query) & ...
-    x_query >= min(x_axis) & x_query <= max(x_axis) & ...
     y_query >= min(y_axis) & y_query <= max(y_axis) & ...
     z_query >= min(z_axis) & z_query <= max(z_axis);
 
@@ -92,22 +94,26 @@ cur_z = particle_path_z(:,1);
 for step_idx = 1:num_particle_timesteps
     valid_particles = is_inside_volume(cur_x, cur_y, cur_z);
 
-    [k1_x, k1_y, k1_z] = sample_velocity_trilinear(cur_x, cur_y, cur_z, ...
+    [k1_x, k1_y, k1_z] = sample_velocity_trilinear(wrap_x_periodic(cur_x), cur_y, cur_z, ...
         x_axis, y_axis, z_axis, u_phase_avg, v_phase_avg, w_phase_avg);
 
-    [k2_x, k2_y, k2_z] = sample_velocity_trilinear(cur_x + 0.5 * particle_dt * k1_x, ...
+    k2_sample_x = wrap_x_periodic(cur_x + 0.5 * particle_dt * k1_x);
+    [k2_x, k2_y, k2_z] = sample_velocity_trilinear(k2_sample_x, ...
         cur_y + 0.5 * particle_dt * k1_y, cur_z + 0.5 * particle_dt * k1_z, ...
         x_axis, y_axis, z_axis, u_phase_avg, v_phase_avg, w_phase_avg);
 
-    [k3_x, k3_y, k3_z] = sample_velocity_trilinear(cur_x + 0.5 * particle_dt * k2_x, ...
+    k3_sample_x = wrap_x_periodic(cur_x + 0.5 * particle_dt * k2_x);
+    [k3_x, k3_y, k3_z] = sample_velocity_trilinear(k3_sample_x, ...
         cur_y + 0.5 * particle_dt * k2_y, cur_z + 0.5 * particle_dt * k2_z, ...
         x_axis, y_axis, z_axis, u_phase_avg, v_phase_avg, w_phase_avg);
 
-    [k4_x, k4_y, k4_z] = sample_velocity_trilinear(cur_x + particle_dt * k3_x, ...
+    k4_sample_x = wrap_x_periodic(cur_x + particle_dt * k3_x);
+    [k4_x, k4_y, k4_z] = sample_velocity_trilinear(k4_sample_x, ...
         cur_y + particle_dt * k3_y, cur_z + particle_dt * k3_z, ...
         x_axis, y_axis, z_axis, u_phase_avg, v_phase_avg, w_phase_avg);
 
-    next_x = cur_x + (particle_dt / 6) * (k1_x + 2 * k2_x + 2 * k3_x + k4_x);
+    next_x = wrap_x_periodic(cur_x + (particle_dt / 6) * ...
+        (k1_x + 2 * k2_x + 2 * k3_x + k4_x));
     next_y = cur_y + (particle_dt / 6) * (k1_y + 2 * k2_y + 2 * k3_y + k4_y);
     next_z = cur_z + (particle_dt / 6) * (k1_z + 2 * k2_z + 2 * k3_z + k4_z);
 
@@ -254,4 +260,16 @@ weight = rank - lower_idx;
 
 values = data(lower_idx) .* (1 - weight) + data(upper_idx) .* weight;
 values = reshape(values, size(percentiles));
+end
+
+function wrapped = wrap_periodic_coordinate(query, lower_bound, upper_bound)
+wrapped = query;
+period = upper_bound - lower_bound;
+
+if period <= 0 || ~isfinite(period)
+    return
+end
+
+outside = isfinite(query) & (query < lower_bound | query > upper_bound);
+wrapped(outside) = lower_bound + mod(query(outside) - lower_bound, period);
 end
