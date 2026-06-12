@@ -112,8 +112,12 @@ for step_idx = 1:num_particle_timesteps
         cur_y + particle_dt * k3_y, cur_z + particle_dt * k3_z, ...
         x_axis, y_axis, z_axis, u_phase_avg, v_phase_avg, w_phase_avg);
 
-    next_x = wrap_x_periodic(cur_x + (particle_dt / 6) * ...
-        (k1_x + 2 * k2_x + 2 * k3_x + k4_x));
+    % next_x = wrap_x_periodic(cur_x + (particle_dt / 6) * ...
+    %     (k1_x + 2 * k2_x + 2 * k3_x + k4_x)); % the velocities won't be
+    %     discontinuous across the x-boundary of the volume, but the
+    %     x-value will be, so we can avoid this by letting it spill out of
+    %     the volume
+    next_x = cur_x + (particle_dt / 6) * (k1_x + 2 * k2_x + 2 * k3_x + k4_x);
     next_y = cur_y + (particle_dt / 6) * (k1_y + 2 * k2_y + 2 * k3_y + k4_y);
     next_z = cur_z + (particle_dt / 6) * (k1_z + 2 * k2_z + 2 * k3_z + k4_z);
 
