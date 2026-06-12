@@ -37,6 +37,7 @@ zlabel(ax, "z")
 title(ax, plot_title)
 
 colors = lines(numel(iso_values));
+num_plotted_surfaces = 0;
 for iso_idx = 1:numel(iso_values)
     iso_value = iso_values(iso_idx);
     surface_data = isosurface(X_ftle, Y_ftle, Z_ftle, ftle_plot, iso_value);
@@ -51,9 +52,12 @@ for iso_idx = 1:numel(iso_values)
         "FaceAlpha", ftle_face_alpha, ...
         "DisplayName", sprintf("FTLE = %.4g", iso_value));
     isonormals(X_ftle, Y_ftle, Z_ftle, ftle_plot, surface_patch)
+    num_plotted_surfaces = num_plotted_surfaces + 1;
 end
 
-legend(ax, "show", "Location", "best")
+if num_plotted_surfaces > 0
+    legend(ax, "show")
+end
 camlight(ax, "headlight")
 lighting(ax, "gouraud")
 xlim(ax, [min(particle_x_axis) max(particle_x_axis)])
