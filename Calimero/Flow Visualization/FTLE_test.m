@@ -14,7 +14,7 @@ particle_seed_stride = [2 2 2]; % [y z x] spacing for FTLE finite differences
 plot_seed_stride = [4 4 8]; % [y z x] stride used only for plotting
 plot_particle_tracks = true;
 plot_ftle_isosurfaces = true;
-ftle_iso_percentiles = [75 90];
+ftle_iso_percentiles = [90]; % [75 90]
 ftle_face_alpha = 0.45;
 
 vars = {"u_phase_avg", "v_phase_avg", "w_phase_avg", "y", "z",...
@@ -40,7 +40,7 @@ w_phase_avg = w_phase_avg * U;
 y = y * L;
 z = z * L;
 
-speed = U_act * U;
+speed = -U_act * U;
 % [~, ~, freq] = parse_name(D.PIV_case_name);
 freq = 6;
 phase_dt = 1 / (freq * num_bins);
