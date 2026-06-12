@@ -237,6 +237,12 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density)
         term4 = (u + U).^2;
         drag_mat = term2 + term3; % -term1
 
+        bernoulli_term = v.^2 + w.^2 + (u + U).^2;
+
+        bernoulli_mat = trapz(y(:,1), bernoulli_term, 1);
+        bernoulli_vec = trapz(z(1,:), bernoulli_mat, 2);
+        bernoulli = density * squeeze(bernoulli_vec);
+
         drag_wy_mat = trapz(y(:,1), term2, 1);
         drag_wy_vec = trapz(z(1,:), drag_wy_mat, 2);
         drag_wy = 2 * density * squeeze(drag_wy_vec);
@@ -259,6 +265,7 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density)
         total = drag_wy + drag_wz;
         drag.vortY = drag_wy;
         drag.vortZ = drag_wz;
+        drag.bernoulli = bernoulli;
         drag.tot = total;
     else
         drag_mat_full = -u .* (u + U); % If w > U in magnitude, should be -
