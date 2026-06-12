@@ -8,7 +8,7 @@ TRIM_Z_BOUNDS = [-2.36 2.55]; % roughly -0.2 to 0.2 m
 SOURCE_X_INDEX = 3;
 
 particle_dt = (1 / 6) / 125;
-num_particle_timesteps = 25;
+num_particle_timesteps = 50;
 plot_seed_stride = [4 4 8]; % [y z x] stride used only for plotting
 plot_particle_tracks = true;
 
@@ -62,7 +62,8 @@ is_inside_volume = @(x_query, y_query, z_query) isfinite(x_query) & ...
     y_query >= min(y_axis) & y_query <= max(y_axis) & ...
     z_query >= min(z_axis) & z_query <= max(z_axis);
 
-[particle_y0, particle_z0, particle_x0] = ndgrid(y_axis, z_axis, x_axis);
+% sample particles at every other grid point
+[particle_y0, particle_z0, particle_x0] = ndgrid(y_axis(1:2:end), z_axis(1:2:end), x_axis(1:2:end));
 grid_size = size(particle_x0);
 num_particles = numel(particle_x0);
 num_track_steps = num_particle_timesteps + 1;
@@ -113,6 +114,10 @@ for step_idx = 1:num_particle_timesteps
     particle_path_x(:,step_idx + 1) = cur_x;
     particle_path_y(:,step_idx + 1) = cur_y;
     particle_path_z(:,step_idx + 1) = cur_z;
+
+    if mod(step_idx, 5) == 0
+        disp(step_idx)
+    end
 end
 
 if plot_particle_tracks
