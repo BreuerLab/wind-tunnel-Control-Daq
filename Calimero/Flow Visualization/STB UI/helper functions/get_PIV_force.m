@@ -110,7 +110,7 @@ D.unc = unc_tr;
 
         % Capture all outputs into a cell array
         % [outputs{1:2}] = get_wake_lift(speed, d.L, x, d.y, d.z, d, avg_type, vort_bool, y_cen, z_cen, density);
-        [outputs{1:2}] = get_wake_lift(speed, d.L, D, avg_type, vort_bool, density);
+        [outputs{1:2}] = get_wake_lift(speed, d.L, D, vort_bool, density);
         
         % Define your field names
         fields = {'lift', 'drag'};

@@ -58,7 +58,7 @@ function S = time_avg_STB(file_path, nondim_bool, U, L, num_files, save_filepath
     S.mean_lift = mean(lift_vals); S.mean_drag = mean(drag_vals);
 
     % Save the entire structure
-    save_path = fullfile(save_filepath_local, [PIV_case_name, '_time_avg.mat']);
+    save_path = fullfile(save_filepath_local, PIV_case_name + "_time_avg.mat");
     save(save_path, '-struct', 'S');
     
     fprintf('Processing and saving took %.4f seconds.\n', toc);
