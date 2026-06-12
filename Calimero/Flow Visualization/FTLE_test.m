@@ -11,9 +11,6 @@ particle_dt = (1 / 6) / 125;
 num_particle_timesteps = 125;
 plot_seed_stride = [4 4 8]; % [y z x] stride used only for plotting
 plot_particle_tracks = true;
-if strcmp(getenv("FTLE_DISABLE_PARTICLE_PLOT"), "1")
-    plot_particle_tracks = false;
-end
 
 vars = {"u_phase_avg", "v_phase_avg", "w_phase_avg", "y", "z",...
         "num_bins", "U", "U_act"};
