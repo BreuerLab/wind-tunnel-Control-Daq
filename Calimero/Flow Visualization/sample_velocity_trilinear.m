@@ -1,3 +1,7 @@
+% Inputs: x_query/y_query/z_query are particle locations to sample; x_axis,
+% y_axis, and z_axis define the rectilinear grid; u_field/v_field/w_field
+% are velocity components stored as (y, z, x). Outputs: u_query, v_query,
+% and w_query are interpolated velocities with NaN for out-of-bounds points.
 function [u_query, v_query, w_query] = sample_velocity_trilinear(x_query, y_query, z_query, ...
     x_axis, y_axis, z_axis, u_field, v_field, w_field)
 
@@ -43,6 +47,9 @@ v_query = reshape(v_query, query_size);
 w_query = reshape(w_query, query_size);
 end
 
+% Inputs: axis_values is one sorted grid axis and query_values are locations
+% on that axis. Outputs: idx gives the lower cell index and weight gives
+% each query's normalized distance from idx to idx + 1.
 function [idx, weight] = get_axis_cell(axis_values, query_values)
 idx = interp1(axis_values, 1:numel(axis_values), query_values, 'previous', NaN);
 idx = max(1, min(numel(axis_values) - 1, idx));
@@ -50,6 +57,9 @@ next_idx = idx + 1;
 weight = (query_values - axis_values(idx)) ./ (axis_values(next_idx) - axis_values(idx));
 end
 
+% Inputs: field is one velocity component stored as (y, z, x); y_idx/z_idx/
+% x_idx identify the lower cell corner; y_weight/z_weight/x_weight are
+% trilinear interpolation weights. Output: values are interpolated samples.
 function values = interpolate_component(field, y_idx, z_idx, x_idx, y_weight, z_weight, x_weight)
 field_size = size(field);
 
