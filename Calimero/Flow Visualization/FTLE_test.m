@@ -8,7 +8,7 @@ TRIM_Z_BOUNDS = [-2.36 2.55]; % roughly -0.2 to 0.2 m
 SOURCE_X_INDEX = 3;
 
 particle_dt = (1 / 6) / 125;
-num_particle_timesteps = 15;
+num_particle_timesteps = 25;
 plot_seed_stride = [4 4 8]; % [y z x] stride used only for plotting
 plot_particle_tracks = true;
 
@@ -29,6 +29,12 @@ w_phase_avg = squeeze(w_phase_avg(SOURCE_X_INDEX,y_idx,z_idx,:));
 y = y(y_idx,z_idx);
 z = z(y_idx,z_idx);
 
+u_phase_avg = u_phase_avg * U;
+v_phase_avg = v_phase_avg * U;
+w_phase_avg = w_phase_avg * U;
+y = y * L;
+z = z * L;
+
 speed = U_act * U;
 % [~, ~, freq] = parse_name(D.PIV_case_name);
 freq = 6;
@@ -37,7 +43,6 @@ x = zeros(1, num_bins);
 for k = 1:num_bins
     x(k) =  speed * phase_dt * (k - 1);
 end
-x = x\L;
 
 x_axis = x(:);
 y_axis = y(:,1);
