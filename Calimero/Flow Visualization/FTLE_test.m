@@ -98,8 +98,7 @@ for step_idx = 1:num_particle_timesteps
     next_y = cur_y + (particle_dt / 6) * (k1_y + 2 * k2_y + 2 * k3_y + k4_y);
     next_z = cur_z + (particle_dt / 6) * (k1_z + 2 * k2_z + 2 * k3_z + k4_z);
 
-    valid_particles = valid_particles & isfinite(next_x) & isfinite(next_y) & isfinite(next_z) & ...
-        is_inside_volume(next_x, next_y, next_z);
+    valid_particles = valid_particles & is_inside_volume(next_x, next_y, next_z);
 
     cur_x(:) = NaN;
     cur_y(:) = NaN;
