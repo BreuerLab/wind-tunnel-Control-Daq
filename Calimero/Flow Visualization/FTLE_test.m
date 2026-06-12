@@ -1,4 +1,4 @@
-clear
+clear variables
 close all
 
 filepath = "Y:\Processed Results\phase_avg\flexible_20deg_6Hz_phase_avg.mat";
@@ -77,13 +77,13 @@ is_inside_volume = @(x_query, y_query, z_query) isfinite(x_query) & ...
     x_axis(1:particle_seed_stride(3):end));
 grid_size = size(particle_x0);
 integration_step_times = [total_step_time, -total_step_time];
-integration_labels = ["Forward", "Backward"];
+integration_labels = {'Forward', 'Backward'};
 ftle_results = struct([]);
 
 for direction_idx = 1:numel(integration_step_times)
     integration_step_time = integration_step_times(direction_idx);
     step_dt = sign(integration_step_time) * particle_dt;
-    direction_label = char(integration_labels(direction_idx));
+    direction_label = integration_labels{direction_idx};
 
     fprintf("%s FTLE integration, T = %.4g s\n", direction_label, integration_step_time)
     [particle_path_x, particle_path_y, particle_path_z, ...
