@@ -76,6 +76,62 @@ is_inside_volume = @(x_query, y_query, z_query) isfinite(x_query) & ...
     z_axis(1:particle_seed_stride(2):end), ...
     x_axis(1:particle_seed_stride(3):end));
 grid_size = size(particle_x0);
+integration_step_times = [total_step_time, -total_step_time];
+integration_labels = ["Forward", "Backward"];
+ftle_results = struct([]);
+
+for direction_idx = 1:numel(integration_step_times)
+    integration_step_time = integration_step_times(direction_idx);
+    step_dt = sign(integration_step_time) * particle_dt;
+    direction_label = char(integration_labels(direction_idx));
+
+    fprintf("%s FTLE integration, T = %.4g s\n", direction_label, integration_step_time)
+    [particle_path_x, particle_path_y, particle_path_z, ...
+        particle_final_x, particle_final_y, particle_final_z] = trace_particles_rk4( ...
+        particle_x0, particle_y0, particle_z0, num_particle_timesteps, step_dt, ...
+        is_inside_volume, wrap_x_periodic, x_axis, y_axis, z_axis, ...
+        u_phase_avg, v_phase_avg, w_phase_avg);
+
+    [ftle_scalar, ftle_max_eigenvalue] = compute_ftle_from_flow_map( ...
+        particle_x0, particle_y0, particle_z0, ...
+        particle_final_x, particle_final_y, particle_final_z, abs(integration_step_time));
+
+    ftle_results(direction_idx).label = direction_label;
+    ftle_results(direction_idx).total_step_time = integration_step_time;
+    ftle_results(direction_idx).particle_path_x = particle_path_x;
+    ftle_results(direction_idx).particle_path_y = particle_path_y;
+    ftle_results(direction_idx).particle_path_z = particle_path_z;
+    ftle_results(direction_idx).particle_final_x = particle_final_x;
+    ftle_results(direction_idx).particle_final_y = particle_final_y;
+    ftle_results(direction_idx).particle_final_z = particle_final_z;
+    ftle_results(direction_idx).ftle_scalar = ftle_scalar;
+    ftle_results(direction_idx).ftle_max_eigenvalue = ftle_max_eigenvalue;
+
+    if plot_particle_tracks
+        plot_particle_tracks_3d(particle_path_x, particle_path_y, particle_path_z, ...
+            grid_size, plot_seed_stride, x_axis, y_axis, z_axis, ...
+            sprintf("%s RK4 particle tracks, T = %.4g s", direction_label, integration_step_time))
+    end
+
+    if plot_ftle_isosurfaces
+        plot_ftle_volume_isosurfaces(particle_x0, particle_y0, particle_z0, ...
+            ftle_scalar, ftle_iso_percentiles, ftle_face_alpha, ...
+            sprintf("%s FTLE isosurfaces, T = %.4g s", direction_label, integration_step_time))
+    end
+end
+
+forward_ftle_scalar = ftle_results(1).ftle_scalar;
+forward_ftle_max_eigenvalue = ftle_results(1).ftle_max_eigenvalue;
+backward_ftle_scalar = ftle_results(2).ftle_scalar;
+backward_ftle_max_eigenvalue = ftle_results(2).ftle_max_eigenvalue;
+
+function [particle_path_x, particle_path_y, particle_path_z, ...
+    particle_final_x, particle_final_y, particle_final_z] = trace_particles_rk4( ...
+    particle_x0, particle_y0, particle_z0, num_particle_timesteps, particle_dt, ...
+    is_inside_volume, wrap_x_periodic, x_axis, y_axis, z_axis, ...
+    u_phase_avg, v_phase_avg, w_phase_avg)
+
+grid_size = size(particle_x0);
 num_particles = numel(particle_x0);
 num_track_steps = num_particle_timesteps + 1;
 
@@ -142,52 +198,46 @@ end
 particle_final_x = reshape(particle_path_x(:,end), grid_size);
 particle_final_y = reshape(particle_path_y(:,end), grid_size);
 particle_final_z = reshape(particle_path_z(:,end), grid_size);
-
-[ftle_scalar, ftle_max_eigenvalue] = compute_ftle_from_flow_map( ...
-    particle_x0, particle_y0, particle_z0, ...
-    particle_final_x, particle_final_y, particle_final_z, total_step_time);
-
-if plot_particle_tracks
-    plot_y_idx = 1:max(1, plot_seed_stride(1)):grid_size(1);
-    plot_z_idx = 1:max(1, plot_seed_stride(2)):grid_size(2);
-    plot_x_idx = 1:max(1, plot_seed_stride(3)):grid_size(3);
-    [plot_y_grid, plot_z_grid, plot_x_grid] = ndgrid(plot_y_idx, plot_z_idx, plot_x_idx);
-    plot_particle_idx = sub2ind(grid_size, plot_y_grid(:), plot_z_grid(:), plot_x_grid(:));
-
-    figure
-    hold on
-    grid on
-    axis equal
-    view(3)
-    xlabel("x")
-    ylabel("y")
-    zlabel("z")
-    title("RK4 particle tracks through phase-averaged velocity field")
-
-    for i = 1:numel(plot_particle_idx)
-        particle_idx = plot_particle_idx(i);
-        valid_track = isfinite(particle_path_x(particle_idx,:)) & ...
-            isfinite(particle_path_y(particle_idx,:)) & ...
-            isfinite(particle_path_z(particle_idx,:));
-        if nnz(valid_track) > 1
-            plot3(particle_path_x(particle_idx,valid_track), ...
-                particle_path_y(particle_idx,valid_track), ...
-                particle_path_z(particle_idx,valid_track), 'LineWidth', 0.75)
-        end
-    end
-
-    xlim([min(x_axis) max(x_axis)])
-    ylim([min(y_axis) max(y_axis)])
-    zlim([min(z_axis) max(z_axis)])
 end
 
-if plot_ftle_isosurfaces
-    plot_ftle_volume_isosurfaces(particle_x0, particle_y0, particle_z0, ...
-        ftle_scalar, ftle_iso_percentiles, ftle_face_alpha, total_step_time)
+function plot_particle_tracks_3d(particle_path_x, particle_path_y, particle_path_z, ...
+    grid_size, plot_seed_stride, x_axis, y_axis, z_axis, plot_title)
+
+plot_y_idx = 1:max(1, plot_seed_stride(1)):grid_size(1);
+plot_z_idx = 1:max(1, plot_seed_stride(2)):grid_size(2);
+plot_x_idx = 1:max(1, plot_seed_stride(3)):grid_size(3);
+[plot_y_grid, plot_z_grid, plot_x_grid] = ndgrid(plot_y_idx, plot_z_idx, plot_x_idx);
+plot_particle_idx = sub2ind(grid_size, plot_y_grid(:), plot_z_grid(:), plot_x_grid(:));
+
+figure
+hold on
+grid on
+axis equal
+view(3)
+xlabel("x")
+ylabel("y")
+zlabel("z")
+title(plot_title)
+
+for i = 1:numel(plot_particle_idx)
+    particle_idx = plot_particle_idx(i);
+    valid_track = isfinite(particle_path_x(particle_idx,:)) & ...
+        isfinite(particle_path_y(particle_idx,:)) & ...
+        isfinite(particle_path_z(particle_idx,:));
+    if nnz(valid_track) > 1
+        plot3(particle_path_x(particle_idx,valid_track), ...
+            particle_path_y(particle_idx,valid_track), ...
+            particle_path_z(particle_idx,valid_track), 'LineWidth', 0.75)
+    end
+end
+
+xlim([min(x_axis) max(x_axis)])
+ylim([min(y_axis) max(y_axis)])
+zlim([min(z_axis) max(z_axis)])
 end
 
 function plot_ftle_volume_isosurfaces(particle_x0, particle_y0, particle_z0, ...
-    ftle_scalar, ftle_iso_percentiles, ftle_face_alpha, total_step_time)
+    ftle_scalar, ftle_iso_percentiles, ftle_face_alpha, plot_title)
 
 particle_y_axis = squeeze(particle_y0(:,1,1));
 particle_z_axis = squeeze(particle_z0(1,:,1));
@@ -221,7 +271,7 @@ view(ax, 3)
 xlabel(ax, "x")
 ylabel(ax, "y")
 zlabel(ax, "z")
-title(ax, sprintf("FTLE isosurfaces, T = %.4g s", total_step_time))
+title(ax, plot_title)
 
 colors = lines(numel(iso_values));
 for iso_idx = 1:numel(iso_values)
