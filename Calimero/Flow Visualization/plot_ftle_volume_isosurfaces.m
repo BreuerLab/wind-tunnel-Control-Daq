@@ -46,10 +46,10 @@ for iso_idx = 1:numel(iso_values)
 
     surface_patch = patch(ax, "Faces", surface_data.faces, ...
         "Vertices", surface_data.vertices);
-    surface_patch.FaceColor = colors(iso_idx,:);
-    surface_patch.EdgeColor = "none";
-    surface_patch.FaceAlpha = ftle_face_alpha;
-    surface_patch.DisplayName = sprintf("FTLE = %.4g", iso_value);
+    set(surface_patch, "FaceColor", colors(iso_idx,:), ...
+        "EdgeColor", "none", ...
+        "FaceAlpha", ftle_face_alpha, ...
+        "DisplayName", sprintf("FTLE = %.4g", iso_value));
     isonormals(X_ftle, Y_ftle, Z_ftle, ftle_plot, surface_patch)
 end
 
