@@ -27,7 +27,7 @@ speed = U_act * U;
 % [~, ~, freq] = parse_name(D.PIV_case_name);
 freq = 6;
 dt = 1 / (freq * num_bins);
-x_conv = zeros(1, num_bins);
+x = zeros(1, num_bins);
 for k = 1:num_bins
-    x_conv(k) =  speed * dt * (k - 1);
+    x(k) =  speed * dt * (k - 1);
 end
