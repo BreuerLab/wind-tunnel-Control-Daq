@@ -14,6 +14,7 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density)
     vortY = D.vortY / (L/U);
     vortZ = D.vortZ / (L/U);
     end
+    dudy = D.dudy * (U/L);
 
     unc = D.unc;
 
@@ -106,8 +107,8 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density)
         % term2 = (w + U) .* -v .* dA; % effectively zero
         % term1 = -U * y .* -vortX;
         % term1 = mean_u * y .* -vortX;
-        term1 = u .* y .* -vortX;
-        term2 = (u + U) .* -w; % effectively zero
+        term1 = -U .* y .* -vortX; % u or -U, doesn't seem to make a big diff
+        term2 = -(u + U) .* -w; % effectively zero
         % term3 = y .* (w .* dudy - v .* dudz);
     
         lift_vec_wx = trapz(y(:,1), term1, 1);
@@ -120,7 +121,7 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density)
         % L_z = abs(z(1,end) - z(1,1));
         % lift_wx2 = 2 * density * squeeze(mean(term1, [1,2])) * (L_y*L_z);
 
-        lift_vec_vel = trapz(y(:,1), -term2, 1);
+        lift_vec_vel = trapz(y(:,1), term2, 1);
         lift_vel = 2 * density * trapz(z(1,:), lift_vec_vel, 2);
         lift_vel = squeeze(lift_vel);
 

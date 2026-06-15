@@ -106,7 +106,7 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density)
         % term2 = (w + U) .* -v .* dA; % effectively zero
         % term1 = -U * y .* -vortX;
         % term1 = mean_u * y .* -vortX;
-        term1 = u .* y .* -vortX;
+        term1 = -U .* y .* -vortX; % u or -U, doesn't seem to make a big diff
         term2 = (u + U) .* -w; % effectively zero
         % term3 = y .* (w .* dudy - v .* dudz);
     
@@ -169,9 +169,8 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density)
             % vortY_shifted = circshift(vortY_shifted, 1, 3);
 
             % Testing same procedure for vortX term
-            lift_mat_wx_T = trapz(y(:,1), term1 / U, 1);
-            lift_vec_wx_T = trapz(z(1,:), lift_mat_wx_T, 2);
-            lift_vec_wx_T = lift_vec_wx_T .* x_reshaped;
+            % lift_mat_wx_T = trapz(y(:,1), y .* -vortX, 1);
+            % lift_vec_wx_T = trapz(z(1,:), lift_mat_wx_T, 2);
             % 
             % lift_wx_T = trapz(x, lift_vec_wx_T, 3);
             % lift_wx_F_T(i) = squeeze(lift_wx_T);
@@ -180,11 +179,17 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density)
         end
         % lift_wy_F = 2 * density * lift_wy_F'; 
 
-        lift_wy_F = (circshift(lift_wy_F, -1) - circshift(lift_wy_F, 1)) / (2*dt);
-        lift_wy_F = density * lift_wy_F';
+        % lift_wy_F = (circshift(lift_wy_F, -1) - circshift(lift_wy_F, 1)) / (2*dt);
+        % lift_wy_F = density * lift_wy_F';
+        % 
+        % lift_wx = (circshift(lift_wx_F_T, -1) - circshift(lift_wx_F_T, 1)) / (2*dt);
+        % lift_wx = density * lift_wx';
+
+        % lift_wy_F = 2 * density * lift_wy_F' * (1 / (dt*length(x)));
+        % lift_wx = 2 * density * lift_wx_F_T' * (1 / (dt*length(x)));
 
         % expression from June 10th 2026
-        % lift_wy_F = 2 * density * lift_wy_F' * (1 / (dt*length(x)));
+        lift_wy_F = 2 * density * lift_wy_F' * (1 / (dt*length(x)));
 
         % lift_wx_F_T = 2 * density * lift_wx_F_T' * (1 / (dt*length(x)));
 
@@ -232,6 +237,12 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density)
         term4 = (u + U).^2;
         drag_mat = term2 + term3; % -term1
 
+        bernoulli_term = v.^2 + w.^2 + (u + U).^2;
+
+        bernoulli_mat = trapz(y(:,1), bernoulli_term, 1);
+        bernoulli_vec = trapz(z(1,:), bernoulli_mat, 2);
+        bernoulli = density * squeeze(bernoulli_vec);
+
         drag_wy_mat = trapz(y(:,1), term2, 1);
         drag_wy_vec = trapz(z(1,:), drag_wy_mat, 2);
         drag_wy = 2 * density * squeeze(drag_wy_vec);
@@ -254,6 +265,7 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density)
         total = drag_wy + drag_wz;
         drag.vortY = drag_wy;
         drag.vortZ = drag_wz;
+        drag.bernoulli = bernoulli;
         drag.tot = total;
     else
         drag_mat_full = -u .* (u + U); % If w > U in magnitude, should be -

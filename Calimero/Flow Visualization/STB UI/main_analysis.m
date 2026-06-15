@@ -15,9 +15,9 @@ data_file_path = "Y:\";
 % c.dynamic_plotting();
 
 % % GUI for plotting phase averaged quantities
-% a = phaseAvg_UI(2,data_file_path);
-% a.dynamic_plotting();
+a = phaseAvg_UI(2,data_file_path);
+a.dynamic_plotting();
 
 % % GUI for plotting time averaged quantities
-b = timeAvg_UI(2, data_file_path);
-b.dynamic_plotting();
+% b = timeAvg_UI(2, data_file_path);
+% b.dynamic_plotting();
