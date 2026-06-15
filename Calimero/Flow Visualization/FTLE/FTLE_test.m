@@ -120,6 +120,76 @@ for direction_idx = 1:numel(integration_step_times)
     end
 end
 
+if plot_ftle_isosurfaces
+    particle_y_axis = squeeze(particle_y0(:,1,1));
+    particle_z_axis = squeeze(particle_z0(1,:,1));
+    particle_x_axis = squeeze(particle_x0(1,1,:));
+
+    % meshgrid ordering is (y, x, z), while the FTLE fields are stored as (y, z, x).
+    [X_ftle, Y_ftle, Z_ftle] = meshgrid(particle_x_axis, particle_y_axis, particle_z_axis);
+
+    figure
+    ax = gca;
+    hold(ax, "on")
+    grid(ax, "on")
+    axis(ax, "equal")
+    view(ax, 3)
+    xlabel(ax, "x")
+    ylabel(ax, "y")
+    zlabel(ax, "z")
+    title(ax, "Forward and Backward FTLE isosurface comparison")
+
+    comparison_colors = [0 0.4470 0.7410; 0.8500 0.3250 0.0980]; % blue, orange
+    num_plotted_surfaces = 0;
+    for direction_idx = 1:numel(ftle_results)
+        ftle_plot = permute(ftle_results(direction_idx).ftle_scalar, [1 3 2]);
+        valid_ftle = ftle_plot(isfinite(ftle_plot));
+
+        if isempty(valid_ftle)
+            warning("%s FTLE has no valid values for comparison isosurface plotting.", ...
+                ftle_results(direction_idx).label)
+            continue
+        end
+
+        iso_values = percentile_values(valid_ftle, ftle_iso_percentiles);
+        iso_values = unique(iso_values(isfinite(iso_values)));
+        iso_values = iso_values(iso_values > min(valid_ftle) & iso_values < max(valid_ftle));
+
+        if isempty(iso_values)
+            warning("%s FTLE comparison isosurface levels were outside the valid scalar-field range.", ...
+                ftle_results(direction_idx).label)
+            continue
+        end
+
+        surface_color = comparison_colors(direction_idx,:);
+        for iso_idx = 1:numel(iso_values)
+            iso_value = iso_values(iso_idx);
+            surface_data = isosurface(X_ftle, Y_ftle, Z_ftle, ftle_plot, iso_value);
+            if isempty(surface_data.vertices) || isempty(surface_data.faces)
+                continue
+            end
+
+            surface_patch = patch(ax, "Faces", surface_data.faces, ...
+                "Vertices", surface_data.vertices);
+            set(surface_patch, "FaceColor", surface_color, ...
+                "EdgeColor", "none", ...
+                "FaceAlpha", ftle_face_alpha, ...
+                "DisplayName", sprintf("%s FTLE = %.4g", ftle_results(direction_idx).label, iso_value));
+            isonormals(X_ftle, Y_ftle, Z_ftle, ftle_plot, surface_patch)
+            num_plotted_surfaces = num_plotted_surfaces + 1;
+        end
+    end
+
+    if num_plotted_surfaces > 0
+        legend(ax, "show")
+    end
+    camlight(ax, "headlight")
+    lighting(ax, "gouraud")
+    xlim(ax, [min(particle_x_axis) max(particle_x_axis)])
+    ylim(ax, [min(particle_y_axis) max(particle_y_axis)])
+    zlim(ax, [min(particle_z_axis) max(particle_z_axis)])
+end
+
 forward_ftle_scalar = ftle_results(1).ftle_scalar;
 forward_ftle_max_eigenvalue = ftle_results(1).ftle_max_eigenvalue;
 backward_ftle_scalar = ftle_results(2).ftle_scalar;
