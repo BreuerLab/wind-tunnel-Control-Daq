@@ -49,7 +49,6 @@ properties
                      "wingbeat_avg_forces",...
                      "wingbeat_avg_forces_smoother",...
                      "wingbeat_avg_forces_smoothest"];
-    load_cell_dict;
 
 
     % boolean, normalization/non-dimensionalization on or off
@@ -104,7 +103,7 @@ methods
     function obj = phaseAvg_UI(mon_num, data_path)
         obj.mon_num = mon_num;
         obj.root_path = data_path;
-        obj.PIV_path = obj.root_path + "Processed Results\";
+        obj.PIV_path = obj.root_path + "Processed Results\phase_avg\";
         obj.force_path = obj.root_path + "Force Measurements\";
 
         obj.inds = [];
@@ -130,18 +129,16 @@ methods
         obj.align_bool = false;
         obj.separate_y_axis_bool = false;
 
-        obj.load_cell_dict = containers.Map(cellstr(obj.load_cell_types), cellstr(obj.load_cell_names));
-
         % Search through files in path to get types and speeds
 
-        contents = dir(obj.PIV_path + "phase_avg\");
+        contents = dir(obj.PIV_path);
         files = contents(~[contents.isdir]);
 
         % Get amps, freqs, types from file names
         obj.available_selections = get_sel_from_file(files);
 
         if isempty(obj.available_selections)
-            error("No STB files found in %s. Expected *_phase_avg.mat or *_time_avg.mat files.", obj.PIV_path + "phase_avg\")
+            error("No STB files found in %s. Expected *_phase_avg.mat or *_time_avg.mat files.", obj.PIV_path)
         end
 
         obj.sel_type = string(obj.available_selections{1,1});
@@ -297,7 +294,7 @@ methods
 
         force_data_dropdown = uidropdown(load_cell_panel);
         force_data_dropdown.Items = obj.load_cell_types;
-        force_data_dropdown.Value = obj.load_cell_types(end);
+        force_data_dropdown.Value = obj.load_cell_force_var;
         force_data_dropdown.Position = [15 57 150 25];
         force_data_dropdown.ValueChangedFcn = @(src, event) load_cell_force_var_change(src, event, plot_panel);
 
@@ -541,7 +538,7 @@ methods
         end
 
         function load_cell_force_var_change(src, ~, plot_panel)
-            obj.load_cell_force_var = obj.load_cell_dict(src.Value);
+            obj.load_cell_force_var = string(src.Value);
             obj.update_plot(plot_panel);
         end
 
@@ -1054,8 +1051,8 @@ methods (Access = private)
             [amp, type, freq] = parse_name(cur_sel);
 
             filename = cur_sel + "_phase_avg";
-            file_path = obj.PIV_path  + "phase_avg\" + filename + ".mat";
-            secondary_file_path = obj.PIV_path  + "phase_avg\" + filename + "_integral.mat";
+            file_path = obj.PIV_path + filename + ".mat";
+            secondary_file_path = obj.PIV_path + filename + "_integral.mat";
 
             var_name = obj.active_names(index);
 
