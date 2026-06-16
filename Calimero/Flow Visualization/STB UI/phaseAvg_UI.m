@@ -1268,12 +1268,17 @@ methods (Access = private)
         line_h.LineWidth = 2;
         line_h.LineStyle = "-";
 
+        xlabel(ax, "Time over Wingbeat Period (t/T)")
+        xlabel(ax_target, "Time over Wingbeat Period (t/T)")
         ylabel(ax, "Load Cell Force (N)")
         ylabel(ax_target, "Load Cell Force (N)")
         grid(ax, 'on');
         legend(ax, Location="best");
         grid(ax_target, 'on');
         legend(ax_target, Location="best");
+
+        ax.FontSize = 18;
+        ax_target.FontSize = 18;
     end
 
     function plot_data(obj, ax, ax_target, time, var, time_F, force, index, dual_plot, plot_idx, cur_sel, color_params, ylabs, plot_options)
@@ -1395,6 +1400,9 @@ methods (Access = private)
             % for hidden figure for saving
             grid(ax_target, 'on');
             legend(ax_target, Location="best");
+            xlabel(ax, "Time over Wingbeat Period (t/T)")
+            xlabel(ax_target, "Time over Wingbeat Period (t/T)")
+
             % if ~isempty(obj.inds)
             %     if length(obj.inds) > 1
             %         for n = 2:length(obj.inds)

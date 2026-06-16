@@ -1,5 +1,5 @@
 clear
-% close all force
+close all force
 
 % Change current working directory to the directory where this file is
 cd(fileparts(mfilename('fullpath')));
