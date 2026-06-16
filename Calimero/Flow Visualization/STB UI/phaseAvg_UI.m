@@ -798,14 +798,82 @@ methods (Access = private)
         end
     end
 
+    function split_axis = should_split_load_cell_axis(obj)
+        split_axis = obj.separate_y_axis_bool &&...
+                     ~isempty(obj.force_index) &&...
+                     ~isempty(obj.inds);
+    end
+
+    function [time_F, force] = get_load_cell_force(obj, type, amp, freq)
+        time_F = [];
+        force = [];
+        if isempty(obj.force_index) || contains(type, "UP")
+            return
+        end
+
+        var_name_F = "wingbeat_avg_forces_smoothest";
+        force = get_force(obj.force_path, type, amp, freq, obj.force_index, var_name_F);
+
+        if obj.force_sub
+            body_amp = amp;
+            if body_amp == 30
+                body_amp = 20;
+            end
+            body_force = get_force(obj.force_path, "body", body_amp, freq, obj.force_index, var_name_F);
+            force = force - body_force;
+        end
+
+        time_F = 1:length(force);
+        time_F = time_F / length(force);
+    end
+
     function dual_plot = should_use_separate_y_axes(obj)
         dual_plot = false;
+        if obj.should_split_load_cell_axis()
+            dual_plot = true;
+            return
+        end
+
         if length(obj.inds) < 2
             return
         end
 
         force_indices = arrayfun(@(index) obj.is_force_index(index), obj.inds);
         dual_plot = obj.separate_y_axis_bool || ~all(force_indices);
+    end
+
+    function y_label = get_plot_parameter_axis_label(obj)
+        if isempty(obj.inds)
+            y_label = "";
+            return
+        end
+
+        if all(arrayfun(@(index) obj.is_force_index(index), obj.inds))
+            y_label = "Plot Parameter Force (N)";
+            return
+        end
+
+        labels = obj.active_labels(obj.inds);
+        if all(labels == labels(1))
+            y_label = labels(1);
+        else
+            y_label = "Plot Parameter Values";
+        end
+    end
+
+    function ylabs = get_y_axis_labels(obj, dual_plot)
+        ylabs = strings(1,2);
+        if ~dual_plot
+            return
+        end
+
+        if obj.should_split_load_cell_axis()
+            ylabs(1) = obj.get_plot_parameter_axis_label();
+            ylabs(2) = "Load Cell Force (N)";
+        else
+            ylabs(1) = obj.active_labels(obj.inds(1));
+            ylabs(2) = obj.active_labels(obj.inds(2));
+        end
     end
 
     function y_label = get_single_axis_label(obj)
@@ -908,6 +976,12 @@ methods (Access = private)
 
         use_selection_colors = length(uniq_types) > 1;
         selection_colors = obj.get_default_selection_colors(length(obj.selection));
+        color_params.uniq_freqs = uniq_freqs;
+        color_params.uniq_amps = uniq_amps;
+        color_params.colors = colors;
+        color_params.use_selection_colors = use_selection_colors;
+        color_params.selection_names = string(obj.selection);
+        color_params.selection_colors = selection_colors;
 
         align_plot_bool = obj.align_bool &&...
                           ~isempty(obj.inds) &&...
@@ -915,20 +989,29 @@ methods (Access = private)
         aligned_curves = struct('val', {}, 'time', {}, 'index', {},...
                                 'plot_idx', {}, 'cur_sel', {},...
                                 'legend_entry', {}, 'line_style', {},...
-                                'marker', {});
+                                'marker', {}, 'y_axis', {});
 
         % ----------------------------------------
 
         dual_plot = obj.should_use_separate_y_axes();
-        ylabs = strings(1,2);
-        if dual_plot
-            ylabs(1) = obj.active_labels(obj.inds(1));
-            ylabs(2) = obj.active_labels(obj.inds(2));
-        end
+        ylabs = obj.get_y_axis_labels(dual_plot);
 
         ax = axes(plot_panel);
         hold(ax, 'on');
         hold(ax_target, 'on');
+
+        if isempty(obj.inds) && ~isempty(obj.force_index)
+            for i = 1:length(obj.selection)
+                cur_sel = obj.selection(i);
+                [amp, type, freq] = parse_name(cur_sel);
+                [time_F, force] = obj.get_load_cell_force(type, amp, freq);
+
+                if ~isempty(force)
+                    obj.plot_load_cell_force(ax, ax_target, time_F, force, cur_sel, color_params);
+                end
+            end
+        end
+
         for j = 1:length(obj.inds)
             index = obj.inds(j);
         for i = 1:length(obj.selection)
@@ -1063,41 +1146,11 @@ methods (Access = private)
                     'cur_sel', cur_sel,...
                     'legend_entry', obj.get_aligned_legend_entry(cur_sel, index, false),...
                     'line_style', "",...
-                    'marker', obj.get_piv_force_marker(index));
+                    'marker', obj.get_piv_force_marker(index),...
+                    'y_axis', "");
             end
 
-            time_F = [];
-            force = [];
-            if ~isempty(obj.force_index) && ~contains(type, "UP")
-            
-            idx = obj.force_index;
-
-            if ~isempty(idx)
-            % var_name_F = "wingbeat_avg_forces_raw";
-            % var_name_F = "wingbeat_avg_forces";
-            var_name_F = "wingbeat_avg_forces_smoothest";
-            force = get_force(obj.force_path, type, amp, freq, idx, var_name_F);
-
-            if obj.force_sub
-                body_amp = amp;
-                if body_amp == 30
-                    body_amp = 20;
-                end
-                body_force = get_force(obj.force_path, "body", body_amp, freq, idx, var_name_F);
-                force = force - body_force;
-            end
-
-            time_F = 1:length(force);
-            time_F = time_F / length(force);
-
-            % THIS NEEDS SOME FIXING HERE, NOT ALWAYS SHIFTING AT THE
-            % CORRECT TIME
-            % if force(1) < mean(force)
-            %     force = circshift(force, round(0.4*length(force)));
-            %     disp("Shifted force curve for " + cur_sel)
-            % end
-            end
-            end
+            [time_F, force] = obj.get_load_cell_force(type, amp, freq);
 
             if align_plot_bool && ~isempty(force)
                 aligned_curves(end+1) = struct(...
@@ -1108,15 +1161,10 @@ methods (Access = private)
                     'cur_sel', cur_sel,...
                     'legend_entry', obj.get_aligned_legend_entry(cur_sel, index, true),...
                     'line_style', "-",...
-                    'marker', "none");
+                    'marker', "none",...
+                    'y_axis', "right");
             end
 
-            color_params.uniq_freqs = uniq_freqs;
-            color_params.uniq_amps = uniq_amps;
-            color_params.colors = colors;
-            color_params.use_selection_colors = use_selection_colors;
-            color_params.selection_names = string(obj.selection);
-            color_params.selection_colors = selection_colors;
             if ~align_plot_bool
             obj.plot_data(ax, ax_target, time, var, time_F, force, index, dual_plot, j, cur_sel, color_params, ylabs); % ylabel_one, ylabel_two
             end
@@ -1162,6 +1210,7 @@ methods (Access = private)
             plot_options.legend_entry = aligned_curves(i).legend_entry;
             plot_options.line_style = aligned_curves(i).line_style;
             plot_options.marker = aligned_curves(i).marker;
+            plot_options.y_axis = aligned_curves(i).y_axis;
             obj.plot_data(ax, ax_target, aligned_curves(i).time, aligned_curves(i).val, [], [],...
                           aligned_curves(i).index, dual_plot, aligned_curves(i).plot_idx,...
                           aligned_curves(i).cur_sel, color_params, ylabs, plot_options); % ylabel_one, ylabel_two
@@ -1191,6 +1240,42 @@ methods (Access = private)
       
     end
 
+    function legend_entry = get_load_cell_legend_entry(obj, cur_sel)
+        [amp, type, freq] = parse_name(cur_sel);
+        if isKey(obj.type_distance_dict, char(type))
+            distance_label = string(obj.type_distance_dict(char(type)));
+        else
+            distance_label = string(type);
+        end
+        case_label = strrep(distance_label + ", " + amp + " deg, " + freq + " Hz", "_", " ");
+        legend_entry = case_label + " - " + obj.get_force_legend_label();
+    end
+
+    function plot_load_cell_force(obj, ax, ax_target, time_F, force, cur_sel, color_params)
+        original_color = obj.get_curve_color(cur_sel, color_params);
+        legend_entry = obj.get_load_cell_legend_entry(cur_sel);
+
+        line = plot(ax, time_F, force);
+        line.DisplayName = legend_entry;
+        line.Color = original_color;
+        line.LineWidth = 2;
+        line.LineStyle = "-";
+        disp(legend_entry + ": " + mean(force))
+
+        line_h = plot(ax_target, time_F, force);
+        line_h.DisplayName = legend_entry;
+        line_h.Color = original_color;
+        line_h.LineWidth = 2;
+        line_h.LineStyle = "-";
+
+        ylabel(ax, "Load Cell Force (N)")
+        ylabel(ax_target, "Load Cell Force (N)")
+        grid(ax, 'on');
+        legend(ax, Location="best");
+        grid(ax_target, 'on');
+        legend(ax_target, Location="best");
+    end
+
     function plot_data(obj, ax, ax_target, time, var, time_F, force, index, dual_plot, plot_idx, cur_sel, color_params, ylabs, plot_options)
         if nargin < 14 || isempty(plot_options)
             plot_options = struct();
@@ -1199,13 +1284,24 @@ methods (Access = private)
         has_legend_override = isfield(plot_options, 'legend_entry') && strlength(string(plot_options.legend_entry)) > 0;
         has_line_style = isfield(plot_options, 'line_style') && strlength(string(plot_options.line_style)) > 0;
         has_marker = isfield(plot_options, 'marker') && strlength(string(plot_options.marker)) > 0;
+        has_y_axis = isfield(plot_options, 'y_axis') && strlength(string(plot_options.y_axis)) > 0;
 
         [amp, type, freq] = parse_name(cur_sel);
         % Get color for this case name
         original_color = obj.get_curve_color(cur_sel, color_params);
 
         if dual_plot
-            if plot_idx == 1
+            if has_y_axis
+                axis_side = string(plot_options.y_axis);
+            elseif obj.should_split_load_cell_axis()
+                axis_side = "left";
+            elseif plot_idx == 1
+                axis_side = "left";
+            else
+                axis_side = "right";
+            end
+
+            if axis_side == "left"
                 yyaxis(ax, 'left')
                 line = plot(ax, time, var);
                 % for hidden figure for saving
@@ -1273,6 +1369,11 @@ methods (Access = private)
             % end
 
             if ~isempty(obj.force_index) && ~contains(type, "UP") && ~isempty(force)
+                if dual_plot && obj.should_split_load_cell_axis()
+                    yyaxis(ax, 'right')
+                    yyaxis(ax_target, 'right')
+                end
+
                 line = plot(ax, time_F, force);
                 F_legend = obj.get_aligned_legend_entry(cur_sel, index, true);
                 line.DisplayName = F_legend;
