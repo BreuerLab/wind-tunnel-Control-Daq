@@ -69,7 +69,7 @@ properties
 
     calc_bool;
     align_bool;
-    force_bool;
+    force_index;
     separate_y_axis_bool;
     % used to calculate forces from vector field data
 
@@ -115,7 +115,7 @@ methods
         obj.saveFig = false;
         obj.y_cen = -2.26; % -2.16, 2.55, -0.142 / d.L;
 
-        obj.force_bool = false;
+        obj.force_index = [];
         obj.calc_bool = false;
         obj.align_bool = false;
         obj.separate_y_axis_bool = false;
@@ -256,12 +256,12 @@ methods
         var_type_dropdown.ValueChangedFcn = @(src, event) updateVariableType(src, event, plot_panel, var_dropdown1, var_dropdown2);
 
         button4_y = param_panel_y - (unit_height + unit_spacing);
-        b4 = uibutton(option_panel, "state");
-        b4.Text = "Show Force";
-        b4.FontSize = 18;
-        b4.Position = [20 button4_y 160 unit_height];
-        b4.BackgroundColor = [1 1 1];
-        b4.ValueChangedFcn = @(src, event) force_change(src, event, plot_panel);
+        force_dropdown = uidropdown(option_panel);
+        force_dropdown.Items = ["none", "drag", "lift", "pitch"];
+        force_dropdown.Value = "none";
+        force_dropdown.FontSize = 18;
+        force_dropdown.Position = [20 button4_y 160 unit_height];
+        force_dropdown.ValueChangedFcn = @(src, event) force_selection_change(src, event, plot_panel);
 
         button6_y = button4_y - (unit_height + unit_spacing);
         b6 = uibutton(option_panel, "state");
@@ -506,17 +506,8 @@ methods
             dropdown.Value = current_value;
         end
 
-        function force_change(src, ~, plot_panel)
-            if (src.Value)
-                obj.force_bool = true;
-                src.BackgroundColor = [0.3010 0.7450 0.9330];
-                src.Text = "Hide Force";
-            else
-                obj.force_bool = false;
-                src.BackgroundColor = [1 1 1];
-                src.Text = "Show Force";
-            end
-
+        function force_selection_change(src, ~, plot_panel)
+            obj.force_index = obj.get_force_dropdown_index(src.Value);
             obj.update_plot(plot_panel);
         end
 
@@ -703,7 +694,7 @@ methods (Access = private)
         index_label = obj.active_types(index);
 
         if is_force
-            force_label = obj.get_force_legend_label(index);
+            force_label = obj.get_force_legend_label();
             if length(obj.selection) > 1 && length(obj.inds) > 1
                 legend_entry = case_label + " - " + index_label + " - " + force_label;
             elseif length(obj.selection) > 1
@@ -711,7 +702,7 @@ methods (Access = private)
             elseif length(obj.inds) > 1
                 legend_entry = index_label + " - " + force_label;
             else
-                legend_entry = case_label + " F";
+                legend_entry = case_label + " - " + force_label;
             end
             return
         end
@@ -725,15 +716,17 @@ methods (Access = private)
         end
     end
 
-    function force_label = get_force_legend_label(obj, index)
-        relative_idx = obj.get_force_relative_index(index);
-
-        if isempty(relative_idx)
+    function force_label = get_force_legend_label(obj)
+        if isempty(obj.force_index)
             force_label = "Force";
-        elseif relative_idx <= 3
-            force_label = "Lift force";
-        else
+        elseif obj.force_index == 1
             force_label = "Drag force";
+        elseif obj.force_index == 3
+            force_label = "Lift force";
+        elseif obj.force_index == 5
+            force_label = "Pitch force";
+        else
+            force_label = "Force " + string(obj.force_index);
         end
     end
 
@@ -792,15 +785,16 @@ methods (Access = private)
         relative_idx = mod(index - 1, length(obj.force_var_types)) + 1;
     end
 
-    function force_idx = get_force_measurement_index(obj, index)
-        relative_idx = obj.get_force_relative_index(index);
-
-        if isempty(relative_idx)
-            force_idx = [];
-        elseif relative_idx <= 3
-            force_idx = 3;
-        else
-            force_idx = 1;
+    function force_idx = get_force_dropdown_index(~, force_selection)
+        switch string(force_selection)
+            case "drag"
+                force_idx = 1;
+            case "lift"
+                force_idx = 3;
+            case "pitch"
+                force_idx = 5;
+            otherwise
+                force_idx = [];
         end
     end
 
@@ -1074,9 +1068,9 @@ methods (Access = private)
 
             time_F = [];
             force = [];
-            if obj.force_bool && ~contains(type, "UP")
+            if ~isempty(obj.force_index) && ~contains(type, "UP")
             
-            idx = obj.get_force_measurement_index(index);
+            idx = obj.force_index;
 
             if ~isempty(idx)
             % var_name_F = "wingbeat_avg_forces_raw";
@@ -1278,7 +1272,7 @@ methods (Access = private)
             %     line.LineStyle = "--";
             % end
 
-            if obj.force_bool && ~contains(type, "UP") && ~isempty(force)
+            if ~isempty(obj.force_index) && ~contains(type, "UP") && ~isempty(force)
                 line = plot(ax, time_F, force);
                 F_legend = obj.get_aligned_legend_entry(cur_sel, index, true);
                 line.DisplayName = F_legend;
