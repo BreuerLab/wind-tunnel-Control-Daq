@@ -53,6 +53,7 @@ properties
     % boolean, subtraction on or off
     PIV_sub;
     force_sub;
+    load_cell_force_var;
     % boolean, spectrum plot overrides phase averaged plot
     spectrum;
     % boolean, scale frequencies of spectrum by wingbeat freq
@@ -109,6 +110,7 @@ methods
         obj.norm_period = true;
         obj.PIV_sub = false;
         obj.force_sub = false;
+        obj.load_cell_force_var = "wingbeat_avg_forces_smoothest";
         obj.freq_scale = false;
         obj.log_scale = false;
         obj.filt_num = 3;
@@ -213,7 +215,7 @@ methods
         b33.BackgroundColor = [1 1 1];
         b33.ButtonPushedFcn = @(src, event) clearList(src, event, plot_panel, lbox);
 
-        param_panel_height = 180;
+        param_panel_height = 230;
         param_panel_width = 180;
         param_panel_y = button33_y - unit_spacing - param_panel_height;
         param_panel = uipanel(option_panel);
@@ -223,63 +225,84 @@ methods
 
         var_type_label = uilabel(param_panel);
         var_type_label.Text = "Variable Type";
-        var_type_label.Position = [15 132 150 22];
+        var_type_label.Position = [15 182 150 22];
 
         var_type_dropdown = uidropdown(param_panel);
         var_type_dropdown.Items = ["kinematics", "force", "BA: force"];
         var_type_dropdown.Value = "kinematics";
-        var_type_dropdown.Position = [15 107 150 25];
+        var_type_dropdown.Position = [15 157 150 25];
 
         [init_types, ~, ~] = obj.get_variable_options(var_type_dropdown.Value);
         init_options = ["none", init_types];
 
         var_label1 = uilabel(param_panel);
         var_label1.Text = "Variable 1";
-        var_label1.Position = [15 82 150 22];
+        var_label1.Position = [15 132 150 22];
 
         var_dropdown1 = uidropdown(param_panel);
         var_dropdown1.Items = init_options;
         var_dropdown1.Value = "none";
-        var_dropdown1.Position = [15 57 150 25];
+        var_dropdown1.Position = [15 107 150 25];
 
         var_label2 = uilabel(param_panel);
         var_label2.Text = "Variable 2";
-        var_label2.Position = [15 32 150 22];
+        var_label2.Position = [15 82 150 22];
 
         var_dropdown2 = uidropdown(param_panel);
         var_dropdown2.Items = init_options;
         var_dropdown2.Value = "none";
-        var_dropdown2.Position = [15 7 150 25];
+        var_dropdown2.Position = [15 57 150 25];
+
+        b6 = uibutton(param_panel, "state");
+        b6.Text = "PIV Body Sub";
+        b6.FontSize = 18;
+        b6.Position = [15 17 150 30];
+        b6.BackgroundColor = [1 1 1];
+        b6.ValueChangedFcn = @(src, event) PIV_sub_change(src, event, plot_panel);
 
         var_dropdown1.ValueChangedFcn = @(src, event) updateVariableSelection(src, event, plot_panel, var_dropdown1, var_dropdown2);
         var_dropdown2.ValueChangedFcn = @(src, event) updateVariableSelection(src, event, plot_panel, var_dropdown1, var_dropdown2);
         var_type_dropdown.ValueChangedFcn = @(src, event) updateVariableType(src, event, plot_panel, var_dropdown1, var_dropdown2);
 
-        button4_y = param_panel_y - (unit_height + unit_spacing);
-        force_dropdown = uidropdown(option_panel);
+        load_cell_panel_height = 180;
+        load_cell_panel_y = param_panel_y - unit_spacing - load_cell_panel_height;
+        load_cell_panel = uipanel(option_panel);
+        load_cell_panel.Title = "Load Cell";
+        load_cell_panel.TitlePosition = 'centertop';
+        load_cell_panel.Position = [10 load_cell_panel_y 180 load_cell_panel_height];
+
+        force_label = uilabel(load_cell_panel);
+        force_label.Text = "Force Component";
+        force_label.Position = [15 132 150 22];
+
+        force_dropdown = uidropdown(load_cell_panel);
         force_dropdown.Items = ["none", "drag", "lift", "pitch"];
         force_dropdown.Value = "none";
         force_dropdown.FontSize = 18;
-        force_dropdown.Position = [20 button4_y 160 unit_height];
+        force_dropdown.Position = [15 107 150 25];
         force_dropdown.ValueChangedFcn = @(src, event) force_selection_change(src, event, plot_panel);
 
-        button6_y = button4_y - (unit_height + unit_spacing);
-        b6 = uibutton(option_panel, "state");
-        b6.Text = "PIV Body Sub";
-        b6.FontSize = 18;
-        b6.Position = [20 button6_y 160 unit_height];
-        b6.BackgroundColor = [1 1 1];
-        b6.ValueChangedFcn = @(src, event) PIV_sub_change(src, event, plot_panel);
+        force_data_label = uilabel(load_cell_panel);
+        force_data_label.Text = "Force Data";
+        force_data_label.Position = [15 82 150 22];
 
-        button7_y = button6_y - (unit_height + unit_spacing);
-        b7 = uibutton(option_panel, "state");
+        force_data_dropdown = uidropdown(load_cell_panel);
+        force_data_dropdown.Items = ["wingbeat_avg_forces_raw",...
+                                     "wingbeat_avg_forces_smooth",...
+                                     "wingbeat_avg_forces_smoother",...
+                                     "wingbeat_avg_forces_smoothest"];
+        force_data_dropdown.Value = obj.load_cell_force_var;
+        force_data_dropdown.Position = [15 57 150 25];
+        force_data_dropdown.ValueChangedFcn = @(src, event) load_cell_force_var_change(src, event, plot_panel);
+
+        b7 = uibutton(load_cell_panel, "state");
         b7.Text = "Force Body Sub";
         b7.FontSize = 18;
-        b7.Position = [20 button7_y 160 unit_height];
+        b7.Position = [15 17 150 30];
         b7.BackgroundColor = [1 1 1];
         b7.ValueChangedFcn = @(src, event) force_sub_change(src, event, plot_panel);
 
-        button77_y = button7_y - (unit_height + unit_spacing);
+        button77_y = load_cell_panel_y - (unit_height + unit_spacing);
         b77 = uibutton(option_panel, "state");
         b77.Text = "Live Calculate";
         b77.FontSize = 18;
@@ -508,6 +531,11 @@ methods
 
         function force_selection_change(src, ~, plot_panel)
             obj.force_index = obj.get_force_dropdown_index(src.Value);
+            obj.update_plot(plot_panel);
+        end
+
+        function load_cell_force_var_change(src, ~, plot_panel)
+            obj.load_cell_force_var = string(src.Value);
             obj.update_plot(plot_panel);
         end
 
@@ -811,7 +839,7 @@ methods (Access = private)
             return
         end
 
-        var_name_F = "wingbeat_avg_forces_smoothest";
+        var_name_F = obj.load_cell_force_var;
         force = get_force(obj.force_path, type, amp, freq, obj.force_index, var_name_F);
 
         if obj.force_sub
