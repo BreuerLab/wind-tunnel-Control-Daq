@@ -161,31 +161,42 @@ methods
     % Builds figure with all UI elements and defines all callback
     % functions to be used when user clicks on UI elements
     function dynamic_plotting(obj)
-        % Create a GUI figure with a grid layout
-        [option_panel, plot_panel, screen_size] = setupFig(obj.mon_num);
+        % Create a GUI figure with a grid layout.  The option sidebar uses
+        % layout managers so controls stay accessible as the window changes
+        % size instead of relying on monitor-dependent pixel positions.
+        [option_panel, plot_panel, ~] = setupFig(obj.mon_num);
+        option_panel.AutoResizeChildren = true;
+        if isprop(option_panel, "Scrollable")
+            option_panel.Scrollable = "on";
+        end
 
-        screen_height = screen_size(4);
-        unit_height = round(0.03*screen_height);
-        unit_spacing = round(0.005*screen_height);
+        sidebar_grid = uigridlayout(option_panel, [15, 1]);
+        sidebar_grid.ColumnWidth = {'1x'};
+        sidebar_grid.RowHeight = {30, 30, 30, 30, 110, 30, 230, 180, 30, 30, 30, 24, 30, 30, 30};
+        sidebar_grid.Padding = [10 10 10 10];
+        sidebar_grid.RowSpacing = 6;
+        if isprop(sidebar_grid, "Scrollable")
+            sidebar_grid.Scrollable = "on";
+        end
 
         % Dropdown box for flapper type selection
-        drop_y1 = screen_height*0.875 - unit_spacing;
-        d1 = uidropdown(option_panel);
-        d1.Position = [10 drop_y1 180 30];
+        d1 = uidropdown(sidebar_grid);
+        d1.Layout.Row = 1;
+        d1.Layout.Column = 1;
         d1.Items = [obj.distance_labels(:); "all"];
 
         % Dropdown box for wingbeat frequency selection
-        drop_y2 = drop_y1 - (unit_height + unit_spacing);
-        d2 = uidropdown(option_panel);
-        d2.Position = [10 drop_y2 180 unit_height];
+        d2 = uidropdown(sidebar_grid);
+        d2.Layout.Row = 2;
+        d2.Layout.Column = 1;
         cur_freqs = obj.get_freq_options(obj.sel_type, obj.sel_amp);
         freqs_string = string(cur_freqs(:)) + " Hz";
         d2.Items = [freqs_string; "all"];
 
         % Dropdown box for wingbeat amplitude selection
-        drop_y3 = drop_y2 - (unit_height + unit_spacing);
-        d3 = uidropdown(option_panel);
-        d3.Position = [10 drop_y3 180 unit_height];
+        d3 = uidropdown(sidebar_grid);
+        d3.Layout.Row = 3;
+        d3.Layout.Column = 1;
         cur_amps = obj.get_amp_options(obj.sel_type, obj.sel_freq);
         d3.Items = [string(cur_amps(:)) + " deg"; "all"];
 
@@ -195,78 +206,98 @@ methods
 
         % Button to add entry defined by selected type,
         % frequency, angle, and speed to list of plotted cases
-        button2_y = drop_y3 - (unit_height + unit_spacing);
-        b2 = uibutton(option_panel);
-        b2.Position = [15 button2_y 80 unit_height];
+        entry_button_grid = uigridlayout(sidebar_grid, [1, 2]);
+        entry_button_grid.Layout.Row = 4;
+        entry_button_grid.Layout.Column = 1;
+        entry_button_grid.ColumnWidth = {'1x', '1x'};
+        entry_button_grid.RowHeight = {'1x'};
+        entry_button_grid.Padding = [0 0 0 0];
+        entry_button_grid.ColumnSpacing = 8;
+
+        b2 = uibutton(entry_button_grid);
+        b2.Layout.Row = 1;
+        b2.Layout.Column = 1;
         b2.BackgroundColor = [1 1 1];
         b2.Text = "Add entry";
 
         % Button to remove entry defined by selected type,
         % frequency, angle, and speed from list of plotted cases
-        b3 = uibutton(option_panel);
-        b3.Position = [105 button2_y 80 unit_height];
+        b3 = uibutton(entry_button_grid);
+        b3.Layout.Row = 1;
+        b3.Layout.Column = 2;
         b3.BackgroundColor = [1 1 1];
         b3.Text = "Delete entry";
 
         % List of cases currently displayed on the plots
-        list_y = button2_y - (3*(unit_height + unit_spacing) + unit_spacing);
-        lbox = uilistbox(option_panel);
+        lbox = uilistbox(sidebar_grid);
+        lbox.Layout.Row = 5;
+        lbox.Layout.Column = 1;
         lbox.Items = strings(0);
-        lbox.Position = [10 list_y 180 3*(unit_height + unit_spacing)];
 
         b2.ButtonPushedFcn = @(src, event) addToList(src, event, plot_panel, lbox);
         b3.ButtonPushedFcn = @(src, event) removeFromList(src, event, plot_panel, lbox);
 
-        button33_y = list_y - (unit_height + unit_spacing);
-        b33 = uibutton(option_panel);
+        b33 = uibutton(sidebar_grid);
+        b33.Layout.Row = 6;
+        b33.Layout.Column = 1;
         b33.Text = "Clear Entries";
         b33.FontSize = 18;
-        b33.Position = [20 button33_y 160 unit_height];
         b33.BackgroundColor = [1 1 1];
         b33.ButtonPushedFcn = @(src, event) clearList(src, event, plot_panel, lbox);
 
-        param_panel_height = 230;
-        param_panel_width = 180;
-        param_panel_y = button33_y - unit_spacing - param_panel_height;
-        param_panel = uipanel(option_panel);
+        param_panel = uipanel(sidebar_grid);
+        param_panel.Layout.Row = 7;
+        param_panel.Layout.Column = 1;
         param_panel.Title = "Plot Parameters";
         param_panel.TitlePosition = 'centertop';
-        param_panel.Position = [10 param_panel_y param_panel_width param_panel_height];
 
-        var_type_label = uilabel(param_panel);
+        param_grid = uigridlayout(param_panel, [7, 1]);
+        param_grid.ColumnWidth = {'1x'};
+        param_grid.RowHeight = {22, 25, 22, 25, 22, 25, 30};
+        param_grid.Padding = [10 8 10 8];
+        param_grid.RowSpacing = 4;
+
+        var_type_label = uilabel(param_grid);
+        var_type_label.Layout.Row = 1;
+        var_type_label.Layout.Column = 1;
         var_type_label.Text = "Variable Type";
-        var_type_label.Position = [15 182 150 22];
 
-        var_type_dropdown = uidropdown(param_panel);
+        var_type_dropdown = uidropdown(param_grid);
+        var_type_dropdown.Layout.Row = 2;
+        var_type_dropdown.Layout.Column = 1;
         var_type_dropdown.Items = ["kinematics", "force", "BA: force"];
         var_type_dropdown.Value = "kinematics";
-        var_type_dropdown.Position = [15 157 150 25];
 
         [init_types, ~, ~] = obj.get_variable_options(var_type_dropdown.Value);
         init_options = ["none", init_types];
 
-        var_label1 = uilabel(param_panel);
+        var_label1 = uilabel(param_grid);
+        var_label1.Layout.Row = 3;
+        var_label1.Layout.Column = 1;
         var_label1.Text = "Variable 1";
-        var_label1.Position = [15 132 150 22];
 
-        var_dropdown1 = uidropdown(param_panel);
+        var_dropdown1 = uidropdown(param_grid);
+        var_dropdown1.Layout.Row = 4;
+        var_dropdown1.Layout.Column = 1;
         var_dropdown1.Items = init_options;
         var_dropdown1.Value = "none";
-        var_dropdown1.Position = [15 107 150 25];
 
-        var_label2 = uilabel(param_panel);
+        var_label2 = uilabel(param_grid);
+        var_label2.Layout.Row = 5;
+        var_label2.Layout.Column = 1;
         var_label2.Text = "Variable 2";
-        var_label2.Position = [15 82 150 22];
 
-        var_dropdown2 = uidropdown(param_panel);
+        var_dropdown2 = uidropdown(param_grid);
+        var_dropdown2.Layout.Row = 6;
+        var_dropdown2.Layout.Column = 1;
         var_dropdown2.Items = init_options;
         var_dropdown2.Value = "none";
-        var_dropdown2.Position = [15 57 150 25];
 
-        b6 = uibutton(param_panel, "state");
+        b6 = uibutton(param_grid, "state");
+        b6.Layout.Row = 7;
+        b6.Layout.Column = 1;
         b6.Text = "PIV Body Sub";
         b6.FontSize = 18;
-        b6.Position = [15 17 150 30];
         b6.BackgroundColor = [1 1 1];
         b6.ValueChangedFcn = @(src, event) PIV_sub_change(src, event, plot_panel);
 
@@ -274,92 +305,99 @@ methods
         var_dropdown2.ValueChangedFcn = @(src, event) updateVariableSelection(src, event, plot_panel, var_dropdown1, var_dropdown2);
         var_type_dropdown.ValueChangedFcn = @(src, event) updateVariableType(src, event, plot_panel, var_dropdown1, var_dropdown2);
 
-        load_cell_panel_height = 180;
-        load_cell_panel_y = param_panel_y - unit_spacing - load_cell_panel_height;
-        load_cell_panel = uipanel(option_panel);
+        load_cell_panel = uipanel(sidebar_grid);
+        load_cell_panel.Layout.Row = 8;
+        load_cell_panel.Layout.Column = 1;
         load_cell_panel.Title = "Load Cell";
         load_cell_panel.TitlePosition = 'centertop';
-        load_cell_panel.Position = [10 load_cell_panel_y 180 load_cell_panel_height];
 
-        force_label = uilabel(load_cell_panel);
+        load_cell_grid = uigridlayout(load_cell_panel, [5, 1]);
+        load_cell_grid.ColumnWidth = {'1x'};
+        load_cell_grid.RowHeight = {22, 25, 22, 25, 30};
+        load_cell_grid.Padding = [10 8 10 8];
+        load_cell_grid.RowSpacing = 4;
+
+        force_label = uilabel(load_cell_grid);
+        force_label.Layout.Row = 1;
+        force_label.Layout.Column = 1;
         force_label.Text = "Force Component";
-        force_label.Position = [15 132 150 22];
 
-        force_dropdown = uidropdown(load_cell_panel);
+        force_dropdown = uidropdown(load_cell_grid);
+        force_dropdown.Layout.Row = 2;
+        force_dropdown.Layout.Column = 1;
         force_dropdown.Items = ["none", "drag", "lift", "pitch"];
         force_dropdown.Value = "none";
-        force_dropdown.Position = [15 107 150 25];
         force_dropdown.ValueChangedFcn = @(src, event) force_selection_change(src, event, plot_panel);
 
-        force_data_label = uilabel(load_cell_panel);
+        force_data_label = uilabel(load_cell_grid);
+        force_data_label.Layout.Row = 3;
+        force_data_label.Layout.Column = 1;
         force_data_label.Text = "Force Data";
-        force_data_label.Position = [15 82 150 22];
 
-        force_data_dropdown = uidropdown(load_cell_panel);
+        force_data_dropdown = uidropdown(load_cell_grid);
+        force_data_dropdown.Layout.Row = 4;
+        force_data_dropdown.Layout.Column = 1;
         force_data_dropdown.Items = obj.load_cell_types;
         force_data_dropdown.Value = obj.load_cell_types(end);
-        force_data_dropdown.Position = [15 57 150 25];
         force_data_dropdown.ValueChangedFcn = @(src, event) load_cell_force_var_change(src, event, plot_panel);
 
-        b7 = uibutton(load_cell_panel, "state");
+        b7 = uibutton(load_cell_grid, "state");
+        b7.Layout.Row = 5;
+        b7.Layout.Column = 1;
         b7.Text = "Force Body Sub";
         b7.FontSize = 18;
-        b7.Position = [15 17 150 30];
         b7.BackgroundColor = [1 1 1];
         b7.ValueChangedFcn = @(src, event) force_sub_change(src, event, plot_panel);
 
-        button77_y = load_cell_panel_y - (unit_height + unit_spacing);
-        b77 = uibutton(option_panel, "state");
+        b77 = uibutton(sidebar_grid, "state");
+        b77.Layout.Row = 9;
+        b77.Layout.Column = 1;
         b77.Text = "Live Calculate";
         b77.FontSize = 18;
-        b77.Position = [20 button77_y 160 unit_height];
         b77.BackgroundColor = [1 1 1];
         b77.ValueChangedFcn = @(src, event) calc_change(src, event, plot_panel);
 
-        button88_y = button77_y - (unit_height + unit_spacing);
-        b88 = uibutton(option_panel, "state");
+        b88 = uibutton(sidebar_grid, "state");
+        b88.Layout.Row = 10;
+        b88.Layout.Column = 1;
         b88.Text = "Align";
         b88.FontSize = 18;
-        b88.Position = [20 button88_y 160 unit_height];
         b88.BackgroundColor = [1 1 1];
         b88.ValueChangedFcn = @(src, event) align_change(src, event, plot_panel);
 
-        button99_y = button88_y - (unit_height + unit_spacing);
-        b99 = uibutton(option_panel, "state");
+        b99 = uibutton(sidebar_grid, "state");
+        b99.Layout.Row = 11;
+        b99.Layout.Column = 1;
         b99.Text = "Separate Y-Axis";
         b99.FontSize = 18;
-        b99.Position = [20 button99_y 160 unit_height];
         b99.BackgroundColor = [1 1 1];
         b99.ValueChangedFcn = @(src, event) separate_y_axis_change(src, event, plot_panel);
 
 
-        % ------------------------------------------------------
-        % -------Buttons built up from bottom of screen---------
-        % ------------------------------------------------------
-
-        button8_y = unit_spacing;
-        field_y = button8_y + (unit_height + unit_spacing);
-        label_y = field_y + unit_height - unit_spacing;
-
-        fnl = uilabel(option_panel);
-        fnl.Position = [65 label_y 80 unit_height];
+        % Remaining file output controls.
+        fnl = uilabel(sidebar_grid);
+        fnl.Layout.Row = 12;
+        fnl.Layout.Column = 1;
+        fnl.HorizontalAlignment = "center";
         fnl.Text = "File Name";
 
-        ef = uieditfield(option_panel);
-        ef.Position = [15 field_y 160 unit_height];
+        ef = uieditfield(sidebar_grid);
+        ef.Layout.Row = 13;
+        ef.Layout.Column = 1;
         ef.Placeholder = "test";
 
         % Button to export data on plot to .mat file
-        b10 = uibutton(option_panel);
-        b10.Position = [15 button8_y 160 unit_height];
+        b10 = uibutton(sidebar_grid);
+        b10.Layout.Row = 14;
+        b10.Layout.Column = 1;
         b10.Text = "Export Data";
         b10.ButtonPushedFcn = @(src, event) exportData(src, event, ef);
 
-        button9_y = label_y + (unit_height + unit_spacing);
-        b4 = uibutton(option_panel);
+        b4 = uibutton(sidebar_grid);
+        b4.Layout.Row = 15;
+        b4.Layout.Column = 1;
         b4.Text = "Save Fig";
         b4.FontSize = 18;
-        b4.Position = [20 button9_y 160 unit_height];
         b4.BackgroundColor = [1 1 1];
         b4.ButtonPushedFcn = @(src, event) save_figure(src, event, plot_panel);
 
