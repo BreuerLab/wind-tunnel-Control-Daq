@@ -28,6 +28,7 @@ properties
     bin_ind;
     bin_count;
     frame_ind;
+    play;
 
     % Plot and variable selection
     plot_type;
@@ -54,12 +55,17 @@ properties
     filter_bool;
     trim_bool;
 
+    RPCA_sparse;
+
     % Data cache properties
     cached_bin_ind = -1;
     cached_case_id = "";
     cached_y;
     cached_z;
     cached_data;
+    cached_L;
+    cached_S;
+    cached_plot_idx = "";
 end
 
 methods
@@ -76,7 +82,10 @@ methods
         obj.bin_count = 5;
         obj.frame_ind = 1;
 
-        obj.plot_types = ["phase avg: movie"];
+        obj.play = false;
+        obj.RPCA_sparse = false;
+
+        obj.plot_types = ["frames", "RPCA"];
         obj.plot_type = obj.plot_types(1);
         obj.mirror_bool = false;
         obj.filter_bool = false;
@@ -277,6 +286,22 @@ methods
         obj.slider_frame.MinorTicks = 1:obj.bin_count;
         obj.slider_frame.ValueChangedFcn = @(src, event) frame_change(src, event, plot_panel);
 
+        play_button_y = frame_slider_y - 60;
+        play_button = uibutton(option_panel,"state");
+        play_button.Text = "Play";
+        play_button.FontSize = 18;
+        play_button.Position = [30 play_button_y 120 unit_height];
+        play_button.BackgroundColor = obj.INACTIVE_COLOR;
+        play_button.ValueChangedFcn = @(src, event) playStop_change(src, event, plot_panel);
+
+        RPCA_button_y = play_button_y - 35;
+        RPCA_button = uibutton(option_panel,"state");
+        RPCA_button.Text = "Sparse Matrix";
+        RPCA_button.FontSize = 18;
+        RPCA_button.Position = [30 RPCA_button_y 120 unit_height];
+        RPCA_button.BackgroundColor = obj.INACTIVE_COLOR;
+        RPCA_button.ValueChangedFcn = @(src, event) RPCA_change(src, event, plot_panel);
+
         save_button_y = 0.05*screen_height;
         save_button = uibutton(option_panel,"state");
         save_button.Text = "Save Figure";
@@ -405,18 +430,6 @@ methods
             obj.update_plot(plot_panel);
         end
 
-        function save_figure(~, ~, plot_panel)
-            ax = findobj(plot_panel.Children, 'Type', 'axes');
-            cb = findobj(plot_panel.Children, 'Type', 'colorbar');
-
-            filename = "saved_figure.fig";
-            fignew = figure('Visible','off'); % Invisible figure
-            copyobj([ax cb], fignew);
-            set(fignew,'CreateFcn','set(gcbf,''Visible'',''on'')'); % Make it visible upon loading
-            savefig(fignew,filename);
-            delete(fignew);
-        end
-
         function bin_change(src, ~, plot_panel)
             % Force the slider value to the nearest integer immediately
             src.Value = round(src.Value);
@@ -431,6 +444,47 @@ methods
 
             obj.frame_ind = src.Value;
             obj.update_plot(plot_panel);
+        end
+
+        % User toggled movie playback.
+        function playStop_change(src, ~, plot_panel)
+            if (src.Value)
+                obj.play = true;
+                src.BackgroundColor = obj.ACTIVE_COLOR;
+                src.Text = "Stop";
+            else
+                obj.play = false;
+                src.BackgroundColor = obj.INACTIVE_COLOR;
+                src.Text = "Play";
+            end
+
+            obj.update_plot(plot_panel);
+        end
+
+        function RPCA_change(src, ~, plot_panel)
+            if (src.Value)
+                obj.RPCA_sparse = true;
+                src.BackgroundColor = obj.ACTIVE_COLOR;
+            else
+                obj.RPCA_sparse = false;
+                src.BackgroundColor = obj.INACTIVE_COLOR;
+            end
+
+            % reset frame index
+            obj.frame_ind = 1;
+            obj.update_plot(plot_panel);
+        end
+
+        function save_figure(~, ~, plot_panel)
+            ax = findobj(plot_panel.Children, 'Type', 'axes');
+            cb = findobj(plot_panel.Children, 'Type', 'colorbar');
+
+            filename = "saved_figure.fig";
+            fignew = figure('Visible','off'); % Invisible figure
+            copyobj([ax cb], fignew);
+            set(fignew,'CreateFcn','set(gcbf,''Visible'',''on'')'); % Make it visible upon loading
+            savefig(fignew,filename);
+            delete(fignew);
         end
 
     end
@@ -579,13 +633,12 @@ methods (Access = private)
         RPCA_bool = false;
         U = 4;
         L = 0.07; % guess of mean aerodynamic chord
-        x_idx = 3;
 
         PIV_case_name = obj.get_current_case_id();
         fields = get_STB_processing_fields();
 
         % Check if the bin_ind or case has changed since the last plot
-        if obj.bin_ind ~= obj.cached_bin_ind || PIV_case_name ~= obj.cached_case_id
+        if obj.bin_ind ~= obj.cached_bin_ind || PIV_case_name ~= obj.cached_case_id || plot_idx ~= obj.cached_plot_idx
 
         file_path = get_PIV_paths(PIV_case_name);
 
@@ -616,12 +669,18 @@ methods (Access = private)
             = frame_to_bin(PIV_case_name, num_images, D.freq_avg, false, false);
         
         bin_indices = find(bin_ind_arr == obj.bin_ind);
+        [B, I] = sort(tick_frame_pos(bin_indices));
+        bin_indices_sorted = bin_indices(I);
         bin_count = length(bin_indices);
         bin_std = std(norm_frame_pos(bin_indices))*100;
     
         % Import data (since bin_ind or case changed)
         [x, y, z, data{1:length(fields)}] = ...
-            import_STB_data(file_path, true, U, L, bin_indices, RPCA_bool);
+            import_STB_data(file_path, true, U, L, bin_indices_sorted, RPCA_bool);
+
+        if plot_idx == 2
+        [L, S] = RPCA_vel(data{strcmp(fields, 'u')}, data{strcmp(fields, 'v')}, data{strcmp(fields, 'w')});
+        end
         
         if plot_idx == 1
             obj.slider_bin.Visible = "on";
@@ -645,33 +704,44 @@ methods (Access = private)
         % Update cache
         obj.cached_bin_ind = obj.bin_ind;
         obj.cached_case_id = PIV_case_name;
+        obj.cached_plot_idx = plot_idx;
         obj.cached_y = y;
         obj.cached_z = z;
         obj.cached_data = data;
-    else
+        if plot_idx == 2
+        obj.cached_L = L;
+        obj.cached_S = S;
+        end
+        else
         % Load from cache
         y = obj.cached_y;
         z = obj.cached_z;
         data = obj.cached_data;
-    end
+        if plot_idx == 2
+        L = obj.cached_L;
+        S = obj.cached_S;
+        end
+        end
         
-        % Extract the desired variable
-        val = data{strcmp(fields, var_name)};
+        if plot_idx == 1
+            x_idx = 3;
+            % Extract the desired variable
+            val = data{strcmp(fields, var_name)};
+        else
+            x_idx = 2;
+            if obj.RPCA_sparse
+            val = S{strcmp(fields, var_name)};
+            else
+            val = L{strcmp(fields, var_name)};
+            end
+        end
 
         % Select a single plane and a single frame
         y_tr = squeeze(y(x_idx,:,:));
         z_tr = squeeze(z(x_idx,:,:));
-        val_tr = squeeze(val(x_idx,:,:,obj.frame_ind));
+        val_tr = squeeze(val(x_idx,:,:,:));
 
         params.U = U;
-
-        if min(var_clims) < -1
-            params.zero = -1;
-        elseif min(var_clims) < 0.5
-            params.zero = 0;
-        else
-            params.zero = 1;
-        end
 
         if obj.trim_bool
             y_idx = find(y_tr(:,1) > obj.TRIM_Y_BOUNDS(1) & y_tr(:,1) < obj.TRIM_Y_BOUNDS(2));
@@ -680,7 +750,7 @@ methods (Access = private)
             y_tr = y_tr(y_idx, z_idx);
             z_tr = z_tr(y_idx, z_idx);
 
-            val_tr = val_tr(y_idx,z_idx);
+            val_tr = val_tr(y_idx,z_idx,:);
             
         end
         if obj.mirror_bool
@@ -709,14 +779,48 @@ methods (Access = private)
         if obj.filter_bool
             val = medfilt3(val);
         end
+
+        % sparse matrix values are much smaller
+        if obj.RPCA_sparse
+        var_clims = [min(val_tr,[],"all") max(val_tr,[],"all")];
+        end
+
+        if min(var_clims) < -1
+            params.zero = -1;
+        elseif min(var_clims) < 0.5
+            params.zero = 0;
+        else
+            params.zero = 1;
+        end
         
         ax = axes(plot_panel);
         params.cb_lab = obj.label_dict(obj.variable_name);
         params.clims = var_clims;
 
-        if plot_idx == 1
-            PIV_plot(y_tr, z_tr, val_tr, params, ax);
-            title(ax, "Bin number: " + obj.bin_ind + ", frame number: " + obj.frame_ind, FontSize=18);
+        val_tr_fr = squeeze(val_tr(:,:,obj.frame_ind));
+        h = PIV_plot(y_tr, z_tr, val_tr_fr, params, ax);
+        t = title(ax, "Bin number: " + obj.bin_ind + ", frame number: " + obj.frame_ind, FontSize=18);
+
+        while obj.play && (obj.frame_ind < obj.bin_count)
+            obj.frame_ind = obj.frame_ind + 1;
+            obj.slider_frame.Value = obj.frame_ind;
+
+            % Cap the data so it stays within the current color limits.
+            tmp_data = val_tr(:,:,obj.frame_ind);
+            tmp_data(tmp_data < params.clims(1)) = params.clims(1);
+            tmp_data(tmp_data > params.clims(2)) = params.clims(2);
+    
+            % Update the existing contour instead of recreating axes.
+            set(h, 'ZData', tmp_data); 
+            set(t, 'String', "Bin number: " + obj.bin_ind + ", frame number: " + obj.frame_ind);
+    
+            drawnow;
+
+            pause(0.1);
+
+            if obj.frame_ind == obj.bin_count
+            obj.frame_ind = 0; % reset for next loop iteration
+            end
         end
     end
 

@@ -27,12 +27,14 @@ properties
 
     force_var_types = ["y*\omega_x", "x*\omega_y", "(u-U)*w", "u*w",...
         "Drag - Vorticity", "z*\omega_y", "y*\omega_z", "(u-U)*u"];
+    flow_var_types = ["\omega_x - z", "\omega_x - y"];
     kin_var_types = ["Speed", "Speed Error", "Acceleration",...
                 "Wing Position", "Wing Speed", "Wing Acceleration",...
                 "Voltage", "Current", "Power"];
 
     force_var_names = ["lift.vortX", "lift.vortY", "lift.vel", "lift_vel",...
                     "drag.tot", "drag.vortY", "drag.vortZ", "drag_vel"];
+    flow_var_names = ["wx_z", "wx_y"];
     kin_var_names = ["phase_avg_speed", "phase_avg_speed_error",...
                          "phase_avg_acc", "phase_avg_wing_pos",...
                          "phase_avg_wing_speed", "phase_avg_wing_acc",...
@@ -40,6 +42,7 @@ properties
 
     force_y_labels = ["Lift (N)","Lift (N)","Lift (N)","Lift (N)",...
         "Drag (N)", "Drag (N)", "Drag (N)", "Drag (N)"];
+    flow_y_labels = ["z/L", "y/L"];
     kin_y_labels = ["Speed (Hz)", "Speed Error (Hz)", "Acceleration (Hz^2)", ...
         "Position (rad)", "Speed (rad/s)", "Acceleration (rad/s^2)",...
         "Voltage (V)", "Current (mA)", "Power (mW)"];
@@ -267,7 +270,7 @@ methods
         var_type_dropdown = uidropdown(param_grid);
         var_type_dropdown.Layout.Row = 2;
         var_type_dropdown.Layout.Column = 1;
-        var_type_dropdown.Items = ["kinematics", "force", "BA: force"];
+        var_type_dropdown.Items = ["kinematics", "flow", "force", "BA: force"];
         var_type_dropdown.Value = "kinematics";
 
         [init_types, ~, ~] = obj.get_variable_options(var_type_dropdown.Value);
@@ -766,9 +769,9 @@ methods (Access = private)
         ba_force_types = "BA: " + obj.force_var_types;
         ba_force_names = regexprep(obj.force_var_names, '\.', "_phase_avg" + ".");
 
-        types = [obj.force_var_types, ba_force_types, obj.kin_var_types];
-        names = [obj.force_var_names, ba_force_names, obj.kin_var_names];
-        labels = [obj.force_y_labels, obj.force_y_labels, obj.kin_y_labels];
+        types = [obj.force_var_types, ba_force_types, obj.flow_var_types, obj.kin_var_types];
+        names = [obj.force_var_names, ba_force_names, obj.flow_var_names, obj.kin_var_names];
+        labels = [obj.force_y_labels, obj.force_y_labels, obj.flow_y_labels, obj.kin_y_labels];
     end
 
     function [types, names, labels] = get_variable_options(obj, var_type)
@@ -776,6 +779,10 @@ methods (Access = private)
             types = obj.kin_var_types;
             names = obj.kin_var_names;
             labels = obj.kin_y_labels;
+        elseif strcmp(var_type, "flow")
+            types = obj.flow_var_types;
+            names = obj.flow_var_names;
+            labels = obj.flow_y_labels;
         elseif strcmp(var_type, "force")
             types = obj.force_var_types;
             names = obj.force_var_names;
@@ -1215,7 +1222,8 @@ methods (Access = private)
 
             % Shift data given convection time downstream to target
             % for curves using imaging plane data only
-            if obj.is_force_index(index)
+            conv_shift = false;
+            if obj.is_force_index(index) && conv_shift
             dist = 0.9;
             sep_dist = 0.37;
             if contains(type, "UP_two")

@@ -15,12 +15,12 @@ data_file_path = "Y:\";
 % a.dynamic_plotting();
 
 % GUI for plotting instantaneous vector fields before phase averaging
-b = flowFieldInst_UI(2,data_file_path);
-b.dynamic_plotting();
+% b = flowFieldInst_UI(1,data_file_path);
+% b.dynamic_plotting();
 
 % % GUI for plotting phase averaged quantities
-% c = phaseAvg_UI(2,data_file_path);
-% c.dynamic_plotting();
+c = phaseAvg_UI(2,data_file_path);
+c.dynamic_plotting();
 
 % % GUI for plotting time averaged quantities
 % d = timeAvg_UI(2, data_file_path);
