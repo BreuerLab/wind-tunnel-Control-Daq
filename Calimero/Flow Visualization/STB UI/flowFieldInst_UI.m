@@ -710,7 +710,7 @@ methods (Access = private)
         if obj.trim_bool
             y_idx = find(y(:,1) > obj.TRIM_Y_BOUNDS(1) & y(:,1) < obj.TRIM_Y_BOUNDS(2));
             z_idx = find(z(1,:) > obj.TRIM_Z_BOUNDS(1) & z(1,:) < obj.TRIM_Z_BOUNDS(2));
-            
+
             y = y(y_idx, z_idx);
             z = z(y_idx, z_idx);
             if using_time_avg_file
@@ -722,7 +722,7 @@ methods (Access = private)
         if obj.mirror_bool
             % Mirror across the centerline to reconstruct the opposite side of the wake.
             y_idx_m = find(y(:,1) > obj.MIRROR_CENTER_Y);
-            
+
             y = y(y_idx_m, :);
             z = z(y_idx_m, :);
             if using_time_avg_file
@@ -730,10 +730,10 @@ methods (Access = private)
             else
                 val = val(y_idx_m,:,:);
             end
-            
+
             % Shift so the mirror center is the origin.
             y = y - min(y, [], "all");
-            
+
             % Reflect and skip the first row to avoid double-counting the centerline.
             y_add = flip(-y(2:end,:),1);
             z_add = flip(z(2:end,:),1);
@@ -744,7 +744,7 @@ methods (Access = private)
             end
             y = [y_add; y];
             z = [z_add; z];
-            val = [val_add; val]; 
+            val = [val_add; val];
         end
 
         if obj.filter_bool
