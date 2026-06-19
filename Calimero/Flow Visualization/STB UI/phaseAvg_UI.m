@@ -80,6 +80,7 @@ properties
     align_bool;
     force_index;
     separate_y_axis_bool;
+    mean_subtraction_bool;
     % used to calculate forces from vector field data
 
     % ------- Available parameters user can select from -------
@@ -129,6 +130,7 @@ methods
         obj.calc_bool = false;
         obj.align_bool = false;
         obj.separate_y_axis_bool = false;
+        obj.mean_subtraction_bool = false;
 
         obj.load_cell_dict = containers.Map(cellstr(obj.load_cell_types), cellstr(obj.load_cell_names));
 
@@ -170,9 +172,9 @@ methods
             option_panel.Scrollable = "on";
         end
 
-        sidebar_grid = uigridlayout(option_panel, [15, 1]);
+        sidebar_grid = uigridlayout(option_panel, [17, 1]);
         sidebar_grid.ColumnWidth = {'1x'};
-        sidebar_grid.RowHeight = {30, 30, 30, 30, 110, 30, 230, 180, 30, 30, 30, 24, 30, 30, 30};
+        sidebar_grid.RowHeight = {30, 30, 30, 30, 110, 30, 230, 30, 0, 30, 30, 30, 30, 24, 30, 30, 30};
         sidebar_grid.Padding = [10 10 10 10];
         sidebar_grid.RowSpacing = 6;
         if isprop(sidebar_grid, "Scrollable")
@@ -305,11 +307,19 @@ methods
         var_dropdown2.ValueChangedFcn = @(src, event) updateVariableSelection(src, event, plot_panel, var_dropdown1, var_dropdown2);
         var_type_dropdown.ValueChangedFcn = @(src, event) updateVariableType(src, event, plot_panel, var_dropdown1, var_dropdown2);
 
+        load_cell_toggle = uibutton(sidebar_grid, "state");
+        load_cell_toggle.Layout.Row = 8;
+        load_cell_toggle.Layout.Column = 1;
+        load_cell_toggle.Text = phaseAvg_UI.get_button_text(false, "Load Cell");
+        load_cell_toggle.FontSize = 18;
+        load_cell_toggle.BackgroundColor = [1 1 1];
+
         load_cell_panel = uipanel(sidebar_grid);
-        load_cell_panel.Layout.Row = 8;
+        load_cell_panel.Layout.Row = 9;
         load_cell_panel.Layout.Column = 1;
         load_cell_panel.Title = "Load Cell";
         load_cell_panel.TitlePosition = 'centertop';
+        load_cell_panel.Visible = "off";
 
         load_cell_grid = uigridlayout(load_cell_panel, [5, 1]);
         load_cell_grid.ColumnWidth = {'1x'};
@@ -349,8 +359,10 @@ methods
         b7.BackgroundColor = [1 1 1];
         b7.ValueChangedFcn = @(src, event) force_sub_change(src, event, plot_panel);
 
+        load_cell_toggle.ValueChangedFcn = @(src, event) load_cell_toggle_change(src, event, load_cell_panel);
+
         b77 = uibutton(sidebar_grid, "state");
-        b77.Layout.Row = 9;
+        b77.Layout.Row = 10;
         b77.Layout.Column = 1;
         b77.Text = "Live Calculate";
         b77.FontSize = 18;
@@ -358,7 +370,7 @@ methods
         b77.ValueChangedFcn = @(src, event) calc_change(src, event, plot_panel);
 
         b88 = uibutton(sidebar_grid, "state");
-        b88.Layout.Row = 10;
+        b88.Layout.Row = 11;
         b88.Layout.Column = 1;
         b88.Text = "Align";
         b88.FontSize = 18;
@@ -366,35 +378,43 @@ methods
         b88.ValueChangedFcn = @(src, event) align_change(src, event, plot_panel);
 
         b99 = uibutton(sidebar_grid, "state");
-        b99.Layout.Row = 11;
+        b99.Layout.Row = 12;
         b99.Layout.Column = 1;
         b99.Text = "Separate Y-Axis";
         b99.FontSize = 18;
         b99.BackgroundColor = [1 1 1];
         b99.ValueChangedFcn = @(src, event) separate_y_axis_change(src, event, plot_panel);
 
+        b100 = uibutton(sidebar_grid, "state");
+        b100.Layout.Row = 13;
+        b100.Layout.Column = 1;
+        b100.Text = "Mean Subtraction";
+        b100.FontSize = 18;
+        b100.BackgroundColor = [1 1 1];
+        b100.ValueChangedFcn = @(src, event) mean_subtraction_change(src, event, plot_panel);
+
 
         % Remaining file output controls.
         fnl = uilabel(sidebar_grid);
-        fnl.Layout.Row = 12;
+        fnl.Layout.Row = 14;
         fnl.Layout.Column = 1;
         fnl.HorizontalAlignment = "center";
         fnl.Text = "File Name";
 
         ef = uieditfield(sidebar_grid);
-        ef.Layout.Row = 13;
+        ef.Layout.Row = 15;
         ef.Layout.Column = 1;
         ef.Placeholder = "test";
 
         % Button to export data on plot to .mat file
         b10 = uibutton(sidebar_grid);
-        b10.Layout.Row = 14;
+        b10.Layout.Row = 16;
         b10.Layout.Column = 1;
         b10.Text = "Export Data";
         b10.ButtonPushedFcn = @(src, event) exportData(src, event, ef);
 
         b4 = uibutton(sidebar_grid);
-        b4.Layout.Row = 15;
+        b4.Layout.Row = 17;
         b4.Layout.Column = 1;
         b4.Text = "Save Fig";
         b4.FontSize = 18;
@@ -477,6 +497,26 @@ methods
             obj.separate_y_axis_bool = src.Value;
             src.BackgroundColor = obj.get_button_color(obj.separate_y_axis_bool);
             obj.update_plot(plot_panel);
+        end
+
+        function mean_subtraction_change(src, ~, plot_panel)
+            obj.mean_subtraction_bool = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.mean_subtraction_bool);
+            obj.update_plot(plot_panel);
+        end
+
+        function load_cell_toggle_change(src, ~, load_cell_panel)
+            src.Text = phaseAvg_UI.get_button_text(src.Value, "Load Cell");
+            src.BackgroundColor = obj.get_button_color(src.Value);
+            row_heights = sidebar_grid.RowHeight;
+            if src.Value
+                load_cell_panel.Visible = "on";
+                row_heights{9} = 180;
+            else
+                load_cell_panel.Visible = "off";
+                row_heights{9} = 0;
+            end
+            sidebar_grid.RowHeight = row_heights;
         end
 
         function addToList(~, ~, plot_panel, lbox)
@@ -895,6 +935,8 @@ methods (Access = private)
             force = force - body_force;
         end
 
+        force = obj.subtract_signal_mean(force);
+
         time_F = 1:length(force);
         time_F = time_F / length(force);
     end
@@ -912,6 +954,12 @@ methods (Access = private)
 
         force_indices = arrayfun(@(index) obj.is_force_index(index), obj.inds);
         dual_plot = obj.separate_y_axis_bool || ~all(force_indices);
+    end
+
+    function signal = subtract_signal_mean(obj, signal)
+        if obj.mean_subtraction_bool && ~isempty(signal)
+            signal = signal - mean(signal);
+        end
     end
 
     function y_label = get_plot_parameter_axis_label(obj)
@@ -1205,6 +1253,8 @@ methods (Access = private)
             if norm_bool
                 var = var / max(var);
             end
+
+            var = obj.subtract_signal_mean(var);
 
             time = 1:length(var);
             time = time / length(var);
