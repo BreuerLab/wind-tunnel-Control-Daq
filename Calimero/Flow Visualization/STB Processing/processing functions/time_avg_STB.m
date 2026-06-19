@@ -1,18 +1,19 @@
-function S = time_avg_STB(file_path, nondim_bool, U, L, num_files, save_filepath_local, PIV_case_name, RPCA_bool)
+function S = time_avg_STB(file_path, nondim_bool, U, L, save_filepath_local, PIV_case_name, RPCA_bool)
     tic;
 
     % wind tunnel properties were not measured for gliding data
     speed = U;
     density = 1.225;
+    num_images = 1000;
 
     % variable preallocation
-    lift_vals = zeros(1,num_files);
-    drag_vals = zeros(1,num_files);
+    lift_vals = zeros(1,num_images);
+    drag_vals = zeros(1,num_images);
     print_dim_bool = true;
 
     fields = get_STB_processing_fields();
     
-    for i = 1:num_files
+    for i = 1:num_images
         % Import data (using a temporary struct or list)
         [x, y, z, data{1:length(fields)}] = import_STB_data(file_path, nondim_bool, U, L, i, RPCA_bool);
         
@@ -42,14 +43,14 @@ function S = time_avg_STB(file_path, nondim_bool, U, L, num_files, save_filepath
         drag_vals(i) = drag.tot;
         
         if mod(i, 100) == 0
-            fprintf('Processed %d/%d\n', i, num_files);
+            fprintf('Processed %d/%d\n', i, num_images);
         end
     end
 
-    % Divide all accumulated fields by num_files to compute average
+    % Divide all accumulated fields by num_images to compute average
     avg_fields = fieldnames(S);
     for f = 1:length(avg_fields)
-        S.(avg_fields{f}) = S.(avg_fields{f}) / num_files;
+        S.(avg_fields{f}) = S.(avg_fields{f}) / num_images;
     end
 
     % Add metadata to the struct

@@ -25,6 +25,8 @@ properties
     downstream_type_by_distance;
 
     num_bins;
+    bin_ind;
+    bin_count;
     frame_ind;
 
     % Plot and variable selection
@@ -44,12 +46,20 @@ properties
 
     % UI handles that callbacks need to update
     var_dropdown;
-    slider;
+    slider_bin;
+    slider_frame;
     
     % Plot settings
     mirror_bool;
     filter_bool;
     trim_bool;
+
+    % Data cache properties
+    cached_bin_ind = -1;
+    cached_case_id = "";
+    cached_y;
+    cached_z;
+    cached_data;
 end
 
 methods
@@ -62,6 +72,8 @@ methods
         obj.phase_avg_file_path = file_path + "Processed Results\phase_avg\";
 
         obj.num_bins = 5;
+        obj.bin_ind = 1;
+        obj.bin_count = 5;
         obj.frame_ind = 1;
 
         obj.plot_types = ["phase avg: movie"];
@@ -93,8 +105,8 @@ methods
                     "Q_x","Q_y","Q_z","|Q|","u_unc","v_unc","w_unc","|unc|","helicity", "# particles",...
                     "du/dx","du/dy","du/dz","dv/dx","dv/dy","dv/dz","dw/dx","dw/dy","dw/dz",...
                     "div", "KE", "power"];
-        movie_3D_avg_values = ["u_phase_avg","v_phase_avg","w_phase_avg","Utot_phase_avg",...
-        "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg","vortTot_phase_avg",...
+        movie_3D_avg_values = ["u","v","w","Utot",...
+        "vortX","vortY","vortZ","vortTot",...
         "Qx","Qy","Qz","Q","uncU_phase_avg","uncV_phase_avg","uncW_phase_avg",...
         "uncTot_phase_avg","hel_phase_avg", "numP_phase_avg",...
         "dudx_phase_avg","dudy_phase_avg","dudz_phase_avg",...
@@ -245,13 +257,25 @@ methods
         frame_slider_width = panel_width * (3/4);
         frame_slider_x = (panel_width - frame_slider_width)/2; % end of right monitor around 1690
         frame_slider_y = 0.05*screen_height;
-        obj.slider = uislider(plot_panel);
-        obj.slider.Position = [frame_slider_x frame_slider_y frame_slider_width 3];
-        obj.slider.Limits = [1 obj.num_bins];
-        obj.slider.Value = obj.frame_ind;
-        obj.slider.MajorTicks = 1:5:obj.num_bins;
-        obj.slider.MinorTicks = 1:obj.num_bins;
-        obj.slider.ValueChangedFcn = @(src, event) frame_change(src, event, plot_panel);
+        obj.slider_bin = uislider(plot_panel);
+        obj.slider_bin.Position = [frame_slider_x frame_slider_y frame_slider_width 3];
+        obj.slider_bin.Limits = [1 obj.num_bins];
+        obj.slider_bin.Value = obj.bin_ind;
+        obj.slider_bin.MajorTicks = 1:5:obj.num_bins;
+        obj.slider_bin.MinorTicks = 1:obj.num_bins;
+        obj.slider_bin.ValueChangedFcn = @(src, event) bin_change(src, event, plot_panel);
+
+        panel_width = option_panel.Position(3);
+        frame_slider_width = panel_width * (3/4);
+        frame_slider_x = (panel_width - frame_slider_width)/2; % end of right monitor around 1690
+        frame_slider_y = filter_button_y - 35;
+        obj.slider_frame = uislider(option_panel);
+        obj.slider_frame.Position = [frame_slider_x frame_slider_y frame_slider_width 3];
+        obj.slider_frame.Limits = [1 obj.bin_count];
+        obj.slider_frame.Value = obj.frame_ind;
+        obj.slider_frame.MajorTicks = 1:5:obj.bin_count;
+        obj.slider_frame.MinorTicks = 1:obj.bin_count;
+        obj.slider_frame.ValueChangedFcn = @(src, event) frame_change(src, event, plot_panel);
 
         save_button_y = 0.05*screen_height;
         save_button = uibutton(option_panel,"state");
@@ -274,8 +298,8 @@ methods
 
             % Force frame slider back to 1 since not all datasets have the
             % same number of frames
-            obj.frame_ind = 1;
-            obj.slider.Value = obj.frame_ind;
+            obj.bin_ind = 1;
+            obj.slider_bin.Value = obj.bin_ind;
 
             obj.update_plot(plot_panel);
         end
@@ -287,8 +311,8 @@ methods
 
             % Force frame slider back to 1 since not all datasets have the
             % same number of frames
-            obj.frame_ind = 1;
-            obj.slider.Value = obj.frame_ind;
+            obj.bin_ind = 1;
+            obj.slider_bin.Value = obj.bin_ind;
 
             obj.update_plot(plot_panel);
         end
@@ -391,6 +415,14 @@ methods
             set(fignew,'CreateFcn','set(gcbf,''Visible'',''on'')'); % Make it visible upon loading
             savefig(fignew,filename);
             delete(fignew);
+        end
+
+        function bin_change(src, ~, plot_panel)
+            % Force the slider value to the nearest integer immediately
+            src.Value = round(src.Value);
+
+            obj.bin_ind = src.Value;
+            obj.update_plot(plot_panel);
         end
 
         function frame_change(src, ~, plot_panel)
@@ -525,14 +557,6 @@ methods (Access = private)
         end
     end
 
-    function file_base = get_current_file_base(obj)
-        file_base = obj.phase_avg_file_path + obj.get_current_case_id() + "_phase_avg";
-    end
-
-    function tf = current_case_has_phase_avg(obj)
-        tf = any(obj.phase_avg_case_ids == obj.get_current_case_id());
-    end
-
     function plot_types = get_available_plot_types_for_current_case(obj)
             plot_types = obj.plot_types;
     end
@@ -545,51 +569,101 @@ methods (Access = private)
         plot_idx = find(obj.plot_types == obj.plot_type);
 
         var_name = obj.variable_name_dict(obj.variable_name);
-        vars = {"L","U","num_bins","cycle_freq","z","y"};
 
         var_clims = obj.get_color_limits(obj.variable_name);
-        cur_secondary_vars = {};
-        if contains(obj.variable_name, obj.secondary_vars)
-            cur_secondary_vars{end+1} = var_name;
-        else
-            vars{end+1} = var_name;
-        end
 
         if strlength(obj.case_name) == 0
             return
         end
 
-        full_file_path = obj.get_current_file_base();
+        RPCA_bool = false;
+        U = 4;
+        L = 0.07; % guess of mean aerodynamic chord
+        x_idx = 3;
 
-        if ~isempty(cur_secondary_vars)
-            d1 = load(full_file_path + "_integral.mat", cur_secondary_vars{:});
-            d2 = load(full_file_path + ".mat", vars{:});
-    
-            % Combine by converting to cell arrays of names/values and back to struct
-            d = cell2struct([struct2cell(d1); struct2cell(d2)], [fieldnames(d1); fieldnames(d2)], 1);
-        else
-            d = load(full_file_path + ".mat", vars{:});
+        PIV_case_name = obj.get_current_case_id();
+        fields = get_STB_processing_fields();
+
+        % Check if the bin_ind or case has changed since the last plot
+        if obj.bin_ind ~= obj.cached_bin_ind || PIV_case_name ~= obj.cached_case_id
+
+        file_path = get_PIV_paths(PIV_case_name);
+
+        % Define the field names in the order they are returned by the function
+        fNames = {'freq_avg', 'norm_time_speed', 'phase_avg_pos', 'phase_std_pos', ...
+                  'phase_avg_speed', 'phase_std_speed',...
+                  'phase_avg_acc', 'phase_std_acc',...
+                  'phase_avg_wing_pos', 'phase_std_wing_pos',...
+                  'phase_avg_wing_speed', 'phase_std_wing_speed',...
+                  'phase_avg_wing_acc', 'phase_std_wing_acc',...
+                  'bin_count_speed', 'bin_std_speed',...
+                  'phase_avg_volt', 'phase_std_volt',...
+                  'phase_avg_cur', 'phase_std_cur'};
+
+        % Capture all outputs into a cell array
+        outputs = cell(1, numel(fNames));
+        [outputs{:}] = speed_phase_avg(PIV_case_name, false);
+        
+        % Map cell array to struct fields
+        for i = 1:numel(fNames)
+            D.(fNames{i}) = outputs{i};
         end
 
+        num_images = 2500;
+        disp("Assuming num images = " + num_images)
+        % get bin number associated with each frame from DAQ measurements
+        [norm_frame_pos, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_freq, num_clusters, phase_spread_ratio]...
+            = frame_to_bin(PIV_case_name, num_images, D.freq_avg, false, false);
+        
+        bin_indices = find(bin_ind_arr == obj.bin_ind);
+        bin_count = length(bin_indices);
+        bin_std = std(norm_frame_pos(bin_indices))*100;
+    
+        % Import data (since bin_ind or case changed)
+        [x, y, z, data{1:length(fields)}] = ...
+            import_STB_data(file_path, true, U, L, bin_indices, RPCA_bool);
+        
         if plot_idx == 1
-            obj.slider.Visible = "on";
+            obj.slider_bin.Visible = "on";
             % Adjust slider for number of bins
-            if d.num_bins ~= obj.num_bins
-                obj.num_bins = d.num_bins;
-                obj.slider.Limits = [1 d.num_bins];
-                obj.slider.MajorTicks = 1:5:d.num_bins;
-                obj.slider.MinorTicks = 1:d.num_bins;
+            if num_bins ~= obj.num_bins
+                obj.num_bins = num_bins;
+                obj.slider_bin.Limits = [1 obj.num_bins];
+                obj.slider_bin.MajorTicks = 1:5:obj.num_bins;
+                obj.slider_bin.MinorTicks = 1:obj.num_bins;
+            end
+            if bin_count ~= obj.bin_count
+                obj.bin_count = bin_count;
+                obj.slider_frame.Limits = [1 obj.bin_count];
+                obj.slider_frame.MajorTicks = 1:5:obj.bin_count;
+                obj.slider_frame.MinorTicks = 1:obj.bin_count;
             end
         else
-            obj.slider.Visible = "off";
+            obj.slider_bin.Visible = "off";
         end
 
-        val = d.(var_name);
-        y = squeeze(d.y(3,:,:));
-        z = squeeze(d.z(3,:,:));
-        val = squeeze(val(3,:,:,:));
+        % Update cache
+        obj.cached_bin_ind = obj.bin_ind;
+        obj.cached_case_id = PIV_case_name;
+        obj.cached_y = y;
+        obj.cached_z = z;
+        obj.cached_data = data;
+    else
+        % Load from cache
+        y = obj.cached_y;
+        z = obj.cached_z;
+        data = obj.cached_data;
+    end
+        
+        % Extract the desired variable
+        val = data{strcmp(fields, var_name)};
 
-        params.U = d.U;
+        % Select a single plane and a single frame
+        y_tr = squeeze(y(x_idx,:,:));
+        z_tr = squeeze(z(x_idx,:,:));
+        val_tr = squeeze(val(x_idx,:,:,obj.frame_ind));
+
+        params.U = U;
 
         if min(var_clims) < -1
             params.zero = -1;
@@ -600,13 +674,13 @@ methods (Access = private)
         end
 
         if obj.trim_bool
-            y_idx = find(y(:,1) > obj.TRIM_Y_BOUNDS(1) & y(:,1) < obj.TRIM_Y_BOUNDS(2));
-            z_idx = find(z(1,:) > obj.TRIM_Z_BOUNDS(1) & z(1,:) < obj.TRIM_Z_BOUNDS(2));
+            y_idx = find(y_tr(:,1) > obj.TRIM_Y_BOUNDS(1) & y_tr(:,1) < obj.TRIM_Y_BOUNDS(2));
+            z_idx = find(z_tr(1,:) > obj.TRIM_Z_BOUNDS(1) & z_tr(1,:) < obj.TRIM_Z_BOUNDS(2));
 
-            y = y(y_idx, z_idx);
-            z = z(y_idx, z_idx);
+            y_tr = y_tr(y_idx, z_idx);
+            z_tr = z_tr(y_idx, z_idx);
 
-            val = val(y_idx,z_idx,:);
+            val_tr = val_tr(y_idx,z_idx);
             
         end
         if obj.mirror_bool
@@ -641,9 +715,8 @@ methods (Access = private)
         params.clims = var_clims;
 
         if plot_idx == 1
-            val_tr = val(:,:,obj.frame_ind);
-            PIV_plot(y, z, val_tr, params, ax);
-            title(ax, ["Bin number: " + obj.frame_ind], FontSize=18);
+            PIV_plot(y_tr, z_tr, val_tr, params, ax);
+            title(ax, "Bin number: " + obj.bin_ind + ", frame number: " + obj.frame_ind, FontSize=18);
         end
     end
 
