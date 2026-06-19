@@ -14,7 +14,6 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density)
     vortY = D.vortY / (L/U);
     vortZ = D.vortZ / (L/U);
     end
-    dudy = D.dudy * (U/L);
 
     unc = D.unc;
 
@@ -148,7 +147,7 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density)
             % x_cur = x - x(i);
             % x_reshape_cur = reshape(x_cur, 1, size(x,1), size(x,2));
 
-            term3 = vortY_shifted;
+            term3 = vortY_shifted .* (-u);
             % term3 = vortY_shifted .* x_reshape_cur;
 
             % x_tr = x(x < 0.7);
@@ -190,6 +189,9 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density)
         % lift_wx = 2 * density * lift_wx_F_T' * (1 / (dt*length(x)));
 
         % expression from June 10th 2026
+        % lift_wy_F = 2 * density * lift_wy_F' * (1 / (dt*length(x)));
+
+        % expression from June 19th 2026
         lift_wy_F = 2 * density * lift_wy_F' * (1 / (dt*length(x)));
 
         % lift_wx_F_T = 2 * density * lift_wx_F_T' * (1 / (dt*length(x)));

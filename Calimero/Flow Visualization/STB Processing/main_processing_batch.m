@@ -19,7 +19,7 @@ down_dist = [0, 1, 2]; % 0 - closest to FoV, 2 - furthest from FoV
 % down_dist = [0]; % 0 - closest to FoV, 2 - furthest from FoV
 bools.nondim = true; % non-dimensionalize data
 bools.RPCA = false; % RPCA filtering of vector fields
-bools.proc_vel = true; % false if just calculating secondary values
+bools.proc_vel = false; % false if just calculating secondary values
 
 % If you want to make plots here, you can. However, it is NOT recommended.
 % Intead, use main_analysis to produce plots easily in a GUI interface.
@@ -35,14 +35,14 @@ sel_case_names = [];
 for i = 1:length(case_names)
     cur_name = case_names{i};
     % for phase averaged cases
-    % is_valid_base = ~contains(cur_name, "turbine") && ...
-    %             contains(cur_name, "flexible") && ...
-    %             ~contains(cur_name, "0Hz");
+    is_valid_base = ~contains(cur_name, "turbine") && ...
+                contains(cur_name, "flexible") && ...
+                ~contains(cur_name, "0Hz");
 
     % for time averaged cases
-    is_valid_base = ~contains(cur_name, "turbine") && ...
-                    (~contains(cur_name, "flexible") || ...
-                    contains(cur_name, "0Hz"));
+    % is_valid_base = ~contains(cur_name, "turbine") && ...
+    %                 (~contains(cur_name, "flexible") || ...
+    %                 contains(cur_name, "0Hz"));
 
     if is_valid_base
         is_match = false;

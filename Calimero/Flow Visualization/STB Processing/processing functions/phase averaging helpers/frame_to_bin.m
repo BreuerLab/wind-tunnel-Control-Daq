@@ -1,4 +1,4 @@
-function [norm_signal, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_freq] ...
+function [norm_signal, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_freq, num_clusters, phase_spread_ratio] ...
     = frame_to_bin(PIV_case_name, num_images, freq_cor, turbine_bool, plot_bool)
 
 [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name);
@@ -158,13 +158,14 @@ t_phase_zero = norm_signal(I);
 norm_signal(norm_signal < t_phase_zero) = norm_signal(norm_signal < t_phase_zero) + 1;
 norm_signal = norm_signal - t_phase_zero;
 
-if phase_type == 0
-    tick_frame_pos = round(norm_signal * pulsesPerRev,3);
-    full_cycle = 0.5:1:pulsesPerRev + 0.5;
-else
-    tick_frame_pos = zeros(size(norm_signal));
-    full_cycle = zeros(size(norm_signal));
-end
+tick_frame_pos = round(norm_pos * pulsesPerRev,3);
+full_cycle = 0.5:1:pulsesPerRev + 0.5;
+
+gap_thresh = 2;
+
+num_clusters = sum(diff(unique(tick_frame_pos)) > gap_thresh);
+
+phase_spread_ratio = length(unique(tick_frame_pos)) / length(tick_frame_pos);
 
 bins_list = 20:5:125;
 minFrames = 10;

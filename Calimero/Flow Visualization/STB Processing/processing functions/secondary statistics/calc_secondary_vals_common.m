@@ -79,6 +79,11 @@ S.hel_avg = mean(T.hel, [1, 2]);
 S.dudx_avg = mean(T.dudx, [1, 2]);
 S.dvdx_avg = mean(T.dvdx, [1, 2]);
 S.dwdx_avg = mean(T.dwdx, [1, 2]);
+
+% Vortex centroids
+S.wx_z = integrate_planar(y_arr, z_arr, z_tr .* T.vortX) ./ integrate_planar(y_arr, z_arr, T.vortX);
+S.wx_y = integrate_planar(y_arr, z_arr, y_tr .* T.vortX) ./ integrate_planar(y_arr, z_arr, T.vortX);
+
 end
 
 function config = set_defaults(config)
