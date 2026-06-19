@@ -14,16 +14,12 @@ end
 properties
     % Display and dataset selection
     mon_num;
-    file_path;
     phase_avg_file_path;
     time_avg_file_path;
-    file_suffix;
     source_mode;
     source_modes;
     case_name;
     case_name_list;
-    flapper_case_name_list;
-    turbine_case_name_list;
     phase_flapper_case_name_list;
     phase_turbine_case_name_list;
     time_flapper_case_name_list;
@@ -37,7 +33,6 @@ properties
 
     num_bins;
     frame_ind;
-    play;
 
     % Plot and variable selection
     plot_type;
@@ -45,60 +40,24 @@ properties
     variable_name;
     var_name_list;
     movie_3D_avg_vars;
-    movie_3D_std_vars;
-    hist_vars;
-    freq_vars;
-    force_vars;
 
     variable_name_dict;
     time_avg_var_name_dict;
     label_dict;
 
-    std_var_name_dict;
-    std_label_dict;
-
-    hist_var_name_dict;
-    hist_label_dict;
-
-    freq_var_name_dict;
-    freq_label_dict;
-
-    force_var_name_dict;
-    force_label_dict;
-
-    dict_B;
-
-    % Color limits for each variable list
+    % Color limits
     clims;
     clim_dict;
     mean_clims;
-    mean_clim_dict;
-    std_clims;
-    std_clim_dict;
-    clim_scale;
 
     % UI handles that callbacks need to update
-    param_panel;
     var_dropdown;
-    clim_slider;
     slider;
-    play_button;
-    iso_slider;
     
-    % 3D plot settings
-    plot_hold_bool;
-    iso_val;
-    iso_var;
-    iso_var_list;
+    % Plot settings
     mirror_bool;
     filter_bool;
     trim_bool;
-    num_cycles;
-    extrapolate_bool;
-    floor_bool;
-    thresh;
-    q_mask_bool;
-    q_mask_thresh;
 end
 
 methods
@@ -110,35 +69,17 @@ methods
         obj.variable_name = "";
         obj.phase_avg_file_path = file_path + "Processed Results\phase_avg\";
         obj.time_avg_file_path = file_path + "Processed Results\time_avg\";
-        obj.file_path = obj.phase_avg_file_path;
         obj.source_modes = strings(0);
         obj.source_mode = "";
 
         obj.num_bins = 5;
         obj.frame_ind = 1;
-        obj.play = false;
 
         obj.plot_types = ["time avg", "phase avg: movie"];
         obj.plot_type = obj.plot_types(1);
-        obj.plot_hold_bool = false;
-        obj.iso_var_list = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
-                            "Q_x","Q_y","Q_z","|Q|", "helicity",...
-                            "du/dx","du/dy","du/dz","dv/dx","dv/dy",...
-                            "dv/dz","dw/dx","dw/dy","dw/dz"];
-        obj.iso_var = "|Q|";
-        obj.iso_val = 0.05;
-        % obj.iso_val = -0.05;
         obj.mirror_bool = false;
         obj.filter_bool = false;
-        obj.num_cycles = 1;
         obj.trim_bool = true;
-        obj.extrapolate_bool = false;
-        obj.floor_bool = false;
-        obj.thresh = 0.1;
-        obj.q_mask_bool = false;
-        obj.q_mask_thresh = 0.025;
-
-        obj.file_suffix = "_phase_avg";
 
         phase_avg_files = dir(obj.phase_avg_file_path + "*.mat");
         time_avg_files = dir(obj.time_avg_file_path + "*.mat");
@@ -172,8 +113,6 @@ methods
         end
         obj.source_mode = obj.source_modes(1);
         obj.case_name_list = obj.get_case_name_list_for_active_plot_type();
-        obj.flapper_case_name_list = obj.get_case_name_list("flapper", obj.plot_type);
-        obj.turbine_case_name_list = obj.get_case_name_list("turbine", obj.plot_type);
 
         obj.movie_3D_avg_vars = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
                     "Q_x","Q_y","Q_z","|Q|","u_unc","v_unc","w_unc","|unc|","helicity", "# particles",...
@@ -196,25 +135,6 @@ methods
         "mean_dwdx","mean_dwdy","mean_dwdz",...
         "div", "KE_diff_field", "power_field"];
         
-        obj.movie_3D_std_vars = [obj.movie_3D_avg_vars(1:8) obj.movie_3D_avg_vars(13:end)];
-        movie_3D_std_values = [movie_3D_avg_values(1:8) movie_3D_avg_values(13:end)];
-        movie_3D_std_values = strrep(movie_3D_std_values,"avg","std");
-        % ["u_phase_std","v_phase_std","w_phase_std","Utot_phase_std",...
-        % "vortX_phase_std","vortY_phase_std","vortZ_phase_std","vortTot_phase_std",...
-        % "uncU_phase_std","uncV_phase_std","uncW_phase_std","uncTot_phase_std","hel_phase_std", "numP_phase_std"];
-
-        obj.hist_vars = ["bin counts","bin SD","distribution"];
-        hist_vals = ["bin_count", "bin_std","tick_frame_pos"];
-        hist_labels = ["Number of frames per bin", "Phase variability per bin (% cycle)","Number of frames per tick"];
-
-        obj.freq_vars = ["frequency","bin counts", "bin SD"];
-        freq_vals = ["phase_avg_speed", "bin_count_speed", "bin_std_speed"];
-        freq_labels = ["Wingbeat Frequency (Hz)", "Number of samples per bin", "Phase variability per bin (% cycle)"];
-
-        obj.force_vars = ["lift_vort", "lift_vel", "drag_vort", "drag_vel"];
-        force_vals = ["lift", "lift_vel", "drag", "drag_vel"];
-        force_labels = ["Lift (N)", "Lift (N)", "Drag (N)", "Drag (N)"];
-
         obj.var_name_list = obj.movie_3D_avg_vars;
         obj.mean_clims = [-1.1, -0.9;...
                      -0.2, 0.2;...
@@ -247,39 +167,8 @@ methods
                       0, 0.1;
                       0, 0.1];
 
-        % for std plots
-        obj.std_clims = [0, 0.1;...
-                     0, 0.1;...
-                      0, 0.1;...
-                      0, 0.1;...
-                      0, 1;...
-                      0, 1;...
-                      0, 1;...
-                      0, 1;...
-                      0, 0.02;...
-                      0, 0.02;...
-                      0, 0.02;...
-                      0, 0.02;...
-                      -1, 1;...
-                      0, 50;
-                      -1, 1;
-                      -1, 1;
-                      -1, 1;
-                      -1, 1;
-                      -1, 1;
-                      -1, 1;
-                      -1, 1;
-                      -1, 1;
-                      -1, 1;
-                      -1, 1;
-                      0, 0.1;
-                      0, 0.1];
-
-        obj.mean_clim_dict = obj.build_clim_dict(obj.movie_3D_avg_vars, obj.mean_clims);
-        obj.std_clim_dict = obj.build_clim_dict(obj.movie_3D_std_vars, obj.std_clims);
         obj.clims = obj.mean_clims;
-        obj.clim_dict = obj.mean_clim_dict;
-        obj.clim_scale = 2;
+        obj.clim_dict = obj.build_clim_dict(obj.movie_3D_avg_vars, obj.mean_clims);
         movie_3D_avg_labels = ["\boldmath$\frac{u c}{U_{\infty}}$",...
                             "\boldmath$\frac{v c}{U_{\infty}}$",...
                             "\boldmath$\frac{w c}{U_{\infty}}$",...
@@ -305,7 +194,6 @@ methods
                             "\boldmath$\frac{\partial w}{\partial z} \frac{c}{U_{\infty}}$",...
                             "\boldmath$\nabla \cdot u \frac{c}{U_{\infty}}$",...
                             "KE","power"];
-        movie_3D_std_labels = [movie_3D_avg_labels(1:8) movie_3D_avg_labels(13:end)];
 
         keys = cellstr(obj.movie_3D_avg_vars);
         values = movie_3D_avg_values;
@@ -313,26 +201,6 @@ methods
         obj.variable_name_dict = containers.Map(keys, values);
         obj.time_avg_var_name_dict = containers.Map(keys, time_avg_values);
         obj.label_dict = containers.Map(keys, labels);
-
-        std_keys = cellstr(obj.movie_3D_std_vars);
-        obj.std_var_name_dict = containers.Map(std_keys, movie_3D_std_values);
-        obj.std_label_dict = containers.Map(std_keys, movie_3D_std_labels);
-
-        hist_keys = cellstr(obj.hist_vars);
-        obj.hist_var_name_dict = containers.Map(hist_keys, hist_vals);
-        obj.hist_label_dict = containers.Map(hist_keys, hist_labels);
-
-        freq_keys = cellstr(obj.freq_vars);
-        obj.freq_var_name_dict = containers.Map(freq_keys, freq_vals);
-        obj.freq_label_dict = containers.Map(freq_keys, freq_labels);
-
-        force_keys = cellstr(obj.force_vars);
-        obj.force_var_name_dict = containers.Map(force_keys, force_vals);
-        obj.force_label_dict = containers.Map(force_keys, force_labels);
-
-        keys_B = cellstr(movie_3D_avg_values(1:3));
-        vals_B = ["velX_B", "velY_B", "velZ_B"];
-        obj.dict_B = containers.Map(keys_B, vals_B);
     end
 
     % Builds figure with all UI elements and defines all callback
@@ -435,34 +303,11 @@ methods
 
         % Callbacks are nested so each handler mutates this handle object.
 
-        function source_change(src, ~, plot_panel)
-            previous_plot_type = obj.plot_type;
-            obj.source_mode = src.Value;
-            if obj.source_mode == "turbine"
-                distance_dropdown.Visible = "off";
-            else
-                distance_dropdown.Visible = "on";
-                obj.current_downstream_type = string(obj.downstream_type_by_distance(distance_dropdown.Value));
-            end
-
-            refresh_case_dropdown();
-            refresh_plot_type_dropdown();
-            refresh_variable_dropdown(previous_plot_type);
-
-            % Force frame slider back to 1 since not all datasets have the
-            % same number of frames
-            obj.frame_ind = 1;
-            obj.slider.Value = obj.frame_ind;
-
-            obj.update_plot(plot_panel);
-        end
-
         function distance_change(src, ~, plot_panel)
-            previous_plot_type = obj.plot_type;
             obj.current_downstream_type = string(obj.downstream_type_by_distance(src.Value));
             refresh_case_dropdown();
             refresh_plot_type_dropdown();
-            refresh_variable_dropdown(previous_plot_type);
+            refresh_variable_dropdown();
 
             % Force frame slider back to 1 since not all datasets have the
             % same number of frames
@@ -473,10 +318,9 @@ methods
         end
 
         function case_change(src, ~, plot_panel)
-            previous_plot_type = obj.plot_type;
             obj.case_name = string(src.Value);
             refresh_plot_type_dropdown();
-            refresh_variable_dropdown(previous_plot_type);
+            refresh_variable_dropdown();
 
             % Force frame slider back to 1 since not all datasets have the
             % same number of frames
@@ -488,13 +332,11 @@ methods
 
         % User selected a new plot type.
         function type_change(src, ~, plot_panel)
-            previous_plot_type = obj.plot_type;
             obj.plot_type = src.Value;
-            obj.plot_hold_bool = false;
 
             refresh_case_dropdown();
             refresh_plot_type_dropdown();
-            refresh_variable_dropdown(previous_plot_type);
+            refresh_variable_dropdown();
 
             obj.update_plot(plot_panel);
         end
@@ -502,7 +344,6 @@ methods
         % User selected a new variable to plot.
         function variable_change(src, ~, plot_panel)
             obj.variable_name = src.Value;
-            obj.update_color_limit_slider();
             obj.update_plot(plot_panel);
         end
 
@@ -530,66 +371,14 @@ methods
             plot_type_dropdown.Value = obj.plot_type;
         end
 
-        function refresh_variable_dropdown(previous_plot_type)
-            movie_like_plots = obj.plot_types([1 2 4 8]);
-            plot_family_changed = ~(ismember(previous_plot_type, movie_like_plots) && ...
-                ismember(obj.plot_type, movie_like_plots));
-
-            if plot_family_changed
-                if strcmp(obj.plot_type, obj.plot_types(3))
-                    obj.var_name_list = obj.movie_3D_std_vars;
-                elseif strcmp(obj.plot_type, obj.plot_types(5))
-                    obj.var_name_list = obj.hist_vars;
-                elseif strcmp(obj.plot_type, obj.plot_types(6))
-                    obj.var_name_list = obj.freq_vars;
-                elseif strcmp(obj.plot_type, obj.plot_types(7))
-                    obj.var_name_list = obj.force_vars;
-                else
-                    obj.var_name_list = obj.movie_3D_avg_vars;
-                end
-                obj.var_dropdown.Items = obj.var_name_list;
+        function refresh_variable_dropdown()
+            obj.var_name_list = obj.movie_3D_avg_vars;
+            obj.var_dropdown.Items = obj.var_name_list;
+            if ~any(obj.var_name_list == obj.variable_name)
                 obj.variable_name = obj.var_dropdown.Value;
-            end
-
-            obj.set_active_color_limit_set();
-            obj.update_color_limit_slider();
-
-            if strcmp(obj.plot_type, obj.plot_types(4))
-                obj.param_panel.Visible = "on";
             else
-                obj.param_panel.Visible = "off";
+                obj.var_dropdown.Value = obj.variable_name;
             end
-        end
-
-        function clim_change(src, ~, plot_panel)
-            ticks = obj.clim_slider.MinorTicks;
-
-            % ensure that slider snapped to minor tick value
-            newMin = interp1(ticks, ticks, src.Value(1), 'nearest', 'extrap');
-            newMax = interp1(ticks, ticks, src.Value(2), 'nearest', 'extrap');
-            
-            % Update the slider to the snapped positions
-            src.Value = [newMin, newMax];
-    
-            % update color limits
-            obj.set_color_limits(obj.variable_name, [src.Value(1) src.Value(2)]);
-    
-            obj.update_plot(plot_panel);
-        end
-
-        % User toggled movie playback.
-        function playStop_change(src, ~, plot_panel)
-            if (src.Value)
-                obj.play = true;
-                src.BackgroundColor = obj.ACTIVE_COLOR;
-                src.Text = "Stop";
-            else
-                obj.play = false;
-                src.BackgroundColor = obj.INACTIVE_COLOR;
-                src.Text = "Play";
-            end
-
-            obj.update_plot(plot_panel);
         end
 
         % User toggled trimming to the wake region.
@@ -605,42 +394,6 @@ methods
             obj.update_plot(plot_panel);
         end
 
-        function iso_change(src, ~, plot_panel)
-            precision = 0.005;
-            % Force the slider value to the nearest integer immediately
-            src.Value = round(src.Value / precision) * precision;
-
-            obj.iso_val = src.Value;
-            obj.update_plot(plot_panel);
-        end
-
-        % User selected new desired isosurface variable for 3D plot
-        function iso_var_change(src, ~, plot_panel)
-            obj.iso_var = src.Value;
-
-            new_limits = obj.get_color_limits(obj.iso_var);
-            range_width = new_limits(2) - new_limits(1);
-
-            obj.iso_slider.Limits = new_limits;
-            obj.iso_val = mean(new_limits) + range_width/4;
-            obj.iso_slider.Value = obj.iso_val;
-            
-            % Aim for roughly five major ticks using a readable interval.
-            raw_step = range_width / 5;
-            magnitude = 10^floor(log10(raw_step));
-            clean_step = round(raw_step / magnitude) * magnitude;
-            
-            % Start ticks at a multiple of the step.
-            first_tick = ceil(new_limits(1) / clean_step) * clean_step;
-            obj.iso_slider.MajorTicks = first_tick : clean_step : new_limits(2);
-            
-            obj.iso_slider.MinorTicks = first_tick : (clean_step / 5) : new_limits(2);
-
-            obj.update_plot(plot_panel);
-        end
-
-        % User pressed mirror button to mirror 3D wake to reconstruct left
-        % wing
         function mirror_change(src, ~, plot_panel)
             if (src.Value)
                 obj.mirror_bool = true;
@@ -665,73 +418,6 @@ methods
             obj.update_plot(plot_panel);
         end
 
-        function extrapolate_change(src, ~, plot_panel)
-            if (src.Value)
-                obj.extrapolate_bool = true;
-                src.BackgroundColor = obj.ACTIVE_COLOR;
-            else
-                obj.extrapolate_bool = false;
-                src.BackgroundColor = obj.INACTIVE_COLOR;
-            end
-
-            obj.update_plot(plot_panel);
-        end
-
-        function floor_change(src, ~, plot_panel)
-            if (src.Value)
-                obj.floor_bool = true;
-                src.BackgroundColor = obj.ACTIVE_COLOR;
-            else
-                obj.floor_bool = false;
-                src.BackgroundColor = obj.INACTIVE_COLOR;
-            end
-
-            obj.update_plot(plot_panel);
-        end
-
-        function thresh_change(src, ~, plot_panel)
-            obj.thresh = src.Value;
-            obj.update_plot(plot_panel);
-        end
-
-        function q_mask_change(src, ~, plot_panel)
-            if (src.Value)
-                obj.q_mask_bool = true;
-                src.BackgroundColor = obj.ACTIVE_COLOR;
-            else
-                obj.q_mask_bool = false;
-                src.BackgroundColor = obj.INACTIVE_COLOR;
-            end
-
-            obj.update_plot(plot_panel);
-        end
-
-        function q_mask_thresh_change(src, ~, plot_panel)
-            obj.q_mask_thresh = src.Value;
-            obj.update_plot(plot_panel);
-        end
-
-        function view_change_handler(event, plot_panel)
-            selected_text = event.NewValue.Text;
-
-            ax = findobj(plot_panel.Children, 'Type', 'axes');
-            
-            switch selected_text
-                case "+xz"
-                    view(ax, [0 0 1])
-                case "+xy"
-                    view(ax, [1 0 0])
-                case "+yz"
-                    view(ax, [0 1 0])
-                case "-xz"
-                    view(ax, [0 0 -1])
-                case "-xy"
-                    view(ax, [-1 0 0])
-                case "-yz"
-                    view(ax, [0 -1 0])
-            end
-        end
-
         function save_figure(~, ~, plot_panel)
             ax = findobj(plot_panel.Children, 'Type', 'axes');
             cb = findobj(plot_panel.Children, 'Type', 'colorbar');
@@ -742,14 +428,6 @@ methods
             set(fignew,'CreateFcn','set(gcbf,''Visible'',''on'')'); % Make it visible upon loading
             savefig(fignew,filename);
             delete(fignew);
-        end
-
-        function num_cycles_change(src, ~, plot_panel)
-            % Force the slider value to the nearest integer immediately
-            src.Value = round(src.Value);
-
-            obj.num_cycles = src.Value;
-            obj.update_plot(plot_panel);
         end
 
         function frame_change(src, ~, plot_panel)
@@ -960,84 +638,25 @@ methods (Access = private)
     % Update the active plot after a selection or display setting changes.
     function update_plot(obj, plot_panel)
         ax = findobj(plot_panel.Children, 'Type', 'axes');
-
-        % Reuse the existing 3D patch when only its surface data changes.
-        if obj.plot_hold_bool
-            p = findobj(ax, 'Type', 'patch');
-        else
-            delete(ax);
-        end
+        delete(ax);
 
         plot_idx = find(obj.plot_types == obj.plot_type);
         using_time_avg_file = obj.is_time_avg_file_selected();
-        use_extrapolated_data = obj.extrapolate_bool && ~using_time_avg_file;
-        q_mask_enabled = obj.q_mask_bool && ismember(plot_idx, [1, 2]) && ~use_extrapolated_data;
-        q_mask_var_name = "Q";
 
-        cur_secondary_vars = {};
-
-        if ismember(plot_idx, [1, 2, 4, 8])
-            if using_time_avg_file
-                var_name = obj.time_avg_var_name_dict(obj.variable_name);
-                vars = {"L","U","z","y"};
-            else
-                var_name = obj.variable_name_dict(obj.variable_name);
-                vars = {"L","U","num_bins","cycle_freq","z","y"};
-            end
-            var_clims = obj.get_color_limits(obj.variable_name);
-
-            if use_extrapolated_data
-                var_name = obj.dict_B(var_name);
-                vars = {"L","U","num_bins","cycle_freq"};
-                cur_secondary_vars = {"z_B","y_B"};
-            end
-
-            if contains(obj.variable_name, obj.secondary_vars) || use_extrapolated_data
-                cur_secondary_vars{end+1} = var_name;
-            else
-                vars{end+1} = var_name;
-            end
-
-            if q_mask_enabled && ~any(strcmp(string(cur_secondary_vars), q_mask_var_name))
-                cur_secondary_vars{end+1} = q_mask_var_name;
-            end
+        if using_time_avg_file
+            var_name = obj.time_avg_var_name_dict(obj.variable_name);
+            vars = {"L","U","z","y"};
+        else
+            var_name = obj.variable_name_dict(obj.variable_name);
+            vars = {"L","U","num_bins","cycle_freq","z","y"};
         end
-        
-        if plot_idx == 4 || plot_idx == 8 % 3D plot
-            iso_var_name = obj.variable_name_dict(obj.iso_var);
 
-            if contains(obj.iso_var, obj.secondary_vars)
-                cur_secondary_vars{end+1} = iso_var_name;
-            else
-                vars{end+1} = iso_var_name;
-            end
-        elseif plot_idx == 3
-            var_name = obj.std_var_name_dict(obj.variable_name);
-            var_clims = obj.get_color_limits(obj.variable_name);
-
-            vars = {"L","U","num_bins","cycle_freq","z","y",var_name};
-        elseif plot_idx == 5
-            var_name = obj.hist_var_name_dict(obj.variable_name);
-
-            vars = {var_name};
-            if (obj.variable_name == obj.hist_vars(3))
-                x_var_name = "full_cycle";
-                vars{end+1} = x_var_name;
-            end
-        elseif plot_idx == 6
-            var_name = obj.freq_var_name_dict(obj.variable_name);
-
-            vars = {var_name};
-            if obj.variable_name == obj.freq_vars(1)
-                x_var_name = "norm_time_speed";
-                cur_secondary_vars{end+1} = x_var_name;
-                std_name = "phase_std_speed";
-                cur_secondary_vars{end+1} = std_name;
-            end
-        elseif plot_idx == 7
-            var_name = obj.force_var_name_dict(obj.variable_name);
-            vars = {"L","U","y","z","u_phase_avg","w_phase_avg",...
-                "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg"};
+        var_clims = obj.get_color_limits(obj.variable_name);
+        cur_secondary_vars = {};
+        if contains(obj.variable_name, obj.secondary_vars)
+            cur_secondary_vars{end+1} = var_name;
+        else
+            vars{end+1} = var_name;
         end
 
         if strlength(obj.case_name) == 0
@@ -1056,9 +675,8 @@ methods (Access = private)
             d = load(full_file_path + ".mat", vars{:});
         end
 
-        if plot_idx == 2 || plot_idx == 3 || plot_idx == 4
+        if plot_idx == 2
             obj.slider.Visible = "on";
-            obj.play_button.Visible = "on";
             % Adjust slider for number of bins
             if d.num_bins ~= obj.num_bins
                 obj.num_bins = d.num_bins;
@@ -1068,330 +686,90 @@ methods (Access = private)
             end
         else
             obj.slider.Visible = "off";
-            obj.play_button.Visible = "off";
         end
 
-        if plot_idx ~= 7
-            val = d.(var_name);
+        val = d.(var_name);
+        y = squeeze(d.y(3,:,:));
+        z = squeeze(d.z(3,:,:));
+        if using_time_avg_file
+            val = squeeze(val(3,:,:));
+        else
+            val = squeeze(val(3,:,:,:));
         end
 
-        if q_mask_enabled
-            q_mask_val = d.(q_mask_var_name);
+        params.U = d.U;
+
+        if min(var_clims) < -1
+            params.zero = -1;
+        elseif min(var_clims) < 0.5
+            params.zero = 0;
+        else
+            params.zero = 1;
         end
 
-        if ismember(plot_idx, [1, 2, 3, 4, 8])
-            if use_extrapolated_data
-                y = d.y_B;
-                z = d.z_B;
-                val = permute(val, [2 3 1]); % time dimension moved
-                if contains(var_name, "X")
-                    val = val - 1; % add back freestream
-                end
-            elseif using_time_avg_file
-                y = squeeze(d.y(3,:,:));
-                z = squeeze(d.z(3,:,:));
-                val = squeeze(val(3,:,:));
-                if q_mask_enabled
-                    q_mask_val = squeeze(q_mask_val(3,:,:));
-                end
+        if obj.trim_bool
+            y_idx = find(y(:,1) > obj.TRIM_Y_BOUNDS(1) & y(:,1) < obj.TRIM_Y_BOUNDS(2));
+            z_idx = find(z(1,:) > obj.TRIM_Z_BOUNDS(1) & z(1,:) < obj.TRIM_Z_BOUNDS(2));
+
+            y = y(y_idx, z_idx);
+            z = z(y_idx, z_idx);
+            if using_time_avg_file
+                val = val(y_idx,z_idx);
             else
-                y = squeeze(d.y(3,:,:));
-                z = squeeze(d.z(3,:,:));
-                val = squeeze(val(3,:,:,:));
-                if q_mask_enabled
-                    q_mask_val = squeeze(q_mask_val(3,:,:,:));
-                end
-            end
-
-            params.U = d.U;
-
-            if min(var_clims) < -1
-                params.zero = -1;
-            elseif min(var_clims) < 0.5
-                params.zero = 0;
-            else
-                params.zero = 1;
-            end
-    
-            cFlip = false;
-            if plot_idx == 4
-                if any(contains(["v","ω_z","ω_x"],obj.variable_name))
-                    cFlip = true;
-                end
-            end
-
-            if obj.trim_bool && ~use_extrapolated_data
-                y_idx = find(y(:,1) > obj.TRIM_Y_BOUNDS(1) & y(:,1) < obj.TRIM_Y_BOUNDS(2));
-                z_idx = find(z(1,:) > obj.TRIM_Z_BOUNDS(1) & z(1,:) < obj.TRIM_Z_BOUNDS(2));
-                
-                y = y(y_idx, z_idx);
-                z = z(y_idx, z_idx);
-                if using_time_avg_file
-                    val = val(y_idx,z_idx);
-                    if q_mask_enabled
-                        q_mask_val = q_mask_val(y_idx,z_idx);
-                    end
-                else
-                    val = val(y_idx,z_idx,:);
-                    if q_mask_enabled
-                        q_mask_val = q_mask_val(y_idx,z_idx,:);
-                    end
-                end
-            end
-            if obj.mirror_bool && ~use_extrapolated_data
-                % Mirror across the centerline to reconstruct the opposite side of the wake.
-                y_idx_m = find(y(:,1) > obj.MIRROR_CENTER_Y);
-                
-                y = y(y_idx_m, :);
-                z = z(y_idx_m, :);
-                if using_time_avg_file
-                    val = val(y_idx_m,:);
-                    if q_mask_enabled
-                        q_mask_val = q_mask_val(y_idx_m,:);
-                    end
-                else
-                    val = val(y_idx_m,:,:);
-                    if q_mask_enabled
-                        q_mask_val = q_mask_val(y_idx_m,:,:);
-                    end
-                end
-                
-                % Shift so the mirror center is the origin.
-                y = y - min(y, [], "all");
-                
-                % Reflect and skip the first row to avoid double-counting the centerline.
-                y_add = flip(-y(2:end,:),1);
-                z_add = flip(z(2:end,:),1);
-                if cFlip
-                    if using_time_avg_file
-                        val_add = flip(-val(2:end,:),1);
-                    else
-                        val_add = flip(-val(2:end,:,:),1);
-                    end
-                else
-                    if using_time_avg_file
-                        val_add = flip(val(2:end,:),1);
-                    else
-                        val_add = flip(val(2:end,:,:),1);
-                    end
-                end
-                y = [y_add; y];
-                z = [z_add; z];
-                val = [val_add; val]; 
-                if q_mask_enabled
-                    if using_time_avg_file
-                        q_mask_val_add = flip(q_mask_val(2:end,:),1);
-                    else
-                        q_mask_val_add = flip(q_mask_val(2:end,:,:),1);
-                    end
-                    q_mask_val = [q_mask_val_add; q_mask_val];
-                end
-            end
-
-            if obj.filter_bool
-                if using_time_avg_file
-                    val = medfilt2(val);
-                    if q_mask_enabled
-                        q_mask_val = medfilt2(q_mask_val);
-                    end
-                else
-                    val = medfilt3(val);
-                    if q_mask_enabled
-                        q_mask_val = medfilt3(q_mask_val);
-                    end
-                end
-            end
-
-            if obj.floor_bool
-                val(val < (params.zero + obj.thresh) & val > (params.zero - obj.thresh)) = params.zero;
-            end
-
-            if q_mask_enabled && plot_idx == 2
-                val(q_mask_val <= obj.q_mask_thresh) = NaN;
+                val = val(y_idx,z_idx,:);
             end
         end
+        if obj.mirror_bool
+            % Mirror across the centerline to reconstruct the opposite side of the wake.
+            y_idx_m = find(y(:,1) > obj.MIRROR_CENTER_Y);
 
-        if plot_idx == 4 || plot_idx == 8
-            Q = d.(iso_var_name);
-            Q = squeeze(Q(3,:,:,:));
+            y = y(y_idx_m, :);
+            z = z(y_idx_m, :);
+            if using_time_avg_file
+                val = val(y_idx_m,:);
+            else
+                val = val(y_idx_m,:,:);
+            end
 
-            if obj.trim_bool
-                Q = Q(y_idx,z_idx,:);
+            % Shift so the mirror center is the origin.
+            y = y - min(y, [], "all");
+
+            % Reflect and skip the first row to avoid double-counting the centerline.
+            y_add = flip(-y(2:end,:),1);
+            z_add = flip(z(2:end,:),1);
+            if using_time_avg_file
+                val_add = flip(val(2:end,:),1);
+            else
+                val_add = flip(val(2:end,:,:),1);
             end
-            if obj.mirror_bool
-                Q = Q(y_idx_m,:,:);
-                Q_add = flip(Q(2:end,:,:),1);
-                Q = [Q_add; Q];
-            end
-            if obj.filter_bool
-                Q = medfilt3(Q);
+            y = [y_add; y];
+            z = [z_add; z];
+            val = [val_add; val];
+        end
+
+        if obj.filter_bool
+            if using_time_avg_file
+                val = medfilt2(val);
+            else
+                val = medfilt3(val);
             end
         end
         
-        % Create a fresh axes unless the 3D patch can be updated in place.
-        if ~obj.plot_hold_bool
-            ax = axes(plot_panel);
-        end
-
-        switch plot_idx
-        case {1,2,4}
-            params.cb_lab = obj.label_dict(obj.variable_name);
-        case 3
-            params.cb_lab = obj.std_label_dict(obj.variable_name);
-        end
-
-        if plot_idx == 1
-            params.clims = var_clims;
-
-            if using_time_avg_file
-                mean_val = val;
-                if q_mask_enabled
-                    q_mask_plot_val = q_mask_val;
-                end
-            else
-                mean_val = mean(val,3);
-                if q_mask_enabled
-                    q_mask_plot_val = mean(q_mask_val,3);
-                end
-            end
-
-            if q_mask_enabled
-                mean_val(q_mask_plot_val <= obj.q_mask_thresh) = NaN;
-            end
-
-            PIV_plot(y, z, mean_val, params, ax);
-        elseif plot_idx == 2 || plot_idx == 3
-
+        ax = axes(plot_panel);
+        params.cb_lab = obj.label_dict(obj.variable_name);
         params.clims = var_clims;
 
-        val_tr = val(:,:,obj.frame_ind);
-        h = PIV_plot(y, z, val_tr, params, ax);
-        t = title(ax, ["Bin number: " + obj.frame_ind], FontSize=18);
-
-        while obj.play && (obj.frame_ind < obj.num_bins)
-            obj.frame_ind = obj.frame_ind + 1;
-            obj.slider.Value = obj.frame_ind;
-
-            % Cap the data so it stays within the current color limits.
-            tmp_data = val(:,:,obj.frame_ind);
-            tmp_data(tmp_data < params.clims(1)) = params.clims(1);
-            tmp_data(tmp_data > params.clims(2)) = params.clims(2);
-    
-            % Update the existing contour instead of recreating axes.
-            set(h, 'ZData', tmp_data); 
-            set(t, 'String', ["Bin number: " + obj.frame_ind]);
-    
-            drawnow;
-
-            pause(0.05);
-
-            if obj.frame_ind == obj.num_bins
-            obj.frame_ind = 0; % reset for next loop iteration
-            end
-        end
-        elseif plot_idx == 4
-            params.num_bins = d.num_bins;
-            params.clims = var_clims;
-            params.movie = false;
-            params.L = d.L;
-            params.shift = obj.frame_ind - 1;
-            params.isoValue = obj.iso_val; % 0.05
-            params.num_cycles = obj.num_cycles;
-
-            [xlims, surface_data, color_data] = stack_vortices_3D(y, z, val, Q, d.cycle_freq, params);
-            setColorBar(ax, params)
-            xlim(ax,xlims) % otherwise when plotting multiple wingbeats awkward extra space added
-
-            while obj.play && (obj.frame_ind < obj.num_bins)
-                obj.frame_ind = obj.frame_ind + 1;
-                obj.slider.Value = obj.frame_ind;
-                params.shift = obj.frame_ind;
-        
-                [~, surface_data, color_data] = stack_vortices_3D(y, z, val, Q, d.cycle_freq, params);
-                p.Vertices = surface_data.vertices;
-                p.Faces = surface_data.faces;
-                p.FaceVertexCData = color_data;
-        
-                pause(0.1);
-
-                if obj.frame_ind == obj.num_bins
-                    obj.frame_ind = 0; % reset for next loop iteration
-                end
-            end
-
-            if obj.plot_hold_bool
-                p.Vertices = surface_data.vertices;
-                p.Faces = surface_data.faces;
-                p.FaceVertexCData = color_data;
+        if plot_idx == 1
+            if using_time_avg_file
+                mean_val = val;
             else
-                plot_3D(ax, surface_data, color_data, params);
-                obj.plot_hold_bool = true;
+                mean_val = mean(val,3);
             end
-        elseif plot_idx == 5
-            if (obj.variable_name == obj.hist_vars(3))
-                histogram(ax, val, d.(x_var_name))
-                xlabel(ax, "Tick number", FontSize=16)
-                ylabel(ax, obj.hist_label_dict(obj.variable_name), FontSize=16)
-            else
-                bar(ax, val)
-                xlabel(ax, "Bin number", FontSize=16)
-                ylabel(ax, obj.hist_label_dict(obj.variable_name), FontSize=16)
-            end
-        elseif plot_idx == 6
-            if (obj.variable_name == obj.freq_vars(1))
-                phase_avg_speed = val;
-                phase_std_speed = d.(std_name);
-                norm_time_speed = d.(x_var_name);
-
-                lower_results = phase_avg_speed - phase_std_speed;
-                upper_results = phase_avg_speed + phase_std_speed;
-                
-                original_color = "#7f2704"; % hex, some dark red
-                lighter_color = getLightColor(original_color); % RGB
-                
-                xconf = [norm_time_speed, norm_time_speed(end:-1:1)];
-                yconf = [upper_results, lower_results(end:-1:1)];
-                
-                hold(ax,'on')
-
-                p = fill(ax, xconf, yconf, lighter_color);
-                p.HandleVisibility = 'off';
-                p.EdgeColor = 'none';
-                
-                l = plot(ax, norm_time_speed, phase_avg_speed);
-                l.Color = original_color;
-                l.LineWidth = 2;
-
-                xlabel(ax, "Wingbeat phase", FontSize=16)
-                ylabel(ax, obj.freq_label_dict(obj.variable_name), FontSize=16)
-            else
-                bar(ax, val)
-                xlabel(ax, "Bin number", FontSize=16)
-                ylabel(ax, obj.freq_label_dict(obj.variable_name), FontSize=16)
-            end
-        elseif plot_idx == 7
-            avg_type = 1;
-            norm_bool = false;
-            case_id = obj.get_current_case_id();
-            val = get_PIV_force(full_file_path, case_id, var_name, avg_type, norm_bool);
-
-            plot(ax, val)
-            hold(ax, "on")
-            yline(ax, mean(val))
-            xlabel(ax, "Time", FontSize=16)
-            ylabel(ax, obj.force_label_dict(obj.variable_name), FontSize=16)
-        elseif plot_idx == 8
-            val(Q <= 0.025) = NaN;
-
-            mean_val = squeeze(mean(val, [1 2], "omitnan"));
-            % mean_val = mean_trapz(val);
-            disp("mean: " + mean(mean_val))
-
-            plot(ax, mean_val)
-            hold(ax, "on")
-            yline(ax, mean(mean_val))
-            xlabel(ax, "Time", FontSize=16)
-            ylabel(ax, obj.label_dict(obj.variable_name), FontSize=16, Interpreter="latex")
+            PIV_plot(y, z, mean_val, params, ax);
+        elseif plot_idx == 2
+            val_tr = val(:,:,obj.frame_ind);
+            PIV_plot(y, z, val_tr, params, ax);
+            title(ax, ["Bin number: " + obj.frame_ind], FontSize=18);
         end
     end
 
@@ -1399,16 +777,6 @@ methods (Access = private)
         keys = cellstr(var_names);
         values = mat2cell(clim_values, ones(1, size(clim_values, 1)), size(clim_values, 2));
         clim_dict = containers.Map(keys, values);
-    end
-
-    function set_active_color_limit_set(obj)
-        if strcmp(obj.plot_type, obj.plot_types(3))
-            obj.clims = obj.std_clims;
-            obj.clim_dict = obj.std_clim_dict;
-        else
-            obj.clims = obj.mean_clims;
-            obj.clim_dict = obj.mean_clim_dict;
-        end
     end
 
     function clims = get_color_limits(obj, var_name)
@@ -1423,51 +791,6 @@ methods (Access = private)
             error("No color limits defined for " + string(var_name))
         end
         clims = obj.clims(var_idx,:);
-    end
-
-    function set_color_limits(obj, var_name, new_clims)
-        key = char(var_name);
-        if isKey(obj.clim_dict, key)
-            obj.clim_dict(key) = new_clims;
-        end
-
-        var_idx = find(string(var_name) == obj.var_name_list, 1);
-        if ~isempty(var_idx)
-            obj.clims(var_idx,:) = new_clims;
-        end
-
-        if strcmp(obj.plot_type, obj.plot_types(3))
-            obj.std_clims = obj.update_clim_matrix(obj.movie_3D_std_vars, obj.std_clims, var_name, new_clims);
-            if isKey(obj.std_clim_dict, key)
-                obj.std_clim_dict(key) = new_clims;
-            end
-        else
-            obj.mean_clims = obj.update_clim_matrix(obj.movie_3D_avg_vars, obj.mean_clims, var_name, new_clims);
-            if isKey(obj.mean_clim_dict, key)
-                obj.mean_clim_dict(key) = new_clims;
-            end
-        end
-    end
-
-    function clim_values = update_clim_matrix(~, var_names, clim_values, var_name, new_clims)
-        var_idx = find(string(var_name) == var_names, 1);
-        if ~isempty(var_idx)
-            clim_values(var_idx,:) = new_clims;
-        end
-    end
-
-    function update_color_limit_slider(obj)
-        if ~isKey(obj.clim_dict, char(obj.variable_name))
-            obj.clim_slider.Enable = "off";
-            return
-        end
-
-        obj.clim_slider.Enable = "on";
-        cur_clims = obj.get_color_limits(obj.variable_name);
-        center = mean(cur_clims);
-        range = (obj.clim_scale/2)*diff(cur_clims);
-        obj.clim_slider.Limits = [center - range, center + range];
-        obj.clim_slider.Value = cur_clims;
     end
 end
 
