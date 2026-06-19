@@ -14,14 +14,14 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 % Want to know what case names are available?
 % Call "  case_names = get_case_names();  "
 % PIV_case_name = 'flexible_20deg_2Hz';
-PIV_case_name = 'flexible_10deg_0Hz'; % UP_two_body
+PIV_case_name = 'flexible_20deg_6Hz'; % UP_two_body
 % PIV_case_name = 'turbine';
 
 % save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
 save_filepath_local = "Y:\Processed Results\";
 
 bools.nondim = true; % non-dimensionalize data
-bools.RPCA = false; % RPCA filtering of vector fields
+bools.RPCA = true; % RPCA filtering of vector fields
 bools.proc_vel = true; % false if just calculating secondary values
 
 % If you want to make plots here, you can. However, it is NOT recommended.
