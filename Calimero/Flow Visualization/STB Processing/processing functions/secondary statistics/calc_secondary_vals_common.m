@@ -30,6 +30,8 @@ trim_source.vortTot = D.(config.vortTotField);
 trim_source.numP = D.(config.numPField);
 trim_source.hel = D.(config.helField);
 trim_source.dudx = D.(config.dudxField);
+trim_source.dudy = D.(config.dudyField);
+trim_source.dudz = D.(config.dudzField);
 trim_source.dvdx = D.(config.dvdxField);
 trim_source.dwdx = D.(config.dwdxField);
 trim_source.KE_diff = S.KE_diff_field;
@@ -67,22 +69,27 @@ S.enst = integrate_planar(y_arr, z_arr, T.vortTot.^2);
 S.div = D.(config.dudxField) + D.(config.dvdyField) + D.(config.dwdzField);
 
 % Planar averages
-S.u_avg = mean(T.u, [1, 2]);
-S.v_avg = mean(T.v, [1, 2]);
-S.w_avg = mean(T.w, [1, 2]);
-S.vortX_avg = mean(T.vortX, [1, 2]);
-S.vortY_avg = mean(T.vortY, [1, 2]);
-S.vortZ_avg = mean(T.vortZ, [1, 2]);
-S.numP_avg = mean(T.numP, [1, 2]);
-S.unc_avg = mean(T.uncTot, [1, 2]);
-S.hel_avg = mean(T.hel, [1, 2]);
-S.dudx_avg = mean(T.dudx, [1, 2]);
-S.dvdx_avg = mean(T.dvdx, [1, 2]);
-S.dwdx_avg = mean(T.dwdx, [1, 2]);
+S.u_avg = squeeze(mean(T.u, [1, 2]));
+S.v_avg = squeeze(mean(T.v, [1, 2]));
+S.w_avg = squeeze(mean(T.w, [1, 2]));
+S.vortX_avg = squeeze(mean(T.vortX, [1, 2]));
+S.vortY_avg = squeeze(mean(T.vortY, [1, 2]));
+S.vortZ_avg = squeeze(mean(T.vortZ, [1, 2]));
+S.numP_avg = squeeze(mean(T.numP, [1, 2]));
+S.unc_avg = squeeze(mean(T.uncTot, [1, 2]));
+S.hel_avg = squeeze(mean(T.hel, [1, 2]));
+S.dudx_avg = squeeze(mean(T.dudx, [1, 2]));
+S.dvdx_avg = squeeze(mean(T.dvdx, [1, 2]));
+S.dwdx_avg = squeeze(mean(T.dwdx, [1, 2]));
 
 % Vortex centroids
 S.wx_z = integrate_planar(y_arr, z_arr, z_tr .* T.vortX) ./ integrate_planar(y_arr, z_arr, T.vortX);
 S.wx_y = integrate_planar(y_arr, z_arr, y_tr .* T.vortX) ./ integrate_planar(y_arr, z_arr, T.vortX);
+
+% Vortex stretching/tilting terms for \omega_x term
+S.wx_stretch = integrate_planar(y_arr, z_arr, T.vortX .* T.dudx);
+S.wx_tilt_y = integrate_planar(y_arr, z_arr, T.vortY .* T.dudy);
+S.wx_tilt_z = integrate_planar(y_arr, z_arr, T.vortZ .* T.dudz);
 
 end
 

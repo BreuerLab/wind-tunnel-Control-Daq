@@ -17,6 +17,8 @@ config.numPField = 'numP_phase_avg';
 config.helField = 'hel_phase_avg';
 
 config.dudxField = 'dudx_phase_avg';
+config.dudyField = 'dudy_phase_avg';
+config.dudzField = 'dudz_phase_avg';
 config.dvdxField = 'dvdx_phase_avg';
 config.dwdxField = 'dwdx_phase_avg';
 config.dvdyField = 'dvdy_phase_avg';
