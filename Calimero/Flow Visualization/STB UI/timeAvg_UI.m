@@ -41,6 +41,7 @@ classdef timeAvg_UI < handle
 
         force_bool;
         force_var;
+        force_vars;
         PIV_bool;
         PIV_sub;
         force_sub;
@@ -111,6 +112,7 @@ classdef timeAvg_UI < handle
             obj.force_bool = false;
             obj.PIV_bool = true;
             obj.force_var = obj.var_names(1);
+            obj.force_vars = obj.force_var;
             obj.saveFig = false;
             obj.err_bool = false;
             obj.calc_bool = false;
@@ -198,20 +200,28 @@ classdef timeAvg_UI < handle
             clear_button.BackgroundColor = [1 1 1];
             clear_button.ButtonPushedFcn = @(src, event) clearList(src, event, plot_panel, lbox);
 
-            % Dropdown box for force variable selection
+            % Dropdown boxes for variable selection
             drop_y4 = clear_button_y - 35;
-            force_var_dropdown = uidropdown(option_panel);
-            force_var_dropdown.Position = [10 drop_y4 180 30];
-            force_var_dropdown.Items = obj.box_labels;
-            force_var_dropdown.ValueChangedFcn = @(src, event) force_var_change(src, event, plot_panel);
+            force_var_dropdown_1 = uidropdown(option_panel);
+            force_var_dropdown_1.Position = [10 drop_y4 180 30];
+            force_var_dropdown_1.Items = ["none", obj.box_labels];
+            force_var_dropdown_1.Value = obj.get_force_var_label(obj.force_var);
 
             drop_y44 = drop_y4 - 35;
+            force_var_dropdown_2 = uidropdown(option_panel);
+            force_var_dropdown_2.Position = [10 drop_y44 180 30];
+            force_var_dropdown_2.Items = ["none", obj.box_labels];
+            force_var_dropdown_2.Value = "none";
+            force_var_dropdown_1.ValueChangedFcn = @(src, event) force_var_change(src, event, plot_panel, force_var_dropdown_1, force_var_dropdown_2);
+            force_var_dropdown_2.ValueChangedFcn = @(src, event) force_var_change(src, event, plot_panel, force_var_dropdown_1, force_var_dropdown_2);
+
+            drop_y444 = drop_y44 - 35;
             operation_dropdown = uidropdown(option_panel);
-            operation_dropdown.Position = [10 drop_y44 180 30];
+            operation_dropdown.Position = [10 drop_y444 180 30];
             operation_dropdown.Items = obj.operations;
             operation_dropdown.ValueChangedFcn = @(src, event) operation_change(src, event, plot_panel);
 
-            button4_y = drop_y44 - (unit_height + unit_spacing);
+            button4_y = drop_y444 - (unit_height + unit_spacing);
             piv_button = uibutton(option_panel, "state");
             piv_button.Text = "Show PIV";
             piv_button.Value = true;
@@ -316,8 +326,27 @@ classdef timeAvg_UI < handle
                 obj.set_selected_value_from_item(fixed_vars(2), src.Value);
             end
 
-            function force_var_change(src, ~, plot_panel)
-                obj.force_var = obj.var_names(obj.box_labels == src.Value);
+            function force_var_change(~, ~, plot_panel, dropdown_1, dropdown_2)
+                selected_values = [string(dropdown_1.Value), string(dropdown_2.Value)];
+                obj.force_vars = strings(0);
+
+                for n = 1:length(selected_values)
+                    if selected_values(n) == "none"
+                        continue
+                    end
+
+                    cur_var = obj.var_names(obj.box_labels == selected_values(n));
+                    if ~isempty(cur_var) && ~ismember(cur_var, obj.force_vars)
+                        obj.force_vars(end + 1) = cur_var;
+                    end
+                end
+
+                if isempty(obj.force_vars)
+                    obj.force_var = "";
+                else
+                    obj.force_var = obj.force_vars(1);
+                end
+
                 obj.update_plot(plot_panel);
             end
 
@@ -850,6 +879,60 @@ classdef timeAvg_UI < handle
             end
         end
 
+        function force_vars = get_active_force_vars(obj)
+            force_vars = string(obj.force_vars);
+            force_vars = force_vars(strlength(force_vars) > 0);
+            force_vars = force_vars(ismember(force_vars, obj.var_names));
+            force_vars = unique(force_vars, 'stable');
+        end
+
+        function label = get_force_var_label(obj, force_var)
+            label = obj.box_labels(obj.var_names == string(force_var));
+            if isempty(label)
+                label = "none";
+            end
+        end
+
+        function y_label = get_force_vars_y_label(obj, force_vars)
+            y_labels = strings(1, length(force_vars));
+            for i = 1:length(force_vars)
+                y_labels(i) = obj.y_labels(obj.var_names == force_vars(i));
+            end
+
+            if isempty(y_labels)
+                y_label = "";
+            elseif all(y_labels == y_labels(1))
+                y_label = y_labels(1);
+            else
+                y_label = "Selected Variable Values";
+            end
+        end
+
+        function legend_label = get_plot_legend_label(obj, curve_label, force_var, num_vars)
+            var_label = obj.get_force_var_label(force_var);
+            if length(obj.selection) > 1 && num_vars > 1
+                legend_label = curve_label + " - " + var_label;
+            elseif num_vars > 1
+                legend_label = var_label;
+            else
+                legend_label = curve_label;
+            end
+        end
+
+        function marker = get_variable_marker(~, var_idx)
+            markers = ["o", "s", "^", "d", "v", ">", "<", "p", "h", "x", "+", "*"];
+            marker = markers(mod(var_idx - 1, length(markers)) + 1);
+        end
+
+        function idx = get_load_cell_index(~, force_var)
+            idx = [];
+            if contains(force_var, "drag")
+                idx = 1;
+            elseif contains(force_var, "lift")
+                idx = 3;
+            end
+        end
+
         % Update plot after user changes selected variables
         function update_plot(obj, plot_panel)
             delete(plot_panel.Children)
@@ -860,7 +943,14 @@ classdef timeAvg_UI < handle
             set(ax, FontSize=18)
 
             is_shift_operation = strcmp(obj.operation, "shift");
-            curve_colors = lines(max(1, length(obj.selection)));
+            selected_force_vars = obj.get_active_force_vars();
+            num_vars = length(selected_force_vars);
+            curve_colors = lines(max(1, length(obj.selection) * max(1, num_vars)));
+
+            for var_idx = 1:num_vars % Loop through each selected variable
+                force_var = selected_force_vars(var_idx);
+                load_cell_idx = obj.get_load_cell_index(force_var);
+                variable_marker = obj.get_variable_marker(var_idx);
 
             for i = 1:length(obj.selection) % Loop through each selection
                 info = obj.decode_selection(obj.selection(i));
@@ -871,8 +961,10 @@ classdef timeAvg_UI < handle
                     continue
                 end
 
-                original_color = curve_colors(i,:);
+                color_idx = (i - 1) * num_vars + var_idx;
+                original_color = curve_colors(color_idx,:);
                 curve_label = obj.get_curve_label(info);
+                legend_label = obj.get_plot_legend_label(curve_label, force_var, num_vars);
 
                 forces = zeros(2, num_points);
                 if is_shift_operation
@@ -921,29 +1013,29 @@ classdef timeAvg_UI < handle
 
                         if is_shift_operation && freq == 0
                             disp("Skipping 0 Hz time-average case for phase shift")
-                        elseif obj.calc_bool
-                            [var, err] = get_PIV_force(filepath, name, obj.force_var, avg_type, obj.y_norm, obj.y_cen);
+                        elseif obj.calc_bool && obj.is_piv_force_variable(force_var)
+                            [var, err] = get_PIV_force(filepath, name, force_var, avg_type, obj.y_norm, obj.y_cen);
 
                             if obj.PIV_sub
                                 % filename = "body_time_avg.mat";
                                 filename = "ring_time_avg.mat";
                                 bod_filepath = obj.PIV_path + "time_avg/" + filename;
-                                [bod_var, ~] = get_PIV_force(bod_filepath, "", obj.force_var, 0, obj.y_norm, obj.y_cen);
+                                [bod_var, ~] = get_PIV_force(bod_filepath, "", force_var, 0, obj.y_norm, obj.y_cen);
                                 var = var - bod_var;
                             end
                         elseif ~is_shift_operation || freq > 0
-                            if contains(obj.force_var, ".")
-                                abbrv_name = extractBefore(obj.force_var, ".");
+                            if contains(force_var, ".")
+                                abbrv_name = extractBefore(force_var, ".");
                                 d = load(secondary_filepath, abbrv_name);
 
-                                var = eval("d." + obj.force_var);
+                                var = eval("d." + force_var);
                             else
-                                if ismember(obj.force_var, ["U_act", "num_bins","num_clusters","phase_spread_ratio"])
-                                    d = load(filepath, obj.force_var);
+                                if ismember(force_var, ["U_act", "num_bins","num_clusters","phase_spread_ratio"])
+                                    d = load(filepath, force_var);
                                 else
-                                    d = load(secondary_filepath, obj.force_var);
+                                    d = load(secondary_filepath, force_var);
                                 end
-                                var = d.(obj.force_var);
+                                var = d.(force_var);
                             end
 
                             % TEMPORARY for dimensionalization of power
@@ -952,13 +1044,13 @@ classdef timeAvg_UI < handle
                             if obj.PIV_sub
                                 % filename = "body_time_avg.mat";
                                 filename = "ring_time_avg_integral.mat";
-                                if contains(obj.force_var, ".")
-                                    abbrv_name = extractBefore(obj.force_var, ".");
+                                if contains(force_var, ".")
+                                    abbrv_name = extractBefore(force_var, ".");
                                     bod = load(obj.PIV_path + "time_avg/" + filename, abbrv_name);
-                                    bod_var = eval("bod." + obj.force_var);
+                                    bod_var = eval("bod." + force_var);
                                 else
-                                    bod = load(obj.PIV_path + "time_avg/" + filename, obj.force_var);
-                                    bod_var = bod.(obj.force_var);
+                                    bod = load(obj.PIV_path + "time_avg/" + filename, force_var);
+                                    bod_var = bod.(force_var);
                                 end
                                 var = var - bod_var;
                             end  
@@ -966,7 +1058,7 @@ classdef timeAvg_UI < handle
                         
                         % Calculate mean force and store in array for plotting
                         if is_shift_operation && freq > 0
-                            if obj.is_piv_force_variable()
+                            if obj.is_piv_force_variable(force_var)
                                 var = obj.apply_convection_shift(var, type, measured_freqs(j));
                             end
                             PIV_signals{j} = var;
@@ -977,7 +1069,7 @@ classdef timeAvg_UI < handle
                         end
                     end
 
-                    if obj.force_bool && ~contains(type, "UP")
+                    if obj.force_bool && ~contains(type, "UP") && ~isempty(load_cell_idx)
                         var_name_F = "results_lab";
                         % var_name_F = "filtered_data";
                         % var_name_F = "wingbeat_avg_forces_smoothest";
@@ -986,11 +1078,7 @@ classdef timeAvg_UI < handle
                             % var_name_F = "filtered_data";
                         end
 
-                        if contains(obj.force_var,"drag")
-                            idx = 1;
-                        elseif contains(obj.force_var, "lift")
-                            idx = 3;
-                        end
+                        idx = load_cell_idx;
 
                         if is_shift_operation && freq == 0
                             disp("Skipping 0 Hz force case for phase shift")
@@ -1026,7 +1114,7 @@ classdef timeAvg_UI < handle
                     if obj.PIV_bool
                         forces(1,:) = obj.calculate_phase_shifts(PIV_signals, measured_freqs);
                     end
-                    if obj.force_bool
+                    if obj.force_bool && ~isempty(load_cell_idx)
                         forces(2,:) = obj.calculate_phase_shifts(force_signals, measured_freqs);
                     end
                 end
@@ -1057,48 +1145,49 @@ classdef timeAvg_UI < handle
 
                     if obj.PIV_bool
                         s1 = scatter(ax, x_var, forces(1,:), 125, "filled");
-                        s1.Marker = "o";
+                        s1.Marker = char(variable_marker);
                         s1.MarkerFaceColor = original_color;
                         s1.MarkerEdgeColor = original_color;
-                        s1.DisplayName = curve_label;
+                        s1.DisplayName = legend_label;
                     end
 
-                    if obj.force_bool
+                    if obj.force_bool && ~isempty(load_cell_idx)
                         s2 = scatter(ax, x_var, forces(2,:), 125, "filled");
-                        s2.Marker = "p";
+                        s2.Marker = char(variable_marker);
                         s2.MarkerFaceColor = original_color;
-                        s2.DisplayName = curve_label;
+                        s2.DisplayName = "Force: " + legend_label;
                     end
-                elseif obj.err_bool
+                elseif obj.err_bool && ~isempty(load_cell_idx)
                     ylabel(ax, "Error (N)")
 
                     error = (forces(1,:) - forces(2,:));
                     % error = abs((forces(1,:) - forces(2,:)) ./ forces(2,:)) * 100;
-                    s1 = errorbar(ax, x_var, error, errors*0.1, 'o');
+                    s1 = errorbar(ax, x_var, error, errors*0.1, char(variable_marker));
                     s1.MarkerSize = 10;
                     s1.Color = original_color;
                     s1.MarkerEdgeColor = original_color;
                     s1.MarkerFaceColor = original_color;
-                    s1.DisplayName = curve_label;
+                    s1.DisplayName = legend_label;
                 else
-                    ylabel(ax, obj.y_labels(obj.var_names == obj.force_var), Interpreter="latex")
+                    ylabel(ax, obj.get_force_vars_y_label(selected_force_vars), Interpreter="latex")
 
                     if obj.PIV_bool
-                        s1 = errorbar(ax, x_var, forces(1,:), errors, 'o');
+                        s1 = errorbar(ax, x_var, forces(1,:), errors, char(variable_marker));
                         s1.MarkerSize = 10;
                         s1.Color = original_color;
                         s1.MarkerEdgeColor = original_color;
                         s1.MarkerFaceColor = original_color;
-                        s1.DisplayName = curve_label;
+                        s1.DisplayName = legend_label;
                     end
 
-                    if obj.force_bool
+                    if obj.force_bool && ~isempty(load_cell_idx)
                         s2 = scatter(ax, x_var, forces(2,:), 125,"filled");
-                        s2.Marker = "p";
+                        s2.Marker = char(variable_marker);
                         s2.MarkerFaceColor = original_color;
-                        s2.DisplayName = "Force: " + curve_label;
+                        s2.DisplayName = "Force: " + legend_label;
                     end
                 end
+            end
             end
 
             if (obj.saveFig)
@@ -1219,8 +1308,8 @@ classdef timeAvg_UI < handle
             disp("Shifted by: " + shift_samples + " / " + length(signal))
         end
 
-        function force_variable = is_piv_force_variable(obj)
-            force_index = find(obj.var_names == obj.force_var, 1);
+        function force_variable = is_piv_force_variable(obj, force_var)
+            force_index = find(obj.var_names == force_var, 1);
             force_variable = ~isempty(force_index) && force_index <= 6;
         end
 
