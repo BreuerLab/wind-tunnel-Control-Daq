@@ -832,11 +832,26 @@ methods (Access = private)
         end
     end
 
-    function legend_entry = get_aligned_legend_entry(obj, cur_sel, index, is_force)
+    function is_rpca = is_RPCA_selection(~, cur_sel)
+        is_rpca = contains(string(cur_sel), "_RPCA");
+    end
+
+    function case_label = get_case_label(obj, cur_sel)
         [amp, type, freq] = parse_name(cur_sel);
-        distance_label = string(obj.type_distance_dict(char(type)));
-        name = distance_label + ", " + amp + " deg, " + freq + " Hz";
-        case_label = strrep(string(name), "_", " ");
+        if isKey(obj.type_distance_dict, char(type))
+            distance_label = string(obj.type_distance_dict(char(type)));
+        else
+            distance_label = string(type);
+        end
+
+        case_label = strrep(distance_label + ", " + amp + " deg, " + freq + " Hz", "_", " ");
+        if obj.is_RPCA_selection(cur_sel)
+            case_label = case_label + " - RPCA";
+        end
+    end
+
+    function legend_entry = get_aligned_legend_entry(obj, cur_sel, index, is_force)
+        case_label = obj.get_case_label(cur_sel);
         index_label = obj.active_types(index);
 
         if is_force
@@ -1114,11 +1129,19 @@ methods (Access = private)
             uniq_amps = [];
             uniq_freqs = [];
             colors = strings(0);
+            use_selection_colors = false;
         else
-            uniq_types = unique(string(cur_selections(:,1)));
-            uniq_amps = unique(cell2mat(cur_selections(:,2)));
-            uniq_freqs = unique(cell2mat(cur_selections(:,3)));
-            if length(uniq_types) > 1
+            selection_types = string(cur_selections(:,1));
+            selection_amps = cell2mat(cur_selections(:,2));
+            selection_freqs = cell2mat(cur_selections(:,3));
+            uniq_types = unique(selection_types);
+            uniq_amps = unique(selection_amps);
+            uniq_freqs = unique(selection_freqs);
+            case_color_keys = selection_types + "_" + string(selection_amps) + "deg_" +...
+                              string(selection_freqs) + "Hz";
+            use_selection_colors = length(uniq_types) > 1 ||...
+                                   length(unique(case_color_keys)) < length(obj.selection);
+            if use_selection_colors
                 colors = strings(0);
             else
                 colors = getColors(1,...
@@ -1128,7 +1151,6 @@ methods (Access = private)
             end
         end
 
-        use_selection_colors = length(uniq_types) > 1;
         selection_colors = obj.get_default_selection_colors(length(obj.selection));
         color_params.uniq_freqs = uniq_freqs;
         color_params.uniq_amps = uniq_amps;
@@ -1398,13 +1420,7 @@ methods (Access = private)
     end
 
     function legend_entry = get_load_cell_legend_entry(obj, cur_sel)
-        [amp, type, freq] = parse_name(cur_sel);
-        if isKey(obj.type_distance_dict, char(type))
-            distance_label = string(obj.type_distance_dict(char(type)));
-        else
-            distance_label = string(type);
-        end
-        case_label = strrep(distance_label + ", " + amp + " deg, " + freq + " Hz", "_", " ");
+        case_label = obj.get_case_label(cur_sel);
         legend_entry = case_label + " - " + obj.get_force_legend_label();
     end
 
