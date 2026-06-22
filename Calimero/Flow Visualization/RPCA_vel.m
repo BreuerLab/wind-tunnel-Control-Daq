@@ -1,4 +1,4 @@
-function [L, S] = RPCA_vel(u, v, w)
+function [L, S] = RPCA_vel(x, y, z, u, v, w)
 
 disp("RPCA beginning...")
 tic
@@ -18,7 +18,8 @@ X_all = [ reshape(u(s_ind:e_ind,:,:,:), [], size(u, 4)); ...
           reshape(w(s_ind:e_ind,:,:,:), [], size(w, 4))];
 
 % 2. Run RPCA once on the combined matrix
-[L_all, S_all] = RPCA(X_all);
+% [L_all, S_all] = RPCA(X_all);
+[L_all, S_all] = RPCA_TallSkinny_CPU(X_all);
 
 % 3. Split the results back out
 numElements = size(X_all, 1) / 3;
@@ -34,7 +35,19 @@ S_w = S_all(2*numElements+1:end, :);
 L_u_mat = reshape(L_u, origSize);
 L_v_mat = reshape(L_v, origSize);
 L_w_mat = reshape(L_w, origSize);
-L = {L_u_mat, L_v_mat, L_w_mat};
+
+vortX = zeros(size(L_u_mat)); vortY = zeros(size(L_u_mat)); vortZ = zeros(size(L_u_mat));
+
+% Calculate vorticity
+for i = 1:size(L_u_mat, 4)
+[vortX(:,:,:,i), vortY(:,:,:,i), vortZ(:,:,:,i)] = ...
+    calculateVorticity(x, y, z, L_u_mat(:,:,:,i), L_v_mat(:,:,:,i), L_w_mat(:,:,:,i));
+end
+
+Utot = (L_u_mat.^2 + L_v_mat.^2 + L_w_mat.^2).^(1/2);
+vortTot = (vortX.^2 + vortY.^2 + vortZ.^2).^(1/2);
+
+L = {L_u_mat, L_v_mat, L_w_mat, Utot, vortX, vortY, vortZ, vortTot};
 
 S_u_mat = reshape(S_u, origSize);
 S_v_mat = reshape(S_v, origSize);

@@ -679,26 +679,23 @@ methods (Access = private)
             import_STB_data(file_path, true, U, L, bin_indices_sorted, RPCA_bool);
 
         if plot_idx == 2
-        [L, S] = RPCA_vel(data{strcmp(fields, 'u')}, data{strcmp(fields, 'v')}, data{strcmp(fields, 'w')});
+        [L, S] = RPCA_vel(x,y,z,data{strcmp(fields, 'u')},...
+                data{strcmp(fields, 'v')},data{strcmp(fields, 'w')});
         end
         
-        if plot_idx == 1
-            obj.slider_bin.Visible = "on";
-            % Adjust slider for number of bins
-            if num_bins ~= obj.num_bins
-                obj.num_bins = num_bins;
-                obj.slider_bin.Limits = [1 obj.num_bins];
-                obj.slider_bin.MajorTicks = 1:5:obj.num_bins;
-                obj.slider_bin.MinorTicks = 1:obj.num_bins;
-            end
-            if bin_count ~= obj.bin_count
-                obj.bin_count = bin_count;
-                obj.slider_frame.Limits = [1 obj.bin_count];
-                obj.slider_frame.MajorTicks = 1:5:obj.bin_count;
-                obj.slider_frame.MinorTicks = 1:obj.bin_count;
-            end
-        else
-            obj.slider_bin.Visible = "off";
+        obj.slider_bin.Visible = "on";
+        % Adjust slider for number of bins
+        if num_bins ~= obj.num_bins
+            obj.num_bins = num_bins;
+            obj.slider_bin.Limits = [1 obj.num_bins];
+            obj.slider_bin.MajorTicks = 1:5:obj.num_bins;
+            obj.slider_bin.MinorTicks = 1:obj.num_bins;
+        end
+        if bin_count ~= obj.bin_count
+            obj.bin_count = bin_count;
+            obj.slider_frame.Limits = [1 obj.bin_count];
+            obj.slider_frame.MajorTicks = 1:5:obj.bin_count;
+            obj.slider_frame.MinorTicks = 1:obj.bin_count;
         end
 
         % Update cache

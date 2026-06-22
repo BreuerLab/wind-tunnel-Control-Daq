@@ -27,6 +27,11 @@ if RPCA_bool
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 disp("RPCA beginning...")
 tic
+
+D.u = nanToMedian(D.u);
+D.v = nanToMedian(D.v);
+D.w = nanToMedian(D.w);
+
 s_ind = 2;
 e_ind = 4;
 origSize = size(D.u(s_ind:e_ind,:,:,:));
@@ -38,7 +43,8 @@ X_all = [ reshape(D.u(s_ind:e_ind,:,:,:), [], size(D.u, 4)); ...
           reshape(D.w(s_ind:e_ind,:,:,:), [], size(D.w, 4))];
 
 % 2. Run RPCA once on the combined matrix
-[L_all, S_all] = RPCA(X_all);
+% [L_all, S_all] = RPCA(X_all);
+[L_all, S_all] = RPCA_TallSkinny_CPU(X_all);
 
 % 3. Split the results back out
 numElements = size(X_all, 1) / 3;

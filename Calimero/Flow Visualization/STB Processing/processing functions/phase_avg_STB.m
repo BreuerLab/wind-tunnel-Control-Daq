@@ -96,6 +96,12 @@ for i = 1:num_bins
         for f = 1:length(fields)
             S.([fields{f} '_phase_avg']) = zeros(size(x,1), size(x,2), size(x,3), num_bins);
         end
+        S.uu_stress = zeros(size(x,1), size(x,2), size(x,3), num_bins);
+        S.vv_stress = zeros(size(x,1), size(x,2), size(x,3), num_bins);
+        S.ww_stress = zeros(size(x,1), size(x,2), size(x,3), num_bins);
+        S.uv_stress = zeros(size(x,1), size(x,2), size(x,3), num_bins);
+        S.uw_stress = zeros(size(x,1), size(x,2), size(x,3), num_bins);
+        S.vw_stress = zeros(size(x,1), size(x,2), size(x,3), num_bins);
 
         if ~bools.turbine
         lift_fields = fieldnames(lift_vals);
@@ -123,6 +129,21 @@ for i = 1:num_bins
         fname = [fields{f}, '_phase_std'];
         S.(fname)(:,:,:,i) = std(data{f}, 0, 4, "omitnan");
     end
+
+    % Velocity fluctuations for Reynolds stress calculation
+    u_fluc = data{1} - S.u_phase_avg(:,:,:,i);
+    v_fluc = data{2} - S.v_phase_avg(:,:,:,i);
+    w_fluc = data{3} - S.w_phase_avg(:,:,:,i);
+
+    % Normal stresses
+    S.uu_stress(:,:,:,i) = mean(u_fluc .* u_fluc, 4, "omitnan");
+    S.vv_stress(:,:,:,i) = mean(v_fluc .* v_fluc, 4, "omitnan");
+    S.ww_stress(:,:,:,i) = mean(w_fluc .* w_fluc, 4, "omitnan");
+
+    % Shear stresses
+    S.uv_stress(:,:,:,i) = mean(u_fluc .* v_fluc, 4, "omitnan");
+    S.uw_stress(:,:,:,i) = mean(u_fluc .* w_fluc, 4, "omitnan");
+    S.vw_stress(:,:,:,i) = mean(v_fluc .* w_fluc, 4, "omitnan");
 
     if ~bools.turbine
     % Compute phase averages from lift data in current bin
