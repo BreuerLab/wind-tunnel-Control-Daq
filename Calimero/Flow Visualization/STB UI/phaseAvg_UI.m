@@ -73,6 +73,7 @@ properties
     % boolean, subtraction on or off
     PIV_sub;
     force_sub;
+    RPCA;
     load_cell_force_var;
     % boolean, spectrum plot overrides phase averaged plot
     spectrum;
@@ -131,6 +132,7 @@ methods
         obj.norm_period = true;
         obj.PIV_sub = false;
         obj.force_sub = false;
+        obj.RPCA = false;
         obj.load_cell_force_var = "wingbeat_avg_forces_smoothest";
         obj.freq_scale = false;
         obj.log_scale = false;
@@ -184,9 +186,9 @@ methods
             option_panel.Scrollable = "on";
         end
 
-        sidebar_grid = uigridlayout(option_panel, [17, 1]);
+        sidebar_grid = uigridlayout(option_panel, [18, 1]);
         sidebar_grid.ColumnWidth = {'1x'};
-        sidebar_grid.RowHeight = {30, 30, 30, 30, 110, 30, 230, 30, 0, 30, 30, 30, 30, 24, 30, 30, 30};
+        sidebar_grid.RowHeight = {30, 30, 30, 30, 30, 110, 30, 230, 30, 0, 30, 30, 30, 30, 24, 30, 30, 30};
         sidebar_grid.Padding = [10 10 10 10];
         sidebar_grid.RowSpacing = 6;
         if isprop(sidebar_grid, "Scrollable")
@@ -218,10 +220,18 @@ methods
         d2.ValueChangedFcn = @(src, event) freq_change(src, event, d3);
         d3.ValueChangedFcn = @(src, event) amp_change(src, event, d2);
 
+        rpca_button = uibutton(sidebar_grid, "state");
+        rpca_button.Layout.Row = 4;
+        rpca_button.Layout.Column = 1;
+        rpca_button.Text = "RPCA";
+        rpca_button.FontSize = 18;
+        rpca_button.BackgroundColor = obj.get_button_color(obj.RPCA);
+        rpca_button.ValueChangedFcn = @(src, event) RPCA_change(src, event);
+
         % Button to add entry defined by selected type,
         % frequency, angle, and speed to list of plotted cases
         entry_button_grid = uigridlayout(sidebar_grid, [1, 2]);
-        entry_button_grid.Layout.Row = 4;
+        entry_button_grid.Layout.Row = 5;
         entry_button_grid.Layout.Column = 1;
         entry_button_grid.ColumnWidth = {'1x', '1x'};
         entry_button_grid.RowHeight = {'1x'};
@@ -244,7 +254,7 @@ methods
 
         % List of cases currently displayed on the plots
         lbox = uilistbox(sidebar_grid);
-        lbox.Layout.Row = 5;
+        lbox.Layout.Row = 6;
         lbox.Layout.Column = 1;
         lbox.Items = strings(0);
 
@@ -252,7 +262,7 @@ methods
         b3.ButtonPushedFcn = @(src, event) removeFromList(src, event, plot_panel, lbox);
 
         b33 = uibutton(sidebar_grid);
-        b33.Layout.Row = 6;
+        b33.Layout.Row = 7;
         b33.Layout.Column = 1;
         b33.Text = "Clear Entries";
         b33.FontSize = 18;
@@ -260,7 +270,7 @@ methods
         b33.ButtonPushedFcn = @(src, event) clearList(src, event, plot_panel, lbox);
 
         param_panel = uipanel(sidebar_grid);
-        param_panel.Layout.Row = 7;
+        param_panel.Layout.Row = 8;
         param_panel.Layout.Column = 1;
         param_panel.Title = "Plot Parameters";
         param_panel.TitlePosition = 'centertop';
@@ -320,14 +330,14 @@ methods
         var_type_dropdown.ValueChangedFcn = @(src, event) updateVariableType(src, event, plot_panel, var_dropdown1, var_dropdown2);
 
         load_cell_toggle = uibutton(sidebar_grid, "state");
-        load_cell_toggle.Layout.Row = 8;
+        load_cell_toggle.Layout.Row = 9;
         load_cell_toggle.Layout.Column = 1;
         load_cell_toggle.Text = phaseAvg_UI.get_button_text(false, "Load Cell");
         load_cell_toggle.FontSize = 18;
         load_cell_toggle.BackgroundColor = [1 1 1];
 
         load_cell_panel = uipanel(sidebar_grid);
-        load_cell_panel.Layout.Row = 9;
+        load_cell_panel.Layout.Row = 10;
         load_cell_panel.Layout.Column = 1;
         load_cell_panel.Title = "Load Cell";
         load_cell_panel.TitlePosition = 'centertop';
@@ -374,7 +384,7 @@ methods
         load_cell_toggle.ValueChangedFcn = @(src, event) load_cell_toggle_change(src, event, load_cell_panel);
 
         b77 = uibutton(sidebar_grid, "state");
-        b77.Layout.Row = 10;
+        b77.Layout.Row = 11;
         b77.Layout.Column = 1;
         b77.Text = "Live Calculate";
         b77.FontSize = 18;
@@ -382,7 +392,7 @@ methods
         b77.ValueChangedFcn = @(src, event) calc_change(src, event, plot_panel);
 
         b88 = uibutton(sidebar_grid, "state");
-        b88.Layout.Row = 11;
+        b88.Layout.Row = 12;
         b88.Layout.Column = 1;
         b88.Text = "Align";
         b88.FontSize = 18;
@@ -390,7 +400,7 @@ methods
         b88.ValueChangedFcn = @(src, event) align_change(src, event, plot_panel);
 
         b99 = uibutton(sidebar_grid, "state");
-        b99.Layout.Row = 12;
+        b99.Layout.Row = 13;
         b99.Layout.Column = 1;
         b99.Text = "Separate Y-Axis";
         b99.FontSize = 18;
@@ -398,7 +408,7 @@ methods
         b99.ValueChangedFcn = @(src, event) separate_y_axis_change(src, event, plot_panel);
 
         b100 = uibutton(sidebar_grid, "state");
-        b100.Layout.Row = 13;
+        b100.Layout.Row = 14;
         b100.Layout.Column = 1;
         b100.Text = "Mean Subtraction";
         b100.FontSize = 18;
@@ -408,25 +418,25 @@ methods
 
         % Remaining file output controls.
         fnl = uilabel(sidebar_grid);
-        fnl.Layout.Row = 14;
+        fnl.Layout.Row = 15;
         fnl.Layout.Column = 1;
         fnl.HorizontalAlignment = "center";
         fnl.Text = "File Name";
 
         ef = uieditfield(sidebar_grid);
-        ef.Layout.Row = 15;
+        ef.Layout.Row = 16;
         ef.Layout.Column = 1;
         ef.Placeholder = "test";
 
         % Button to export data on plot to .mat file
         b10 = uibutton(sidebar_grid);
-        b10.Layout.Row = 16;
+        b10.Layout.Row = 17;
         b10.Layout.Column = 1;
         b10.Text = "Export Data";
         b10.ButtonPushedFcn = @(src, event) exportData(src, event, ef);
 
         b4 = uibutton(sidebar_grid);
-        b4.Layout.Row = 17;
+        b4.Layout.Row = 18;
         b4.Layout.Column = 1;
         b4.Text = "Save Fig";
         b4.FontSize = 18;
@@ -487,6 +497,11 @@ methods
             obj.update_plot(plot_panel);
         end
 
+        function RPCA_change(src, ~)
+            obj.RPCA = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.RPCA);
+        end
+
         function force_sub_change(src, ~, plot_panel)
             obj.force_sub = src.Value;
             src.BackgroundColor = obj.get_button_color(obj.force_sub);
@@ -523,10 +538,10 @@ methods
             row_heights = sidebar_grid.RowHeight;
             if src.Value
                 load_cell_panel.Visible = "on";
-                row_heights{9} = 180;
+                row_heights{10} = 180;
             else
                 load_cell_panel.Visible = "off";
-                row_heights{9} = 0;
+                row_heights{10} = 0;
             end
             sidebar_grid.RowHeight = row_heights;
         end
@@ -563,6 +578,9 @@ methods
                 cur_idx = matching_indices(n);
                 case_name = selection_types(cur_idx) + "_" + string(selection_amps(cur_idx)) +...
                     "deg_" + string(selection_freqs(cur_idx)) + "Hz";
+                if obj.RPCA
+                    case_name = case_name + "_RPCA";
+                end
 
                 if sum(strcmp(string(lbox.Items), case_name)) == 0
                     lbox.Items = [lbox.Items, case_name];
