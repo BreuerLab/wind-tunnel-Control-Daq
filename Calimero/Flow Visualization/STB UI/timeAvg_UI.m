@@ -145,56 +145,76 @@ classdef timeAvg_UI < handle
         % Builds figure with all UI elements and defines all callback
         % functions to be used when user clicks on UI elements
         function dynamic_plotting(obj)
-            % Create a GUI figure with a grid layout
-            [option_panel, plot_panel, screen_size] = setupFig(obj.mon_num);
+            % Create a GUI figure with a grid layout. The sidebar uses
+            % layout managers so controls stay accessible as the window
+            % changes size instead of relying on monitor-dependent pixels.
+            [option_panel, plot_panel, ~] = setupFig(obj.mon_num);
+            option_panel.AutoResizeChildren = true;
+            if isprop(option_panel, "Scrollable")
+                option_panel.Scrollable = "on";
+            end
 
-            screen_height = screen_size(4);
-            unit_height = round(0.03*screen_height);
-            unit_spacing = round(0.005*screen_height);
+            sidebar_grid = uigridlayout(option_panel, [20, 1]);
+            sidebar_grid.ColumnWidth = {'1x'};
+            sidebar_grid.RowHeight = {30, 30, 30, 30, 30, 110, 30, 30, 30, 30,...
+                                      30, 30, 30, 30, 30, 30, 30, 30, 30, 30};
+            sidebar_grid.Padding = [10 10 10 10];
+            sidebar_grid.RowSpacing = 6;
+            if isprop(sidebar_grid, "Scrollable")
+                sidebar_grid.Scrollable = "on";
+            end
 
             % Dropdown box for selecting the x-axis variable
-            drop_y0 = screen_height*0.85 - 30;
-            x_axis_dropdown = uidropdown(option_panel);
-            x_axis_dropdown.Position = [10 drop_y0 180 30];
+            x_axis_dropdown = uidropdown(sidebar_grid);
+            x_axis_dropdown.Layout.Row = 1;
+            x_axis_dropdown.Layout.Column = 1;
             x_axis_dropdown.Items = obj.x_axis_labels(:);
             x_axis_dropdown.Value = obj.get_x_axis_label(obj.x_axis_type);
 
             % Dropdown boxes for variables held fixed while the x-axis varies
-            drop_y1 = drop_y0 - (unit_height + unit_spacing);
-            fixed_dropdown_1 = uidropdown(option_panel);
-            fixed_dropdown_1.Position = [10 drop_y1 180 unit_height];
+            fixed_dropdown_1 = uidropdown(sidebar_grid);
+            fixed_dropdown_1.Layout.Row = 2;
+            fixed_dropdown_1.Layout.Column = 1;
 
-            drop_y3 = drop_y1 - (unit_height + unit_spacing);
-            fixed_dropdown_2 = uidropdown(option_panel);
-            fixed_dropdown_2.Position = [10 drop_y3 180 unit_height];
+            fixed_dropdown_2 = uidropdown(sidebar_grid);
+            fixed_dropdown_2.Layout.Row = 3;
+            fixed_dropdown_2.Layout.Column = 1;
             obj.reset_fixed_variable_defaults();
             obj.update_fixed_dropdowns(fixed_dropdown_1, fixed_dropdown_2);
 
-            rpca_button_y = drop_y3 - (unit_height + unit_spacing);
-            rpca_button = uibutton(option_panel, "state");
+            rpca_button = uibutton(sidebar_grid, "state");
+            rpca_button.Layout.Row = 4;
+            rpca_button.Layout.Column = 1;
             rpca_button.Text = "RPCA";
             rpca_button.FontSize = 18;
-            rpca_button.Position = [20 rpca_button_y 160 unit_height];
             rpca_button.BackgroundColor = obj.get_button_color(obj.RPCA);
             rpca_button.ValueChangedFcn = @(src, event) RPCA_change(src, event);
 
             % Button to add entry
-            button2_y = rpca_button_y - (unit_height + unit_spacing);
-            add_button = uibutton(option_panel);
-            add_button.Position = [15 button2_y 80 unit_height];
+            entry_button_grid = uigridlayout(sidebar_grid, [1, 2]);
+            entry_button_grid.Layout.Row = 5;
+            entry_button_grid.Layout.Column = 1;
+            entry_button_grid.ColumnWidth = {'1x', '1x'};
+            entry_button_grid.RowHeight = {'1x'};
+            entry_button_grid.Padding = [0 0 0 0];
+            entry_button_grid.ColumnSpacing = 8;
+
+            add_button = uibutton(entry_button_grid);
+            add_button.Layout.Row = 1;
+            add_button.Layout.Column = 1;
             add_button.Text = "Add entry";
 
             % Button to remove entry
-            delete_button = uibutton(option_panel);
-            delete_button.Position = [105 button2_y 80 unit_height];
+            delete_button = uibutton(entry_button_grid);
+            delete_button.Layout.Row = 1;
+            delete_button.Layout.Column = 2;
             delete_button.Text = "Delete entry";
 
             % List of cases currently displayed on the plots
-            list_h = 4*(unit_height + unit_spacing);
-            list_y = button2_y - (list_h + unit_spacing);
-            lbox = uilistbox(option_panel);
+            lbox = uilistbox(sidebar_grid);
+            lbox.Layout.Row = 6;
+            lbox.Layout.Column = 1;
             lbox.Items = strings(0);
-            lbox.Position = [10 list_y 180 list_h];
 
             x_axis_dropdown.ValueChangedFcn = @(src, event) x_axis_change(src, event, fixed_dropdown_1, fixed_dropdown_2, plot_panel, lbox);
             fixed_dropdown_1.ValueChangedFcn = @(src, event) fixed_1_change(src, event, fixed_dropdown_2);
@@ -202,111 +222,111 @@ classdef timeAvg_UI < handle
             add_button.ButtonPushedFcn = @(src, event) addToList(src, event, plot_panel, lbox);
             delete_button.ButtonPushedFcn = @(src, event) removeFromList(src, event, plot_panel, lbox);
 
-            clear_button_y = list_y - (unit_height + unit_spacing);
-            clear_button = uibutton(option_panel);
+            clear_button = uibutton(sidebar_grid);
+            clear_button.Layout.Row = 7;
+            clear_button.Layout.Column = 1;
             clear_button.Text = "Clear Entries";
             clear_button.FontSize = 18;
-            clear_button.Position = [20 clear_button_y 160 unit_height];
             clear_button.BackgroundColor = [1 1 1];
             clear_button.ButtonPushedFcn = @(src, event) clearList(src, event, plot_panel, lbox);
 
             % Dropdown boxes for variable selection
-            drop_y4 = clear_button_y - 35;
-            force_var_dropdown_1 = uidropdown(option_panel);
-            force_var_dropdown_1.Position = [10 drop_y4 180 30];
+            force_var_dropdown_1 = uidropdown(sidebar_grid);
+            force_var_dropdown_1.Layout.Row = 8;
+            force_var_dropdown_1.Layout.Column = 1;
             force_var_dropdown_1.Items = ["none", obj.box_labels];
             force_var_dropdown_1.Value = obj.get_force_var_label(obj.force_var);
 
-            drop_y44 = drop_y4 - 35;
-            force_var_dropdown_2 = uidropdown(option_panel);
-            force_var_dropdown_2.Position = [10 drop_y44 180 30];
+            force_var_dropdown_2 = uidropdown(sidebar_grid);
+            force_var_dropdown_2.Layout.Row = 9;
+            force_var_dropdown_2.Layout.Column = 1;
             force_var_dropdown_2.Items = ["none", obj.box_labels];
             force_var_dropdown_2.Value = "none";
             force_var_dropdown_1.ValueChangedFcn = @(src, event) force_var_change(src, event, plot_panel, force_var_dropdown_1, force_var_dropdown_2);
             force_var_dropdown_2.ValueChangedFcn = @(src, event) force_var_change(src, event, plot_panel, force_var_dropdown_1, force_var_dropdown_2);
 
-            drop_y444 = drop_y44 - 35;
-            operation_dropdown = uidropdown(option_panel);
-            operation_dropdown.Position = [10 drop_y444 180 30];
+            operation_dropdown = uidropdown(sidebar_grid);
+            operation_dropdown.Layout.Row = 10;
+            operation_dropdown.Layout.Column = 1;
             operation_dropdown.Items = obj.operations;
             operation_dropdown.ValueChangedFcn = @(src, event) operation_change(src, event, plot_panel);
 
-            button4_y = drop_y444 - (unit_height + unit_spacing);
-            piv_button = uibutton(option_panel, "state");
+            piv_button = uibutton(sidebar_grid, "state");
+            piv_button.Layout.Row = 11;
+            piv_button.Layout.Column = 1;
             piv_button.Text = "Show PIV";
             piv_button.Value = true;
             piv_button.FontSize = 18;
-            piv_button.Position = [20 button4_y 160 unit_height];
             piv_button.BackgroundColor = obj.COLOR_ACTIVE;
             piv_button.ValueChangedFcn = @(src, event) PIV_bool_change(src, event, plot_panel);
 
-            button44_y = button4_y - (unit_height + unit_spacing);
-            piv_sub_button = uibutton(option_panel, "state");
+            piv_sub_button = uibutton(sidebar_grid, "state");
+            piv_sub_button.Layout.Row = 12;
+            piv_sub_button.Layout.Column = 1;
             piv_sub_button.Text = "PIV Body Sub";
             piv_sub_button.FontSize = 18;
-            piv_sub_button.Position = [20 button44_y 160 unit_height];
             piv_sub_button.BackgroundColor = obj.COLOR_INACTIVE;
             piv_sub_button.ValueChangedFcn = @(src, event) PIV_sub_change(src, event, plot_panel);
 
-            button5_y = button44_y - (unit_height + unit_spacing);
-            force_button = uibutton(option_panel, "state");
+            force_button = uibutton(sidebar_grid, "state");
+            force_button.Layout.Row = 13;
+            force_button.Layout.Column = 1;
             force_button.Text = "Show Force";
             force_button.FontSize = 18;
-            force_button.Position = [20 button5_y 160 unit_height];
             force_button.BackgroundColor = obj.COLOR_INACTIVE;
             force_button.ValueChangedFcn = @(src, event) force_bool_change(src, event, plot_panel);
 
-            button55_y = button5_y - (unit_height + unit_spacing);
-            force_sub_button = uibutton(option_panel, "state");
+            force_sub_button = uibutton(sidebar_grid, "state");
+            force_sub_button.Layout.Row = 14;
+            force_sub_button.Layout.Column = 1;
             force_sub_button.Text = "Force Body Sub";
             force_sub_button.FontSize = 18;
-            force_sub_button.Position = [20 button55_y 160 unit_height];
             force_sub_button.BackgroundColor = obj.COLOR_INACTIVE;
             force_sub_button.ValueChangedFcn = @(src, event) force_sub_change(src, event, plot_panel);
 
-            button6_y = button55_y - (unit_height + unit_spacing);
-            x_norm_button = uibutton(option_panel, "state");
+            x_norm_button = uibutton(sidebar_grid, "state");
+            x_norm_button.Layout.Row = 15;
+            x_norm_button.Layout.Column = 1;
             x_norm_button.Text = "Normalize X-axis";
             x_norm_button.FontSize = 18;
-            x_norm_button.Position = [20 button6_y 160 unit_height];
             x_norm_button.BackgroundColor = obj.COLOR_INACTIVE;
             x_norm_button.ValueChangedFcn = @(src, event) x_norm_change(src, event, plot_panel);
 
-            button66_y = button6_y - (unit_height + unit_spacing);
-            y_norm_button = uibutton(option_panel, "state");
+            y_norm_button = uibutton(sidebar_grid, "state");
+            y_norm_button.Layout.Row = 16;
+            y_norm_button.Layout.Column = 1;
             y_norm_button.Text = "Normalize Y-axis";
             y_norm_button.FontSize = 18;
-            y_norm_button.Position = [20 button66_y 160 unit_height];
             y_norm_button.BackgroundColor = obj.COLOR_INACTIVE;
             y_norm_button.ValueChangedFcn = @(src, event) y_norm_change(src, event, plot_panel);
 
-            button7_y = button66_y - (unit_height + unit_spacing);
-            err_button = uibutton(option_panel, "state");
+            err_button = uibutton(sidebar_grid, "state");
+            err_button.Layout.Row = 17;
+            err_button.Layout.Column = 1;
             err_button.Text = "Error";
             err_button.FontSize = 18;
-            err_button.Position = [20 button7_y 160 unit_height];
             err_button.BackgroundColor = obj.COLOR_INACTIVE;
             err_button.ValueChangedFcn = @(src, event) err_change(src, event, plot_panel);
 
-            edit1_y = button7_y - (unit_height + unit_spacing);
-            y_cen_field = uieditfield(option_panel, 'numeric');
+            y_cen_field = uieditfield(sidebar_grid, 'numeric');
+            y_cen_field.Layout.Row = 18;
+            y_cen_field.Layout.Column = 1;
             y_cen_field.Value = obj.y_cen;
-            y_cen_field.Position = [20 edit1_y 160 unit_height];
             y_cen_field.ValueChangedFcn = @(src, event) y_cen_change(src, event, plot_panel);
 
-            button8_y = edit1_y - (unit_height + unit_spacing);
-            calc_button = uibutton(option_panel, "state");
+            calc_button = uibutton(sidebar_grid, "state");
+            calc_button.Layout.Row = 19;
+            calc_button.Layout.Column = 1;
             calc_button.Text = "Live Calculate";
             calc_button.FontSize = 18;
-            calc_button.Position = [20 button7_y 160 unit_height];
             calc_button.BackgroundColor = obj.COLOR_INACTIVE;
             calc_button.ValueChangedFcn = @(src, event) calc_change(src, event, plot_panel);
 
-            save_fig_button_y = (unit_height + unit_spacing);
-            save_fig_button = uibutton(option_panel);
+            save_fig_button = uibutton(sidebar_grid);
+            save_fig_button.Layout.Row = 20;
+            save_fig_button.Layout.Column = 1;
             save_fig_button.Text = "Save Fig";
             save_fig_button.FontSize = 18;
-            save_fig_button.Position = [20 save_fig_button_y 160 unit_height];
             save_fig_button.BackgroundColor = [1 1 1];
             save_fig_button.ButtonPushedFcn = @(src, event) save_figure(src, event, plot_panel);
 
