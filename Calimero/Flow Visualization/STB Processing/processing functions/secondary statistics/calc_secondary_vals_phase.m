@@ -24,6 +24,15 @@ config.dwdxField = 'dwdx_phase_avg';
 config.dvdyField = 'dvdy_phase_avg';
 config.dwdzField = 'dwdz_phase_avg';
 
+config.uuField = 'uu_stress';
+config.vvField = 'vv_stress';
+config.wwField = 'ww_stress';
+config.uvField = 'uv_stress';
+config.uwField = 'uw_stress';
+config.vwField = 'vw_stress';
+config.uwxField = 'u_wx_stress';
+config.uwyField = 'u_wy_stress';
+
 if ~turbine_bool
     num_bins = D.num_bins;
     speed = D.U_act * D.U;
@@ -54,8 +63,13 @@ for i = 1:numel(fnames)
     S.(fnames{i}) = F.(fnames{i});
 end
 
+if bools.RPCA
+    save_filename = D.PIV_case_name + "_RPCA_phase_avg_integral.mat";
+else
+    save_filename = D.PIV_case_name + "_phase_avg_integral.mat";
+end
+
 % Save the entire structure
-save_filename = D.PIV_case_name + "_phase_avg_integral.mat";
 save_path = fullfile(save_filepath_local, save_filename);
 disp("Saving data to: " + save_path)
 save(save_path, '-struct', 'S');

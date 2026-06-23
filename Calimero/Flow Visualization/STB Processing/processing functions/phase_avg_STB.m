@@ -75,6 +75,15 @@ print_dim_bool = true;
 
 fields = get_STB_processing_fields();
 
+% Compute array of x-positions associated with each frame
+% [~, ~, freq] = parse_name(PIV_case_name);
+% dt = 1 / (freq * num_bins);
+% x_conv = zeros(1, num_bins);
+% for k = 1:num_bins
+%     x_conv(k) =  -speed * dt * (k - 1); % negative sign added for ref. frame
+% end
+x_conv = 0;
+
 for i = 1:num_bins
     bin_indices = find(bin_ind_arr == i);
     bin_count(i) = length(bin_indices);
@@ -84,7 +93,7 @@ for i = 1:num_bins
     [x, y, z, data{1:length(fields)}] = ...
         import_STB_data(file_path, bools.nondim, U, L, bin_indices, bools.RPCA);
 
-    F = prepare_STB_wake_field(L, y, z, print_dim_bool, data, 0); % trimming fields
+    F = prepare_STB_wake_field(L, y, z, print_dim_bool, data, x_conv); % trimming fields
 
     if ~bools.turbine
     [lift_vals, drag_vals] = get_wake_lift(speed, L, F, true, S.rho_act);
@@ -135,6 +144,10 @@ for i = 1:num_bins
     v_fluc = data{2} - S.v_phase_avg(:,:,:,i);
     w_fluc = data{3} - S.w_phase_avg(:,:,:,i);
 
+    wx_fluc = data{5} - S.vortX_phase_avg(:,:,:,i);
+    wy_fluc = data{6} - S.vortY_phase_avg(:,:,:,i);
+    % wz_fluc = data{7} - S.vortZ_phase_avg(:,:,:,i);
+
     % Normal stresses
     S.uu_stress(:,:,:,i) = mean(u_fluc .* u_fluc, 4, "omitnan");
     S.vv_stress(:,:,:,i) = mean(v_fluc .* v_fluc, 4, "omitnan");
@@ -144,6 +157,10 @@ for i = 1:num_bins
     S.uv_stress(:,:,:,i) = mean(u_fluc .* v_fluc, 4, "omitnan");
     S.uw_stress(:,:,:,i) = mean(u_fluc .* w_fluc, 4, "omitnan");
     S.vw_stress(:,:,:,i) = mean(v_fluc .* w_fluc, 4, "omitnan");
+
+    % Fluctuation terms related to force calculation
+    S.u_wx_stress(:,:,:,i) = mean(u_fluc .* wx_fluc, 4, "omitnan");
+    S.u_wy_stress(:,:,:,i) = mean(u_fluc .* wy_fluc, 4, "omitnan");
 
     if ~bools.turbine
     % Compute phase averages from lift data in current bin

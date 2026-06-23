@@ -36,6 +36,14 @@ trim_source.dvdx = D.(config.dvdxField);
 trim_source.dwdx = D.(config.dwdxField);
 trim_source.KE_diff = S.KE_diff_field;
 trim_source.power = S.power_field;
+trim_source.uu = D.(config.uuField);
+trim_source.vv = D.(config.vvField);
+trim_source.ww = D.(config.wwField);
+trim_source.uv = D.(config.uvField);
+trim_source.uw = D.(config.uwField);
+trim_source.vw = D.(config.vwField);
+trim_source.uwx = D.(config.uwxField);
+trim_source.uwy = D.(config.uwyField);
 
 print_dim_bool = false;
 fill_velocity_nans = true;
@@ -81,6 +89,14 @@ S.hel_avg = squeeze(mean(T.hel, [1, 2]));
 S.dudx_avg = squeeze(mean(T.dudx, [1, 2]));
 S.dvdx_avg = squeeze(mean(T.dvdx, [1, 2]));
 S.dwdx_avg = squeeze(mean(T.dwdx, [1, 2]));
+S.uu_avg = squeeze(mean(T.uu, [1, 2]));
+S.vv_avg = squeeze(mean(T.vv, [1, 2]));
+S.ww_avg = squeeze(mean(T.ww, [1, 2]));
+S.uv_avg = squeeze(mean(T.uv, [1, 2]));
+S.uw_avg = squeeze(mean(T.uw, [1, 2]));
+S.vw_avg = squeeze(mean(T.vw, [1, 2]));
+S.uwx_avg = squeeze(mean(T.uwx, [1, 2]));
+S.uwy_avg = squeeze(mean(T.uwy, [1, 2]));
 
 % Vortex centroids
 S.wx_z = integrate_planar(y_arr, z_arr, z_tr .* T.vortX) ./ integrate_planar(y_arr, z_arr, T.vortX);

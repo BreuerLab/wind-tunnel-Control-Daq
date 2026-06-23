@@ -21,7 +21,7 @@ PIV_case_name = 'flexible_20deg_6Hz'; % UP_two_body
 save_filepath_local = "Y:\Processed Results\";
 
 bools.nondim = true; % non-dimensionalize data
-bools.RPCA = true; % RPCA filtering of vector fields
+bools.RPCA = false; % RPCA filtering of vector fields
 bools.proc_vel = true; % false if just calculating secondary values
 
 % If you want to make plots here, you can. However, it is NOT recommended.

@@ -7,7 +7,8 @@ function [L, S] = RPCA_TallSkinny_CPU(X)
     mu = 1.25 / norm_two; 
     max_mu = mu * 1e7;
     rho = 1.5; 
-    lambda = 1 / sqrt(max(n1, n2)); 
+    c = 1; % c = 1 is default, c < 1 more filtering, c > 1 less filtering
+    lambda = c / sqrt(max(n1, n2)); 
     thresh = 1e-7 * norm_fro;
     
     % 2. Initialize standard CPU arrays
