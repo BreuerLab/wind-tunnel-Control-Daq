@@ -45,6 +45,7 @@ classdef timeAvg_UI < handle
         PIV_bool;
         PIV_sub;
         force_sub;
+        RPCA;
         err_bool;
         calc_bool;
 
@@ -104,6 +105,7 @@ classdef timeAvg_UI < handle
                 "Freestream Speed", "Uncertainty", "count", "count", "count", ""];
             obj.PIV_sub = false;
             obj.force_sub = false;
+            obj.RPCA = false;
             obj.filt_num = 3;
             obj.operation = "mean";
 
@@ -168,8 +170,16 @@ classdef timeAvg_UI < handle
             obj.reset_fixed_variable_defaults();
             obj.update_fixed_dropdowns(fixed_dropdown_1, fixed_dropdown_2);
 
+            rpca_button_y = drop_y3 - (unit_height + unit_spacing);
+            rpca_button = uibutton(option_panel, "state");
+            rpca_button.Text = "RPCA";
+            rpca_button.FontSize = 18;
+            rpca_button.Position = [20 rpca_button_y 160 unit_height];
+            rpca_button.BackgroundColor = obj.get_button_color(obj.RPCA);
+            rpca_button.ValueChangedFcn = @(src, event) RPCA_change(src, event);
+
             % Button to add entry
-            button2_y = drop_y3 - (unit_height + unit_spacing);
+            button2_y = rpca_button_y - (unit_height + unit_spacing);
             add_button = uibutton(option_panel);
             add_button.Position = [15 button2_y 80 unit_height];
             add_button.Text = "Add entry";
@@ -368,6 +378,11 @@ classdef timeAvg_UI < handle
                 obj.update_plot(plot_panel);
             end
 
+            function RPCA_change(src, ~)
+                obj.RPCA = src.Value;
+                src.BackgroundColor = obj.get_button_color(obj.RPCA);
+            end
+
             function force_sub_change(src, ~, plot_panel)
                 obj.force_sub = src.Value;
                 src.BackgroundColor = obj.get_button_color(obj.force_sub);
@@ -410,6 +425,9 @@ classdef timeAvg_UI < handle
 
                 for n = 1:length(selection_keys)
                     selection_key = selection_keys(n);
+                    if obj.RPCA
+                        selection_key = selection_key + "|RPCA=true";
+                    end
                     case_name = obj.get_selection_label(selection_key);
 
                     if (sum(strcmp(obj.selection, selection_key)) == 0)
@@ -751,7 +769,7 @@ classdef timeAvg_UI < handle
 
         function info = decode_selection(~, selection_key)
             parts = split(string(selection_key), "|");
-            info = struct("x_axis_type", parts(1), "type", "", "amp", NaN, "freq", NaN);
+            info = struct("x_axis_type", parts(1), "type", "", "amp", NaN, "freq", NaN, "RPCA", false);
 
             for i = 2:length(parts)
                 variable_name = extractBefore(parts(i), "=");
@@ -763,6 +781,8 @@ classdef timeAvg_UI < handle
                         info.amp = str2double(value);
                     case "freq"
                         info.freq = str2double(value);
+                    case "RPCA"
+                        info.RPCA = string(value) == "true";
                 end
             end
         end
@@ -777,6 +797,10 @@ classdef timeAvg_UI < handle
                     label = "Amp | " + obj.get_type_label(info.type) + " | " + info.freq + " Hz";
                 case "downstream distance"
                     label = "Distance | " + info.amp + " deg | " + info.freq + " Hz";
+            end
+
+            if info.RPCA
+                label = label + " | RPCA";
             end
         end
 
@@ -858,6 +882,10 @@ classdef timeAvg_UI < handle
                     label = strrep(info.type, "_", " ") + ", " + info.freq + " Hz";
                 case "downstream distance"
                     label = info.amp + " deg, " + info.freq + " Hz";
+            end
+
+            if info.RPCA
+                label = label + " - RPCA";
             end
         end
 
@@ -983,6 +1011,9 @@ classdef timeAvg_UI < handle
 
                     if obj.PIV_bool
                         name = type + "_" + amp + "deg_" + freq + "Hz";
+                        if info.RPCA
+                            name = name + "_RPCA";
+                        end
                         if freq == 0
                             suffix = "_time_avg";
                         else
