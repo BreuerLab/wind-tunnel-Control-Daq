@@ -34,6 +34,7 @@ properties
     downstream_types;
     distance_labels;
     downstream_type_by_distance;
+    RPCA;
 
     num_bins;
     frame_ind;
@@ -113,6 +114,7 @@ methods
         obj.file_path = obj.phase_avg_file_path;
         obj.source_modes = strings(0);
         obj.source_mode = "";
+        obj.RPCA = false;
 
         obj.num_bins = 5;
         obj.frame_ind = 1;
@@ -149,10 +151,13 @@ methods
         obj.phase_avg_case_ids = phase_avg_stems;
         obj.time_avg_case_ids = time_avg_stems;
 
-        turbine_stems = phase_avg_stems(contains(phase_avg_stems, "turbine"));
-        flapper_stems = phase_avg_stems(~contains(phase_avg_stems, "turbine"));
-        time_turbine_stems = time_avg_stems(contains(time_avg_stems, "turbine"));
-        time_flapper_stems = time_avg_stems(~contains(time_avg_stems, "turbine"));
+        phase_avg_display_stems = obj.strip_RPCA_suffix(phase_avg_stems);
+        time_avg_display_stems = obj.strip_RPCA_suffix(time_avg_stems);
+
+        turbine_stems = phase_avg_display_stems(contains(phase_avg_display_stems, "turbine"));
+        flapper_stems = phase_avg_display_stems(~contains(phase_avg_display_stems, "turbine"));
+        time_turbine_stems = time_avg_display_stems(contains(time_avg_display_stems, "turbine"));
+        time_flapper_stems = time_avg_display_stems(~contains(time_avg_display_stems, "turbine"));
 
         [obj.downstream_types, obj.distance_labels] = obj.get_available_downstream_options([flapper_stems, time_flapper_stems]);
         if isempty(obj.downstream_types)
@@ -354,24 +359,45 @@ methods
     % Builds figure with all UI elements and defines all callback
     % functions to be used when user clicks on UI elements
     function dynamic_plotting(obj)
-        % Create a GUI figure with a grid layout
-        [option_panel, plot_panel, screen_size] = setupFig(obj.mon_num);
-        pause(1.8) % wait until GUI opened
+        % Create a GUI figure with layout managers so controls stay
+        % reachable as the window or monitor size changes.
+        [option_panel, plot_panel, ~] = setupFig(obj.mon_num);
+        option_panel.AutoResizeChildren = true;
+        if isprop(option_panel, "Scrollable")
+            option_panel.Scrollable = "on";
+        end
 
-        screen_height = screen_size(4);
-        unit_height = round(0.03*screen_height);
+        sidebar_grid = uigridlayout(option_panel, [17, 1]);
+        sidebar_grid.ColumnWidth = {'1x'};
+        sidebar_grid.RowHeight = {30, 30, 30, 30, 30, 30, 35, 30, 30, 30, 30, 30, 30, 30, 30, 0, 30};
+        sidebar_grid.Padding = [10 10 10 10];
+        sidebar_grid.RowSpacing = 6;
+        if isprop(sidebar_grid, "Scrollable")
+            sidebar_grid.Scrollable = "on";
+        end
 
-        source_dropdown_y = screen_height*0.85 - 30;
-        source_dropdown = uidropdown(option_panel);
-        source_dropdown.Position = [10 source_dropdown_y 180 30];
+        plot_grid = uigridlayout(plot_panel, [3, 1]);
+        plot_grid.ColumnWidth = {'1x'};
+        plot_grid.RowHeight = {'1x', 45, 40};
+        plot_grid.Padding = [10 10 10 10];
+        plot_grid.RowSpacing = 6;
+
+        plot_area_panel = uipanel(plot_grid);
+        plot_area_panel.Layout.Row = 1;
+        plot_area_panel.Layout.Column = 1;
+        plot_area_panel.BorderType = "none";
+
+        source_dropdown = uidropdown(sidebar_grid);
+        source_dropdown.Layout.Row = 1;
+        source_dropdown.Layout.Column = 1;
         source_dropdown.Items = obj.source_modes;
         source_dropdown.Value = obj.source_mode;
-        source_dropdown.ValueChangedFcn = @(src, event) source_change(src, event, plot_panel);
+        source_dropdown.ValueChangedFcn = @(src, event) source_change(src, event, plot_area_panel);
 
         % Dropdown box for which cases axes to display
-        distance_dropdown_y = source_dropdown_y - 35;
-        distance_dropdown = uidropdown(option_panel);
-        distance_dropdown.Position = [10 distance_dropdown_y 180 30];
+        distance_dropdown = uidropdown(sidebar_grid);
+        distance_dropdown.Layout.Row = 2;
+        distance_dropdown.Layout.Column = 1;
         if isempty(obj.distance_labels)
             distance_dropdown.Items = "No Calimero data";
             distance_dropdown.Value = "No Calimero data";
@@ -384,141 +410,148 @@ methods
                 distance_dropdown.Visible = "off";
             end
         end
-        distance_dropdown.ValueChangedFcn = @(src, event) distance_change(src, event, plot_panel);
+        distance_dropdown.ValueChangedFcn = @(src, event) distance_change(src, event, plot_area_panel);
+        set_distance_dropdown_visibility();
 
-        case_dropdown_y = distance_dropdown_y - 35;
-        case_dropdown = uidropdown(option_panel);
-        case_dropdown.Position = [10 case_dropdown_y 180 30];
+        case_dropdown = uidropdown(sidebar_grid);
+        case_dropdown.Layout.Row = 3;
+        case_dropdown.Layout.Column = 1;
         case_dropdown.Items = obj.case_name_list;
         obj.case_name = string(case_dropdown.Value); % use current value in box
-        case_dropdown.ValueChangedFcn = @(src, event) case_change(src, event, plot_panel);
+        case_dropdown.ValueChangedFcn = @(src, event) case_change(src, event, plot_area_panel);
 
-        plot_type_dropdown_y = case_dropdown_y - 35;
-        plot_type_dropdown = uidropdown(option_panel);
-        plot_type_dropdown.Position = [10 plot_type_dropdown_y 180 30];
+        rpca_button = uibutton(sidebar_grid, "state");
+        rpca_button.Layout.Row = 4;
+        rpca_button.Layout.Column = 1;
+        rpca_button.Text = "RPCA";
+        rpca_button.FontSize = 18;
+        rpca_button.BackgroundColor = obj.get_button_color(obj.RPCA);
+        rpca_button.ValueChangedFcn = @(src, event) RPCA_change(src, event, plot_area_panel);
+
+        plot_type_dropdown = uidropdown(sidebar_grid);
+        plot_type_dropdown.Layout.Row = 5;
+        plot_type_dropdown.Layout.Column = 1;
         plot_type_dropdown.Items = obj.get_available_plot_types_for_current_case();
         obj.plot_type = plot_type_dropdown.Value; % use current value in box
-        plot_type_dropdown.ValueChangedFcn = @(src, event) type_change(src, event, plot_panel);
+        plot_type_dropdown.ValueChangedFcn = @(src, event) type_change(src, event, plot_area_panel);
 
         % Dropdown box for which variables to display
-        variable_dropdown_y = plot_type_dropdown_y - 35;
-        obj.var_dropdown = uidropdown(option_panel);
-        obj.var_dropdown.Position = [10 variable_dropdown_y 180 30];
+        obj.var_dropdown = uidropdown(sidebar_grid);
+        obj.var_dropdown.Layout.Row = 6;
+        obj.var_dropdown.Layout.Column = 1;
         obj.var_dropdown.Items = obj.var_name_list;
         obj.variable_name = obj.var_dropdown.Value; % use current value in box
-        obj.var_dropdown.ValueChangedFcn = @(src, event) variable_change(src, event, plot_panel);
+        obj.var_dropdown.ValueChangedFcn = @(src, event) variable_change(src, event, plot_area_panel);
 
-        clim_y = variable_dropdown_y - 35;
-        obj.clim_slider = uislider(option_panel,"range");
-        obj.clim_slider.Position = [10 clim_y 180 3];
+        obj.clim_slider = uislider(sidebar_grid, "range");
+        obj.clim_slider.Layout.Row = 7;
+        obj.clim_slider.Layout.Column = 1;
         clim_center = mean(obj.clims(1,:));
         clim_range = (obj.clim_scale/2)*diff(obj.clims(1,:));
         obj.clim_slider.Limits = [clim_center - clim_range, clim_center + clim_range];
         obj.clim_slider.Value = obj.clims(1,:);
-        obj.clim_slider.ValueChangedFcn = @(src, event) clim_change(src, event, plot_panel);
+        obj.clim_slider.ValueChangedFcn = @(src, event) clim_change(src, event, plot_area_panel);
 
-        trim_button_y = clim_y - 70;
-        trim_button = uibutton(option_panel,"state");
+        trim_button = uibutton(sidebar_grid, "state");
+        trim_button.Layout.Row = 8;
+        trim_button.Layout.Column = 1;
         trim_button.Value = true;
         trim_button.Text = "Trim";
         trim_button.FontSize = 18;
-        trim_button.Position = [30 trim_button_y 120 unit_height];
         trim_button.BackgroundColor = obj.ACTIVE_COLOR;
-        trim_button.ValueChangedFcn = @(src, event) trim_change(src, event, plot_panel);
+        trim_button.ValueChangedFcn = @(src, event) trim_change(src, event, plot_area_panel);
 
-        mirror_button_y = trim_button_y - 40;
-        mirror_button = uibutton(option_panel,"state");
+        mirror_button = uibutton(sidebar_grid, "state");
+        mirror_button.Layout.Row = 9;
+        mirror_button.Layout.Column = 1;
         mirror_button.Text = "Mirror";
         mirror_button.FontSize = 18;
-        mirror_button.Position = [30 mirror_button_y 120 unit_height];
         mirror_button.BackgroundColor = obj.INACTIVE_COLOR;
-        mirror_button.ValueChangedFcn = @(src, event) mirror_change(src, event, plot_panel);
+        mirror_button.ValueChangedFcn = @(src, event) mirror_change(src, event, plot_area_panel);
 
-        filter_button_y = mirror_button_y - 35;
-        filter_button = uibutton(option_panel,"state");
+        filter_button = uibutton(sidebar_grid, "state");
+        filter_button.Layout.Row = 10;
+        filter_button.Layout.Column = 1;
         filter_button.Text = "Filter";
         filter_button.FontSize = 18;
-        filter_button.Position = [30 filter_button_y 120 unit_height];
         filter_button.BackgroundColor = obj.INACTIVE_COLOR;
-        filter_button.ValueChangedFcn = @(src, event) filter_change(src, event, plot_panel);
+        filter_button.ValueChangedFcn = @(src, event) filter_change(src, event, plot_area_panel);
 
-        extrapolate_button_y = filter_button_y - 35;
-        extrapolate_button = uibutton(option_panel,"state");
+        extrapolate_button = uibutton(sidebar_grid, "state");
+        extrapolate_button.Layout.Row = 11;
+        extrapolate_button.Layout.Column = 1;
         extrapolate_button.Text = "Extrapolate";
         extrapolate_button.FontSize = 18;
-        extrapolate_button.Position = [30 extrapolate_button_y 120 unit_height];
         extrapolate_button.BackgroundColor = obj.INACTIVE_COLOR;
-        extrapolate_button.ValueChangedFcn = @(src, event) extrapolate_change(src, event, plot_panel);
+        extrapolate_button.ValueChangedFcn = @(src, event) extrapolate_change(src, event, plot_area_panel);
 
-        floor_button_y = extrapolate_button_y - 35;
-        floor_button = uibutton(option_panel,"state");
+        floor_button = uibutton(sidebar_grid, "state");
+        floor_button.Layout.Row = 12;
+        floor_button.Layout.Column = 1;
         floor_button.Text = "Noise Floor";
         floor_button.FontSize = 18;
-        floor_button.Position = [30 floor_button_y 120 unit_height];
         floor_button.BackgroundColor = obj.INACTIVE_COLOR;
-        floor_button.ValueChangedFcn = @(src, event) floor_change(src, event, plot_panel);
+        floor_button.ValueChangedFcn = @(src, event) floor_change(src, event, plot_area_panel);
 
-        edit1_y = floor_button_y - 35;
-        floor_field = uieditfield(option_panel, 'numeric');
+        floor_field = uieditfield(sidebar_grid, 'numeric');
+        floor_field.Layout.Row = 13;
+        floor_field.Layout.Column = 1;
         floor_field.Value = obj.thresh;
-        floor_field.Position = [20 edit1_y 160 unit_height];
-        floor_field.ValueChangedFcn = @(src, event) thresh_change(src, event, plot_panel);
+        floor_field.ValueChangedFcn = @(src, event) thresh_change(src, event, plot_area_panel);
 
-        q_mask_button_y = edit1_y - 35;
-        q_mask_button = uibutton(option_panel,"state");
+        q_mask_button = uibutton(sidebar_grid, "state");
+        q_mask_button.Layout.Row = 14;
+        q_mask_button.Layout.Column = 1;
         q_mask_button.Text = "Q-mask";
         q_mask_button.FontSize = 18;
-        q_mask_button.Position = [30 q_mask_button_y 120 unit_height];
         q_mask_button.BackgroundColor = obj.INACTIVE_COLOR;
-        q_mask_button.ValueChangedFcn = @(src, event) q_mask_change(src, event, plot_panel);
+        q_mask_button.ValueChangedFcn = @(src, event) q_mask_change(src, event, plot_area_panel);
 
-        q_mask_field_y = q_mask_button_y - 35;
-        q_mask_field = uieditfield(option_panel, 'numeric');
+        q_mask_field = uieditfield(sidebar_grid, 'numeric');
+        q_mask_field.Layout.Row = 15;
+        q_mask_field.Layout.Column = 1;
         q_mask_field.Value = obj.q_mask_thresh;
-        q_mask_field.Position = [20 q_mask_field_y 160 unit_height];
-        q_mask_field.ValueChangedFcn = @(src, event) q_mask_thresh_change(src, event, plot_panel);
+        q_mask_field.ValueChangedFcn = @(src, event) q_mask_thresh_change(src, event, plot_area_panel);
 
-        panel_width = plot_panel.Position(3);
-        frame_slider_width = panel_width * (3/4);
-        frame_slider_x = (panel_width - frame_slider_width)/2; % end of right monitor around 1690
-        frame_slider_y = 0.05*screen_height;
-        obj.slider = uislider(plot_panel);
-        obj.slider.Position = [frame_slider_x frame_slider_y frame_slider_width 3];
+        obj.slider = uislider(plot_grid);
+        obj.slider.Layout.Row = 2;
+        obj.slider.Layout.Column = 1;
         obj.slider.Limits = [1 obj.num_bins];
         obj.slider.Value = obj.frame_ind;
         obj.slider.MajorTicks = 1:5:obj.num_bins;
         obj.slider.MinorTicks = 1:obj.num_bins;
-        obj.slider.ValueChangedFcn = @(src, event) frame_change(src, event, plot_panel);
+        obj.slider.ValueChangedFcn = @(src, event) frame_change(src, event, plot_area_panel);
 
-        play_button_y = frame_slider_y + 50;
-        obj.play_button = uibutton(plot_panel,"state");
+        obj.play_button = uibutton(plot_grid, "state");
+        obj.play_button.Layout.Row = 3;
+        obj.play_button.Layout.Column = 1;
         obj.play_button.Text = "Play";
         obj.play_button.FontSize = 18;
-        obj.play_button.Position = [30 play_button_y 120 unit_height];
         obj.play_button.BackgroundColor = obj.INACTIVE_COLOR;
-        obj.play_button.ValueChangedFcn = @(src, event) playStop_change(src, event, plot_panel);
+        obj.play_button.ValueChangedFcn = @(src, event) playStop_change(src, event, plot_area_panel);
 
-        param_panel_height = 380;
-        param_panel_width = 180;
-        param_panel_y = q_mask_field_y - 10 - param_panel_height;
-        obj.param_panel = uipanel(option_panel);
+        obj.param_panel = uipanel(sidebar_grid);
+        obj.param_panel.Layout.Row = 16;
+        obj.param_panel.Layout.Column = 1;
         obj.param_panel.Visible = "off";
         obj.param_panel.Title = "3D Plot Parameters";
         obj.param_panel.TitlePosition = 'centertop';
-        obj.param_panel.Position = [10 param_panel_y param_panel_width param_panel_height];
 
-        l1_y = param_panel_height - 50;
-        l1_x = 55;
-        l1_w = 70;
-        l1 = uilabel(obj.param_panel);
+        param_grid = uigridlayout(obj.param_panel, [6, 1]);
+        param_grid.ColumnWidth = {'1x'};
+        param_grid.RowHeight = {22, 55, 30, 22, 55, 85};
+        param_grid.Padding = [10 8 10 8];
+        param_grid.RowSpacing = 6;
+
+        l1 = uilabel(param_grid);
+        l1.Layout.Row = 1;
+        l1.Layout.Column = 1;
         l1.HorizontalAlignment = 'center';
-        l1.Position = [l1_x l1_y l1_w unit_height];
         l1.Text = 'Q isovalue:';
 
-        iso_slider_y = l1_y - 5;
-        iso_slider_w = param_panel_width - 2*10;
-        obj.iso_slider = uislider(obj.param_panel);
-        obj.iso_slider.Position = [5 iso_slider_y iso_slider_w 3];
+        obj.iso_slider = uislider(param_grid);
+        obj.iso_slider.Layout.Row = 2;
+        obj.iso_slider.Layout.Column = 1;
         obj.iso_slider.Limits = [0.005 0.1];
         % obj.iso_slider.Limits = [-0.1 -0.005];
         obj.iso_slider.Value = obj.iso_val;
@@ -526,71 +559,72 @@ methods
         obj.iso_slider.MinorTicks = 0.005:0.005:0.1; % 0.01:0.01:0.5
         % obj.iso_slider.MajorTicks = -0.1:0.025:0; % 0:0.05:0.5
         % obj.iso_slider.MinorTicks = -0.1:0.005:0.005; % 0.01:0.01:0.5
-        obj.iso_slider.ValueChangedFcn = @(src, event) iso_change(src, event, plot_panel);
+        obj.iso_slider.ValueChangedFcn = @(src, event) iso_change(src, event, plot_area_panel);
 
         % Dropdown box for which variables to display
-        iso_var_dropdown_y = iso_slider_y - 70;
-        iso_var_dropdown = uidropdown(obj.param_panel);
-        iso_var_dropdown.Position = [30 iso_var_dropdown_y 120 30];
+        iso_var_dropdown = uidropdown(param_grid);
+        iso_var_dropdown.Layout.Row = 3;
+        iso_var_dropdown.Layout.Column = 1;
         iso_var_dropdown.Items = obj.iso_var_list;
         iso_var_dropdown.Value = obj.iso_var;
-        iso_var_dropdown.ValueChangedFcn = @(src, event) iso_var_change(src, event, plot_panel);
+        iso_var_dropdown.ValueChangedFcn = @(src, event) iso_var_change(src, event, plot_area_panel);
 
-        l2_y = iso_var_dropdown_y - 35;
-        l2 = uilabel(obj.param_panel);
+        l2 = uilabel(param_grid);
+        l2.Layout.Row = 4;
+        l2.Layout.Column = 1;
         l2.HorizontalAlignment = 'center';
-        l2.Position = [30 l2_y 120 unit_height];
         l2.Text = 'Number of Wingbeats';
 
-        num_cycles_slider_y = l2_y - 10;
-        num_cycles_slider = uislider(obj.param_panel);
-        num_cycles_slider.Position = [30 num_cycles_slider_y 120 3];
+        num_cycles_slider = uislider(param_grid);
+        num_cycles_slider.Layout.Row = 5;
+        num_cycles_slider.Layout.Column = 1;
         num_cycles_slider.Limits = [1 5];
         num_cycles_slider.Value = obj.num_cycles;
         num_cycles_slider.MajorTicks = 1:5;
         num_cycles_slider.MinorTicks = [];
-        num_cycles_slider.ValueChangedFcn = @(src, event) num_cycles_change(src, event, plot_panel);
+        num_cycles_slider.ValueChangedFcn = @(src, event) num_cycles_change(src, event, plot_area_panel);
 
-        view_button_group_y = num_cycles_slider_y - 120;
         % View buttons rotate the current 3D axes without redrawing data.
-        view_button_group = uibuttongroup(obj.param_panel, ...
-            'Position', [30 view_button_group_y 124 2*(unit_height+5)], ...
-            'BorderType', 'none', ...
-            'BackgroundColor', option_panel.BackgroundColor, ...
-            'SelectionChangedFcn', @(bg, event) view_change_handler(event, plot_panel));
-        
-        % Dimensions for buttons relative to the group
-        view_button_width = 32;
-        view_button_spacing = (120 - 3*view_button_width)/2;
-        pad = 2;
-        view_button_row_spacing = (unit_height+5);
-        uitogglebutton(view_button_group, 'Text', '+xy', 'Position', [pad pad+view_button_row_spacing view_button_width unit_height], 'BackgroundColor', obj.INACTIVE_COLOR);
-        uitogglebutton(view_button_group, 'Text', '+yz', 'Position', [pad + view_button_width + view_button_spacing pad+view_button_row_spacing view_button_width unit_height], 'BackgroundColor', obj.INACTIVE_COLOR);
-        uitogglebutton(view_button_group, 'Text', '+xz', 'Position', [pad + 2*(view_button_width + view_button_spacing) pad+view_button_row_spacing view_button_width unit_height], 'BackgroundColor', obj.INACTIVE_COLOR);
-        uitogglebutton(view_button_group, 'Text', '-xy', 'Position', [pad pad view_button_width unit_height], 'BackgroundColor', obj.INACTIVE_COLOR);
-        uitogglebutton(view_button_group, 'Text', '-yz', 'Position', [pad + view_button_width + view_button_spacing pad view_button_width unit_height], 'BackgroundColor', obj.INACTIVE_COLOR);
-        uitogglebutton(view_button_group, 'Text', '-xz', 'Position', [pad + 2*(view_button_width + view_button_spacing) pad view_button_width unit_height], 'BackgroundColor', obj.INACTIVE_COLOR);
+        view_grid = uigridlayout(param_grid, [2, 3]);
+        view_grid.Layout.Row = 6;
+        view_grid.Layout.Column = 1;
+        view_grid.RowHeight = {'1x', '1x'};
+        view_grid.ColumnWidth = {'1x', '1x', '1x'};
+        view_grid.Padding = [0 0 0 0];
+        view_grid.RowSpacing = 4;
+        view_grid.ColumnSpacing = 4;
 
-        save_button_y = 0.05*screen_height;
-        save_button = uibutton(option_panel,"state");
+        view_labels = ["+xy", "+yz", "+xz"; "-xy", "-yz", "-xz"];
+        for view_row = 1:2
+            for view_col = 1:3
+                view_button = uibutton(view_grid);
+                view_button.Layout.Row = view_row;
+                view_button.Layout.Column = view_col;
+                view_button.Text = view_labels(view_row, view_col);
+                view_button.BackgroundColor = obj.INACTIVE_COLOR;
+                view_button.ButtonPushedFcn = @(src, event) view_change_handler(src.Text, plot_area_panel);
+            end
+        end
+
+        save_button = uibutton(sidebar_grid, "state");
+        save_button.Layout.Row = 17;
+        save_button.Layout.Column = 1;
         save_button.Text = "Save Figure";
         save_button.FontSize = 18;
-        save_button.Position = [30 save_button_y 120 unit_height];
         save_button.BackgroundColor = obj.INACTIVE_COLOR;
-        save_button.ValueChangedFcn = @(src, event) save_figure(src, event, plot_panel);
+        save_button.ValueChangedFcn = @(src, event) save_figure(src, event, plot_area_panel);
 
         % Set up plot titles and axes
-        obj.update_plot(plot_panel);
+        set_param_panel_visibility(strcmp(obj.plot_type, obj.plot_types(4)));
+        obj.update_plot(plot_area_panel);
 
         % Callbacks are nested so each handler mutates this handle object.
 
         function source_change(src, ~, plot_panel)
             previous_plot_type = obj.plot_type;
             obj.source_mode = src.Value;
-            if obj.source_mode == "turbine"
-                distance_dropdown.Visible = "off";
-            else
-                distance_dropdown.Visible = "on";
+            set_distance_dropdown_visibility();
+            if obj.source_mode ~= "turbine" && ~isempty(obj.distance_labels)
                 obj.current_downstream_type = string(obj.downstream_type_by_distance(distance_dropdown.Value));
             end
 
@@ -629,6 +663,21 @@ methods
 
             % Force frame slider back to 1 since not all datasets have the
             % same number of frames
+            obj.frame_ind = 1;
+            obj.slider.Value = obj.frame_ind;
+
+            obj.update_plot(plot_panel);
+        end
+
+        function RPCA_change(src, ~, plot_panel)
+            previous_plot_type = obj.plot_type;
+            obj.RPCA = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.RPCA);
+
+            refresh_case_dropdown();
+            refresh_plot_type_dropdown();
+            refresh_variable_dropdown(previous_plot_type);
+
             obj.frame_ind = 1;
             obj.slider.Value = obj.frame_ind;
 
@@ -703,11 +752,32 @@ methods
             obj.set_active_color_limit_set();
             obj.update_color_limit_slider();
 
-            if strcmp(obj.plot_type, obj.plot_types(4))
+            set_param_panel_visibility(strcmp(obj.plot_type, obj.plot_types(4)));
+        end
+
+        function set_distance_dropdown_visibility()
+            is_visible = obj.source_mode ~= "turbine" && ~isempty(obj.distance_labels);
+            row_heights = sidebar_grid.RowHeight;
+            if is_visible
+                distance_dropdown.Visible = "on";
+                row_heights{2} = 30;
+            else
+                distance_dropdown.Visible = "off";
+                row_heights{2} = 0;
+            end
+            sidebar_grid.RowHeight = row_heights;
+        end
+
+        function set_param_panel_visibility(is_visible)
+            row_heights = sidebar_grid.RowHeight;
+            if is_visible
                 obj.param_panel.Visible = "on";
+                row_heights{16} = 380;
             else
                 obj.param_panel.Visible = "off";
+                row_heights{16} = 0;
             end
+            sidebar_grid.RowHeight = row_heights;
         end
 
         function clim_change(src, ~, plot_panel)
@@ -860,9 +930,7 @@ methods
             obj.update_plot(plot_panel);
         end
 
-        function view_change_handler(event, plot_panel)
-            selected_text = event.NewValue.Text;
-
+        function view_change_handler(selected_text, plot_panel)
             ax = findobj(plot_panel.Children, 'Type', 'axes');
             
             switch selected_text
@@ -917,6 +985,29 @@ methods (Access = private)
         file_names = string({files.name});
         avg_files = endsWith(file_names, suffix + ".mat");
         file_stems = erase(file_names(avg_files), suffix + ".mat");
+    end
+
+    function stems = strip_RPCA_suffix(~, stems)
+        stems = regexprep(string(stems), "_RPCA$", "");
+    end
+
+    function case_id = with_RPCA_suffix(obj, case_id)
+        case_id = string(case_id);
+        if obj.RPCA && strlength(case_id) > 0 && ~endsWith(case_id, "_RPCA")
+            case_id = case_id + "_RPCA";
+        end
+    end
+
+    function tf = has_case_id(obj, case_ids, case_id)
+        tf = any(string(case_ids) == obj.with_RPCA_suffix(case_id));
+    end
+
+    function color = get_button_color(obj, is_active)
+        if is_active
+            color = obj.ACTIVE_COLOR;
+        else
+            color = obj.INACTIVE_COLOR;
+        end
     end
 
     function [downstream_types, distance_labels] = get_available_downstream_options(obj, flapper_stems)
@@ -1060,22 +1151,24 @@ methods (Access = private)
 
         if obj.source_mode == "turbine"
             if startsWith(case_name, "turbine")
-                case_id = case_name;
+                base_case_id = case_name;
             else
-                case_id = "turbine_" + case_name;
+                base_case_id = "turbine_" + case_name;
             end
         else
-            if obj.plot_type == obj.plot_types(1) && any(obj.time_avg_case_ids == case_name)
-                case_id = case_name;
+            if obj.plot_type == obj.plot_types(1) && obj.has_case_id(obj.time_avg_case_ids, case_name)
+                base_case_id = case_name;
             elseif current_downstream_type == case_name && ...
-                    (any(obj.phase_avg_case_ids == case_name) || any(obj.time_avg_case_ids == case_name))
-                case_id = case_name;
+                    (obj.has_case_id(obj.phase_avg_case_ids, case_name) || obj.has_case_id(obj.time_avg_case_ids, case_name))
+                base_case_id = case_name;
             elseif strlength(case_name) == 0
-                case_id = current_downstream_type;
+                base_case_id = current_downstream_type;
             else
-                case_id = current_downstream_type + "_" + case_name;
+                base_case_id = current_downstream_type + "_" + case_name;
             end
         end
+
+        case_id = obj.with_RPCA_suffix(base_case_id);
     end
 
     function file_base = get_current_file_base(obj)
@@ -1190,6 +1283,10 @@ methods (Access = private)
         end
 
         if strlength(obj.case_name) == 0
+            return
+        end
+
+        if ~obj.current_case_has_phase_avg() && ~obj.current_case_has_time_avg()
             return
         end
 
