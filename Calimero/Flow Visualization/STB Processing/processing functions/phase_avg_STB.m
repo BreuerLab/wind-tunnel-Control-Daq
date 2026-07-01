@@ -41,6 +41,24 @@ end
 
 D.phase_avg_speed_error = abs(D.phase_avg_speed - freq);
 D.phase_avg_power = D.phase_avg_volt .* D.phase_avg_cur;
+
+% Brushed DC motor parameters
+R = 51.4; % Ohms
+L = 1.8e-3; % H
+k = 27.4e-3; % Nm/A, torque constant
+gR = 9; % gear ratio
+eff = 0.81; % gearbox efficiency
+
+% Estimate motor current from voltage data using motor model
+
+% Estimate motor voltage from current data using motor model
+dt = (1/freq) / length(D.phase_avg_cur);
+mechTerm = k*(D.phase_avg_speed*2*pi*gR); % Nm/A = V/(speed in rad/s)
+resTerm = R*(D.phase_avg_cur/1000);
+indTerm = L*gradient(D.phase_avg_cur/1000, dt);
+D.phase_avg_volt_model = mechTerm + resTerm + indTerm;
+% potentially a brush voltage drop term is missing
+
 end
 
 % ----------------------------------------------------------------

@@ -12,9 +12,8 @@ function [option_panel, plot_panel, screen_size] = setupFig(mon_num)
         end
         
         fig = uifigure('Name', 'Dynamic Force Plotting');
-        fig.Position = [screen_size(1) screen_size(2) + 40 screen_size(3) screen_size(4) - 70];
-        % not just screen_size, shifted slightly up from bottom
-        % to not block toolbar on bottom of screen on windows OS
+        fig.Position = screen_size; 
+        fig.WindowState = 'maximized'; % or 'fullscreen'
         
         % Create a grid layout
         plot_grid = uigridlayout(fig, [1, 2]);
