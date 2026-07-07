@@ -94,6 +94,8 @@ methods
         phase_avg_files = dir(obj.phase_avg_file_path + "*.mat");
 
         phase_avg_stems = obj.get_file_stems(phase_avg_files, "_phase_avg");
+        % remove ones that have RPCA in name
+        phase_avg_stems = phase_avg_stems(~contains(phase_avg_stems, "RPCA"));
         obj.phase_avg_case_ids = phase_avg_stems;
 
         flapper_stems = phase_avg_stems(~contains(phase_avg_stems, "turbine"));
