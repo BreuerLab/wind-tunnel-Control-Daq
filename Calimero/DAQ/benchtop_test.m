@@ -21,11 +21,11 @@ galil_bool = true;
 galil_IP_address = "192.168.1.3";
 DR_bool = false; % false - store data in arrays (RA), true - data record packets (DR)
 ticksPerRev = 18432;
-freq = 0; % Hz
+freq = 2; % Hz
 acc = 3; % Hz
-measure_revs = 100; % 270
+measure_revs = 180; % 270
 padding_revs = 2;
-hold_time = 40; % sec
+hold_time = 10; % sec
 wait_time = 1000; % ms
 OC_pulse_step = 4; % in ticks
 % REMEMBER MOTOR WIRES NEED TO BE FLIPPED TOO WHEN CHANGING DIRECTION
@@ -37,9 +37,12 @@ else
 end
 dmc_hold_filename = "hold.dmc";
 
-% case_name = "benchtop_" + 0 + "m.s_" + 0 + "deg_" + freq + "Hz_";
+amp = 20;
+speed = 0;
+AoA = 0;
+case_name = "benchtop_" + "_" + amp + "_" + speed + "m.s_" + AoA + "deg_" + freq + "Hz_";
 % case_name = "UP_two_PIV_flexible_20_" + 4 + "m.s_" + 10 + "deg_" + freq + "Hz_";
-case_name = "ringdown_" + 0 + "m.s_" + 10 + "deg_" + 0 + "Hz_";
+% case_name = "ringdown_" + 0 + "m.s_" + 10 + "deg_" + 0 + "Hz_";
 time_now = datetime;
 time_now.Format = 'yyyy-MM-dd HH-mm-ss';
 case_name = case_name + string(time_now);
@@ -199,8 +202,8 @@ checkLimits(results);
 
 ticksPerRev = 18432;
 % Translate data from raw values into meaningful values
-[time, force, voltAdj, curAdj, speed] = ...
-    process_data(results, offsets_before, cal_matrix, ticksPerRev, OC_pulse_step, async);
+[time, force, voltAdj, curAdj, pos, speed, acc, wing_pos, wing_speed, wing_acc] = ...
+    process_data(results, offsets_before, cal_matrix, ticksPerRev, OC_pulse_step, amp, async);
 
 fc = 20;
 fs = rate;
