@@ -42,7 +42,7 @@ frames_per_beat_actual = mean(diff(nextRev_idx));
 % only 180 since no long pulse included at end
 
 if length(nextRev_idx) ~= num_wingbeats
-    disp("hey")
+    warning("Mismatch in expected and actual # of wingbeats")
 end
 
 wingbeat_forces = zeros(numAxes, num_wingbeats, frames_per_beat);

@@ -4,13 +4,18 @@ function file_name = findInitialOffsetsFile(path, case_name)
     filePattern = fullfile(path, '*.mat');
     theFiles = dir(filePattern);
     parts = split(case_name);
-    case_name = strjoin(parts(1:end-1), " ");
+    case_name = strjoin(parts(1:end-1), " "); % removing wingbeat frequency
     
     % Grab each file and process the data from that file, storing the results
     for k = 1 : length(theFiles)
         baseFileName = theFiles(k).name;
         [case_name_cur, ~, ~, ~, ~, ~, ~, file_type] = parse_filename(baseFileName);
-        if strcmp(case_name, case_name_cur) && strcmp(file_type, "offsets")
+
+        % Temp code for benchtop test file processing
+        parts = split(case_name_cur);
+        case_name_cur = strjoin(parts(1:end-1), " "); % removing wingbeat frequency
+
+        if strcmp(case_name, case_name_cur) && strcmp(file_type, "before_offsets") % REPLACE WITH offsets, temp change for benchtop
                 file_name = convertCharsToStrings(baseFileName);
                 break
         end

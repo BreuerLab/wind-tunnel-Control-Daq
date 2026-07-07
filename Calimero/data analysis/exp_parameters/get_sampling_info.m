@@ -12,7 +12,7 @@ function [frame_rate, num_wingbeats, rec_wingbeats, ticksPerRev, OC_pulse_step] 
     % num_wingbeats = 50;
 
     acc = 3;
-    padding_revs = 4;
+    padding_revs = 2;
     hold_time = 15;
     wait_time = 4000; % ms
     print_bool = false;

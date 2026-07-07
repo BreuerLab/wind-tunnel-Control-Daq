@@ -81,7 +81,7 @@ mod_results = [results_lab; voltAdj'; curAdj'];
 
 % Non-dimensionalize the data. Newtons to Force Coefficients and
 % Newton*meters to Moment Coefficients
-[norm_data, norm_factors, St, Re] = non_dimensionalize_data(wind_tunnel_path, results_lab, file, type);
+% [norm_data, norm_factors, St, Re] = non_dimensionalize_data(wind_tunnel_path, results_lab, file, type);
 
 % Smooth the data with a butterworth filter
 % fc = 100; % cutoff frequency
@@ -126,8 +126,10 @@ filtered_data_smoothest = filter_data(mod_results, frame_rate, fc);
 filename = case_name + " " + time_stamp + ".mat"; % file name for processed data
 
 saved_vars = {'time_data', 'force_data', 'results_lab',...
-    'filtered_data','filtered_data_smoothest',...
-    'norm_factors', 'St', 'Re'};
+    'filtered_data','filtered_data_smoothest'};
+% saved_vars = {'time_data', 'force_data', 'results_lab',...
+%     'filtered_data','filtered_data_smoothest',...
+%     'norm_factors', 'St', 'Re'};
 
 % If this is a flapping trial, analyze data over each wingbeat rather than
 % just in time

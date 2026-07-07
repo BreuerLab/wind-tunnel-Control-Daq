@@ -24,7 +24,7 @@ ticksPerRev = 18432;
 freq = 2; % Hz
 acc = 3; % Hz
 measure_revs = 180; % 270
-padding_revs = 2;
+padding_revs = 4;
 hold_time = 10; % sec
 wait_time = 1000; % ms
 OC_pulse_step = 4; % in ticks
@@ -40,11 +40,12 @@ dmc_hold_filename = "hold.dmc";
 amp = 20;
 speed = 0;
 AoA = 0;
-case_name = "benchtop_" + "_" + amp + "_" + speed + "m.s_" + AoA + "deg_" + freq + "Hz_";
+wing_type = "benchtop";
+case_name = wing_type + "_" + amp + "_" + speed + "m.s_" + AoA + "deg_" + freq + "Hz_";
 % case_name = "UP_two_PIV_flexible_20_" + 4 + "m.s_" + 10 + "deg_" + freq + "Hz_";
 % case_name = "ringdown_" + 0 + "m.s_" + 10 + "deg_" + 0 + "Hz_";
 time_now = datetime;
-time_now.Format = 'yyyy-MM-dd HH-mm-ss';
+time_now.Format = 'yyyy_MM_dd_HH_mm_ss';
 case_name = case_name + string(time_now);
 
 daq_bool = true;
@@ -79,7 +80,7 @@ end
 currentDateTime = datetime('now', 'Format', 'yyyy_MM_dd_HH_mm_ss');
 currentDateTimeStr = char(currentDateTime);
 file_name = strjoin(["experiment_params", currentDateTimeStr], "_");
-full_file_name = "data\params\" + file_name + ".mat";
+full_file_name = "data\experiment parameters\" + file_name + ".mat";
 
 vars = whos;
 saveVars = {};

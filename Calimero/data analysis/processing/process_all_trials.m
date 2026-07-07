@@ -71,7 +71,9 @@ end
 if addFolders
 params_path = data_path + "experiment parameters" + DELIM;
 
-[wind_speed, type, freq_vals, AoA_vals, amp, time_stamp] = eval_params(params_path);
+% On July 7th removed freq_vals and AoA_vals here since not relevant for
+% benchtop processing and seemingly not used for normal processing routine
+[wind_speed, type, amp, time_stamp] = eval_params(params_path);
 
 oldFolder = data_path;
 raw_appendage = DELIM + "raw data";
