@@ -4,7 +4,8 @@ close all
 volt_idx = 7;
 cur_idx = 8;
 sel_idx = cur_idx;
-vars = {"frames", "wingbeat_avg_forces", "wingbeat_avg_forces_smoother", "wingbeat_avg_forces_smoothest"};
+vars = {"frames", "wingbeat_avg_forces_raw", "wingbeat_avg_forces",...
+    "wingbeat_avg_forces_smoother", "wingbeat_avg_forces_smoothest"};
 
 root_dir = "R:\ENG_Breuer_Shared\rgissler\Calimero Force Data\Redesign tests July 2026\";
 
@@ -43,6 +44,18 @@ load(root_dir + sub_dir + filepath, vars{:});
 disp(mean(wingbeat_avg_forces_smoothest(sel_idx,:)))
 p = plot(frames, wingbeat_avg_forces_smoothest(sel_idx,:));
 p.DisplayName = "Spring + Rolling";
+p.LineWidth = 2;
+
+% % Load 4th file
+sub_dir = "07_08_2026\4 m.s\benchtop_2026_07_08\processed data\";
+% filepath = "benchtop 20 4m.s 10deg 6Hz 2026 07 08 11 41 46 2026_07_08_11_42_56.mat";
+filepath = "benchtop 20 4m.s 10deg 6Hz 2026 07 08 11 41 46 2026_07_08_11_42_56.mat";
+% filepath = "benchtop 20 4m.s 10deg 8Hz 2026 07 08 11 45 08 2026_07_08_11_46_12.mat";
+load(root_dir + sub_dir + filepath, vars{:});
+
+disp(mean(wingbeat_avg_forces_smoothest(sel_idx,:)))
+p = plot(frames, wingbeat_avg_forces_smoothest(sel_idx,:));
+p.DisplayName = "Spring + Rolling + Wind";
 p.LineWidth = 2;
 
 xline(0.39/2, LineWidth=2, LineStyle="--", HandleVisibility="off")
