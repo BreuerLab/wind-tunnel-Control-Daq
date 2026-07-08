@@ -11,8 +11,8 @@ root_dir = "R:\ENG_Breuer_Shared\rgissler\Calimero Force Data\Redesign tests Jul
 % Load 1st file
 sub_dir = "07_01_2026\0 m.s\benchtop_2026_07_01\processed data\";
 % filepath = "benchtop 20 0m.s 0deg 4Hz 2026-07-01 18-58-30 2026_07_01_18_59_43.mat";
-filepath = "benchtop 20 0m.s 0deg 6Hz 2026-07-01 19-01-41 2026_07_01_19_02_41.mat";
-% filepath = "benchtop 20 0m.s 0deg 8Hz 2026-07-01 19-04-48 2026_07_01_19_05_42.mat";
+% filepath = "benchtop 20 0m.s 0deg 6Hz 2026-07-01 19-01-41 2026_07_01_19_02_41.mat";
+filepath = "benchtop 20 0m.s 0deg 8Hz 2026-07-01 19-04-48 2026_07_01_19_05_42.mat";
 load(root_dir + sub_dir + filepath, vars{:});
 
 figure
@@ -23,21 +23,10 @@ p.DisplayName = "Original";
 p.LineWidth = 2;
 
 % Load 2nd file
-sub_dir = "07_06_2026\no spring\0 m.s\benchtop_2026_07_06\processed data\";
-% filepath = "benchtop  20 0m.s 0deg 4Hz 2026-07-06 15-01-18 2026_07_06_15_02_31.mat";
-filepath = "benchtop  20 0m.s 0deg 6Hz 2026-07-06 15-04-37 2026_07_06_15_05_37.mat";
-load(root_dir + sub_dir + filepath, vars{:});
-
-disp(mean(wingbeat_avg_forces_smoothest(sel_idx,:)))
-p = plot(frames, wingbeat_avg_forces_smoothest(sel_idx,:));
-p.DisplayName = "Rolling";
-p.LineWidth = 2;
-
-% % Load 3rd file
 sub_dir = "07_07_2026\0 m.s\benchtop_2026_07_07\processed data\";
 % filepath = "benchtop 20 0m.s 0deg 4Hz 2026 07 07 12 43 38 2026_07_07_12_44_55.mat";
-filepath = "benchtop 20 0m.s 0deg 6Hz 2026 07 07 12 47 10 2026_07_07_12_48_15.mat";
-% filepath = "benchtop 20 0m.s 0deg 8Hz 2026 07 07 12 50 29 2026_07_07_12_51_28.mat";
+% filepath = "benchtop 20 0m.s 0deg 6Hz 2026 07 07 12 47 10 2026_07_07_12_48_15.mat";
+filepath = "benchtop 20 0m.s 0deg 8Hz 2026 07 07 12 50 29 2026_07_07_12_51_28.mat";
 load(root_dir + sub_dir + filepath, vars{:});
 
 disp(mean(wingbeat_avg_forces_smoothest(sel_idx,:)))
@@ -45,8 +34,7 @@ p = plot(frames, wingbeat_avg_forces_smoothest(sel_idx,:));
 p.DisplayName = "Spring + Rolling";
 p.LineWidth = 2;
 
-xline(0.39/2, LineWidth=2, LineStyle="--", HandleVisibility="off")
-xline((0.39/2) + 0.61, LineWidth=2, LineStyle="--", HandleVisibility="off")
+xline(0.3, Line)
 
 xlabel("Time (t/T)")
 ylabel("Current (mA)")
