@@ -92,7 +92,12 @@ function setup_DAQ(obj, forceVoltage, rate)
 
     % channel for Galil encoder measurement
     % ch8 = this_DAQ.addinput(daq_ID, 20, "Voltage");
-    ch8 = obj.DAQ.addinput(daq_ID, "port0/line24", "Digital");
+    % ch8 = obj.DAQ.addinput(daq_ID, "port0/line24", "Digital");
+
+    % channel for z-index hall effect sensor
+    ch8 = obj.DAQ.addinput(daq_ID, "port0/line25", "Digital");
+
+    % ch8 = obj.DAQ.addinput(daq_ID, 20, "Voltage");
 
     % counter for galil OC pulses
     obj.DAQ.addinput(daq_ID,"ctr0","EdgeCount")

@@ -1,0 +1,28 @@
+function home_wings(flapper_obj, galil, dmc_home_filename, dmc_params)
+
+    % move wings forward 2 revolutions to see a home pulse
+    ticks_to_move = dmc_params.ticksPerRev*2;
+    move_wings(galil, dmc_home_filename, dmc_params, ticks_to_move)
+
+    % Collect data during move
+    session_duration = 5;
+    disp("Homing data collection has begun");
+    results = flapper_obj.measure_force(case_name, session_duration);
+    disp("Homing data has been gathered");
+    beep2;
+
+    hall_effect = results(:,10);
+    tick_ctr = results(:,11);
+    % Get position in ticks associated with the center of a home pulse
+    [fin_pos, home_pos] = get_home_pos(hall_effect, tick_ctr);
+
+    mod_fin_pos = mod(home_pos,dmc_params.ticksPerRev);
+    mod_home_pos = mod(fin_pos,dmc_params.ticksPerRev);
+
+    if mod_home_pos > mod_fin_pos
+        ticks_to_move = mod_home_pos - mod_fin_pos;
+    else
+        ticks_to_move = mod_home_pos + (dmc_params.ticksPerRev - mod_fin_pos);
+    end
+
+end
