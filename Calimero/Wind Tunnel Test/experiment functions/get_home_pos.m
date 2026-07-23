@@ -35,5 +35,6 @@ function [cur_pos, home_pos] = get_home_pos(hall_effect, tick_ctr)
     % the rising edge lines up the magnet with the hall effect sensor
     % home_pos = tick_ctr(mid_indices(end));
     home_pos = tick_ctr(rising_edges(end));
+    % home_pos = tick_ctr(falling_edges(end));
     cur_pos = tick_ctr(end);
 end

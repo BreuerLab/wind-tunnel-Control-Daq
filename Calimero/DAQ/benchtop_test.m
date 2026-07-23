@@ -37,6 +37,8 @@ else
 end
 dmc_hold_filename = "hold.dmc";
 dmc_home_filename = "home_move.dmc";
+dmc_get_FF_filename = "obtain_cycle_torque.dmc";
+dmc_play_FF_filename = "benchtop_test_FF.dmc";
 
 amp = 20;
 speed = 0;
@@ -75,7 +77,8 @@ cal_matrix = obtain_cal(calibration_filepath);
 end
 
 % estimate recording length based on parameters
-[num_revs, session_duration, time_to_speed, at_speed_pos] = estimate_duration(freq, acc, measure_revs, padding_revs, hold_time, dmc_params.wait_time, true);
+[num_revs, session_duration, time_to_speed, at_speed_pos] = ...
+    estimate_duration(freq, acc, measure_revs, padding_revs, hold_time, dmc_params.wait_time, true);
 
 % save data recording parameters
 currentDateTime = datetime('now', 'Format', 'yyyy_MM_dd_HH_mm_ss');
@@ -121,7 +124,7 @@ if auto_home
     pause(2)
 else
     % Set wings to midstroke manually by giving user time to adjust wings
-    time = 6; % countdown time for setting wing position
+    time = 8; % countdown time for setting wing position
     set_hold_position(galil, dmc_hold_filename, dmc_params.galil_direction, time)
     pause(5) % wait for wind tunnel door to be closed
 end
@@ -143,36 +146,19 @@ dt = 10;
 galil.recordsStart(dt);
 end
 % ---------------------------
-if freq ~= 0
-    dmc = fileread(dmc_benchtop_filename);
+if freq == 0
+    default_motor_control(galil, dmc_hold_filename, dmc_parms,...
+    num_revs, freq, acc, at_speed_pos, padding_revs);
 else
-    dmc = fileread(dmc_hold_filename);
+    improved_control = false;
+    if improved_control
+        improved_motor_control(galil, dmc_get_FF_filename, dmc_play_FF_filename,...
+    dmc_params, measure_revs, num_revs, at_speed_pos, freq, acc, padding_revs);
+    else
+        default_motor_control(galil, dmc_benchtop_filename, dmc_params,...
+    num_revs, freq, acc, at_speed_pos, padding_revs, DR_bool);
+    end
 end
-
-dmc = string(dmc);
-
-% Replace the place holders in the .dmc file with the values specified
-% here. Other parameters can be changed directly in .dmc file.
-if dmc_params.galil_direction == 1
-    dmc = strrep(dmc, "dir_TEMP", "2");
-else
-    dmc = strrep(dmc, "dir_TEMP", "0");
-end
-
-if (freq ~= 0)
-dmc = strrep(dmc, "ticks_TEMP", num2str(dmc_params.ticksPerRev));
-dmc = strrep(dmc, "revs_TEMP", num2str(num_revs));
-dmc = strrep(dmc, "speed_TEMP", num2str(freq));
-dmc = strrep(dmc, "acc_TEMP", num2str(acc));
-dmc = strrep(dmc, "waittime_TEMP", num2str(dmc_params.wait_time));
-dmc = strrep(dmc, "OC_TEMP", num2str(dmc_params.OC_pulse_step));
-if ~DR_bool
-    dmc = strrep(dmc, "revsRec_TEMP", num2str(round(at_speed_pos) + padding_revs));
-end
-end
-
-% Load the program described by the .dmc file to the Galil device.
-galil.programDownload(dmc);
 
 end
 
@@ -285,17 +271,17 @@ galil_data = cell2mat(ref.Data);
 
 galil_traj_plot_DR(galil_data, dt);
 else
-[TimeArr, Current, DesPos, ActPos, ActVel] = galil_traj_plot(galil);
-
-currentDateTime = datetime('now', 'Format', 'yyyy_MM_dd_HH_mm_ss');
-currentDateTimeStr = char(currentDateTime);
-file_name = strjoin([case_name, currentDateTimeStr], "_");
-full_file_name = "data\galil\" + file_name + ".mat";
-
-saveVars = {"TimeArr", "Current", "DesPos", "ActPos", "ActVel"};
-save(full_file_name, saveVars{:});
-
-plot_current_comp(time, curAdj, TimeArr, Current, freq, padding_revs, time_to_speed, case_name)
+% [TimeArr, Current, DesPos, ActPos, ActVel] = galil_traj_plot(galil);
+% 
+% currentDateTime = datetime('now', 'Format', 'yyyy_MM_dd_HH_mm_ss');
+% currentDateTimeStr = char(currentDateTime);
+% file_name = strjoin([case_name, currentDateTimeStr], "_");
+% full_file_name = "data\galil\" + file_name + ".mat";
+% 
+% saveVars = {"TimeArr", "Current", "DesPos", "ActPos", "ActVel"};
+% save(full_file_name, saveVars{:});
+% 
+% plot_current_comp(time, curAdj, TimeArr, Current, freq, padding_revs, time_to_speed, case_name)
 end
 % ------------------
 end
