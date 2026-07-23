@@ -33,6 +33,7 @@ EN
 
 #PLAYFF
 cur_rev = 0;
+STEP_SZ = ticks_TEMP/128;
 OFA = 0;
 AR ticks_TEMP*revsRec_TEMP   ; 'Wait to play until at speed
 #REV_LOOP
@@ -42,10 +43,9 @@ AR ticks_TEMP*revsRec_TEMP   ; 'Wait to play until at speed
   #STEP
     OFA = Torque[IDX];
     IDX = IDX + 1;
-    WT 2;
+    AP (P_STRT + (IDX*STEP_SZ));
   JP #STEP, (IDX < NUM_SAMPLES_TEMP)
 	cur_rev = cur_rev + 1;
-	AP (P_STRT + ticks_TEMP); 'Wait for motor to reach end of that revolution
 
 'Stop before motor starts decelerating
 JP #REV_LOOP, (cur_rev <= MAX_REV_TEMP)

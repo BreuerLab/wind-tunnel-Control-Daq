@@ -8,9 +8,6 @@ measure_revs_temp = 50; % revolutions to measure at desired speed
 phase_avg_voltCmd = collect_torque_profile(galil, dmc_get_FF_filename, dmc_params,...
     measure_revs_temp, freq, acc, padding_revs);
 
-% AR 5*ticks_TEMP; 'Wait until 1 revolution has passed
-% RC 0; 'Stop recording
-
 % Send phase averaged torque to galil
 % galil.command('RC 0');
 galil.command('HX'); % Halt Execution of all threads

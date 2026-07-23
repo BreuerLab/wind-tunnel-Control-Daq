@@ -150,7 +150,7 @@ if freq == 0
     default_motor_control(galil, dmc_hold_filename, dmc_parms,...
     num_revs, freq, acc, at_speed_pos, padding_revs);
 else
-    improved_control = false;
+    improved_control = true;
     if improved_control
         improved_motor_control(galil, dmc_get_FF_filename, dmc_play_FF_filename,...
     dmc_params, measure_revs, num_revs, at_speed_pos, freq, acc, padding_revs);
