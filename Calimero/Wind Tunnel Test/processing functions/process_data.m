@@ -1,9 +1,10 @@
-function [time, force, voltAdj, curAdj, pos, speed, acc, wing_pos, wing_speed, wing_acc] = ...
+function [time, force, voltAdj, curAdj, home_signal, pos, speed, acc, wing_pos, wing_speed, wing_acc] = ...
     process_data(results, offsets, cal_matrix, ticksPerRev, OC_pulse_step, amp, async)
     time = results(:,1);
     force = volt_to_force(results(:,2:7), offsets, cal_matrix);
     voltAdj = voltM_to_voltA(results(:,8), offsets(1,7));
     curAdj = volt_to_cur(results(:,9), offsets(1,8));
+    home_signal = results(:,10);
 
     dt = time(2) - time(1);
     order = 3;
