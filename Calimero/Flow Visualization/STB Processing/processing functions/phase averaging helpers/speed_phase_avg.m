@@ -3,23 +3,8 @@ function [freq_avg, norm_time_speed, phase_avg_pos, phase_std_pos,...
     phase_avg_wing_pos, phase_std_wing_pos,...
     phase_avg_wing_speed, phase_std_wing_speed, phase_avg_wing_acc, phase_std_wing_acc,...
     bin_count, bin_std, phase_avg_volt, phase_std_volt,...
-    phase_avg_cur, phase_std_cur] = speed_phase_avg(PIV_case_name, plot_bool)
-
-[daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name);
-[amp, type, freq] = parse_name(PIV_case_name);
-
-% Get raw data from file
-load([daq_data_path daq_data_filename]);
-
-% no load cell mounted, so blank values used
-offsets = zeros(1,size(results,2));
-cal_mat = zeros(6,6);
-
-ticksPerRev = 18432;
-OC_pulse_step = 4;
-pulsesPerRev = ticksPerRev / OC_pulse_step;
-[~, ~, voltAdj, curAdj, pos, speed, acc, wing_pos, wing_speed, wing_acc] = ...
-    process_data(results, offsets, cal_mat, ticksPerRev, OC_pulse_step, amp, true);
+    phase_avg_cur, phase_std_cur] = speed_phase_avg(results, voltAdj, curAdj, pos, speed, acc,...
+                wing_pos, wing_speed, wing_acc, plot_bool)
 
 % Find indices where a laser fire has been recorded
 las_count = results(:,12);

@@ -258,7 +258,7 @@ filtered_speed = filtfilt(b,a,speed);
 trim_length = 6;
 speed_tr = speed(trim_length*rate:end-trim_length*rate);
 disp("Trimming off first and last " + trim_length + " seconds,")
-disp("speed is " + mean(speed_tr) + " +/- " + std(speed_tr) + "Hz")
+disp()
 
 OC_f = figure;
 plot(time, speed)
