@@ -63,7 +63,7 @@ end
 
 async = true; % We are doing async method of collecting data
 
-[time_data, force_data, voltAdj, curAdj, pos, speed, acc, wing_pos, wing_speed, wing_acc] = ...
+[time_data, force_data, voltAdj, curAdj, home_signal, pos, speed, acc, wing_pos, wing_speed, wing_acc] = ...
     process_data(trimmed_results, offsets, cal_matrix, ticksPerRev, OC_pulse_step, amp, async);
 OC_pulse_count = trimmed_results(:,11);
 
@@ -72,7 +72,7 @@ OC_pulse_count = trimmed_results(:,11);
 results_lab = coordinate_transformation(force_data, AoA);
 
 % enc_pulse not added because this is the only data that is filtered
-mod_results = [results_lab; voltAdj'; curAdj'];
+mod_results = [results_lab; home_signal'; voltAdj'; curAdj'];
 
 % motor model check
 % if wing_freq ~= 0
