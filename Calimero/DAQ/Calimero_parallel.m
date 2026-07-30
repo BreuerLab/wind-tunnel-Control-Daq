@@ -301,7 +301,7 @@ end
 % My, and Mz.
 
 % Note: This function also writes "results" to a .csv file
-function [results] = measure_force(obj, case_name, session_duration)
+function [results] = measure_force(obj, case_name, session_duration, save_path)
     % Start the DAQ session.
     % start(obj.daq, "Duration", session_duration);
 
@@ -374,7 +374,7 @@ function [results] = measure_force(obj, case_name, session_duration)
     currentDateTime = datetime('now', 'Format', 'yyyy_MM_dd_HH_mm_ss');
     currentDateTimeStr = char(currentDateTime);
     trial_name = strjoin([case_name, "experiment", currentDateTimeStr], "_");
-    trial_file_name = "data\experiment data\" + trial_name + ".mat";
+    trial_file_name = save_path + trial_name + ".mat";
     save(trial_file_name, "results");
 end
 

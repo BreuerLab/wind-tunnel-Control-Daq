@@ -1,4 +1,4 @@
-function home_wings(flapper_obj, galil, case_name, dmc_home_filename, dmc_params)
+function home_wings(flapper_obj, galil, home_path, case_name, dmc_home_filename, dmc_params)
 
     % move wings forward 2 revolutions to see a home pulse
     ticks_to_move = dmc_params.ticksPerRev*2;
@@ -7,7 +7,7 @@ function home_wings(flapper_obj, galil, case_name, dmc_home_filename, dmc_params
     % Collect data during move
     session_duration = 5;
     disp("Homing data collection has begun");
-    results = flapper_obj.measure_force(case_name, session_duration);
+    results = flapper_obj.measure_force(case_name, session_duration, home_path);
     disp("Homing data has been gathered");
     beep2;
 

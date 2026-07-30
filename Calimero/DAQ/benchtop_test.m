@@ -64,6 +64,8 @@ rate = 15000; % measurement rate of NI DAQ, in Hz
 offset_duration = 2; % in seconds
 calibration_filepath = "../DAQ/Calibration Files/Mini40/FT52907.cal"; 
 voltage = 5; % 5 or 10 volts for load cell
+results_path = "data\experiment data\";
+home_path = "data\home data\";
 
 if async
     flapper_obj = Calimero_parallel();
@@ -120,7 +122,7 @@ auto_home = true;
 if auto_home
     disp("Homing wings automatically...")
     % Set wings to midstroke automatically
-    home_wings(flapper_obj, galil, case_name + "_home", dmc_home_filename, dmc_params)
+    home_wings(flapper_obj, galil, home_path, case_name + "_home", dmc_home_filename, dmc_params)
     pause(2)
 else
     % Set wings to midstroke manually by giving user time to adjust wings
@@ -188,7 +190,7 @@ end
 if daq_bool
 % Collect experiment data during flapping
 disp("Experiment data collection has begun");
-results = flapper_obj.measure_force(case_name, session_duration);
+results = flapper_obj.measure_force(case_name, session_duration, results_path);
 disp("Experiment data has been gathered");
 beep2;
 
