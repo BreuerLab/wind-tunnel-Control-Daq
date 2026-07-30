@@ -232,6 +232,9 @@ drift_string = [sprintf('%s   ',drift_string{1:end-1}), drift_string{end}];
 disp("Drift since tare with tunnel off: ")
 disp(drift_string)
 
+% save wind tunnel data for non-dimensionalization later
+wind_tunnel_save(case_name)
+
 try
     % clf([f1 f2 f3], 'reset')
     for k = 1:6
