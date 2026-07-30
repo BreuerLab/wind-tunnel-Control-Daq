@@ -28,7 +28,9 @@ WT waittime_TEMP;
 
 BG A                ; 'Begin motion
 
-XQ #PLAYFF, 2           ; ' Execute playback loop on Thread 1
+XQ #DATASV, 3           ; ' Execute data save on Thread 3
+XQ #PLAYFF, 2           ; ' Execute playback loop on Thread 2
+
 EN
 
 #PLAYFF
@@ -41,12 +43,7 @@ AR ticks_TEMP*revsRec_TEMP   ; 'Wait to play until at speed
   IDX = 0;
 
   #STEP
-    s_IDX = (IDX + 1);
-    IF (s_IDX >= NUM_SAMPLES_TEMP)
-      s_IDX = s_IDX - NUM_SAMPLES_TEMP;
-    ENDIF
-
-    OFA = voltCmd[s_IDX];
+    OFA = voltCmd[IDX];
     IDX = IDX + 1;
     AP (P_STRT + (IDX*STEP_SZ));
   JP #STEP, (IDX < NUM_SAMPLES_TEMP)
@@ -55,4 +52,16 @@ AR ticks_TEMP*revsRec_TEMP   ; 'Wait to play until at speed
 'Stop before motor starts decelerating
 JP #REVLOOP, (cur_rev <= MAX_REV_TEMP)
 OFA = 0;
+EN
+
+#DATASV
+'Allocate memory for arrays
+DM TimeArr[4000],Torque[4000],DesPos[4000],ActPos[4000];
+
+AR ticks_TEMP*revsRec_TEMP   ; 'Wait to record until at speed
+'Record torque
+RA TimeArr[],Torque[],DesPos[],ActPos[];
+RD TIME,_TTA,_RPA,_TPA;
+
+RC 1; 'Record data at 2 ms intervals
 EN

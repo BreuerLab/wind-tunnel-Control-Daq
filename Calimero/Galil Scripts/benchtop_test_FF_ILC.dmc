@@ -1,0 +1,91 @@
+#SETUP
+ST                   ; 'Stop all motion
+MO                   ; 'Motor off
+CO 1                 ;' Configures bank 2 as outputs on extended I/O
+
+AGA=0                ; 'Amplifier gain (0-2), 0 -> 0.4 A/Phase
+BRA=1                ; 'Brushed Motor
+AUA=0.5              ; 'Chopper Mode
+SH A                 ; 'Servo here (turn on motor)
+DPA=0                ; 'Define zero position
+CEA=dir_TEMP         ; 'Configure encoder
+TM 1000              ; 'Servo update time of controller
+
+PRA=ticks_TEMP*revs_TEMP            ; 'Set desired distance
+SPA=ticks_TEMP*speed_TEMP           ; 'Set desired speed in counts/sec
+ACA=ticks_TEMP*acc_TEMP             ; 'Acceleration in counts/sec^2
+DCA=ticks_TEMP*acc_TEMP             ; 'Deceleration in counts/sec^2
+
+KPA=1.5               ; 'Proportional gain
+KIA=0.05            ; 'Integral gain
+KDA=12               ; 'Derivative gain
+FVA=0               ;
+FAA=0               ;
+ILA=-2              ;'KI bit limited to 2V and starts after motion complete
+OCA=0,OC_TEMP       ;'Output compare pulse every 4 encoder pulses
+
+WT waittime_TEMP;
+
+BG A                ; 'Begin motion
+
+XQ #PLAYFF, 2       ; ' Execute playback loop on Thread 1
+EN
+
+#PLAYFF
+cur_rev = 0;
+OFA = 0;
+
+' --- ILC Parameters ---
+STEP_SZ = ticks_TEMP / NUM_SAMPLES_TEMP;
+V_DES = ticks_TEMP * speed_TEMP; ' Desired speed in counts/sec
+gamma = 1;                     ' Learning gain (Volts per count/sec error)
+max_OFA = 5.0;                   ' Max voltage limit (+/- Volts) for safety
+min_OFA = -5.0;
+
+AR ticks_TEMP*revsRec_TEMP;            ' Wait until motor reaches speed
+P_STRT = _TPA;                       ' Obtain stroke start position
+
+#REVLOOP
+  IDX = 0;
+
+  #STEP
+    s_IDX = (IDX + 0);
+    IF (s_IDX >= 64)
+      s_IDX = s_IDX - 64;
+    ENDIF
+
+    ' Apply current feedforward offset for this spatial bin
+    OFA = voltCmd[s_IDX];
+
+    ' Pause thread until motor finishes traversing spatial bin IDX
+    AP (P_STRT + (cur_rev*ticks_TEMP) + ((IDX + 1) * STEP_SZ));
+
+    ' Iterative learning procedure
+    IF (cur_rev < 50)
+    V_ACT = _TVA;                      ' Actual velocity in counts/sec
+    err = (V_DES - V_ACT) / ticks_TEMP;
+
+    ' Update feedforward array for the NEXT stroke
+    NEW_TRQ = voltCmd[IDX] + (gamma * err);
+
+    ' Safety check: Cap feedforward voltage to prevent run-away
+    IF (NEW_TRQ > max_OFA)
+      NEW_TRQ = max_OFA
+    ENDIF
+    IF (NEW_TRQ < min_OFA)
+      NEW_TRQ = min_OFA
+    ENDIF
+
+    voltCmd[IDX] = NEW_TRQ;
+    ENDIF
+
+    IDX = IDX + 1;
+  JP #STEP, (IDX < NUM_SAMPLES_TEMP)
+
+  cur_rev = cur_rev + 1;
+
+' Stop before motor starts decelerating
+JP #REVLOOP, (cur_rev <= MAX_REV_TEMP)
+
+OFA = 0;
+EN

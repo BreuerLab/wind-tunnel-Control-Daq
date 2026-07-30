@@ -207,6 +207,9 @@ fs = rate;
 [b,a] = butter(6,fc/(fs/2));
 filtered_speed = filtfilt(b,a,speed);
 
+mean(speed(6*rate:end-6*rate))
+std(speed(6*rate:end-6*rate))
+
 OC_f = figure;
 plot(time, speed)
 xlabel("Time (seconds)")

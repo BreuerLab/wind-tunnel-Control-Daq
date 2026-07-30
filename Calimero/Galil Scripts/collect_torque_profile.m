@@ -1,5 +1,5 @@
-function phase_avg_voltCmd_interp = collect_torque_profile(galil, dmc_get_FF_filename, dmc_params,...
-    measure_revs, freq, acc, padding_revs)
+function new_voltCmd_interp = collect_torque_profile(galil, dmc_get_FF_filename, dmc_params,...
+    measure_revs, freq, acc, padding_revs, num_samples)
 
     hold_time = 10; % sec, irrelevant, only used for gliding trials
     % estimate recording length based on parameters
@@ -23,6 +23,10 @@ function phase_avg_voltCmd_interp = collect_torque_profile(galil, dmc_get_FF_fil
     dmc = strrep(dmc, "waittime_TEMP", num2str(dmc_params.wait_time));
     dmc = strrep(dmc, "OC_TEMP", num2str(dmc_params.OC_pulse_step));
     dmc = strrep(dmc, "revsRec_TEMP", num2str(round(at_speed_pos) + padding_revs));
+
+    dmc = strrep(dmc, "NUM_SAMPLES_TEMP", num2str(num_samples));
+
+    dmc = strrep(dmc, "MAX_REV_TEMP", num2str(num_revs - padding_revs));
     
     % Load the program described by the .dmc file to the Galil device.
     galil.programDownload(dmc);
@@ -63,33 +67,48 @@ function phase_avg_voltCmd_interp = collect_torque_profile(galil, dmc_get_FF_fil
     startPos = ceil(min(ActPos));
     endPos = floor(max(ActPos));
     ActPos_trimmed = ActPos(ActPos >= startPos & ActPos <= endPos);
+    DesPos_trimmed = DesPos(DesPos >= startPos & DesPos <= endPos);
     voltCmd_trimmed = voltCmd(ActPos >= startPos & ActPos <= endPos);
 
     nextRev_idx = find(diff(mod(ActPos_trimmed,1)) < 0) + 1;
 
+    frames_per_beat = mode(diff(nextRev_idx));
+    if frames_per_beat ~= min(diff(nextRev_idx)) || frames_per_beat ~= max(diff(nextRev_idx))
+        disp("Oops, irregular frames per beat detected")
+    end
+
     num_wingbeats = length(nextRev_idx);
-    voltCmd_wingbeats = zeros(num_wingbeats,nextRev_idx(1) - 1);
-    ActPos_wingbeats = zeros(num_wingbeats,nextRev_idx(1) - 1);
+    voltCmd_wingbeats = zeros(num_wingbeats,frames_per_beat);
+    ActPos_wingbeats = zeros(num_wingbeats,frames_per_beat);
+    DesPos_wingbeats = zeros(num_wingbeats,frames_per_beat);
     cur_idx = 1;
     for i = 1:num_wingbeats
         end_idx = nextRev_idx(i) - 1;
 
         cur_wingbeat_voltCmd = voltCmd_trimmed(cur_idx:end_idx);
-        % cur_wingbeat_resampled = resample(cur_wingbeat.', frames_per_beat, length(cur_wingbeat)).';
-        voltCmd_wingbeats(i,:) = cur_wingbeat_voltCmd;
+        cur_wingbeat_resampled_voltCmd = resample(cur_wingbeat_voltCmd, frames_per_beat, length(cur_wingbeat_voltCmd));
+        voltCmd_wingbeats(i,:) = cur_wingbeat_resampled_voltCmd;
 
         cur_wingbeat_ActPos = mod(ActPos_trimmed(cur_idx:end_idx),1);
-        ActPos_wingbeats(i,:) = cur_wingbeat_ActPos;
+        cur_wingbeat_resampled_ActPos = resample(cur_wingbeat_ActPos, frames_per_beat, length(cur_wingbeat_ActPos));
+        ActPos_wingbeats(i,:) = cur_wingbeat_resampled_ActPos;
+
+        cur_wingbeat_DesPos = mod(DesPos_trimmed(cur_idx:end_idx),1);
+        cur_wingbeat_resampled_DesPos = resample(cur_wingbeat_DesPos, frames_per_beat, length(cur_wingbeat_DesPos));
+        DesPos_wingbeats(i,:) = cur_wingbeat_resampled_DesPos;
 
         cur_idx = nextRev_idx(i);
     end
 
     phase_avg_voltCmd = mean(voltCmd_wingbeats,1);
     phase_avg_ActPos = mean(ActPos_wingbeats,1);
+    phase_avg_DesPos = mean(DesPos_wingbeats,1);
+
+    new_voltCmd = phase_avg_voltCmd + 2*(phase_avg_DesPos - phase_avg_ActPos);
 
     numPts = 128;
     dx = 1 / numPts;
     pos = 0:dx:(1-dx);
 
-    phase_avg_voltCmd_interp = interp1(phase_avg_ActPos, phase_avg_voltCmd, pos, 'linear','extrap');
+    new_voltCmd_interp = interp1(phase_avg_ActPos, new_voltCmd, pos, 'linear','extrap');
 end
