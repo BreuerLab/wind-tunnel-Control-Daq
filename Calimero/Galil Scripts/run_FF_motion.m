@@ -16,7 +16,7 @@ function run_FF_motion(galil, dmc_play_FF_filename, dmc_params, measure_revs, nu
     dmc = strrep(dmc, "acc_TEMP", num2str(acc));
     dmc = strrep(dmc, "waittime_TEMP", num2str(dmc_params.wait_time));
     dmc = strrep(dmc, "OC_TEMP", num2str(dmc_params.OC_pulse_step));
-    dmc = strrep(dmc, "revsRec_TEMP", num2str(round(at_speed_pos)));
+    dmc = strrep(dmc, "revsRec_TEMP", num2str(round(at_speed_pos + padding_revs)));
 
     % replace num_samples string with actual number of samples
     num_samples = length(phase_avg_torque);
