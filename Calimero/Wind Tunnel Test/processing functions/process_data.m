@@ -7,8 +7,8 @@ function [time, force, voltAdj, curAdj, home_signal, pos, speed, acc, wing_pos, 
     home_signal = results(:,10);
 
     dt = time(2) - time(1);
-    order = 3;
-    framelen = 21;
+    order = 2; % was 3
+    framelen = 1001;
     OC_pulse_count = results(:,11);
 
     [d, r] = get_calimero_dims(amp);

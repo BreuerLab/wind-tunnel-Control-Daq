@@ -22,7 +22,7 @@ function run_FF_motion(galil, dmc_play_FF_filename, dmc_params, measure_revs, nu
     num_samples = length(phase_avg_torque);
     dmc = strrep(dmc, "NUM_SAMPLES_TEMP", num2str(num_samples));
 
-    dmc = strrep(dmc, "MAX_REV_TEMP", num2str(measure_revs + padding_revs));
+    dmc = strrep(dmc, "MAX_REV_TEMP", num2str(measure_revs));
     
     % Load the program described by the .dmc file to the Galil device.
     galil.programDownload(dmc);

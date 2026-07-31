@@ -33,23 +33,20 @@ EN
 
 #PLAYFF
 cur_rev = 0;
-STEP_SZ = ticks_TEMP/128;
+shift = -10;
+step_sz = ticks_TEMP/128;
 OFA = 0;
-AR ticks_TEMP*revsRec_TEMP   ; 'Wait to play until at speed
+p_strt = ticks_TEMP*revsRec_TEMP;
+AR p_strt; 'Wait to play until at speed
 #REVLOOP
-  P_STRT = _TPA      ; 'Obtain current motor position
-  IDX = 0;
+  idx = 0;
 
   #STEP
-    s_IDX = (IDX + 1);
-    IF (s_IDX >= NUM_SAMPLES_TEMP)
-      s_IDX = s_IDX - NUM_SAMPLES_TEMP;
-    ENDIF
-
-    OFA = voltCmd[s_IDX];
-    IDX = IDX + 1;
-    AP (P_STRT + (IDX*STEP_SZ));
-  JP #STEP, (IDX < NUM_SAMPLES_TEMP)
+    AP (p_strt + (cur_rev*ticks_TEMP) + (idx*step_sz) + shift);
+    OFA = voltCmd[idx];
+    idx = idx + 1;
+    AP (p_strt + (cur_rev*ticks_TEMP) + (idx*step_sz) + shift);
+  JP #STEP, (idx < NUM_SAMPLES_TEMP)
 	cur_rev = cur_rev + 1;
 
 'Stop before motor starts decelerating

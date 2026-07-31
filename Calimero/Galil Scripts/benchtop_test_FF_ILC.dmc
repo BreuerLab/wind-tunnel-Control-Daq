@@ -36,51 +36,51 @@ cur_rev = 0;
 OFA = 0;
 
 ' --- ILC Parameters ---
-STEP_SZ = ticks_TEMP / NUM_SAMPLES_TEMP;
-V_DES = ticks_TEMP * speed_TEMP; ' Desired speed in counts/sec
-gamma = 1;                     ' Learning gain (Volts per count/sec error)
-max_OFA = 5.0;                   ' Max voltage limit (+/- Volts) for safety
-min_OFA = -5.0;
+step_sz = ticks_TEMP / NUM_SAMPLES_TEMP;
+v_des = ticks_TEMP * speed_TEMP; ' Desired speed in counts/sec
+gamma = 0.02;                     ' Learning gain (Volts per count/sec error)
+max_OFA = 0.5;                   ' Max voltage limit (+/- Volts) for safety
+min_OFA = -0.5;
 
 AR ticks_TEMP*revsRec_TEMP;            ' Wait until motor reaches speed
-P_STRT = _TPA;                       ' Obtain stroke start position
+p_strt = _TPA;                       ' Obtain stroke start position
 
 #REVLOOP
-  IDX = 0;
+  idx = 0;
 
   #STEP
-    s_IDX = (IDX + 0);
-    IF (s_IDX >= 64)
-      s_IDX = s_IDX - 64;
+    s_idx = (idx + 0);
+    IF (s_idx >= 64)
+      s_idx = s_idx - 64;
     ENDIF
 
     ' Apply current feedforward offset for this spatial bin
-    OFA = voltCmd[s_IDX];
+    OFA = voltCmd[idx];
 
     ' Pause thread until motor finishes traversing spatial bin IDX
-    AP (P_STRT + (cur_rev*ticks_TEMP) + ((IDX + 1) * STEP_SZ));
+    AP (p_strt + (cur_rev*ticks_TEMP) + ((idx + 1) * step_sz));
 
     ' Iterative learning procedure
     IF (cur_rev < 50)
-    V_ACT = _TVA;                      ' Actual velocity in counts/sec
-    err = (V_DES - V_ACT) / ticks_TEMP;
+    v_act = _TVA;                      ' Actual velocity in counts/sec
+    err = (v_des - v_act) / ticks_TEMP;
 
     ' Update feedforward array for the NEXT stroke
-    NEW_TRQ = voltCmd[IDX] + (gamma * err);
+    new_trq = voltCmd[s_idx] + (gamma * err);
 
     ' Safety check: Cap feedforward voltage to prevent run-away
-    IF (NEW_TRQ > max_OFA)
-      NEW_TRQ = max_OFA
+    IF (new_trq > max_OFA)
+      new_trq = max_OFA
     ENDIF
-    IF (NEW_TRQ < min_OFA)
-      NEW_TRQ = min_OFA
-    ENDIF
-
-    voltCmd[IDX] = NEW_TRQ;
+    IF (new_trq < min_OFA)
+      new_trq = min_OFA
     ENDIF
 
-    IDX = IDX + 1;
-  JP #STEP, (IDX < NUM_SAMPLES_TEMP)
+    voltCmd[idx] = new_trq;
+    ENDIF
+
+    idx = idx + 1;
+  JP #STEP, (idx < NUM_SAMPLES_TEMP)
 
   cur_rev = cur_rev + 1;
 

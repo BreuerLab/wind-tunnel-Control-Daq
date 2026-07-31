@@ -1,7 +1,7 @@
 function improved_motor_control(galil, dmc_get_FF_filename, dmc_play_FF_filename,...
     dmc_params, measure_revs, num_revs, at_speed_pos, freq, acc, padding_revs)
 
-ILC_bool = false;
+ILC_bool = true;
 if ~ILC_bool
 galil.command('DA *,*[0]'); % deallocate memory
 % Run script to collect torque profile over motion
@@ -11,6 +11,15 @@ phase_avg_voltCmd = collect_torque_profile(galil, dmc_get_FF_filename, dmc_param
     measure_revs_temp, freq, acc, padding_revs, 0);
 
 % phase_avg_voltCmd = circshift(phase_avg_voltCmd,1);
+
+% rescale voltage command to not be so aggressive
+phase_avg_voltCmd = phase_avg_voltCmd / 2;
+% phase_avg_voltCmd = phase_avg_voltCmd - min(phase_avg_voltCmd);
+
+fc = 2;
+fs = 128;
+[b,a] = butter(6,fc/(fs/2));
+phase_avg_voltCmd = filtfilt(b,a,phase_avg_voltCmd);
 
 % Send phase averaged torque to galil
 galil.command('RC 0');
@@ -44,6 +53,17 @@ end
 run_FF_motion(galil, dmc_play_FF_filename, dmc_params, measure_revs, num_revs,...
     freq, acc, at_speed_pos, padding_revs, phase_avg_voltCmd);
 
+%   P_STRT = _TPA      ; 'Obtain current motor position
+% s_IDX = (IDX + 1);
+%     IF (s_IDX >= NUM_SAMPLES_TEMP)
+%       s_IDX = s_IDX - NUM_SAMPLES_TEMP;
+%     ENDIF
+
+    % AP (p_strt + (cur_rev*ticks_TEMP) + (idx*step_sz) + shift);
+    % OFA = voltCmd[idx];
+    % idx = idx + 1;
+    % AP (p_strt + (cur_rev*ticks_TEMP) + (idx*step_sz) + shift);
+
 else
 
 
@@ -67,6 +87,9 @@ end
 dmc_play_FF_filename = "benchtop_test_FF_ILC.dmc";
 run_FF_motion(galil, dmc_play_FF_filename, dmc_params, measure_revs, num_revs,...
     freq, acc, at_speed_pos, padding_revs, phase_avg_voltCmd);
+
+    % new_trq = (0.50*new_trq[s_idx]) + (0.25*new_trq[s_idx+1]);
+    % new_trq = new_trq + (0.25*new_trq[s_idx-1]);
 end
 
 end

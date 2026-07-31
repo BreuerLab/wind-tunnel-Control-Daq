@@ -26,7 +26,7 @@ galil_bool = true;
 galil_IP_address = "192.168.1.3";
 DR_bool = false; % false - store data in arrays (RA), true - data record packets (DR)
 dmc_params.ticksPerRev = 18432;
-freq = 4; % Hz
+freq = 6; % Hz
 acc = 3; % Hz
 measure_revs = 180; % 270
 padding_revs = 4;
@@ -211,7 +211,7 @@ checkLimits(results);
 
 ticksPerRev = 18432;
 % Translate data from raw values into meaningful values
-[time, force, voltAdj, curAdj, pos, speed, acc, wing_pos, wing_speed, wing_acc] = ...
+[time, force, voltAdj, curAdj, home_signal, pos, speed, acc, wing_pos, wing_speed, wing_acc] = ...
     process_data(results, offsets_before, cal_matrix, dmc_params.ticksPerRev, dmc_params.OC_pulse_step, amp, async);
 
 disp("Collecting final offset")
@@ -269,6 +269,24 @@ xlabel("Time (seconds)")
 ylabel("Filtered Speed (Hz)")
 title("Speed measured from OC pulses")
 saveas(OC_f,'data\plots\' + case_name + "_OC.png")
+
+pos_tr = pos(pos >= 6 & pos <= num_revs - 6);
+time_tr = time(pos >= 6 & pos <= num_revs - 6);
+% pos_tr = pos(trim_length*rate:end-trim_length*rate);
+% time_tr = time(trim_length*rate:end-trim_length*rate);
+
+
+pos_tr = pos_tr - min(pos_tr);
+time_tr = time_tr - min(time_tr);
+
+des_pos = linspace(0,max(pos_tr),length(pos_tr))';
+err_pos = des_pos - pos_tr;
+
+figure
+plot(time_tr, err_pos*ticksPerRev)
+xlabel("Time (seconds)")
+ylabel("Position error (ticks)")
+set(gca, FontSize=16);
 
 % 1, 2, 3, 4, 6, 8, 9, 12, 16, 18, 24, 32, 36, 48, 64, 72, 96, 128,
 % 144, 192, 256, 288, 384, 512, 576, 768, 1024, 1152, 1536, 2048,
