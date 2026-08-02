@@ -38,7 +38,8 @@ OFA = 0;
 ' --- ILC Parameters ---
 step_sz = ticks_TEMP / NUM_SAMPLES_TEMP;
 v_des = ticks_TEMP * speed_TEMP; ' Desired speed in counts/sec
-gamma = 0.02;                     ' Learning gain (Volts per count/sec error)
+kp = 0.1;
+kd = 0.01;
 max_OFA = 0.5;                   ' Max voltage limit (+/- Volts) for safety
 min_OFA = -0.5;
 
@@ -50,8 +51,8 @@ p_strt = _TPA;                       ' Obtain stroke start position
 
   #STEP
     s_idx = (idx + 0);
-    IF (s_idx >= 64)
-      s_idx = s_idx - 64;
+    IF (s_idx >= NUM_SAMPLES_TEMP)
+      s_idx = s_idx - NUM_SAMPLES_TEMP;
     ENDIF
 
     ' Apply current feedforward offset for this spatial bin
@@ -62,11 +63,12 @@ p_strt = _TPA;                       ' Obtain stroke start position
 
     ' Iterative learning procedure
     IF (cur_rev < 50)
-    v_act = _TVA;                      ' Actual velocity in counts/sec
-    err = (v_des - v_act) / ticks_TEMP;
+    v_act = _TVA;' Actual velocity in counts/sec
+    vel_err = (v_des - v_act) / ticks_TEMP;
+    pos_err = _TEA / ticks_TEMP;
 
     ' Update feedforward array for the NEXT stroke
-    new_trq = voltCmd[s_idx] + (gamma * err);
+    new_trq = voltCmd[s_idx] + (kp * pos_err) + (kd * vel_err);
 
     ' Safety check: Cap feedforward voltage to prevent run-away
     IF (new_trq > max_OFA)

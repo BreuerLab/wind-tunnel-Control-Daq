@@ -75,7 +75,7 @@ galil.command('HX'); % Halt Execution of all threads
 galil.command('DR 0'); % Turn off Data Record sampling if active
 galil.command('DA *,*[0]'); % deallocate memory
 
-phase_avg_voltCmd = zeros(1,64);
+phase_avg_voltCmd = zeros(1,128);
 % ---------------------------------------------------------------------
 galil.command(['DM voltCmd[' num2str(length(phase_avg_voltCmd)) ']']);
 % galil.arrayDownload(phase_avg_voltCmd, 'Torque'); % send array to galil
