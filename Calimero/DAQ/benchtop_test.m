@@ -26,9 +26,9 @@ galil_bool = true;
 galil_IP_address = "192.168.1.3";
 DR_bool = false; % false - store data in arrays (RA), true - data record packets (DR)
 dmc_params.ticksPerRev = 18432;
-freq = 4; % Hz
+freq = 6; % Hz
 acc = 3; % Hz
-measure_revs = 180; % 270
+measure_revs = 140; % 270
 padding_revs = 4;
 hold_time = 10; % sec
 dmc_params.wait_time = 1000; % ms
@@ -269,6 +269,11 @@ xlabel("Time (seconds)")
 ylabel("Filtered Speed (Hz)")
 title("Speed measured from OC pulses")
 saveas(OC_f,'data\plots\' + case_name + "_OC.png")
+
+learning_complete_rev = round(at_speed_pos + padding_revs) + 50;
+learning_complete_time = time(pos >= learning_complete_rev);
+learning_complete_time = learning_complete_time(1);
+xline(learning_complete_time)
 
 pos_tr = pos(pos >= 6 & pos <= num_revs - 6);
 time_tr = time(pos >= 6 & pos <= num_revs - 6);
