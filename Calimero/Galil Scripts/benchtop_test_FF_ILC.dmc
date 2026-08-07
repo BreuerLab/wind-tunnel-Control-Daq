@@ -12,9 +12,9 @@ CEA=dir_TEMP         ; 'Configure encoder
 TM 1000              ; 'Servo update time of controller
 
 PRA=ticks_TEMP*revs_TEMP            ; 'Set desired distance
-SPA=ticks_TEMP*speed_TEMP           ; 'Set desired speed in counts/sec
-ACA=ticks_TEMP*acc_TEMP             ; 'Acceleration in counts/sec^2
-DCA=ticks_TEMP*acc_TEMP             ; 'Deceleration in counts/sec^2
+SPA=ticksAbs_TEMP*speed_TEMP           ; 'Set desired speed in counts/sec
+ACA=ticksAbs_TEMP*acc_TEMP             ; 'Acceleration in counts/sec^2
+DCA=ticksAbs_TEMP*acc_TEMP             ; 'Deceleration in counts/sec^2
 
 KPA=2.5               ; 'Proportional gain
 KIA=0.05            ; 'Integral gain
@@ -37,7 +37,7 @@ OFA = 0;
 
 ' --- ILC Parameters ---
 step_sz = ticks_TEMP / NUM_SAMPLES_TEMP;
-v_des = ticks_TEMP * speed_TEMP; ' Desired speed in counts/sec
+v_des = ticksAbs_TEMP * speed_TEMP; ' Desired speed in counts/sec
 kt = 0.8;
 kd = 0.02;
 max_OFA = 0.5;                   ' Max voltage limit (+/- Volts) for safety
@@ -62,7 +62,7 @@ p_strt = _TPA;                       ' Obtain stroke start position
     AP (p_strt + (cur_rev*ticks_TEMP) + ((idx + 1) * step_sz));
 
     ' Iterative learning procedure
-    IF (cur_rev < 50)
+    IF (cur_rev < 20)
     cur_trq = _TTA;
     new_trq = (kt * cur_trq);
 
