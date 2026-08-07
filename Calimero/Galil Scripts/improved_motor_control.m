@@ -76,6 +76,7 @@ galil.command('DR 0'); % Turn off Data Record sampling if active
 galil.command('DA *,*[0]'); % deallocate memory
 
 phase_avg_voltCmd = zeros(1,64);
+learning_revs = 20;
 % ---------------------------------------------------------------------
 galil.command(['DM voltCmd[' num2str(length(phase_avg_voltCmd)) ']']);
 % galil.arrayDownload(phase_avg_voltCmd, 'Torque'); % send array to galil
@@ -86,7 +87,7 @@ end
 
 dmc_play_FF_filename = "benchtop_test_FF_ILC.dmc";
 run_FF_motion(galil, dmc_play_FF_filename, dmc_params, measure_revs, num_revs,...
-    freq, acc, at_speed_pos, padding_revs, phase_avg_voltCmd);
+    freq, acc, at_speed_pos, padding_revs, learning_revs, phase_avg_voltCmd);
 
     % new_trq = (0.50*new_trq[s_idx]) + (0.25*new_trq[s_idx+1]);
     % new_trq = new_trq + (0.25*new_trq[s_idx-1]);

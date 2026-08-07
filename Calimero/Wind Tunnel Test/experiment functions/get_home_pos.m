@@ -1,4 +1,4 @@
-function [cur_pos, home_pos] = get_home_pos(hall_effect, tick_ctr)
+function [cur_pos, home_pos] = get_home_pos(hall_effect, tick_ctr, edge_type)
     % Calculate the difference
     d = diff(hall_effect);
     
@@ -34,7 +34,10 @@ function [cur_pos, home_pos] = get_home_pos(hall_effect, tick_ctr)
 
     % the rising edge lines up the magnet with the hall effect sensor
     % home_pos = tick_ctr(mid_indices(end));
-    % home_pos = tick_ctr(rising_edges(end));
-    home_pos = tick_ctr(falling_edges(end));
+    if edge_type == 0
+        home_pos = tick_ctr(rising_edges(end));
+    elseif edge_type == 1
+        home_pos = tick_ctr(falling_edges(end));
+    end
     cur_pos = tick_ctr(end);
 end

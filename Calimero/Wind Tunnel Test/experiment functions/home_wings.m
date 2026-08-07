@@ -13,8 +13,10 @@ function home_wings(flapper_obj, galil, home_path, case_name, dmc_home_filename,
 
     hall_effect = results(:,10);
     tick_ctr = results(:,11);
+    % orientation of magnet (N-S vs S-N) affects what edge type to use
+    edge_type = 1; % 0 - rising edge, 1 - falling edge
     % Get position in ticks associated with the center of a home pulse
-    [cur_pos, home_pos] = get_home_pos(hall_effect, tick_ctr);
+    [cur_pos, home_pos] = get_home_pos(hall_effect, tick_ctr, edge_type);
 
     mod_cur_pos = mod(cur_pos,dmc_params.ticksPerRev) * dmc_params.OC_pulse_step;
     mod_home_pos = mod(home_pos,dmc_params.ticksPerRev) * dmc_params.OC_pulse_step;

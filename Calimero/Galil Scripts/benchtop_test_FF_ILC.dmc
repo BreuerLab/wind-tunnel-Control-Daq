@@ -62,7 +62,7 @@ p_strt = _TPA;                       ' Obtain stroke start position
     AP (p_strt + (cur_rev*ticks_TEMP) + ((idx + 1) * step_sz));
 
     ' Iterative learning procedure
-    IF (cur_rev < 20)
+    IF (cur_rev < revsLearn_TEMP)
     cur_trq = _TTA;
     new_trq = (kt * cur_trq);
 

@@ -1,5 +1,5 @@
 function run_FF_motion(galil, dmc_play_FF_filename, dmc_params, measure_revs, num_revs,...
-    freq, acc, at_speed_pos, padding_revs, phase_avg_torque)
+    freq, acc, at_speed_pos, padding_revs, learning_revs, phase_avg_torque)
     dmc = fileread(dmc_play_FF_filename);
     dmc = string(dmc);
     % Replace the place holders in the .dmc file with the values specified
@@ -16,6 +16,7 @@ function run_FF_motion(galil, dmc_play_FF_filename, dmc_params, measure_revs, nu
     dmc = strrep(dmc, "acc_TEMP", num2str(acc));
     dmc = strrep(dmc, "waittime_TEMP", num2str(dmc_params.wait_time));
     dmc = strrep(dmc, "revsRec_TEMP", num2str(round(at_speed_pos + padding_revs)));
+    dmc = strrep(dmc, "revsLearn_TEMP", num2str(learning_revs));
 
     reverse_dir = false;
     if reverse_dir
