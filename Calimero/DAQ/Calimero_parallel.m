@@ -106,7 +106,7 @@ function setup_DAQ(obj, forceVoltage, rate)
     obj.DAQ.addinput(daq_ID,"ctr1","EdgeCount")
 
     % % counter for camera 1 trigger
-    % obj.DAQ.addinput(daq_ID,"ctr2","EdgeCount")
+    obj.DAQ.addinput(daq_ID,"ctr2","EdgeCount")
     
     if ~(forceVoltage == 5 || forceVoltage == 10)
         error("Invalid DAQ voltage for force transducer")
