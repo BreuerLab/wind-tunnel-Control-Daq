@@ -28,7 +28,7 @@ DR_bool = false; % false - store data in arrays (RA), true - data record packets
 dmc_params.ticksPerRev = 18432;
 freq = 0; % Hz
 acc = 3; % Hz
-measure_revs = 400; % 270
+measure_revs = 300; % 270
 padding_revs = 4;
 hold_time = 60; % sec
 dmc_params.wait_time = 1000; % ms
@@ -47,10 +47,10 @@ dmc_home_filename = "home_move.dmc";
 dmc_get_FF_filename = "obtain_cycle_torque.dmc";
 dmc_play_FF_filename = "benchtop_test_FF.dmc";
 
-amp = 30;
+amp = 10;
 speed = 4;
 AoA = 10;
-wing_type = "MPS_flexible";
+wing_type = "MPS_fairing";
 case_name = wing_type + "_" + amp + "_" + speed + "m.s_" + AoA + "deg_" + freq + "Hz_";
 % case_name = "UP_two_PIV_flexible_20_" + 4 + "m.s_" + 10 + "deg_" + freq + "Hz_";
 % case_name = "ringdown_" + 0 + "m.s_" + 10 + "deg_" + 0 + "Hz_";
@@ -346,8 +346,13 @@ cam_fire_idx = find(results(:,13) == 2, 1, "first");
 laser_count_at_cam_fire = las_count(cam_fire_idx);
 disp("Laser pulses by camera fire: " + laser_count_at_cam_fire +...
     ", total of " + las_count(laser_ind(end)) + " pulses")
+num_images = las_count(laser_ind(end)) - laser_count_at_cam_fire;
 
 if freq > 0
+ticksPerRev = 18432;
+OC_pulse_step = 4;
+pulsesPerRev = ticksPerRev / OC_pulse_step;
+
 %% Plot bin distribution for laser firing
 % Define the field names in the order they are returned by the function
 fNames = {'freq_avg', 'norm_time_speed', 'phase_avg_pos', 'phase_std_pos', ...
@@ -361,9 +366,17 @@ fNames = {'freq_avg', 'norm_time_speed', 'phase_avg_pos', 'phase_std_pos', ...
           'phase_avg_cur', 'phase_std_cur'};
 
 % Capture all outputs into a cell array
+plot_bool = true;
 outputs = cell(1, numel(fNames));
 [outputs{:}] = speed_phase_avg(results, voltAdj, curAdj, pos, speed, acc,...
-                wing_pos, wing_speed, wing_acc, bools.plot);
+                wing_pos, wing_speed, wing_acc, pulsesPerRev, plot_bool);
+
+% Map cell array to struct fields
+for i = 1:numel(fNames)
+    D.(fNames{i}) = outputs{i};
+end
+
+get_laser_phase_bins(results, rate, freq, D.freq_avg, num_images, pulsesPerRev, plot_bool);
 end
 end
 pause(3);

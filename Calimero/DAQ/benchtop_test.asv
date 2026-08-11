@@ -28,14 +28,14 @@ DR_bool = false; % false - store data in arrays (RA), true - data record packets
 dmc_params.ticksPerRev = 18432;
 freq = 2; % Hz
 acc = 3; % Hz
-measure_revs = 80; % 270
+measure_revs = 900; % 270
 padding_revs = 4;
-hold_time = 10; % sec
+hold_time = 60; % sec
 dmc_params.wait_time = 1000; % ms
 dmc_params.OC_pulse_step = 4; % in ticks
 % REMEMBER MOTOR WIRES NEED TO BE FLIPPED TOO WHEN CHANGING DIRECTION
 dmc_params.galil_direction = 0; % 0 - forward, 1 - reverse
-improved_control = false;
+improved_control = true;
 
 if DR_bool
     dmc_benchtop_filename = "benchtop_test_DR.dmc";
@@ -48,9 +48,9 @@ dmc_get_FF_filename = "obtain_cycle_torque.dmc";
 dmc_play_FF_filename = "benchtop_test_FF.dmc";
 
 amp = 20;
-speed = 0;
+speed = 4;
 AoA = 10;
-wing_type = "benchtop";
+wing_type = "MPS_fairing_flexible";
 case_name = wing_type + "_" + amp + "_" + speed + "m.s_" + AoA + "deg_" + freq + "Hz_";
 % case_name = "UP_two_PIV_flexible_20_" + 4 + "m.s_" + 10 + "deg_" + freq + "Hz_";
 % case_name = "ringdown_" + 0 + "m.s_" + 10 + "deg_" + 0 + "Hz_";
@@ -61,7 +61,7 @@ case_name = case_name + string(time_now);
 daq_bool = true;
 async = true; % run daq in asynchronous or synchronous mode
 force_bool = true; % plot force data or not
-laser_bool = false; % plot laser data or not
+laser_bool = true; % plot laser data or not
 % DAQ Setup
 if daq_bool
 [f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4] = makeForceFigures();
@@ -159,8 +159,8 @@ galil.recordsStart(dt);
 end
 % ---------------------------
 if freq == 0
-    default_motor_control(galil, dmc_hold_filename, dmc_parms,...
-    num_revs, freq, acc, at_speed_pos, padding_revs);
+    default_motor_control(galil, dmc_hold_filename, dmc_params,...
+    num_revs, freq, acc, at_speed_pos, padding_revs, DR_bool);
 else
     if improved_control
         improved_motor_control(galil, dmc_get_FF_filename, dmc_play_FF_filename,...
@@ -270,17 +270,30 @@ ylabel("Filtered Speed (Hz)")
 title("Speed measured from OC pulses")
 saveas(OC_f,'data\plots\' + case_name + "_OC.png")
 
-pos_tr = pos(pos >= 6 & pos <= num_revs - 6);
-time_tr = time(pos >= 6 & pos <= num_revs - 6);
-% pos_tr = pos(trim_length*rate:end-trim_length*rate);
-% time_tr = time(trim_length*rate:end-trim_length*rate);
+if freq > 0
+learning_complete_rev = round(at_speed_pos + padding_revs) + 20;
+learning_complete_time = time(pos >= learning_complete_rev);
+learning_complete_time = learning_complete_time(1);
+xline(learning_complete_time)
 
-
-pos_tr = pos_tr - min(pos_tr);
-time_tr = time_tr - min(time_tr);
-
-des_pos = linspace(0,max(pos_tr),length(pos_tr))';
-err_pos = des_pos - pos_tr;
+% pos_tr = pos(pos >= 6 & pos <= num_revs - 6);
+% time_tr = time(pos >= 6 & pos <= num_revs - 6);
+% % pos_tr = pos(trim_length*rate:end-trim_length*rate);
+% % time_tr = time(trim_length*rate:end-trim_length*rate);
+% 
+% 
+% pos_tr = pos_tr - min(pos_tr);
+% time_tr = time_tr - min(time_tr);
+% 
+% des_pos = linspace(0,max(pos_tr),length(pos_tr))';
+% err_pos = des_pos - pos_tr;
+% 
+% figure
+% plot(time_tr, err_pos*ticksPerRev)
+% xlabel("Time (seconds)")
+% ylabel("Position error (ticks)")
+% set(gca, FontSize=16);
+end
 
 % 1, 2, 3, 4, 6, 8, 9, 12, 16, 18, 24, 32, 36, 48, 64, 72, 96, 128,
 % 144, 192, 256, 288, 384, 512, 576, 768, 1024, 1152, 1536, 2048,
@@ -315,9 +328,13 @@ las_count_diff = diff(las_count_tr);
 whole_idx = find(las_count_diff ~= 0);
 laser_ind = whole_idx + mid_indices_adj(1);
 
-last_time = time(laser_ind(end));
+Las_end_time = time(laser_ind(end));
+Las_start_time = time(laser_ind(1));
 disp("-------------------------------------------------------------")
-disp("Final pulse fired at: " + last_time + " s")
+disp("First pulse fired at: " + Las_start_time + " s")
+disp("Final pulse fired at: " + Las_end_time + " s")
+xline(Las_start_time, LineWidth=2, LineStyle="--", Color="green")
+xline(Las_end_time, LineWidth=2, LineStyle="--", Color="red")
 
 % confirm laser fired at expected rate
 frames_bw_pulses = diff(whole_idx);
@@ -328,7 +345,13 @@ disp("Laser recorded firing at: " + las_rep_rate + " Hz on average")
 cam_fire_idx = find(results(:,13) == 2, 1, "first");
 laser_count_at_cam_fire = las_count(cam_fire_idx);
 disp("Laser pulses by camera fire: " + laser_count_at_cam_fire +...
-    ", total of " + las_count_tr(laser_ind(end)) + " pulses")
+    ", total of " + las_count(laser_ind(end)) + " pulses")
+num_images = las_count(laser_ind(end)) - laser_count_at_cam_fire;
+
+if freq > 0
+ticksPerRev = 18432;
+OC_pulse_step = 4;
+pulsesPerRev = ticksPerRev / OC_pulse_step;
 
 %% Plot bin distribution for laser firing
 % Define the field names in the order they are returned by the function
@@ -343,9 +366,18 @@ fNames = {'freq_avg', 'norm_time_speed', 'phase_avg_pos', 'phase_std_pos', ...
           'phase_avg_cur', 'phase_std_cur'};
 
 % Capture all outputs into a cell array
+plot_bool = true;
 outputs = cell(1, numel(fNames));
 [outputs{:}] = speed_phase_avg(results, voltAdj, curAdj, pos, speed, acc,...
-                wing_pos, wing_speed, wing_acc, bools.plot);
+                wing_pos, wing_speed, wing_acc, pulsesPerRev, plot_bool);
+
+% Map cell array to struct fields
+for i = 1:numel(fNames)
+    D.(fNames{i}) = outputs{i};
+end
+
+get_laser_phase_bins(results, rate, freq, D.freq_avg, num_images, pulsesPerRev, plot_bool);
+end
 end
 pause(3);
 else
