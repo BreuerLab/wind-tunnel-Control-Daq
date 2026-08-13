@@ -63,10 +63,9 @@ bin_ind_arr = discretize(norm_signal, bins);
 for j = 1:num_bins
     bin_indices = find(bin_ind_arr == j);
     bin_count(j) = length(bin_indices);
-    bin_std(j) = range(norm_signal(bin_indices)) .* num_bins;
-    % bin_std(j) = std(norm_signal(bin_indices)) .* num_bins;
-    % normalizing by width of single bin in terms of phase
-    % same as dividing by bin width
+    bin_std(j) = std(norm_signal(bin_indices)) .* (bin_ind_arr(2) - bin_ind_arr(1));
+    % same as dividing by width of single bin in terms of phase
+    % 1 cycle / 
 end
 
 % rough estimate of number of cycles based on value resetting to zero
@@ -86,7 +85,7 @@ xlabel("Bin number", FontSize=16)
 ylabel("Number of frames per bin", FontSize=16)
 
 figure
-bar(bin_std*100)
+bar(bin_std)
 xlabel("Bin number", FontSize=16)
 ylabel("Phase variability per bin (% cycle)", FontSize=16)
 end
