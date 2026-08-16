@@ -54,7 +54,7 @@ disp("Identified " + num_clusters + " number of frame clusters, with a phase spr
 % [num_bins, bin_ind_arr, bin_count, bin_std] = findBestNumBins(norm_signal, bins_list, minFrames);
 % disp("Using " + num_bins + " bins")
 
-num_bins = 100;
+num_bins = 95;
 bins = linspace(0,1,num_bins+1);
 bin_ind_arr = discretize(norm_signal, bins);
 % variable preallocation
@@ -63,9 +63,10 @@ bin_ind_arr = discretize(norm_signal, bins);
 for j = 1:num_bins
     bin_indices = find(bin_ind_arr == j);
     bin_count(j) = length(bin_indices);
-    bin_std(j) = std(norm_signal(bin_indices)) .* (bin_ind_arr(2) - bin_ind_arr(1));
-    % same as dividing by width of single bin in terms of phase
-    % 1 cycle / 
+    bin_std(j) = range(norm_signal(bin_indices)) .* num_bins;
+    % bin_std(j) = std(norm_signal(bin_indices)) .* num_bins;
+    % normalizing by width of single bin in terms of phase
+    % same as dividing by bin width
 end
 
 % rough estimate of number of cycles based on value resetting to zero
@@ -75,7 +76,8 @@ disp("Expected number of cycles: " + num_images / (200 / cycle_freq))
 
 if plot_bool
 figure
-histogram(tick_frame_pos, full_cycle)
+histogram(tick_frame_pos * (num_bins / pulsesPerRev), full_cycle * (num_bins / pulsesPerRev))
+xline(bins * (num_bins + 1), LineWidth=2, Linestyle="--")
 xlabel("Encoder Ticks")
 ylabel("Frequency")
 
@@ -85,7 +87,7 @@ xlabel("Bin number", FontSize=16)
 ylabel("Number of frames per bin", FontSize=16)
 
 figure
-bar(bin_std)
+bar(bin_std*100)
 xlabel("Bin number", FontSize=16)
 ylabel("Phase variability per bin (% cycle)", FontSize=16)
 end

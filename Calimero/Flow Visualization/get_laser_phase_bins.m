@@ -54,7 +54,7 @@ disp("Identified " + num_clusters + " number of frame clusters, with a phase spr
 % [num_bins, bin_ind_arr, bin_count, bin_std] = findBestNumBins(norm_signal, bins_list, minFrames);
 % disp("Using " + num_bins + " bins")
 
-num_bins = 100;
+num_bins = 96;
 bins = linspace(0,1,num_bins+1);
 bin_ind_arr = discretize(norm_signal, bins);
 % variable preallocation
@@ -79,6 +79,13 @@ figure
 histogram(tick_frame_pos, full_cycle)
 xlabel("Encoder Ticks")
 ylabel("Frequency")
+
+% testing to see where distribution falls relative to bin edges
+% figure
+% histogram(tick_frame_pos * (num_bins / pulsesPerRev), full_cycle * (num_bins / pulsesPerRev))
+% xline(bins * (num_bins + 1), LineWidth=2, Linestyle="--")
+% xlabel("Encoder Ticks")
+% ylabel("Frequency")
 
 figure
 bar(bin_count)

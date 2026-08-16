@@ -28,9 +28,9 @@ DR_bool = false; % false - store data in arrays (RA), true - data record packets
 dmc_params.ticksPerRev = 18432;
 freq = 0; % Hz
 acc = 3; % Hz
-measure_revs = 750;
+measure_revs = 220;
 padding_revs = 4;
-hold_time = 60; % sec
+hold_time = 50; % sec
 dmc_params.wait_time = 1000; % ms
 dmc_params.OC_pulse_step = 4; % in ticks
 % REMEMBER MOTOR WIRES NEED TO BE FLIPPED TOO WHEN CHANGING DIRECTION
@@ -47,10 +47,11 @@ dmc_home_filename = "home_move.dmc";
 dmc_get_FF_filename = "obtain_cycle_torque.dmc";
 dmc_play_FF_filename = "benchtop_test_FF.dmc";
 
-amp = 30;
+amp = 10;
 speed = 4;
 AoA = 10;
-wing_type = "x2";
+wing_type = "TEST";
+% wing_type = "x5_flexible";
 case_name = wing_type + "_" + amp + "_" + speed + "m.s_" + AoA + "deg_" + freq + "Hz_";
 % case_name = "UP_two_PIV_flexible_20_" + 4 + "m.s_" + 10 + "deg_" + freq + "Hz_";
 % case_name = "ringdown_" + 0 + "m.s_" + 10 + "deg_" + 0 + "Hz_";
@@ -342,7 +343,8 @@ las_rep_rate = rate / mean(frames_bw_pulses);
 disp("Laser recorded firing at: " + las_rep_rate + " Hz on average")
 
 % find value of laser counter when camera trigger signal initiated
-cam_fire_idx = find(results(:,13) == 2, 1, "first");
+cam_fire_idx = find(results(:,13) ~= 0, 1, "first");
+% cam_fire_idx = find(results(:,13) == 2, 1, "first");
 laser_count_at_cam_fire = las_count(cam_fire_idx);
 disp("Laser pulses by camera fire: " + laser_count_at_cam_fire +...
     ", total of " + las_count(laser_ind(end)) + " pulses")
