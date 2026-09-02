@@ -59,19 +59,19 @@ D.phase_avg_speed_error = abs(D.phase_avg_speed - freq);
 D.phase_avg_power = D.phase_avg_volt .* D.phase_avg_cur;
 
 % Brushed DC motor parameters
-mot_R = 51.4; % Ohms
-mot_L = 1.8e-3; % H
-mot_k = 27.4e-3; % Nm/A, torque constant
+R = 51.4; % Ohms
+L = 1.8e-3; % H
+k = 27.4e-3; % Nm/A, torque constant
 gR = 9; % gear ratio
-mot_eff = 0.81; % gearbox efficiency
+eff = 0.81; % gearbox efficiency
 
 % Estimate motor current from voltage data using motor model
 
 % Estimate motor voltage from current data using motor model
 dt = (1/freq) / length(D.phase_avg_cur);
-mechTerm = mot_k*(D.phase_avg_speed*2*pi*gR); % Nm/A = V/(speed in rad/s)
-resTerm = mot_R*(D.phase_avg_cur/1000);
-indTerm = mot_L*gradient(D.phase_avg_cur/1000, dt);
+mechTerm = k*(D.phase_avg_speed*2*pi*gR); % Nm/A = V/(speed in rad/s)
+resTerm = R*(D.phase_avg_cur/1000);
+indTerm = L*gradient(D.phase_avg_cur/1000, dt);
 D.phase_avg_volt_model = mechTerm + resTerm + indTerm;
 % potentially a brush voltage drop term is missing
 
@@ -81,10 +81,8 @@ end
 % ------------ Calculate phase averaged STB fields ---------------
 % ----------------------------------------------------------------
 if bools.proc_vel
-num_images = 5000;
-disp("-----------------------------------")
+num_images = 500;
 disp("Assuming num images = " + num_images)
-disp("-----------------------------------")
 % get bin number associated with each frame from DAQ measurements
 [norm_frame_pos, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_freq, num_clusters, phase_spread_ratio]...
     = frame_to_bin(PIV_case_name, num_images, D.freq_avg, bools.turbine, bools.plot);
@@ -248,7 +246,7 @@ fprintf('Processing and saving data took %.4f seconds.\n', toc);
 
 % Calculate secondary values (Q, power, integral values) and save in
 % separate file
-calc_secondary_vals_phase(S, D, bools, save_filepath_local);
+calc_secondary_vals_phase(S, D, bools.turbine, bools.plot, save_filepath_local);
 
 else
 
@@ -257,6 +255,6 @@ S = load(save_path);
 
 % Calculate secondary values (Q, power, integral values) and save in
 % separate file
-calc_secondary_vals_phase(S, D, bools, save_filepath_local);
+calc_secondary_vals_phase(S, D, bools.turbine, bools.plot, save_filepath_local);
 end
 end

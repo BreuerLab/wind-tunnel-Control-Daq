@@ -1,4 +1,4 @@
-function calc_secondary_vals_phase(D, F, turbine_bool, plot_bool, save_filepath_local)
+function calc_secondary_vals_phase(D, F, bools, save_filepath_local)
 tic
 
 config.uField = 'u_phase_avg';
@@ -33,7 +33,7 @@ config.vwField = 'vw_stress';
 config.uwxField = 'u_wx_stress';
 config.uwyField = 'u_wy_stress';
 
-if ~turbine_bool
+if ~bools.turbine
     num_bins = D.num_bins;
     speed = D.U_act * D.U;
     [~, ~, freq] = parse_name(D.PIV_case_name);

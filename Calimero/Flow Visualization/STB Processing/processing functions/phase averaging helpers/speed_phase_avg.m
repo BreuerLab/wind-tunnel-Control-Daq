@@ -37,9 +37,11 @@ t_phase_zero = norm_signal(I);
 norm_signal(norm_signal < t_phase_zero) = norm_signal(norm_signal < t_phase_zero) + 1;
 norm_signal = norm_signal - t_phase_zero;
 
-bins_list = 500:50:1500;
+bins_list = 1000:50:1500;
 minFrames = 100;
-[num_bins, bin_ind_arr, bin_count, bin_std] = findBestNumBins(norm_signal, bins_list, minFrames);
+% [num_bins, bin_ind_arr, bin_count, bin_std] = findBestNumBins(norm_signal, bins_list, minFrames);
+num_shifts = 5;
+[num_bins, bin_offset, bin_ind_arr, bin_count,bin_std] = findBestNumBins2(norm_signal, bins_list, minFrames, num_shifts);
 disp("Using " + num_bins + " bins for speed phase averaging")
 
 % Array preallocation

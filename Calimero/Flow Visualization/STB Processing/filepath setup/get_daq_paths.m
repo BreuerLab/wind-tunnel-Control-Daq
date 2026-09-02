@@ -1,17 +1,26 @@
 function [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name)
     % Define the base directory shortcuts to keep paths readable
-    base_rg = 'R:\ENG_Breuer_Shared\rgissler\Calimero Force Data\STB Final\';
+    base_old = 'R:\ENG_Breuer_Shared\rgissler\Calimero Force Data\STB Final\';
     base_group = 'R:\ENG_Breuer_Shared\group\Wind turbine\Turbine_STB\Turbine_STB_02_17_2026\DAQ Data\Final Data\';
 
+    base_new = 'R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\STB Revamped\';
+
     % Map experimental dates to their specific subfolders
-    d11 = [base_rg, 'STB_02_11_2026\data\experiment data\'];
-    d12 = [base_rg, 'STB_02_12_2026\data\experiment data\'];
-    d15 = [base_rg, 'STB_02_15_2026\data\experiment data\'];
+    d11 = [base_old, 'STB_02_11_2026\data\experiment data\'];
+    d12 = [base_old, 'STB_02_12_2026\data\experiment data\'];
+    d15 = [base_old, 'STB_02_15_2026\data\experiment data\'];
+    d21 = [base_new, 'x1\daq data\experiment data\'];
+    d22 = [base_new, 'x2\daq data\experiment data\'];
+    d23 = [base_new, 'x3\daq data\experiment data\'];
+    d24 = [base_new, 'x4\daq data\experiment data\'];
+    d25 = [base_new, 'x5\daq data\experiment data\'];
 
     % Create an organized lookup structure
     % Format: cases.(alias) = {filename, path}
     cases = struct();
     
+    cases.x5_wings_20deg_6Hz = {'x5_flexible_20_4m.s_10deg_6Hz_2026_08_16_20_01_59_experiment_2026_08_16_20_04_20.mat',d25};
+
     % Feb 15th Data
     cases.UP_two_flexible_10deg_2Hz = {'UP_two_PIV_flexible_10_4m.s_10deg_2Hz_2026-02-15 13-19-51_experiment_2026_02_15_13_21_12.mat', d15};
     cases.UP_two_flexible_10deg_4Hz = {'UP_two_PIV_flexible_10_4m.s_10deg_4Hz_2026-02-15 13-48-19_experiment_2026_02_15_13_49_41.mat', d15};

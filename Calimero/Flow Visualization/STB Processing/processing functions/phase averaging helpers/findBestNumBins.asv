@@ -49,6 +49,9 @@ function [best_num_bins, best_bin_ind_arr, best_bin_count, best_bin_std] = findB
             catch
             bin_std(j) = -1;
             end
+            if bin_std(j) > 50
+                disp("high var bin")
+            end
         end
 
         avg_std = mean(bin_std);

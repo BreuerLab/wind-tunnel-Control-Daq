@@ -4,7 +4,7 @@ close all
 ticksPerRev = 18432;
 f_w = 8; % Hz, wingbeat frequency
 N = 1:1:100; % number of phase points/bins
-p = 1:1:50; % phase step size
+p = 1:0.5:50; % phase step size
 [N_grid, p_grid] = meshgrid(N, p);
 
 f_l = (f_w .* N_grid) ./ p_grid; % Hz, laser frequency
