@@ -19,6 +19,7 @@ function [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name)
     % Format: cases.(alias) = {filename, path}
     cases = struct();
     
+    cases.x5_wings_20deg_0Hz = {'x5_flexible_20_4m.s_10deg_0Hz_2026_08_16_19_25_04_experiment_2026_08_16_19_26_20.mat',d25};
     cases.x5_wings_20deg_6Hz = {'x5_flexible_20_4m.s_10deg_6Hz_2026_08_16_20_01_59_experiment_2026_08_16_20_04_20.mat',d25};
 
     % Feb 15th Data

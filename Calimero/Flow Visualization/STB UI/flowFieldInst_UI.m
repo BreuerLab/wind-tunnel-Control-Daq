@@ -638,11 +638,27 @@ methods (Access = private)
 
         PIV_case_name = obj.get_current_case_id();
         fields = get_STB_processing_fields();
+        [amp, ~, freq] = parse_name(PIV_case_name);
 
         % Check if the bin_ind or case has changed since the last plot
         if obj.bin_ind ~= obj.cached_bin_ind || PIV_case_name ~= obj.cached_case_id || plot_idx ~= obj.cached_plot_idx
 
         file_path = get_PIV_paths(PIV_case_name);
+
+        [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name);
+
+        % Get raw data from file
+        load([daq_data_path daq_data_filename]);
+        
+        % no load cell mounted, so blank values used
+        offsets = zeros(1,size(results,2));
+        cal_mat = zeros(6,6);
+        
+        ticksPerRev = 18432;
+        OC_pulse_step = 4;
+        pulsesPerRev = ticksPerRev / OC_pulse_step;
+        [~, ~, voltAdj, curAdj, home_signal, pos, speed, acc, wing_pos, wing_speed, wing_acc] = ...
+            process_data(results, offsets, cal_mat, ticksPerRev, OC_pulse_step, amp, true);
 
         % Define the field names in the order they are returned by the function
         fNames = {'freq_avg', 'norm_time_speed', 'phase_avg_pos', 'phase_std_pos', ...
@@ -657,7 +673,9 @@ methods (Access = private)
 
         % Capture all outputs into a cell array
         outputs = cell(1, numel(fNames));
-        [outputs{:}] = speed_phase_avg(PIV_case_name, false);
+        plot_bool = false;
+        [outputs{:}] = speed_phase_avg(results, voltAdj, curAdj, pos, speed, acc,...
+                wing_pos, wing_speed, wing_acc, pulsesPerRev, plot_bool);
         
         % Map cell array to struct fields
         for i = 1:numel(fNames)
