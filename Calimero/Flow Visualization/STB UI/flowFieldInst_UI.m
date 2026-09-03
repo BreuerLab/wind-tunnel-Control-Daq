@@ -7,22 +7,36 @@ properties (Constant, Access = private)
     MIRROR_CENTER_Y = -2.26;
     secondary_vars = ["Q_x","Q_y","Q_z","|Q|","div",...
         "KE", "power"];
-    UPSTREAM_DISTANCE_MARKERS = ["";"UP_one_";"UP_two_"];
-    KNOWN_DISTANCE_LABELS = ["x = 0.9m";"x = 1.3m";"x = 1.7m"];
+    OLD_FLAPPER_SOURCE_MODE = "old flapper";
+    NEW_FLAPPER_SOURCE_MODE = "new flapper";
+    OLD_FLAPPER_DOWNSTREAM_TYPES = ["flexible";"UP_one_flexible";"UP_two_flexible"];
+    OLD_FLAPPER_DISTANCE_LABELS = ["x = 0.9m";"x = 1.3m";"x = 1.7m"];
+    NEW_FLAPPER_DOWNSTREAM_TYPES = ["x1";"x2";"x3";"x4";"x5"];
+    NEW_FLAPPER_DISTANCE_LABELS = ["x1";"x2";"x3";"x4";"x5"];
 end
 
 properties
     % Display and dataset selection
     mon_num;
     phase_avg_file_path;
+    source_mode;
+    source_modes;
     case_name;
     case_name_list;
     phase_flapper_case_name_list;
+    phase_old_flapper_case_name_list;
+    phase_new_flapper_case_name_list;
     phase_avg_case_ids;
     current_downstream_type;
     downstream_types;
     distance_labels;
     downstream_type_by_distance;
+    old_flapper_downstream_types;
+    old_flapper_distance_labels;
+    old_flapper_downstream_type_by_distance;
+    new_flapper_downstream_types;
+    new_flapper_distance_labels;
+    new_flapper_downstream_type_by_distance;
 
     num_bins;
     bin_ind;
@@ -100,16 +114,32 @@ methods
 
         flapper_stems = phase_avg_stems(~contains(phase_avg_stems, "turbine"));
 
-        [obj.downstream_types, obj.distance_labels] = obj.get_available_downstream_options(flapper_stems);
-        if isempty(obj.downstream_types)
-            obj.current_downstream_type = "";
-            obj.downstream_type_by_distance = containers.Map('KeyType', 'char', 'ValueType', 'char');
-        else
-            obj.current_downstream_type = obj.downstream_types(1);
-            obj.downstream_type_by_distance = containers.Map(obj.distance_labels, obj.downstream_types);
-        end
+        old_flapper_stems = obj.get_old_flapper_stems(flapper_stems);
+        new_flapper_stems = obj.get_new_flapper_stems(flapper_stems);
 
-        obj.phase_flapper_case_name_list = obj.get_flapper_case_names(flapper_stems);
+        [obj.old_flapper_downstream_types, obj.old_flapper_distance_labels] = ...
+            obj.get_available_downstream_options(old_flapper_stems, obj.OLD_FLAPPER_SOURCE_MODE);
+        obj.old_flapper_downstream_type_by_distance = ...
+            obj.build_downstream_type_map(obj.old_flapper_distance_labels, obj.old_flapper_downstream_types);
+        [obj.new_flapper_downstream_types, obj.new_flapper_distance_labels] = ...
+            obj.get_available_downstream_options(new_flapper_stems, obj.NEW_FLAPPER_SOURCE_MODE);
+        obj.new_flapper_downstream_type_by_distance = ...
+            obj.build_downstream_type_map(obj.new_flapper_distance_labels, obj.new_flapper_downstream_types);
+
+        obj.phase_old_flapper_case_name_list = obj.get_flapper_case_names(...
+            old_flapper_stems, obj.old_flapper_downstream_types, ...
+            obj.old_flapper_distance_labels, obj.OLD_FLAPPER_SOURCE_MODE);
+        obj.phase_new_flapper_case_name_list = obj.get_flapper_case_names(...
+            new_flapper_stems, obj.new_flapper_downstream_types, ...
+            obj.new_flapper_distance_labels, obj.NEW_FLAPPER_SOURCE_MODE);
+        obj.phase_flapper_case_name_list = unique([obj.phase_old_flapper_case_name_list, obj.phase_new_flapper_case_name_list], 'stable');
+        obj.source_modes = obj.get_available_source_modes();
+        if isempty(obj.source_modes)
+            obj.source_mode = "";
+        else
+            obj.source_mode = obj.source_modes(1);
+        end
+        obj.set_downstream_options_for_source_mode(obj.source_mode);
         obj.case_name_list = obj.get_case_name_list_for_active_plot_type();
 
         obj.movie_3D_avg_vars = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
@@ -202,20 +232,25 @@ methods
         screen_height = screen_size(4);
         unit_height = round(0.03*screen_height);
 
+        source_dropdown_y = screen_height*0.85 - 30;
+        source_dropdown = uidropdown(option_panel);
+        source_dropdown.Position = [10 source_dropdown_y 180 30];
+        if isempty(obj.source_modes)
+            source_dropdown.Items = "No flapper data";
+            source_dropdown.Value = "No flapper data";
+            source_dropdown.Enable = "off";
+        else
+            source_dropdown.Items = obj.source_modes;
+            source_dropdown.Value = obj.source_mode;
+        end
+        source_dropdown.ValueChangedFcn = @(src, event) source_change(src, event, plot_panel);
+
         % Dropdown box for which cases axes to display
-        distance_dropdown_y = screen_height*0.85 - 30;
+        distance_dropdown_y = source_dropdown_y - 35;
         distance_dropdown = uidropdown(option_panel);
         distance_dropdown.Position = [10 distance_dropdown_y 180 30];
-        if isempty(obj.distance_labels)
-            distance_dropdown.Items = "No Calimero data";
-            distance_dropdown.Value = "No Calimero data";
-            distance_dropdown.Visible = "off";
-            distance_dropdown.Enable = "off";
-        else
-            distance_dropdown.Items = obj.distance_labels;
-            distance_dropdown.Value = obj.distance_labels(1);
-        end
         distance_dropdown.ValueChangedFcn = @(src, event) distance_change(src, event, plot_panel);
+        refresh_distance_dropdown();
 
         case_dropdown_y = distance_dropdown_y - 35;
         case_dropdown = uidropdown(option_panel);
@@ -317,8 +352,25 @@ methods
 
         % Callbacks are nested so each handler mutates this handle object.
 
+        function source_change(src, ~, plot_panel)
+            obj.source_mode = src.Value;
+            refresh_distance_dropdown();
+            refresh_case_dropdown();
+            refresh_plot_type_dropdown();
+            refresh_variable_dropdown();
+
+            % Force frame and bin sliders back to 1 since not all datasets
+            % have the same number of frames.
+            obj.bin_ind = 1;
+            obj.frame_ind = 1;
+            obj.slider_bin.Value = obj.bin_ind;
+            obj.slider_frame.Value = obj.frame_ind;
+
+            obj.update_plot(plot_panel);
+        end
+
         function distance_change(src, ~, plot_panel)
-            obj.current_downstream_type = string(obj.downstream_type_by_distance(src.Value));
+            obj.current_downstream_type = string(obj.downstream_type_by_distance(char(src.Value)));
             refresh_case_dropdown();
             refresh_plot_type_dropdown();
             refresh_variable_dropdown();
@@ -359,6 +411,22 @@ methods
         function variable_change(src, ~, plot_panel)
             obj.variable_name = src.Value;
             obj.update_plot(plot_panel);
+        end
+
+        function refresh_distance_dropdown()
+            obj.set_downstream_options_for_source_mode(obj.source_mode);
+            if isempty(obj.distance_labels)
+                distance_dropdown.Items = "No downstream data";
+                distance_dropdown.Value = "No downstream data";
+                distance_dropdown.Visible = "off";
+                distance_dropdown.Enable = "off";
+            else
+                distance_dropdown.Items = obj.distance_labels;
+                distance_dropdown.Value = obj.distance_labels(1);
+                distance_dropdown.Visible = "on";
+                distance_dropdown.Enable = "on";
+                obj.current_downstream_type = string(obj.downstream_type_by_distance(char(distance_dropdown.Value)));
+            end
         end
 
         function refresh_case_dropdown()
@@ -499,87 +567,148 @@ methods (Access = private)
         file_stems = erase(file_names(avg_files), suffix + ".mat");
     end
 
-    function [downstream_types, distance_labels] = get_available_downstream_options(obj, flapper_stems)
+    function old_flapper_stems = get_old_flapper_stems(obj, flapper_stems)
+        flapper_stems = string(flapper_stems);
+        old_flapper_stems = flapper_stems(~obj.is_new_flapper_stem(flapper_stems));
+    end
+
+    function new_flapper_stems = get_new_flapper_stems(obj, flapper_stems)
+        flapper_stems = string(flapper_stems);
+        new_flapper_stems = flapper_stems(obj.is_new_flapper_stem(flapper_stems));
+    end
+
+    function mask = is_new_flapper_stem(obj, stems)
+        stems = string(stems);
+        mask = false(size(stems));
+        for i = 1:length(obj.NEW_FLAPPER_DOWNSTREAM_TYPES)
+            downstream_type = obj.NEW_FLAPPER_DOWNSTREAM_TYPES(i);
+            mask = mask | stems == downstream_type | startsWith(stems, downstream_type + "_");
+        end
+    end
+
+    function set_downstream_options_for_source_mode(obj, source_mode)
+        [obj.downstream_types, obj.distance_labels, obj.downstream_type_by_distance] = ...
+            obj.get_downstream_options_for_source_mode(source_mode);
+        if isempty(obj.downstream_types)
+            obj.current_downstream_type = "";
+        else
+            obj.current_downstream_type = obj.downstream_types(1);
+        end
+    end
+
+    function [downstream_types, distance_labels, downstream_type_by_distance] = get_downstream_options_for_source_mode(obj, source_mode)
+        if source_mode == obj.OLD_FLAPPER_SOURCE_MODE
+            downstream_types = obj.old_flapper_downstream_types;
+            distance_labels = obj.old_flapper_distance_labels;
+            downstream_type_by_distance = obj.old_flapper_downstream_type_by_distance;
+        elseif source_mode == obj.NEW_FLAPPER_SOURCE_MODE
+            downstream_types = obj.new_flapper_downstream_types;
+            distance_labels = obj.new_flapper_distance_labels;
+            downstream_type_by_distance = obj.new_flapper_downstream_type_by_distance;
+        else
+            downstream_types = strings(0, 1);
+            distance_labels = strings(0, 1);
+            downstream_type_by_distance = obj.build_downstream_type_map(distance_labels, downstream_types);
+        end
+    end
+
+    function downstream_type_by_distance = build_downstream_type_map(~, distance_labels, downstream_types)
+        if isempty(distance_labels)
+            downstream_type_by_distance = containers.Map('KeyType', 'char', 'ValueType', 'char');
+        else
+            downstream_type_by_distance = containers.Map(cellstr(distance_labels), cellstr(downstream_types));
+        end
+    end
+
+    function [downstream_types, distance_labels] = get_available_downstream_options(obj, flapper_stems, source_mode)
         downstream_types = strings(0, 1);
         distance_labels = strings(0, 1);
 
-        for i = 1:length(obj.UPSTREAM_DISTANCE_MARKERS)
-            matching_stems = obj.get_downstream_stems_for_distance(flapper_stems, i);
-            downstream_type = obj.get_downstream_type_from_stems(matching_stems);
-            if strlength(downstream_type) > 0
+        [known_downstream_types, known_distance_labels] = obj.get_known_downstream_options(source_mode);
+        for i = 1:length(known_downstream_types)
+            downstream_type = known_downstream_types(i);
+            matching_stems = obj.get_downstream_stems_for_type(flapper_stems, downstream_type, source_mode);
+            if ~isempty(matching_stems)
                 downstream_types(end + 1, 1) = downstream_type;
-                distance_labels(end + 1, 1) = obj.KNOWN_DISTANCE_LABELS(i);
+                distance_labels(end + 1, 1) = known_distance_labels(i);
             end
         end
     end
 
-    function matching_stems = get_downstream_stems_for_distance(obj, flapper_stems, distance_index)
-        one_up_marker = obj.UPSTREAM_DISTANCE_MARKERS(2);
-        two_up_marker = obj.UPSTREAM_DISTANCE_MARKERS(3);
+    function [downstream_types, distance_labels] = get_known_downstream_options(obj, source_mode)
+        if source_mode == obj.OLD_FLAPPER_SOURCE_MODE
+            downstream_types = obj.OLD_FLAPPER_DOWNSTREAM_TYPES;
+            distance_labels = obj.OLD_FLAPPER_DISTANCE_LABELS;
+        elseif source_mode == obj.NEW_FLAPPER_SOURCE_MODE
+            downstream_types = obj.NEW_FLAPPER_DOWNSTREAM_TYPES;
+            distance_labels = obj.NEW_FLAPPER_DISTANCE_LABELS;
+        else
+            downstream_types = strings(0, 1);
+            distance_labels = strings(0, 1);
+        end
+    end
 
-        switch distance_index
-            case 1
-                mask = ~contains(flapper_stems, one_up_marker) & ~contains(flapper_stems, two_up_marker);
-            case 2
-                mask = contains(flapper_stems, one_up_marker);
-            case 3
-                mask = contains(flapper_stems, two_up_marker);
-            otherwise
-                mask = false(size(flapper_stems));
+    function matching_stems = get_downstream_stems_for_type(obj, flapper_stems, downstream_type, source_mode)
+        flapper_stems = string(flapper_stems);
+        prefix = downstream_type + "_";
+        mask = flapper_stems == downstream_type | startsWith(flapper_stems, prefix);
+
+        if source_mode == obj.OLD_FLAPPER_SOURCE_MODE && downstream_type == obj.OLD_FLAPPER_DOWNSTREAM_TYPES(1)
+            mask = mask | obj.is_legacy_default_distance_stem(flapper_stems);
         end
 
         matching_stems = flapper_stems(mask);
     end
 
-    function downstream_type = get_downstream_type_from_stems(obj, stems)
-        downstream_type = "";
-        for i = 1:length(stems)
-            type = obj.get_downstream_type_from_stem(stems(i));
-            if strlength(type) > 0
-                downstream_type = type;
-                return
-            end
+    function mask = is_legacy_default_distance_stem(obj, stems)
+        stems = string(stems);
+        mask = ~obj.starts_with_any_downstream_type(stems, obj.OLD_FLAPPER_DOWNSTREAM_TYPES) & ...
+               ~obj.is_new_flapper_stem(stems);
+    end
+
+    function mask = starts_with_any_downstream_type(~, stems, downstream_types)
+        stems = string(stems);
+        mask = false(size(stems));
+        for i = 1:length(downstream_types)
+            downstream_type = downstream_types(i);
+            mask = mask | stems == downstream_type | startsWith(stems, downstream_type + "_");
         end
     end
 
-    function downstream_type = get_downstream_type_from_stem(~, stem)
-        name_parts = split(stem, "_");
-        case_start_index = find(contains(name_parts, "deg") | contains(name_parts, "Hz"), 1);
+    function source_modes = get_available_source_modes(obj)
+        source_modes = strings(0);
 
-        if isempty(case_start_index)
-            downstream_type = stem;
-        elseif case_start_index == 1
-            downstream_type = "";
-        else
-            downstream_type = strjoin(name_parts(1:case_start_index - 1), "_");
+        if ~isempty(obj.phase_old_flapper_case_name_list)
+            source_modes(end + 1) = obj.OLD_FLAPPER_SOURCE_MODE;
+        end
+
+        if ~isempty(obj.phase_new_flapper_case_name_list)
+            source_modes(end + 1) = obj.NEW_FLAPPER_SOURCE_MODE;
         end
     end
 
     function case_names = get_case_name_list_for_active_plot_type(obj)
-        case_names = obj.get_case_name_list(obj.plot_type);
+        case_names = obj.get_case_name_list(obj.source_mode);
     end
 
-    function case_names = get_case_name_list(obj, plot_type)
-        phase_case_names = obj.phase_flapper_case_name_list;
-        case_names = phase_case_names;
-    end
-
-    function case_names = get_flapper_case_names(obj, phase_avg_stems)
-        case_names = strings(0);
-        downstream_types = obj.downstream_types;
-        distance_labels = obj.distance_labels;
-        if isempty(downstream_types)
-            [downstream_types, distance_labels] = obj.get_available_downstream_options(phase_avg_stems);
+    function case_names = get_case_name_list(obj, source_mode)
+        if source_mode == obj.NEW_FLAPPER_SOURCE_MODE
+            case_names = obj.phase_new_flapper_case_name_list;
+        else
+            case_names = obj.phase_old_flapper_case_name_list;
         end
+    end
+
+    function case_names = get_flapper_case_names(obj, phase_avg_stems, downstream_types, distance_labels, source_mode)
+        case_names = strings(0);
 
         for i = 1:length(downstream_types)
             downstream_type = downstream_types(i);
             prefix = downstream_type + "_";
             matching_stems = phase_avg_stems(phase_avg_stems == downstream_type | startsWith(phase_avg_stems, prefix));
-            if i <= length(distance_labels) && distance_labels(i) == obj.KNOWN_DISTANCE_LABELS(1)
-                default_distance_stems = obj.get_downstream_stems_for_distance(phase_avg_stems, 1);
-                bare_default_stems = default_distance_stems(~contains(default_distance_stems, "_"));
-                matching_stems = unique([matching_stems, bare_default_stems], 'stable');
+            if source_mode == obj.OLD_FLAPPER_SOURCE_MODE && ...
+                    i <= length(distance_labels) && distance_labels(i) == obj.OLD_FLAPPER_DISTANCE_LABELS(1)
+                matching_stems = unique([matching_stems, phase_avg_stems(obj.is_legacy_default_distance_stem(phase_avg_stems))], 'stable');
             end
             case_names = [case_names, obj.get_case_names_from_stems(matching_stems, downstream_type)];
         end
