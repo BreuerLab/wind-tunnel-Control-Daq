@@ -838,9 +838,10 @@ methods (Access = private)
     function labels = disambiguate_duplicate_type_labels(~, types, labels)
         types = string(types);
         labels = string(labels);
+        original_labels = labels;
 
         for i = 1:length(labels)
-            if sum(labels == labels(i)) > 1
+            if sum(original_labels == original_labels(i)) > 1
                 labels(i) = labels(i) + " (" + strrep(types(i), "_", " ") + ")";
             end
         end
