@@ -9,7 +9,13 @@ classdef phaseAvg_UI < handle
         COLOR_ACTIVE = [0.3010 0.7450 0.9330];
         COLOR_INACTIVE = [1 1 1];
 
+        OLD_FLAPPER_SOURCE_MODE = "old flapper";
+        NEW_FLAPPER_SOURCE_MODE = "new flapper";
+        DEFAULT_VERSION_LABEL = "default";
         cur_types = ["flexible";"UP_one_flexible";"UP_two_flexible"];
+        downstream_distance_labels = ["x = 0.9m"; "x = 1.3m"; "x = 1.7m"];
+        new_flapper_downstream_types = ["x1";"x2";"x3";"x4";"x5"];
+        new_flapper_distance_labels = ["x1";"x2";"x3";"x4";"x5"];
     end
 
 properties
@@ -109,11 +115,14 @@ properties
 
     % ------- Available parameters user can select from -------
     available_selections;
+    source_mode;
+    source_modes;
 
     selection; % list of selected cases
     sel_type;
     sel_freq;
     sel_amp;
+    sel_version;
 
     % Curves currently displayed on plot
     plot_curves;
@@ -164,25 +173,23 @@ methods
         contents = dir(obj.PIV_path + "phase_avg\");
         files = contents(~[contents.isdir]);
 
-        % Get amps, freqs, types from file names
-        obj.available_selections = get_sel_from_file(files);
+        % Get types, amplitudes, frequencies, and file versions from names.
+        obj.available_selections = obj.get_phase_avg_selections_from_files(files);
 
         if isempty(obj.available_selections)
             error("No STB files found in %s. Expected *_phase_avg.mat or *_time_avg.mat files.", obj.PIV_path + "phase_avg\")
         end
 
-        obj.sel_type = string(obj.available_selections{1,1});
-        obj.sel_amp = obj.available_selections{1,2};
-        obj.sel_freq = obj.available_selections{1,3};
+        obj.source_modes = obj.get_available_source_modes();
+        if isempty(obj.source_modes)
+            error("No old or new flapper STB files found in %s.", obj.PIV_path + "phase_avg\")
+        end
+        obj.source_mode = obj.source_modes(1);
 
         obj.plot_curves = [];
         % attachFileListsToBird(path, cur_bird);
 
-        [selection_types, obj.distance_labels] = obj.get_available_type_options();
-        obj.sel_type = selection_types(1);
-        [obj.sel_amp, obj.sel_freq] = obj.get_first_selection(obj.sel_type);
-        obj.distance_type_dict = containers.Map(cellstr(obj.distance_labels), cellstr(selection_types));
-        obj.type_distance_dict = containers.Map(cellstr(selection_types), cellstr(obj.distance_labels));
+        obj.reset_type_options_for_source();
     end
 
     % Builds figure with all UI elements and defines all callback
@@ -197,24 +204,31 @@ methods
             option_panel.Scrollable = "on";
         end
 
-        sidebar_grid = uigridlayout(option_panel, [18, 1]);
+        sidebar_grid = uigridlayout(option_panel, [20, 1]);
         sidebar_grid.ColumnWidth = {'1x'};
-        sidebar_grid.RowHeight = {30, 30, 30, 30, 30, 110, 30, 230, 30, 0, 30, 30, 30, 30, 24, 30, 30, 30};
+        sidebar_grid.RowHeight = {30, 30, 30, 30, 30, 30, 30, 110, 30, 230, 30, 0, 30, 30, 30, 30, 24, 30, 30, 30};
         sidebar_grid.Padding = [10 10 10 10];
         sidebar_grid.RowSpacing = 6;
         if isprop(sidebar_grid, "Scrollable")
             sidebar_grid.Scrollable = "on";
         end
 
+        % Dropdown box for old/new flapper source selection
+        source_dropdown = uidropdown(sidebar_grid);
+        source_dropdown.Layout.Row = 1;
+        source_dropdown.Layout.Column = 1;
+        source_dropdown.Items = obj.source_modes;
+        source_dropdown.Value = obj.source_mode;
+
         % Dropdown box for flapper type selection
         d1 = uidropdown(sidebar_grid);
-        d1.Layout.Row = 1;
+        d1.Layout.Row = 2;
         d1.Layout.Column = 1;
         d1.Items = [obj.distance_labels(:); "all"];
 
         % Dropdown box for wingbeat frequency selection
         d2 = uidropdown(sidebar_grid);
-        d2.Layout.Row = 2;
+        d2.Layout.Row = 3;
         d2.Layout.Column = 1;
         cur_freqs = obj.get_freq_options(obj.sel_type, obj.sel_amp);
         freqs_string = string(cur_freqs(:)) + " Hz";
@@ -222,17 +236,25 @@ methods
 
         % Dropdown box for wingbeat amplitude selection
         d3 = uidropdown(sidebar_grid);
-        d3.Layout.Row = 3;
+        d3.Layout.Row = 4;
         d3.Layout.Column = 1;
         cur_amps = obj.get_amp_options(obj.sel_type, obj.sel_freq);
         d3.Items = [string(cur_amps(:)) + " deg"; "all"];
 
-        d1.ValueChangedFcn = @(src, event) type_change(src, event, d2, d3);
-        d2.ValueChangedFcn = @(src, event) freq_change(src, event, d3);
-        d3.ValueChangedFcn = @(src, event) amp_change(src, event, d2);
+        % Dropdown box for file version selection
+        d4 = uidropdown(sidebar_grid);
+        d4.Layout.Row = 5;
+        d4.Layout.Column = 1;
+        obj.update_version_dropdown(d4);
+
+        source_dropdown.ValueChangedFcn = @(src, event) source_change(src, event, d1, d2, d3, d4, plot_panel);
+        d1.ValueChangedFcn = @(src, event) type_change(src, event, d2, d3, d4);
+        d2.ValueChangedFcn = @(src, event) freq_change(src, event, d3, d4);
+        d3.ValueChangedFcn = @(src, event) amp_change(src, event, d2, d4);
+        d4.ValueChangedFcn = @(src, event) version_change(src, event);
 
         rpca_button = uibutton(sidebar_grid, "state");
-        rpca_button.Layout.Row = 4;
+        rpca_button.Layout.Row = 6;
         rpca_button.Layout.Column = 1;
         rpca_button.Text = "RPCA";
         rpca_button.FontSize = 18;
@@ -242,7 +264,7 @@ methods
         % Button to add entry defined by selected type,
         % frequency, angle, and speed to list of plotted cases
         entry_button_grid = uigridlayout(sidebar_grid, [1, 2]);
-        entry_button_grid.Layout.Row = 5;
+        entry_button_grid.Layout.Row = 7;
         entry_button_grid.Layout.Column = 1;
         entry_button_grid.ColumnWidth = {'1x', '1x'};
         entry_button_grid.RowHeight = {'1x'};
@@ -265,7 +287,7 @@ methods
 
         % List of cases currently displayed on the plots
         lbox = uilistbox(sidebar_grid);
-        lbox.Layout.Row = 6;
+        lbox.Layout.Row = 8;
         lbox.Layout.Column = 1;
         lbox.Items = strings(0);
 
@@ -273,7 +295,7 @@ methods
         b3.ButtonPushedFcn = @(src, event) removeFromList(src, event, plot_panel, lbox);
 
         b33 = uibutton(sidebar_grid);
-        b33.Layout.Row = 7;
+        b33.Layout.Row = 9;
         b33.Layout.Column = 1;
         b33.Text = "Clear Entries";
         b33.FontSize = 18;
@@ -281,7 +303,7 @@ methods
         b33.ButtonPushedFcn = @(src, event) clearList(src, event, plot_panel, lbox);
 
         param_panel = uipanel(sidebar_grid);
-        param_panel.Layout.Row = 8;
+        param_panel.Layout.Row = 10;
         param_panel.Layout.Column = 1;
         param_panel.Title = "Plot Parameters";
         param_panel.TitlePosition = 'centertop';
@@ -341,14 +363,14 @@ methods
         var_type_dropdown.ValueChangedFcn = @(src, event) updateVariableType(src, event, plot_panel, var_dropdown1, var_dropdown2);
 
         load_cell_toggle = uibutton(sidebar_grid, "state");
-        load_cell_toggle.Layout.Row = 9;
+        load_cell_toggle.Layout.Row = 11;
         load_cell_toggle.Layout.Column = 1;
         load_cell_toggle.Text = phaseAvg_UI.get_button_text(false, "Load Cell");
         load_cell_toggle.FontSize = 18;
         load_cell_toggle.BackgroundColor = [1 1 1];
 
         load_cell_panel = uipanel(sidebar_grid);
-        load_cell_panel.Layout.Row = 10;
+        load_cell_panel.Layout.Row = 12;
         load_cell_panel.Layout.Column = 1;
         load_cell_panel.Title = "Load Cell";
         load_cell_panel.TitlePosition = 'centertop';
@@ -395,7 +417,7 @@ methods
         load_cell_toggle.ValueChangedFcn = @(src, event) load_cell_toggle_change(src, event, load_cell_panel);
 
         b77 = uibutton(sidebar_grid, "state");
-        b77.Layout.Row = 11;
+        b77.Layout.Row = 13;
         b77.Layout.Column = 1;
         b77.Text = "Live Calculate";
         b77.FontSize = 18;
@@ -403,7 +425,7 @@ methods
         b77.ValueChangedFcn = @(src, event) calc_change(src, event, plot_panel);
 
         b88 = uibutton(sidebar_grid, "state");
-        b88.Layout.Row = 12;
+        b88.Layout.Row = 14;
         b88.Layout.Column = 1;
         b88.Text = "Align";
         b88.FontSize = 18;
@@ -411,7 +433,7 @@ methods
         b88.ValueChangedFcn = @(src, event) align_change(src, event, plot_panel);
 
         b99 = uibutton(sidebar_grid, "state");
-        b99.Layout.Row = 13;
+        b99.Layout.Row = 15;
         b99.Layout.Column = 1;
         b99.Text = "Separate Y-Axis";
         b99.FontSize = 18;
@@ -419,7 +441,7 @@ methods
         b99.ValueChangedFcn = @(src, event) separate_y_axis_change(src, event, plot_panel);
 
         b100 = uibutton(sidebar_grid, "state");
-        b100.Layout.Row = 14;
+        b100.Layout.Row = 16;
         b100.Layout.Column = 1;
         b100.Text = "Mean Subtraction";
         b100.FontSize = 18;
@@ -429,25 +451,25 @@ methods
 
         % Remaining file output controls.
         fnl = uilabel(sidebar_grid);
-        fnl.Layout.Row = 15;
+        fnl.Layout.Row = 17;
         fnl.Layout.Column = 1;
         fnl.HorizontalAlignment = "center";
         fnl.Text = "File Name";
 
         ef = uieditfield(sidebar_grid);
-        ef.Layout.Row = 16;
+        ef.Layout.Row = 18;
         ef.Layout.Column = 1;
         ef.Placeholder = "test";
 
         % Button to export data on plot to .mat file
         b10 = uibutton(sidebar_grid);
-        b10.Layout.Row = 17;
+        b10.Layout.Row = 19;
         b10.Layout.Column = 1;
         b10.Text = "Export Data";
         b10.ButtonPushedFcn = @(src, event) exportData(src, event, ef);
 
         b4 = uibutton(sidebar_grid);
-        b4.Layout.Row = 18;
+        b4.Layout.Row = 20;
         b4.Layout.Column = 1;
         b4.Text = "Save Fig";
         b4.FontSize = 18;
@@ -467,8 +489,36 @@ methods
         %-----------------------------------------------------%
         %-----------------------------------------------------%
 
+        % update source mode and refresh dependent dropdowns
+        function source_change(src, ~, type_dropdown, freq_dropdown, amp_dropdown, version_dropdown, plot_panel)
+            obj.source_mode = string(src.Value);
+            obj.reset_type_options_for_source();
+            refresh_type_dropdown(type_dropdown);
+            obj.update_frequency_dropdown(freq_dropdown);
+            obj.update_amp_dropdown(amp_dropdown);
+            obj.update_version_dropdown(version_dropdown);
+            obj.update_plot(plot_panel);
+        end
+
+        function refresh_type_dropdown(type_dropdown)
+            if isempty(obj.distance_labels)
+                type_dropdown.Items = "No flapper data";
+                type_dropdown.Value = "No flapper data";
+                type_dropdown.Enable = "off";
+                return
+            end
+
+            type_dropdown.Enable = "on";
+            type_dropdown.Items = [obj.distance_labels(:); "all"];
+            if obj.sel_type == "all"
+                type_dropdown.Value = "all";
+            else
+                type_dropdown.Value = string(obj.type_distance_dict(char(obj.sel_type)));
+            end
+        end
+
         % update type variable with new value selected by user
-        function type_change(src, ~, freq_dropdown, amp_dropdown)
+        function type_change(src, ~, freq_dropdown, amp_dropdown, version_dropdown)
             if src.Value == "all"
                 obj.sel_type = string(src.Value);
             else
@@ -478,28 +528,35 @@ methods
             [obj.sel_amp, obj.sel_freq] = obj.get_first_selection(obj.sel_type);
             obj.update_frequency_dropdown(freq_dropdown);
             obj.update_amp_dropdown(amp_dropdown);
+            obj.update_version_dropdown(version_dropdown);
         end
 
         % update frequency variable with new value selected by user
-        function freq_change(src, ~, d)
+        function freq_change(src, ~, amp_dropdown, version_dropdown)
             if strcmp(src.Value, "all")
             obj.sel_freq = -1;
             else
             obj.sel_freq = str2double(regexp(src.Value, '\d+', 'match'));
             end
             
-            obj.update_amp_dropdown(d);
+            obj.update_amp_dropdown(amp_dropdown);
+            obj.update_version_dropdown(version_dropdown);
         end
 
         % update speed variable with new value selected by user
-        function amp_change(src, ~, d)
+        function amp_change(src, ~, freq_dropdown, version_dropdown)
             if strcmp(src.Value, "all")
                 obj.sel_amp = -1;
             else
                 obj.sel_amp = str2double(regexp(src.Value, '\d+', 'match'));
             end
 
-            obj.update_frequency_dropdown(d);
+            obj.update_frequency_dropdown(freq_dropdown);
+            obj.update_version_dropdown(version_dropdown);
+        end
+
+        function version_change(src, ~)
+            obj.sel_version = string(src.Value);
         end
 
         function PIV_sub_change(src, ~, plot_panel)
@@ -549,10 +606,10 @@ methods
             row_heights = sidebar_grid.RowHeight;
             if src.Value
                 load_cell_panel.Visible = "on";
-                row_heights{10} = 180;
+                row_heights{12} = 180;
             else
                 load_cell_panel.Visible = "off";
-                row_heights{10} = 0;
+                row_heights{12} = 0;
             end
             sidebar_grid.RowHeight = row_heights;
         end
@@ -561,10 +618,11 @@ methods
             selection_types = string(obj.available_selections(:,1));
             selection_amps = cell2mat(obj.available_selections(:,2));
             selection_freqs = cell2mat(obj.available_selections(:,3));
+            selection_versions = string(obj.available_selections(:,4));
 
-            type_mask = true(size(selection_types));
+            type_mask = obj.get_source_type_mask(selection_types);
             if obj.sel_type ~= "all"
-                type_mask = selection_types == obj.sel_type;
+                type_mask = type_mask & selection_types == obj.sel_type;
             end
 
             amp_mask = true(size(selection_amps));
@@ -577,18 +635,22 @@ methods
                 freq_mask = selection_freqs == obj.sel_freq;
             end
 
-            matching_indices = find(type_mask & amp_mask & freq_mask);
-            [~, type_order] = ismember(selection_types(matching_indices), obj.cur_types);
-            type_order(type_order == 0) = length(obj.cur_types) + 1;
+            version_mask = obj.get_version_mask(selection_versions, obj.sel_version);
+
+            matching_indices = find(type_mask & amp_mask & freq_mask & version_mask);
+            type_order = obj.get_type_sort_order(selection_types(matching_indices));
+            version_order = obj.get_version_sort_order(selection_versions(matching_indices));
             [~, sort_order] = sortrows([type_order(:),...
                                         selection_amps(matching_indices),...
-                                        selection_freqs(matching_indices)]);
+                                        selection_freqs(matching_indices),...
+                                        version_order(:)]);
             matching_indices = matching_indices(sort_order);
 
             for n = 1:length(matching_indices)
                 cur_idx = matching_indices(n);
                 case_name = selection_types(cur_idx) + "_" + string(selection_amps(cur_idx)) +...
-                    "deg_" + string(selection_freqs(cur_idx)) + "Hz";
+                    "deg_" + string(selection_freqs(cur_idx)) + "Hz" +...
+                    obj.get_version_suffix(selection_versions(cur_idx));
                 if obj.RPCA
                     case_name = case_name + "_RPCA";
                 end
@@ -699,24 +761,102 @@ end
 %---------------------------------------------------------------%
 % The only function contained in this section is update_plot
 methods (Access = private)
+    function reset_type_options_for_source(obj)
+        [selection_types, obj.distance_labels] = obj.get_available_type_options();
+        obj.distance_type_dict = obj.build_string_map(obj.distance_labels, selection_types);
+        obj.type_distance_dict = obj.build_string_map(selection_types, obj.distance_labels);
+
+        if isempty(selection_types)
+            obj.sel_type = "";
+            obj.sel_amp = -1;
+            obj.sel_freq = -1;
+            obj.sel_version = obj.DEFAULT_VERSION_LABEL;
+            return
+        end
+
+        obj.sel_type = selection_types(1);
+        [obj.sel_amp, obj.sel_freq] = obj.get_first_selection(obj.sel_type);
+        obj.sel_version = obj.get_first_version(obj.sel_type, obj.sel_amp, obj.sel_freq);
+    end
+
+    function map = build_string_map(~, keys, values)
+        if isempty(keys)
+            map = containers.Map('KeyType', 'char', 'ValueType', 'char');
+        else
+            map = containers.Map(cellstr(keys), cellstr(values));
+        end
+    end
+
+    function available_selections = get_phase_avg_selections_from_files(obj, files)
+        available_selections = cell(length(files), 4);
+
+        for i = 1:length(files)
+            name = string(files(i).name);
+
+            % Skip body/ring cases and secondary files.
+            if ~contains(name, "Hz") || contains(name, "integral")
+                continue
+            end
+
+            name = erase(name, ["_time_avg.mat", "_phase_avg.mat"]);
+            [base_name, version] = obj.extract_file_version(name);
+            [amp, type, freq] = parse_name(base_name);
+
+            available_selections{i, 1} = type;
+            available_selections{i, 2} = amp;
+            available_selections{i, 3} = freq;
+            available_selections{i, 4} = version;
+        end
+
+        available_selections(all(cellfun(@isempty, available_selections), 2), :) = [];
+    end
+
+    function [base_name, version] = extract_file_version(obj, name)
+        base_name = string(name);
+        version = obj.DEFAULT_VERSION_LABEL;
+        version_match = regexp(char(base_name), '_v\d+$', 'match', 'once');
+
+        if ~isempty(version_match)
+            version = erase(string(version_match), "_");
+            base_name = string(regexprep(char(base_name), '_v\d+$', ''));
+        end
+    end
+
+    function source_modes = get_available_source_modes(obj)
+        selection_types = string(obj.available_selections(:, 1));
+        selection_types = selection_types(strlength(selection_types) > 0);
+        source_modes = strings(0, 1);
+
+        if any(~obj.is_new_flapper_type(selection_types))
+            source_modes(end + 1, 1) = obj.OLD_FLAPPER_SOURCE_MODE;
+        end
+
+        if any(obj.is_new_flapper_type(selection_types))
+            source_modes(end + 1, 1) = obj.NEW_FLAPPER_SOURCE_MODE;
+        end
+    end
+
+    function mask = get_source_type_mask(obj, selection_types)
+        selection_types = string(selection_types);
+        if obj.source_mode == obj.NEW_FLAPPER_SOURCE_MODE
+            mask = obj.is_new_flapper_type(selection_types);
+        else
+            mask = ~obj.is_new_flapper_type(selection_types);
+        end
+    end
+
     function [selection_types, selection_labels] = get_available_type_options(obj)
         available_types = unique(string(obj.available_selections(:, 1)), 'stable');
         available_types = available_types(strlength(available_types) > 0);
-        selection_types = strings(0, 1);
-        selection_labels = strings(0, 1);
+        available_types = available_types(obj.get_source_type_mask(available_types));
+        selection_types = obj.get_ordered_type_options(available_types);
+        selection_labels = strings(length(selection_types), 1);
 
-        known_distance_labels = ["x = 0.9m"; "x = 1.3m"; "x = 1.7m"];
-        for i = 1:length(obj.cur_types)
-            type = obj.cur_types(i);
-            if any(available_types == type)
-                selection_types(end + 1, 1) = type;
-                selection_labels(end + 1, 1) = known_distance_labels(i);
-            end
+        for i = 1:length(selection_types)
+            selection_labels(i) = obj.get_type_label(selection_types(i));
         end
 
-        other_types = setdiff(available_types, selection_types, 'stable');
-        selection_types = [selection_types; other_types(:)];
-        selection_labels = [selection_labels; other_types(:)];
+        selection_labels = obj.disambiguate_duplicate_type_labels(selection_types, selection_labels);
     end
 
     function mask = get_type_mask(~, selection_types, selected_type)
@@ -729,11 +869,20 @@ methods (Access = private)
 
     function [amp, freq] = get_first_selection(obj, selected_type)
         selection_types = string(obj.available_selections(:, 1));
-        mask = obj.get_type_mask(selection_types, selected_type);
+        mask = obj.get_source_type_mask(selection_types) & obj.get_type_mask(selection_types, selected_type);
         first_index = find(mask, 1);
 
         amp = obj.available_selections{first_index, 2};
         freq = obj.available_selections{first_index, 3};
+    end
+
+    function version = get_first_version(obj, selected_type, selected_amp, selected_freq)
+        versions = obj.get_version_options(selected_type, selected_amp, selected_freq);
+        if isempty(versions)
+            version = obj.DEFAULT_VERSION_LABEL;
+        else
+            version = versions(1);
+        end
     end
 
     function freqs = get_freq_options(obj, selected_type, selected_amp)
@@ -741,7 +890,7 @@ methods (Access = private)
         selection_amps = cell2mat(obj.available_selections(:, 2));
         selection_freqs = cell2mat(obj.available_selections(:, 3));
 
-        mask = obj.get_type_mask(selection_types, selected_type);
+        mask = obj.get_source_type_mask(selection_types) & obj.get_type_mask(selection_types, selected_type);
         if selected_amp ~= -1
             mask = mask & selection_amps == selected_amp;
         end
@@ -754,12 +903,30 @@ methods (Access = private)
         selection_amps = cell2mat(obj.available_selections(:, 2));
         selection_freqs = cell2mat(obj.available_selections(:, 3));
 
-        mask = obj.get_type_mask(selection_types, selected_type);
+        mask = obj.get_source_type_mask(selection_types) & obj.get_type_mask(selection_types, selected_type);
         if selected_freq ~= -1
             mask = mask & selection_freqs == selected_freq;
         end
 
         amps = unique(selection_amps(mask));
+    end
+
+    function versions = get_version_options(obj, selected_type, selected_amp, selected_freq)
+        selection_types = string(obj.available_selections(:, 1));
+        selection_amps = cell2mat(obj.available_selections(:, 2));
+        selection_freqs = cell2mat(obj.available_selections(:, 3));
+        selection_versions = string(obj.available_selections(:, 4));
+
+        mask = obj.get_source_type_mask(selection_types) & obj.get_type_mask(selection_types, selected_type);
+        if selected_amp ~= -1
+            mask = mask & selection_amps == selected_amp;
+        end
+
+        if selected_freq ~= -1
+            mask = mask & selection_freqs == selected_freq;
+        end
+
+        versions = obj.sort_version_options(selection_versions(mask));
     end
 
     function update_frequency_dropdown(obj, dropdown)
@@ -791,6 +958,153 @@ methods (Access = private)
             dropdown.Value = string(obj.sel_amp) + " deg";
         else
             dropdown.Value = string(obj.sel_amp) + " deg";
+        end
+    end
+
+    function update_version_dropdown(obj, dropdown)
+        versions = obj.get_version_options(obj.sel_type, obj.sel_amp, obj.sel_freq);
+        if isempty(versions)
+            obj.sel_version = obj.DEFAULT_VERSION_LABEL;
+            dropdown.Items = obj.DEFAULT_VERSION_LABEL;
+            dropdown.Value = obj.DEFAULT_VERSION_LABEL;
+            return
+        end
+
+        dropdown.Items = [versions(:); "all"];
+        if obj.sel_version == "all"
+            dropdown.Value = "all";
+        elseif ~ismember(obj.sel_version, versions)
+            obj.sel_version = versions(1);
+            dropdown.Value = obj.sel_version;
+        else
+            dropdown.Value = obj.sel_version;
+        end
+    end
+
+    function mask = get_version_mask(obj, selection_versions, selected_version)
+        if string(selected_version) == "all"
+            mask = true(size(selection_versions));
+        else
+            mask = string(selection_versions) == string(selected_version);
+        end
+    end
+
+    function versions = sort_version_options(obj, versions)
+        versions = unique(string(versions), 'stable');
+        versions = versions(strlength(versions) > 0);
+        default_versions = versions(versions == obj.DEFAULT_VERSION_LABEL);
+        numbered_versions = versions(versions ~= obj.DEFAULT_VERSION_LABEL);
+        numbered_versions = numbered_versions(:);
+        version_numbers = zeros(size(numbered_versions));
+
+        for i = 1:length(numbered_versions)
+            version_number = regexp(char(numbered_versions(i)), '^v(\d+)$', 'tokens', 'once');
+            if isempty(version_number)
+                version_numbers(i) = inf;
+            else
+                version_numbers(i) = str2double(version_number{1});
+            end
+        end
+
+        [~, sort_order] = sort(version_numbers);
+        versions = [default_versions(:); numbered_versions(sort_order(:))];
+    end
+
+    function version_order = get_version_sort_order(obj, versions)
+        versions = string(versions);
+        ordered_versions = obj.sort_version_options(versions);
+        [~, version_order] = ismember(versions, ordered_versions);
+        version_order(version_order == 0) = length(ordered_versions) + 1;
+    end
+
+    function suffix = get_version_suffix(obj, version)
+        version = string(version);
+        if version == obj.DEFAULT_VERSION_LABEL
+            suffix = "";
+        else
+            suffix = "_" + version;
+        end
+    end
+
+    function selection_types = get_ordered_type_options(obj, available_types)
+        available_types = unique(string(available_types(:)), 'stable');
+        available_types = available_types(strlength(available_types) > 0);
+        selection_types = strings(0, 1);
+
+        for i = 1:length(obj.cur_types)
+            type = obj.cur_types(i);
+            if any(available_types == type)
+                selection_types(end + 1, 1) = type;
+            end
+        end
+
+        for i = 1:length(obj.new_flapper_downstream_types)
+            downstream_type = obj.new_flapper_downstream_types(i);
+            matching_types = available_types(obj.is_new_flapper_type(available_types, downstream_type));
+            selection_types = [selection_types; matching_types(:)];
+        end
+
+        other_types = setdiff(available_types(:), selection_types, 'stable');
+        selection_types = [selection_types; other_types(:)];
+    end
+
+    function type_order = get_type_sort_order(obj, types)
+        types = string(types);
+        ordered_types = obj.get_ordered_type_options(types);
+        [~, type_order] = ismember(types, ordered_types);
+        type_order(type_order == 0) = length(ordered_types) + 1;
+    end
+
+    function label = get_type_label(obj, type)
+        type = string(type);
+        type_index = find(obj.cur_types == type, 1);
+        if ~isempty(type_index)
+            label = obj.downstream_distance_labels(type_index);
+            return
+        end
+
+        downstream_index = obj.get_new_flapper_downstream_index(type);
+        if ~isempty(downstream_index)
+            label = obj.new_flapper_distance_labels(downstream_index);
+            return
+        end
+
+        label = type;
+    end
+
+    function labels = disambiguate_duplicate_type_labels(~, types, labels)
+        types = string(types);
+        labels = string(labels);
+        original_labels = labels;
+
+        for i = 1:length(labels)
+            if sum(original_labels == original_labels(i)) > 1
+                labels(i) = labels(i) + " (" + strrep(types(i), "_", " ") + ")";
+            end
+        end
+    end
+
+    function mask = is_new_flapper_type(obj, types, downstream_type)
+        types = string(types);
+        if nargin < 3
+            mask = false(size(types));
+            for i = 1:length(obj.new_flapper_downstream_types)
+                mask = mask | obj.is_new_flapper_type(types, obj.new_flapper_downstream_types(i));
+            end
+            return
+        end
+
+        downstream_type = string(downstream_type);
+        mask = types == downstream_type | startsWith(types, downstream_type + "_");
+    end
+
+    function downstream_index = get_new_flapper_downstream_index(obj, type)
+        downstream_index = [];
+        for i = 1:length(obj.new_flapper_downstream_types)
+            if obj.is_new_flapper_type(type, obj.new_flapper_downstream_types(i))
+                downstream_index = i;
+                return
+            end
         end
     end
 
@@ -849,15 +1163,28 @@ methods (Access = private)
 
     function case_label = get_case_label(obj, cur_sel)
         [amp, type, freq] = parse_name(cur_sel);
-        if isKey(obj.type_distance_dict, char(type))
-            distance_label = string(obj.type_distance_dict(char(type)));
-        else
-            distance_label = string(type);
-        end
+        distance_label = obj.get_type_label(type);
+        version = obj.get_selection_version(cur_sel);
 
         case_label = strrep(distance_label + ", " + amp + " deg, " + freq + " Hz", "_", " ");
+        if version ~= obj.DEFAULT_VERSION_LABEL
+            case_label = case_label + ", " + version;
+        end
+
         if obj.is_RPCA_selection(cur_sel)
             case_label = case_label + " - RPCA";
+        end
+    end
+
+    function version = get_selection_version(obj, selection)
+        selection = string(selection);
+        selection = regexprep(char(selection), '_RPCA$', '');
+        version_match = regexp(selection, '_v\d+$', 'match', 'once');
+
+        if isempty(version_match)
+            version = obj.DEFAULT_VERSION_LABEL;
+        else
+            version = erase(string(version_match), "_");
         end
     end
 
