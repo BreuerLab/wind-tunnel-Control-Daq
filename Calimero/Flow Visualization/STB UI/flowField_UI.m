@@ -138,8 +138,9 @@ methods
         obj.frame_ind = 1;
         obj.play = false;
 
-        obj.plot_types = ["time avg","phase avg: movie", "phase std: movie", "phase avg: 3D plot",...
-            "image wingbeat phase", "wingbeat frequency","wake forces","phase avg: planar avg"];
+        obj.plot_types = ["time avg of phase avg","phase avg: movie", "phase std: movie", "phase avg: 3D plot",...
+            "image wingbeat phase", "wingbeat frequency","wake forces","phase avg: planar avg",...
+            "time avg of phase std"];
         obj.plot_type = obj.plot_types(1);
         obj.plot_hold_bool = false;
         obj.iso_var_list = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
@@ -769,12 +770,16 @@ methods
         end
 
         function refresh_variable_dropdown(previous_plot_type)
-            movie_like_plots = obj.plot_types([1 2 4 8]);
-            plot_family_changed = ~(ismember(previous_plot_type, movie_like_plots) && ...
-                ismember(obj.plot_type, movie_like_plots));
+            phase_avg_plots = obj.plot_types([1 2 4 8]);
+            phase_std_plots = obj.plot_types([3 9]);
+            same_phase_avg_family = ismember(previous_plot_type, phase_avg_plots) && ...
+                ismember(obj.plot_type, phase_avg_plots);
+            same_phase_std_family = ismember(previous_plot_type, phase_std_plots) && ...
+                ismember(obj.plot_type, phase_std_plots);
+            plot_family_changed = ~(same_phase_avg_family || same_phase_std_family);
 
             if plot_family_changed
-                if strcmp(obj.plot_type, obj.plot_types(3))
+                if ismember(obj.plot_type, phase_std_plots)
                     obj.var_name_list = obj.movie_3D_std_vars;
                 elseif strcmp(obj.plot_type, obj.plot_types(5))
                     obj.var_name_list = obj.hist_vars;
@@ -1340,6 +1345,11 @@ methods (Access = private)
             if q_mask_enabled && ~any(strcmp(string(cur_secondary_vars), q_mask_var_name))
                 cur_secondary_vars{end+1} = q_mask_var_name;
             end
+        elseif plot_idx == 9
+            var_name = obj.std_var_name_dict(obj.variable_name);
+            var_clims = obj.get_color_limits(obj.variable_name);
+
+            vars = {"L","U","num_bins","cycle_freq","z","y",var_name};
         end
         
         if plot_idx == 4 || plot_idx == 8 % 3D plot
@@ -1428,7 +1438,7 @@ methods (Access = private)
             q_mask_val = d.(q_mask_var_name);
         end
 
-        if ismember(plot_idx, [1, 2, 3, 4, 8])
+        if ismember(plot_idx, [1, 2, 3, 4, 8, 9])
             if use_extrapolated_data
                 y = d.y_B;
                 z = d.z_B;
@@ -1585,7 +1595,7 @@ methods (Access = private)
         switch plot_idx
         case {1,2,4}
             params.cb_lab = obj.label_dict(obj.variable_name);
-        case 3
+        case {3,9}
             params.cb_lab = obj.std_label_dict(obj.variable_name);
         end
 
@@ -1608,6 +1618,11 @@ methods (Access = private)
                 mean_val(q_mask_plot_val <= obj.q_mask_thresh) = NaN;
             end
 
+            PIV_plot(y, z, mean_val, params, ax);
+        elseif plot_idx == 9
+            params.clims = var_clims;
+
+            mean_val = mean(val,3);
             PIV_plot(y, z, mean_val, params, ax);
         elseif plot_idx == 2 || plot_idx == 3
 
@@ -1751,7 +1766,7 @@ methods (Access = private)
     end
 
     function set_active_color_limit_set(obj)
-        if strcmp(obj.plot_type, obj.plot_types(3))
+        if ismember(obj.plot_type, obj.plot_types([3 9]))
             obj.clims = obj.std_clims;
             obj.clim_dict = obj.std_clim_dict;
         else
@@ -1785,7 +1800,7 @@ methods (Access = private)
             obj.clims(var_idx,:) = new_clims;
         end
 
-        if strcmp(obj.plot_type, obj.plot_types(3))
+        if ismember(obj.plot_type, obj.plot_types([3 9]))
             obj.std_clims = obj.update_clim_matrix(obj.movie_3D_std_vars, obj.std_clims, var_name, new_clims);
             if isKey(obj.std_clim_dict, key)
                 obj.std_clim_dict(key) = new_clims;
