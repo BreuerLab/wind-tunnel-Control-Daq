@@ -1,4 +1,4 @@
-function calc_secondary_vals_phase(D, turbine_bool, plot_bool, save_filepath_local)
+function calc_secondary_vals_phase(D, F, bools, save_filepath_local)
 tic
 
 config.uField = 'u_phase_avg';
@@ -17,12 +17,23 @@ config.numPField = 'numP_phase_avg';
 config.helField = 'hel_phase_avg';
 
 config.dudxField = 'dudx_phase_avg';
+config.dudyField = 'dudy_phase_avg';
+config.dudzField = 'dudz_phase_avg';
 config.dvdxField = 'dvdx_phase_avg';
 config.dwdxField = 'dwdx_phase_avg';
 config.dvdyField = 'dvdy_phase_avg';
 config.dwdzField = 'dwdz_phase_avg';
 
-if ~turbine_bool
+config.uuField = 'uu_stress';
+config.vvField = 'vv_stress';
+config.wwField = 'ww_stress';
+config.uvField = 'uv_stress';
+config.uwField = 'uw_stress';
+config.vwField = 'vw_stress';
+config.uwxField = 'u_wx_stress';
+config.uwyField = 'u_wy_stress';
+
+if ~bools.turbine
     num_bins = D.num_bins;
     speed = D.U_act * D.U;
     [~, ~, freq] = parse_name(D.PIV_case_name);
@@ -46,36 +57,19 @@ config.length = D.L;
 
 S = calc_secondary_vals_common(D, config);
 
-% ----------------------------------------------------------------
-% -------------- Calculate values from DAQ data ------------------
-% ----------------------------------------------------------------
-if ~turbine_bool
-% Define the field names in the order they are returned by the function
-fNames = {'norm_time_speed', 'phase_avg_pos', 'phase_std_pos', ...
-          'phase_avg_speed', 'phase_std_speed',...
-          'phase_avg_acc', 'phase_std_acc',...
-          'phase_avg_wing_pos', 'phase_std_wing_pos',...
-          'phase_avg_wing_speed', 'phase_std_wing_speed',...
-          'phase_avg_wing_acc', 'phase_std_wing_acc',...
-          'bin_count_speed', 'bin_std_speed',...
-          'phase_avg_volt', 'phase_std_volt',...
-          'phase_avg_cur', 'phase_std_cur'};
-
-% Capture all outputs into a cell array
-outputs = cell(1, numel(fNames));
-[outputs{:}] = speed_phase_avg(D.PIV_case_name, plot_bool);
-
-% Map cell array to struct fields
-for i = 1:numel(fNames)
-    S.(fNames{i}) = outputs{i};
+% copy over data from phase averaged kinematics and power
+fnames = fieldnames(F);
+for i = 1:numel(fnames)
+    S.(fnames{i}) = F.(fnames{i});
 end
 
-S.phase_avg_speed_error = abs(S.phase_avg_speed - freq);
-S.phase_avg_power = S.phase_avg_volt .* S.phase_avg_cur;
+if bools.RPCA
+    save_filename = D.PIV_case_name + "_RPCA_phase_avg_integral.mat";
+else
+    save_filename = D.PIV_case_name + "_phase_avg_integral.mat";
 end
 
 % Save the entire structure
-save_filename = D.PIV_case_name + "_phase_avg_integral.mat";
 save_path = fullfile(save_filepath_local, save_filename);
 disp("Saving data to: " + save_path)
 save(save_path, '-struct', 'S');

@@ -39,7 +39,10 @@ switch lower(string(type))  % Case-insensitive, converts to string
         wing_chord = 0.07;
         wing_length = wing_span + 0.024;
     otherwise
-        error('Oops, wing type "%s" not found', type); % throw error and stop execution
+        warning('Oops, wing type "%s" not found', type);
+        wing_span = 1;
+        wing_chord = 1;
+        wing_length = 10;
 end
 
     % if (strcmp(type,"default") || strcmp(type,"bodyDefault")) 

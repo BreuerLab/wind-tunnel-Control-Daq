@@ -2,19 +2,29 @@ classdef flowField_UI < handle
 properties (Constant, Access = private)
     ACTIVE_COLOR = [0.3010 0.7450 0.9330];
     INACTIVE_COLOR = [1 1 1];
-    TRIM_Y_BOUNDS = [-2.26 2]; % roughly -0.15 to 0.15 m
-    TRIM_Z_BOUNDS = [-2.36 2.55]; % roughly -0.2 to 0.2 m
+    % TRIM_Y_BOUNDS = [-2.26 2]; % roughly -0.15 to 0.15 m
+    % TRIM_Z_BOUNDS = [-2.36 2.55]; % roughly -0.2 to 0.2 m
+    % Adjusted bounds for new data
+    TRIM_Y_BOUNDS = [-2.4 2.3]; % roughly -0.15 to 0.15 m
+    TRIM_Z_BOUNDS = [-2.39 2.64]; % roughly -0.2 to 0.2 m
     MIRROR_CENTER_Y = -2.26;
     secondary_vars = ["Q_x","Q_y","Q_z","|Q|","div",...
         "KE", "power"];
-    KNOWN_DOWNSTREAM_TYPES = ["flexible";"UP_one_flexible";"UP_two_flexible"];
-    KNOWN_DISTANCE_LABELS = ["x = 0.9m";"x = 1.3m";"x = 1.7m"];
+    OLD_FLAPPER_SOURCE_MODE = "old flapper";
+    NEW_FLAPPER_SOURCE_MODE = "new flapper";
+    TURBINE_SOURCE_MODE = "turbine";
+    OLD_FLAPPER_DOWNSTREAM_TYPES = ["flexible";"UP_one_flexible";"UP_two_flexible"];
+    OLD_FLAPPER_DISTANCE_LABELS = ["x = 0.9m";"x = 1.3m";"x = 1.7m"];
+    NEW_FLAPPER_DOWNSTREAM_TYPES = ["x1";"x2";"x3";"x4";"x5"];
+    NEW_FLAPPER_DISTANCE_LABELS = ["x1";"x2";"x3";"x4";"x5"];
 end
 
 properties
     % Display and dataset selection
     mon_num;
     file_path;
+    phase_avg_file_path;
+    time_avg_file_path;
     file_suffix;
     source_mode;
     source_modes;
@@ -22,10 +32,27 @@ properties
     case_name_list;
     flapper_case_name_list;
     turbine_case_name_list;
+    phase_flapper_case_name_list;
+    phase_old_flapper_case_name_list;
+    phase_new_flapper_case_name_list;
+    phase_turbine_case_name_list;
+    time_flapper_case_name_list;
+    time_old_flapper_case_name_list;
+    time_new_flapper_case_name_list;
+    time_turbine_case_name_list;
+    phase_avg_case_ids;
+    time_avg_case_ids;
     current_downstream_type;
     downstream_types;
     distance_labels;
     downstream_type_by_distance;
+    old_flapper_downstream_types;
+    old_flapper_distance_labels;
+    old_flapper_downstream_type_by_distance;
+    new_flapper_downstream_types;
+    new_flapper_distance_labels;
+    new_flapper_downstream_type_by_distance;
+    RPCA;
 
     num_bins;
     frame_ind;
@@ -43,6 +70,7 @@ properties
     force_vars;
 
     variable_name_dict;
+    time_avg_var_name_dict;
     label_dict;
 
     std_var_name_dict;
@@ -88,6 +116,8 @@ properties
     extrapolate_bool;
     floor_bool;
     thresh;
+    q_mask_bool;
+    q_mask_thresh;
 end
 
 methods
@@ -97,16 +127,20 @@ methods
         obj.mon_num = mon_num;
         obj.case_name = "";
         obj.variable_name = "";
-        obj.file_path = file_path + "Processed Results\";
+        obj.phase_avg_file_path = file_path + "Processed Results\phase_avg\";
+        obj.time_avg_file_path = file_path + "Processed Results\time_avg\";
+        obj.file_path = obj.phase_avg_file_path;
         obj.source_modes = strings(0);
         obj.source_mode = "";
+        obj.RPCA = false;
 
         obj.num_bins = 5;
         obj.frame_ind = 1;
         obj.play = false;
 
-        obj.plot_types = ["time avg","phase avg: movie", "phase std: movie", "phase avg: 3D plot",...
+        obj.plot_types = ["time avg of phase avg","phase avg: movie", "time avg of phase std","phase std: movie", "phase avg: 3D plot",...
             "image wingbeat phase", "wingbeat frequency","wake forces","phase avg: planar avg"];
+        obj.plot_type = obj.plot_types(1);
         obj.plot_hold_bool = false;
         obj.iso_var_list = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
                             "Q_x","Q_y","Q_z","|Q|", "helicity",...
@@ -122,48 +156,91 @@ methods
         obj.extrapolate_bool = false;
         obj.floor_bool = false;
         obj.thresh = 0.1;
-
-        files = dir(obj.file_path + "*.mat");
+        obj.q_mask_bool = false;
+        obj.q_mask_thresh = 0.025;
 
         obj.file_suffix = "_phase_avg";
 
-        phase_avg_stems = obj.get_phase_avg_stems(files);
-        turbine_stems = phase_avg_stems(contains(phase_avg_stems, "turbine"));
-        flapper_stems = phase_avg_stems(~contains(phase_avg_stems, "turbine"));
+        phase_avg_files = dir(obj.phase_avg_file_path + "*.mat");
+        time_avg_files = dir(obj.time_avg_file_path + "*.mat");
 
-        [obj.downstream_types, obj.distance_labels] = obj.get_available_downstream_options(flapper_stems);
-        if isempty(obj.downstream_types)
-            obj.current_downstream_type = "";
-            obj.downstream_type_by_distance = containers.Map('KeyType', 'char', 'ValueType', 'char');
-        else
-            obj.current_downstream_type = obj.downstream_types(1);
-            obj.downstream_type_by_distance = containers.Map(obj.distance_labels, obj.downstream_types);
-        end
+        phase_avg_stems = obj.get_file_stems(phase_avg_files, "_phase_avg");
+        time_avg_stems = obj.get_file_stems(time_avg_files, "_time_avg");
+        obj.phase_avg_case_ids = phase_avg_stems;
+        obj.time_avg_case_ids = time_avg_stems;
 
-        obj.flapper_case_name_list = obj.get_flapper_case_names(flapper_stems);
-        obj.turbine_case_name_list = obj.get_turbine_case_names(turbine_stems);
+        phase_avg_display_stems = obj.strip_RPCA_suffix(phase_avg_stems);
+        time_avg_display_stems = obj.strip_RPCA_suffix(time_avg_stems);
+
+        turbine_stems = phase_avg_display_stems(contains(phase_avg_display_stems, "turbine"));
+        flapper_stems = phase_avg_display_stems(~contains(phase_avg_display_stems, "turbine"));
+        time_turbine_stems = time_avg_display_stems(contains(time_avg_display_stems, "turbine"));
+        time_flapper_stems = time_avg_display_stems(~contains(time_avg_display_stems, "turbine"));
+
+        old_flapper_stems = obj.get_old_flapper_stems(flapper_stems);
+        new_flapper_stems = obj.get_new_flapper_stems(flapper_stems);
+        time_old_flapper_stems = obj.get_old_flapper_stems(time_flapper_stems);
+        time_new_flapper_stems = obj.get_new_flapper_stems(time_flapper_stems);
+
+        [obj.old_flapper_downstream_types, obj.old_flapper_distance_labels] = ...
+            obj.get_available_downstream_options([old_flapper_stems, time_old_flapper_stems], obj.OLD_FLAPPER_SOURCE_MODE);
+        obj.old_flapper_downstream_type_by_distance = ...
+            obj.build_downstream_type_map(obj.old_flapper_distance_labels, obj.old_flapper_downstream_types);
+        [obj.new_flapper_downstream_types, obj.new_flapper_distance_labels] = ...
+            obj.get_available_downstream_options([new_flapper_stems, time_new_flapper_stems], obj.NEW_FLAPPER_SOURCE_MODE);
+        obj.new_flapper_downstream_type_by_distance = ...
+            obj.build_downstream_type_map(obj.new_flapper_distance_labels, obj.new_flapper_downstream_types);
+
+        obj.phase_old_flapper_case_name_list = obj.get_flapper_case_names(...
+            old_flapper_stems, obj.old_flapper_downstream_types, ...
+            obj.old_flapper_distance_labels, obj.OLD_FLAPPER_SOURCE_MODE);
+        obj.phase_new_flapper_case_name_list = obj.get_flapper_case_names(...
+            new_flapper_stems, obj.new_flapper_downstream_types, ...
+            obj.new_flapper_distance_labels, obj.NEW_FLAPPER_SOURCE_MODE);
+        obj.phase_flapper_case_name_list = unique([obj.phase_old_flapper_case_name_list, obj.phase_new_flapper_case_name_list], 'stable');
+        obj.phase_turbine_case_name_list = obj.get_turbine_case_names(turbine_stems);
+        obj.time_old_flapper_case_name_list = obj.get_flapper_case_names(...
+            time_old_flapper_stems, obj.old_flapper_downstream_types, ...
+            obj.old_flapper_distance_labels, obj.OLD_FLAPPER_SOURCE_MODE);
+        obj.time_new_flapper_case_name_list = obj.get_flapper_case_names(...
+            time_new_flapper_stems, obj.new_flapper_downstream_types, ...
+            obj.new_flapper_distance_labels, obj.NEW_FLAPPER_SOURCE_MODE);
+        obj.time_flapper_case_name_list = unique([obj.time_old_flapper_case_name_list, obj.time_new_flapper_case_name_list], 'stable');
+        obj.time_turbine_case_name_list = obj.get_turbine_case_names(time_turbine_stems);
         obj.source_modes = obj.get_available_source_modes();
         if isempty(obj.source_modes)
-            error("No STB phase-average files found in %s. Expected *_phase_avg.mat files for Calimero or turbine data.", obj.file_path)
+            error("No STB average files found. Expected *_phase_avg.mat files in %s or *_time_avg.mat files in %s.", obj.phase_avg_file_path, obj.time_avg_file_path)
         end
         obj.source_mode = obj.source_modes(1);
-        if obj.source_mode == "turbine"
-            obj.case_name_list = obj.turbine_case_name_list;
-        else
-            obj.case_name_list = obj.flapper_case_name_list;
-        end
+        obj.set_downstream_options_for_source_mode(obj.source_mode);
+        obj.case_name_list = obj.get_case_name_list_for_active_plot_type();
+        obj.flapper_case_name_list = unique([...
+            obj.get_case_name_list(obj.OLD_FLAPPER_SOURCE_MODE, obj.plot_type), ...
+            obj.get_case_name_list(obj.NEW_FLAPPER_SOURCE_MODE, obj.plot_type)], 'stable');
+        obj.turbine_case_name_list = obj.get_case_name_list(obj.TURBINE_SOURCE_MODE, obj.plot_type);
 
         obj.movie_3D_avg_vars = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
-                    "Q_x","Q_y","Q_z","|Q|","u_unc","v_unc","w_unc","|unc|","helicity", "# particles",...
+                    "Q_x","Q_y","Q_z","|Q|","u_unc","v_unc","w_unc","|unc|",...
+                    "u'u'", "v'v'", "w'w'","u'v'","u'w'","v'w'","helicity", "# particles",...
                     "du/dx","du/dy","du/dz","dv/dx","dv/dy","dv/dz","dw/dx","dw/dy","dw/dz",...
                     "div", "KE", "power"];
         movie_3D_avg_values = ["u_phase_avg","v_phase_avg","w_phase_avg","Utot_phase_avg",...
         "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg","vortTot_phase_avg",...
         "Qx","Qy","Qz","Q","uncU_phase_avg","uncV_phase_avg","uncW_phase_avg",...
-        "uncTot_phase_avg","hel_phase_avg", "numP_phase_avg",...
+        "uncTot_phase_avg","uu_stress","vv_stress","ww_stress","uv_stress",...
+        "uw_stress","vw_stress","hel_phase_avg", "numP_phase_avg",...
         "dudx_phase_avg","dudy_phase_avg","dudz_phase_avg",...
         "dvdx_phase_avg","dvdy_phase_avg","dvdz_phase_avg",...
         "dwdx_phase_avg","dwdy_phase_avg","dwdz_phase_avg",...
+        "div", "KE_diff_field", "power_field"];
+        time_avg_values = ["mean_u","mean_v","mean_w","mean_Utot",...
+        "mean_vortX","mean_vortY","mean_vortZ","mean_vortTot",...
+        "Qx","Qy","Qz","Q","mean_uncU","mean_uncV","mean_uncW",...
+        "mean_uncTot","mean_uu_stress","mean_vv_stress","mean_ww_stress",...
+        "mean_uv_stress","mean_uw_stress","mean_vw_stress","mean_hel",...
+        "mean_numP","mean_dudx","mean_dudy","mean_dudz",...
+        "mean_dvdx","mean_dvdy","mean_dvdz",...
+        "mean_dwdx","mean_dwdy","mean_dwdz",...
         "div", "KE_diff_field", "power_field"];
         
         obj.movie_3D_std_vars = [obj.movie_3D_avg_vars(1:8) obj.movie_3D_avg_vars(13:end)];
@@ -198,12 +275,18 @@ methods
                       0, 0.1;...
                       0, 0.1;...
                       0, 0.1;...
-                      0, 0.03;...
-                      0, 0.03;...
-                      0, 0.03;...
-                      0, 0.03;...
+                      0, 0.04;...
+                      0, 0.04;...
+                      0, 0.04;...
+                      0, 0.04;...
+                      0, 0.01;...
+                      0, 0.01;...
+                      0, 0.01;...
+                      0, 0.005;...
+                      0, 0.005;...
+                      0, 0.005;...
                       -1, 1;...
-                      0, 75;
+                      0, 150;
                       -0.1, 0.1;
                       -1, 1;
                       -1, 1;
@@ -213,7 +296,7 @@ methods
                       -0.2, 0.2;
                       -1, 1;
                       -1, 1;
-                      -0.3, 0.3;
+                      -0.1, 0.1;
                       0, 0.1;
                       0, 0.1];
 
@@ -230,6 +313,12 @@ methods
                       0, 0.02;...
                       0, 0.02;...
                       0, 0.02;...
+                      -1, 1;...%
+                      -1, 1;...
+                      -1, 1;...
+                      -1, 1;...
+                      -1, 1;...
+                      -1, 1;...% no std saved for Re stress
                       -1, 1;...
                       0, 50;
                       -1, 1;
@@ -250,20 +339,20 @@ methods
         obj.clims = obj.mean_clims;
         obj.clim_dict = obj.mean_clim_dict;
         obj.clim_scale = 2;
-        movie_3D_avg_labels = ["\boldmath$\frac{u c}{U_{\infty}}$",...
-                            "\boldmath$\frac{v c}{U_{\infty}}$",...
-                            "\boldmath$\frac{w c}{U_{\infty}}$",...
-                            "\boldmath$\frac{U c}{U_{\infty}}$",...
+        movie_3D_avg_labels = ["\boldmath$\frac{u}{U_{\infty}}$",...
+                            "\boldmath$\frac{v}{U_{\infty}}$",...
+                            "\boldmath$\frac{w}{U_{\infty}}$",...
+                            "\boldmath$\frac{U}{U_{\infty}}$",...
                             "\boldmath$\frac{\omega_x c}{U_{\infty}}$",...
                             "\boldmath$\frac{\omega_y c}{U_{\infty}}$",...
                             "\boldmath$\frac{\omega_z c}{U_{\infty}}$",...
                             "\boldmath$\frac{\omega c}{U_{\infty}}$",...
                             "","","","",...
-                            "\boldmath$\frac{u c}{U_{\infty}}$",...
-                            "\boldmath$\frac{v c}{U_{\infty}}$",...
-                            "\boldmath$\frac{w c}{U_{\infty}}$",...
-                            "\boldmath$\frac{U c}{U_{\infty}}$",...
-                            "","count",...
+                            "\boldmath$\frac{u}{U_{\infty}}$",...
+                            "\boldmath$\frac{v}{U_{\infty}}$",...
+                            "\boldmath$\frac{w}{U_{\infty}}$",...
+                            "\boldmath$\frac{U}{U_{\infty}}$",...
+                            "u'u'","v'v'","w'w'","u'v'","u'w'","v'w'" "","count",...
                             "\boldmath$\frac{\partial u}{\partial x} \frac{c}{U_{\infty}}$",...
                             "\boldmath$\frac{\partial u}{\partial y} \frac{c}{U_{\infty}}$",...
                             "\boldmath$\frac{\partial u}{\partial z} \frac{c}{U_{\infty}}$",...
@@ -281,6 +370,7 @@ methods
         values = movie_3D_avg_values;
         labels = movie_3D_avg_labels;
         obj.variable_name_dict = containers.Map(keys, values);
+        obj.time_avg_var_name_dict = containers.Map(keys, time_avg_values);
         obj.label_dict = containers.Map(keys, labels);
 
         std_keys = cellstr(obj.movie_3D_std_vars);
@@ -307,157 +397,189 @@ methods
     % Builds figure with all UI elements and defines all callback
     % functions to be used when user clicks on UI elements
     function dynamic_plotting(obj)
-        % Create a GUI figure with a grid layout
-        [option_panel, plot_panel, screen_size] = setupFig(obj.mon_num);
         pause(1.8) % wait until GUI opened
+        % Create a GUI figure with layout managers so controls stay
+        % reachable as the window or monitor size changes.
+        [option_panel, plot_panel, ~] = setupFig(obj.mon_num);
+        option_panel.AutoResizeChildren = true;
+        if isprop(option_panel, "Scrollable")
+            option_panel.Scrollable = "on";
+        end
+        pause(1) % wait until GUI opened
 
-        screen_height = screen_size(4);
-        unit_height = round(0.03*screen_height);
+        sidebar_grid = uigridlayout(option_panel, [17, 1]);
+        sidebar_grid.ColumnWidth = {'1x'};
+        sidebar_grid.RowHeight = {30, 30, 30, 30, 30, 30, 35, 30, 30, 30, 30, 30, 30, 30, 30, 0, 30};
+        sidebar_grid.Padding = [10 10 10 10];
+        sidebar_grid.RowSpacing = 6;
+        if isprop(sidebar_grid, "Scrollable")
+            sidebar_grid.Scrollable = "on";
+        end
 
-        source_dropdown_y = screen_height*0.85 - 30;
-        source_dropdown = uidropdown(option_panel);
-        source_dropdown.Position = [10 source_dropdown_y 180 30];
+        plot_grid = uigridlayout(plot_panel, [3, 1]);
+        plot_grid.ColumnWidth = {'1x'};
+        plot_grid.RowHeight = {'1x', 45, 40};
+        plot_grid.Padding = [10 10 10 10];
+        plot_grid.RowSpacing = 6;
+
+        plot_area_panel = uipanel(plot_grid);
+        plot_area_panel.Layout.Row = 1;
+        plot_area_panel.Layout.Column = 1;
+        plot_area_panel.BorderType = "none";
+
+        source_dropdown = uidropdown(sidebar_grid);
+        source_dropdown.Layout.Row = 1;
+        source_dropdown.Layout.Column = 1;
         source_dropdown.Items = obj.source_modes;
         source_dropdown.Value = obj.source_mode;
-        source_dropdown.ValueChangedFcn = @(src, event) source_change(src, event, plot_panel);
+        source_dropdown.ValueChangedFcn = @(src, event) source_change(src, event, plot_area_panel);
 
         % Dropdown box for which cases axes to display
-        distance_dropdown_y = source_dropdown_y - 35;
-        distance_dropdown = uidropdown(option_panel);
-        distance_dropdown.Position = [10 distance_dropdown_y 180 30];
-        if isempty(obj.distance_labels)
-            distance_dropdown.Items = "No Calimero data";
-            distance_dropdown.Value = "No Calimero data";
-            distance_dropdown.Visible = "off";
-            distance_dropdown.Enable = "off";
-        else
-            distance_dropdown.Items = obj.distance_labels;
-            distance_dropdown.Value = obj.distance_labels(1);
-            if obj.source_mode == "turbine"
-                distance_dropdown.Visible = "off";
-            end
-        end
-        distance_dropdown.ValueChangedFcn = @(src, event) distance_change(src, event, plot_panel);
+        distance_dropdown = uidropdown(sidebar_grid);
+        distance_dropdown.Layout.Row = 2;
+        distance_dropdown.Layout.Column = 1;
+        distance_dropdown.ValueChangedFcn = @(src, event) distance_change(src, event, plot_area_panel);
+        refresh_distance_dropdown();
 
-        case_dropdown_y = distance_dropdown_y - 35;
-        case_dropdown = uidropdown(option_panel);
-        case_dropdown.Position = [10 case_dropdown_y 180 30];
+        case_dropdown = uidropdown(sidebar_grid);
+        case_dropdown.Layout.Row = 3;
+        case_dropdown.Layout.Column = 1;
         case_dropdown.Items = obj.case_name_list;
-        obj.case_name = case_dropdown.Value; % use current value in box
-        case_dropdown.ValueChangedFcn = @(src, event) case_change(src, event, plot_panel);
+        obj.case_name = string(case_dropdown.Value); % use current value in box
+        case_dropdown.ValueChangedFcn = @(src, event) case_change(src, event, plot_area_panel);
 
-        plot_type_dropdown_y = case_dropdown_y - 35;
-        plot_type_dropdown = uidropdown(option_panel);
-        plot_type_dropdown.Position = [10 plot_type_dropdown_y 180 30];
-        plot_type_dropdown.Items = obj.plot_types;
+        rpca_button = uibutton(sidebar_grid, "state");
+        rpca_button.Layout.Row = 4;
+        rpca_button.Layout.Column = 1;
+        rpca_button.Text = "RPCA";
+        rpca_button.FontSize = 18;
+        rpca_button.BackgroundColor = obj.get_button_color(obj.RPCA);
+        rpca_button.ValueChangedFcn = @(src, event) RPCA_change(src, event, plot_area_panel);
+
+        plot_type_dropdown = uidropdown(sidebar_grid);
+        plot_type_dropdown.Layout.Row = 5;
+        plot_type_dropdown.Layout.Column = 1;
+        plot_type_dropdown.Items = obj.get_available_plot_types_for_current_case();
         obj.plot_type = plot_type_dropdown.Value; % use current value in box
-        plot_type_dropdown.ValueChangedFcn = @(src, event) type_change(src, event, plot_panel);
+        plot_type_dropdown.ValueChangedFcn = @(src, event) type_change(src, event, plot_area_panel);
 
         % Dropdown box for which variables to display
-        variable_dropdown_y = plot_type_dropdown_y - 35;
-        obj.var_dropdown = uidropdown(option_panel);
-        obj.var_dropdown.Position = [10 variable_dropdown_y 180 30];
+        obj.var_dropdown = uidropdown(sidebar_grid);
+        obj.var_dropdown.Layout.Row = 6;
+        obj.var_dropdown.Layout.Column = 1;
         obj.var_dropdown.Items = obj.var_name_list;
         obj.variable_name = obj.var_dropdown.Value; % use current value in box
-        obj.var_dropdown.ValueChangedFcn = @(src, event) variable_change(src, event, plot_panel);
+        obj.var_dropdown.ValueChangedFcn = @(src, event) variable_change(src, event, plot_area_panel);
 
-        clim_y = variable_dropdown_y - 35;
-        obj.clim_slider = uislider(option_panel,"range");
-        obj.clim_slider.Position = [10 clim_y 180 3];
+        obj.clim_slider = uislider(sidebar_grid, "range");
+        obj.clim_slider.Layout.Row = 7;
+        obj.clim_slider.Layout.Column = 1;
         clim_center = mean(obj.clims(1,:));
         clim_range = (obj.clim_scale/2)*diff(obj.clims(1,:));
         obj.clim_slider.Limits = [clim_center - clim_range, clim_center + clim_range];
         obj.clim_slider.Value = obj.clims(1,:);
-        obj.clim_slider.ValueChangedFcn = @(src, event) clim_change(src, event, plot_panel);
+        obj.clim_slider.ValueChangedFcn = @(src, event) clim_change(src, event, plot_area_panel);
 
-        trim_button_y = clim_y - 70;
-        trim_button = uibutton(option_panel,"state");
+        trim_button = uibutton(sidebar_grid, "state");
+        trim_button.Layout.Row = 8;
+        trim_button.Layout.Column = 1;
         trim_button.Value = true;
         trim_button.Text = "Trim";
         trim_button.FontSize = 18;
-        trim_button.Position = [30 trim_button_y 120 unit_height];
         trim_button.BackgroundColor = obj.ACTIVE_COLOR;
-        trim_button.ValueChangedFcn = @(src, event) trim_change(src, event, plot_panel);
+        trim_button.ValueChangedFcn = @(src, event) trim_change(src, event, plot_area_panel);
 
-        mirror_button_y = trim_button_y - 40;
-        mirror_button = uibutton(option_panel,"state");
+        mirror_button = uibutton(sidebar_grid, "state");
+        mirror_button.Layout.Row = 9;
+        mirror_button.Layout.Column = 1;
         mirror_button.Text = "Mirror";
         mirror_button.FontSize = 18;
-        mirror_button.Position = [30 mirror_button_y 120 unit_height];
         mirror_button.BackgroundColor = obj.INACTIVE_COLOR;
-        mirror_button.ValueChangedFcn = @(src, event) mirror_change(src, event, plot_panel);
+        mirror_button.ValueChangedFcn = @(src, event) mirror_change(src, event, plot_area_panel);
 
-        filter_button_y = mirror_button_y - 35;
-        filter_button = uibutton(option_panel,"state");
+        filter_button = uibutton(sidebar_grid, "state");
+        filter_button.Layout.Row = 10;
+        filter_button.Layout.Column = 1;
         filter_button.Text = "Filter";
         filter_button.FontSize = 18;
-        filter_button.Position = [30 filter_button_y 120 unit_height];
         filter_button.BackgroundColor = obj.INACTIVE_COLOR;
-        filter_button.ValueChangedFcn = @(src, event) filter_change(src, event, plot_panel);
+        filter_button.ValueChangedFcn = @(src, event) filter_change(src, event, plot_area_panel);
 
-        extrapolate_button_y = filter_button_y - 35;
-        extrapolate_button = uibutton(option_panel,"state");
+        extrapolate_button = uibutton(sidebar_grid, "state");
+        extrapolate_button.Layout.Row = 11;
+        extrapolate_button.Layout.Column = 1;
         extrapolate_button.Text = "Extrapolate";
         extrapolate_button.FontSize = 18;
-        extrapolate_button.Position = [30 extrapolate_button_y 120 unit_height];
         extrapolate_button.BackgroundColor = obj.INACTIVE_COLOR;
-        extrapolate_button.ValueChangedFcn = @(src, event) extrapolate_change(src, event, plot_panel);
+        extrapolate_button.ValueChangedFcn = @(src, event) extrapolate_change(src, event, plot_area_panel);
 
-        floor_button_y = extrapolate_button_y - 35;
-        floor_button = uibutton(option_panel,"state");
+        floor_button = uibutton(sidebar_grid, "state");
+        floor_button.Layout.Row = 12;
+        floor_button.Layout.Column = 1;
         floor_button.Text = "Noise Floor";
         floor_button.FontSize = 18;
-        floor_button.Position = [30 floor_button_y 120 unit_height];
         floor_button.BackgroundColor = obj.INACTIVE_COLOR;
-        floor_button.ValueChangedFcn = @(src, event) floor_change(src, event, plot_panel);
+        floor_button.ValueChangedFcn = @(src, event) floor_change(src, event, plot_area_panel);
 
-        edit1_y = floor_button_y - 35;
-        floor_field = uieditfield(option_panel, 'numeric');
+        floor_field = uieditfield(sidebar_grid, 'numeric');
+        floor_field.Layout.Row = 13;
+        floor_field.Layout.Column = 1;
         floor_field.Value = obj.thresh;
-        floor_field.Position = [20 edit1_y 160 unit_height];
-        floor_field.ValueChangedFcn = @(src, event) thresh_change(src, event, plot_panel);
+        floor_field.ValueChangedFcn = @(src, event) thresh_change(src, event, plot_area_panel);
 
-        panel_width = plot_panel.Position(3);
-        frame_slider_width = panel_width * (3/4);
-        frame_slider_x = (panel_width - frame_slider_width)/2; % end of right monitor around 1690
-        frame_slider_y = 0.05*screen_height;
-        obj.slider = uislider(plot_panel);
-        obj.slider.Position = [frame_slider_x frame_slider_y frame_slider_width 3];
+        q_mask_button = uibutton(sidebar_grid, "state");
+        q_mask_button.Layout.Row = 14;
+        q_mask_button.Layout.Column = 1;
+        q_mask_button.Text = "Q-mask";
+        q_mask_button.FontSize = 18;
+        q_mask_button.BackgroundColor = obj.INACTIVE_COLOR;
+        q_mask_button.ValueChangedFcn = @(src, event) q_mask_change(src, event, plot_area_panel);
+
+        q_mask_field = uieditfield(sidebar_grid, 'numeric');
+        q_mask_field.Layout.Row = 15;
+        q_mask_field.Layout.Column = 1;
+        q_mask_field.Value = obj.q_mask_thresh;
+        q_mask_field.ValueChangedFcn = @(src, event) q_mask_thresh_change(src, event, plot_area_panel);
+
+        obj.slider = uislider(plot_grid);
+        obj.slider.Layout.Row = 2;
+        obj.slider.Layout.Column = 1;
         obj.slider.Limits = [1 obj.num_bins];
         obj.slider.Value = obj.frame_ind;
         obj.slider.MajorTicks = 1:5:obj.num_bins;
         obj.slider.MinorTicks = 1:obj.num_bins;
-        obj.slider.ValueChangedFcn = @(src, event) frame_change(src, event, plot_panel);
+        obj.slider.ValueChangedFcn = @(src, event) frame_change(src, event, plot_area_panel);
 
-        play_button_y = frame_slider_y + 50;
-        obj.play_button = uibutton(plot_panel,"state");
+        obj.play_button = uibutton(plot_grid, "state");
+        obj.play_button.Layout.Row = 3;
+        obj.play_button.Layout.Column = 1;
         obj.play_button.Text = "Play";
         obj.play_button.FontSize = 18;
-        obj.play_button.Position = [30 play_button_y 120 unit_height];
         obj.play_button.BackgroundColor = obj.INACTIVE_COLOR;
-        obj.play_button.ValueChangedFcn = @(src, event) playStop_change(src, event, plot_panel);
+        obj.play_button.ValueChangedFcn = @(src, event) playStop_change(src, event, plot_area_panel);
 
-        param_panel_height = 380;
-        param_panel_width = 180;
-        param_panel_y = edit1_y - 10 - param_panel_height;
-        obj.param_panel = uipanel(option_panel);
+        obj.param_panel = uipanel(sidebar_grid);
+        obj.param_panel.Layout.Row = 16;
+        obj.param_panel.Layout.Column = 1;
         obj.param_panel.Visible = "off";
         obj.param_panel.Title = "3D Plot Parameters";
         obj.param_panel.TitlePosition = 'centertop';
-        obj.param_panel.Position = [10 param_panel_y param_panel_width param_panel_height];
 
-        l1_y = param_panel_height - 50;
-        l1_x = 55;
-        l1_w = 70;
-        l1 = uilabel(obj.param_panel);
+        param_grid = uigridlayout(obj.param_panel, [6, 1]);
+        param_grid.ColumnWidth = {'1x'};
+        param_grid.RowHeight = {22, 55, 30, 22, 55, 85};
+        param_grid.Padding = [10 8 10 8];
+        param_grid.RowSpacing = 6;
+
+        l1 = uilabel(param_grid);
+        l1.Layout.Row = 1;
+        l1.Layout.Column = 1;
         l1.HorizontalAlignment = 'center';
-        l1.Position = [l1_x l1_y l1_w unit_height];
         l1.Text = 'Q isovalue:';
 
-        iso_slider_y = l1_y - 5;
-        iso_slider_w = param_panel_width - 2*10;
-        obj.iso_slider = uislider(obj.param_panel);
-        obj.iso_slider.Position = [5 iso_slider_y iso_slider_w 3];
+        obj.iso_slider = uislider(param_grid);
+        obj.iso_slider.Layout.Row = 2;
+        obj.iso_slider.Layout.Column = 1;
         obj.iso_slider.Limits = [0.005 0.1];
         % obj.iso_slider.Limits = [-0.1 -0.005];
         obj.iso_slider.Value = obj.iso_val;
@@ -465,77 +587,75 @@ methods
         obj.iso_slider.MinorTicks = 0.005:0.005:0.1; % 0.01:0.01:0.5
         % obj.iso_slider.MajorTicks = -0.1:0.025:0; % 0:0.05:0.5
         % obj.iso_slider.MinorTicks = -0.1:0.005:0.005; % 0.01:0.01:0.5
-        obj.iso_slider.ValueChangedFcn = @(src, event) iso_change(src, event, plot_panel);
+        obj.iso_slider.ValueChangedFcn = @(src, event) iso_change(src, event, plot_area_panel);
 
         % Dropdown box for which variables to display
-        iso_var_dropdown_y = iso_slider_y - 70;
-        iso_var_dropdown = uidropdown(obj.param_panel);
-        iso_var_dropdown.Position = [30 iso_var_dropdown_y 120 30];
+        iso_var_dropdown = uidropdown(param_grid);
+        iso_var_dropdown.Layout.Row = 3;
+        iso_var_dropdown.Layout.Column = 1;
         iso_var_dropdown.Items = obj.iso_var_list;
         iso_var_dropdown.Value = obj.iso_var;
-        iso_var_dropdown.ValueChangedFcn = @(src, event) iso_var_change(src, event, plot_panel);
+        iso_var_dropdown.ValueChangedFcn = @(src, event) iso_var_change(src, event, plot_area_panel);
 
-        l2_y = iso_var_dropdown_y - 35;
-        l2 = uilabel(obj.param_panel);
+        l2 = uilabel(param_grid);
+        l2.Layout.Row = 4;
+        l2.Layout.Column = 1;
         l2.HorizontalAlignment = 'center';
-        l2.Position = [30 l2_y 120 unit_height];
         l2.Text = 'Number of Wingbeats';
 
-        num_cycles_slider_y = l2_y - 10;
-        num_cycles_slider = uislider(obj.param_panel);
-        num_cycles_slider.Position = [30 num_cycles_slider_y 120 3];
+        num_cycles_slider = uislider(param_grid);
+        num_cycles_slider.Layout.Row = 5;
+        num_cycles_slider.Layout.Column = 1;
         num_cycles_slider.Limits = [1 5];
         num_cycles_slider.Value = obj.num_cycles;
         num_cycles_slider.MajorTicks = 1:5;
         num_cycles_slider.MinorTicks = [];
-        num_cycles_slider.ValueChangedFcn = @(src, event) num_cycles_change(src, event, plot_panel);
+        num_cycles_slider.ValueChangedFcn = @(src, event) num_cycles_change(src, event, plot_area_panel);
 
-        view_button_group_y = num_cycles_slider_y - 120;
         % View buttons rotate the current 3D axes without redrawing data.
-        view_button_group = uibuttongroup(obj.param_panel, ...
-            'Position', [30 view_button_group_y 124 2*(unit_height+5)], ...
-            'BorderType', 'none', ...
-            'BackgroundColor', option_panel.BackgroundColor, ...
-            'SelectionChangedFcn', @(bg, event) view_change_handler(event, plot_panel));
-        
-        % Dimensions for buttons relative to the group
-        view_button_width = 32;
-        view_button_spacing = (120 - 3*view_button_width)/2;
-        pad = 2;
-        view_button_row_spacing = (unit_height+5);
-        uitogglebutton(view_button_group, 'Text', '+xy', 'Position', [pad pad+view_button_row_spacing view_button_width unit_height], 'BackgroundColor', obj.INACTIVE_COLOR);
-        uitogglebutton(view_button_group, 'Text', '+yz', 'Position', [pad + view_button_width + view_button_spacing pad+view_button_row_spacing view_button_width unit_height], 'BackgroundColor', obj.INACTIVE_COLOR);
-        uitogglebutton(view_button_group, 'Text', '+xz', 'Position', [pad + 2*(view_button_width + view_button_spacing) pad+view_button_row_spacing view_button_width unit_height], 'BackgroundColor', obj.INACTIVE_COLOR);
-        uitogglebutton(view_button_group, 'Text', '-xy', 'Position', [pad pad view_button_width unit_height], 'BackgroundColor', obj.INACTIVE_COLOR);
-        uitogglebutton(view_button_group, 'Text', '-yz', 'Position', [pad + view_button_width + view_button_spacing pad view_button_width unit_height], 'BackgroundColor', obj.INACTIVE_COLOR);
-        uitogglebutton(view_button_group, 'Text', '-xz', 'Position', [pad + 2*(view_button_width + view_button_spacing) pad view_button_width unit_height], 'BackgroundColor', obj.INACTIVE_COLOR);
+        view_grid = uigridlayout(param_grid, [2, 3]);
+        view_grid.Layout.Row = 6;
+        view_grid.Layout.Column = 1;
+        view_grid.RowHeight = {'1x', '1x'};
+        view_grid.ColumnWidth = {'1x', '1x', '1x'};
+        view_grid.Padding = [0 0 0 0];
+        view_grid.RowSpacing = 4;
+        view_grid.ColumnSpacing = 4;
 
-        save_button_y = 0.05*screen_height;
-        save_button = uibutton(option_panel,"state");
+        view_labels = ["+xy", "+yz", "+xz"; "-xy", "-yz", "-xz"];
+        for view_row = 1:2
+            for view_col = 1:3
+                view_button = uibutton(view_grid);
+                view_button.Layout.Row = view_row;
+                view_button.Layout.Column = view_col;
+                view_button.Text = view_labels(view_row, view_col);
+                view_button.BackgroundColor = obj.INACTIVE_COLOR;
+                view_button.ButtonPushedFcn = @(src, event) view_change_handler(src.Text, plot_area_panel);
+            end
+        end
+
+        save_button = uibutton(sidebar_grid, "state");
+        save_button.Layout.Row = 17;
+        save_button.Layout.Column = 1;
         save_button.Text = "Save Figure";
         save_button.FontSize = 18;
-        save_button.Position = [30 save_button_y 120 unit_height];
         save_button.BackgroundColor = obj.INACTIVE_COLOR;
-        save_button.ValueChangedFcn = @(src, event) save_figure(src, event, plot_panel);
+        save_button.ValueChangedFcn = @(src, event) save_figure(src, event, plot_area_panel);
 
         % Set up plot titles and axes
-        obj.update_plot(plot_panel);
+        set_param_panel_visibility(strcmp(obj.plot_type, obj.plot_types(5)));
+        obj.update_plot(plot_area_panel);
 
         % Callbacks are nested so each handler mutates this handle object.
 
         function source_change(src, ~, plot_panel)
+            previous_plot_type = obj.plot_type;
             obj.source_mode = src.Value;
-            if obj.source_mode == "turbine"
-                distance_dropdown.Visible = "off";
-                obj.case_name_list = obj.turbine_case_name_list;
-            else
-                distance_dropdown.Visible = "on";
-                obj.current_downstream_type = obj.downstream_type_by_distance(distance_dropdown.Value);
-                obj.case_name_list = obj.flapper_case_name_list;
-            end
+            refresh_distance_dropdown();
 
-            case_dropdown.Items = obj.case_name_list;
-            obj.case_name = case_dropdown.Value;
+            refresh_case_dropdown();
+            refresh_plot_type_dropdown();
+            refresh_variable_dropdown(previous_plot_type);
 
             % Force frame slider back to 1 since not all datasets have the
             % same number of frames
@@ -546,7 +666,11 @@ methods
         end
 
         function distance_change(src, ~, plot_panel)
-            obj.current_downstream_type = obj.downstream_type_by_distance(src.Value);
+            previous_plot_type = obj.plot_type;
+            obj.current_downstream_type = string(obj.downstream_type_by_distance(char(src.Value)));
+            refresh_case_dropdown();
+            refresh_plot_type_dropdown();
+            refresh_variable_dropdown(previous_plot_type);
 
             % Force frame slider back to 1 since not all datasets have the
             % same number of frames
@@ -557,10 +681,28 @@ methods
         end
 
         function case_change(src, ~, plot_panel)
-            obj.case_name = src.Value;
+            previous_plot_type = obj.plot_type;
+            obj.case_name = string(src.Value);
+            refresh_plot_type_dropdown();
+            refresh_variable_dropdown(previous_plot_type);
 
             % Force frame slider back to 1 since not all datasets have the
             % same number of frames
+            obj.frame_ind = 1;
+            obj.slider.Value = obj.frame_ind;
+
+            obj.update_plot(plot_panel);
+        end
+
+        function RPCA_change(src, ~, plot_panel)
+            previous_plot_type = obj.plot_type;
+            obj.RPCA = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.RPCA);
+
+            refresh_case_dropdown();
+            refresh_plot_type_dropdown();
+            refresh_variable_dropdown(previous_plot_type);
+
             obj.frame_ind = 1;
             obj.slider.Value = obj.frame_ind;
 
@@ -573,35 +715,9 @@ methods
             obj.plot_type = src.Value;
             obj.plot_hold_bool = false;
 
-            movie_like_plots = obj.plot_types([1 2 4 8]);
-            plot_family_changed = ~(ismember(previous_plot_type, movie_like_plots) && ...
-                ismember(obj.plot_type, movie_like_plots));
-
-            if plot_family_changed
-                if strcmp(obj.plot_type, obj.plot_types(3))
-                    obj.var_name_list = obj.movie_3D_std_vars;
-                elseif strcmp(obj.plot_type, obj.plot_types(5))
-                    obj.var_name_list = obj.hist_vars;
-                elseif strcmp(obj.plot_type, obj.plot_types(6))
-                    obj.var_name_list = obj.freq_vars;
-                elseif strcmp(obj.plot_type, obj.plot_types(7))
-                    obj.var_name_list = obj.force_vars;
-                else
-                    obj.var_name_list = obj.movie_3D_avg_vars;
-                end
-                obj.var_dropdown.Items = obj.var_name_list;
-                obj.variable_name = obj.var_dropdown.Value;
-            end
-
-            obj.set_active_color_limit_set();
-
-            obj.update_color_limit_slider();
-
-            if strcmp(obj.plot_type, obj.plot_types(4))
-                obj.param_panel.Visible = "on";
-            else
-                obj.param_panel.Visible = "off";
-            end
+            refresh_case_dropdown();
+            refresh_plot_type_dropdown();
+            refresh_variable_dropdown(previous_plot_type);
 
             obj.update_plot(plot_panel);
         end
@@ -611,6 +727,101 @@ methods
             obj.variable_name = src.Value;
             obj.update_color_limit_slider();
             obj.update_plot(plot_panel);
+        end
+
+        function refresh_distance_dropdown()
+            obj.set_downstream_options_for_source_mode(obj.source_mode);
+            if isempty(obj.distance_labels)
+                distance_dropdown.Items = "No downstream data";
+                distance_dropdown.Value = "No downstream data";
+                distance_dropdown.Enable = "off";
+            else
+                distance_dropdown.Items = obj.distance_labels;
+                distance_dropdown.Value = obj.distance_labels(1);
+                distance_dropdown.Enable = "on";
+                obj.current_downstream_type = string(obj.downstream_type_by_distance(char(distance_dropdown.Value)));
+            end
+            set_distance_dropdown_visibility();
+        end
+
+        function refresh_case_dropdown()
+            obj.case_name_list = obj.get_case_name_list_for_active_plot_type();
+            if isempty(obj.case_name_list) && obj.plot_type ~= obj.plot_types(1)
+                obj.plot_type = obj.plot_types(1);
+                obj.case_name_list = obj.get_case_name_list_for_active_plot_type();
+            end
+
+            case_dropdown.Items = obj.case_name_list;
+            if ~any(obj.case_name_list == obj.case_name)
+                obj.case_name = string(case_dropdown.Value);
+            else
+                case_dropdown.Value = obj.case_name;
+            end
+        end
+
+        function refresh_plot_type_dropdown()
+            available_plot_types = obj.get_available_plot_types_for_current_case();
+            plot_type_dropdown.Items = available_plot_types;
+            if ~any(available_plot_types == obj.plot_type)
+                obj.plot_type = available_plot_types(1);
+            end
+            plot_type_dropdown.Value = obj.plot_type;
+        end
+
+        function refresh_variable_dropdown(previous_plot_type)
+            phase_avg_plots = obj.plot_types([1 2 5 9]);
+            phase_std_plots = obj.plot_types([3 4]);
+            same_phase_avg_family = ismember(previous_plot_type, phase_avg_plots) && ...
+                ismember(obj.plot_type, phase_avg_plots);
+            same_phase_std_family = ismember(previous_plot_type, phase_std_plots) && ...
+                ismember(obj.plot_type, phase_std_plots);
+            plot_family_changed = ~(same_phase_avg_family || same_phase_std_family);
+
+            if plot_family_changed
+                if ismember(obj.plot_type, phase_std_plots)
+                    obj.var_name_list = obj.movie_3D_std_vars;
+                elseif strcmp(obj.plot_type, obj.plot_types(6))
+                    obj.var_name_list = obj.hist_vars;
+                elseif strcmp(obj.plot_type, obj.plot_types(7))
+                    obj.var_name_list = obj.freq_vars;
+                elseif strcmp(obj.plot_type, obj.plot_types(8))
+                    obj.var_name_list = obj.force_vars;
+                else
+                    obj.var_name_list = obj.movie_3D_avg_vars;
+                end
+                obj.var_dropdown.Items = obj.var_name_list;
+                obj.variable_name = obj.var_dropdown.Value;
+            end
+
+            obj.set_active_color_limit_set();
+            obj.update_color_limit_slider();
+
+            set_param_panel_visibility(strcmp(obj.plot_type, obj.plot_types(5)));
+        end
+
+        function set_distance_dropdown_visibility()
+            is_visible = obj.is_flapper_source_mode(obj.source_mode) && ~isempty(obj.distance_labels);
+            row_heights = sidebar_grid.RowHeight;
+            if is_visible
+                distance_dropdown.Visible = "on";
+                row_heights{2} = 30;
+            else
+                distance_dropdown.Visible = "off";
+                row_heights{2} = 0;
+            end
+            sidebar_grid.RowHeight = row_heights;
+        end
+
+        function set_param_panel_visibility(is_visible)
+            row_heights = sidebar_grid.RowHeight;
+            if is_visible
+                obj.param_panel.Visible = "on";
+                row_heights{16} = 380;
+            else
+                obj.param_panel.Visible = "off";
+                row_heights{16} = 0;
+            end
+            sidebar_grid.RowHeight = row_heights;
         end
 
         function clim_change(src, ~, plot_panel)
@@ -746,9 +957,24 @@ methods
             obj.update_plot(plot_panel);
         end
 
-        function view_change_handler(event, plot_panel)
-            selected_text = event.NewValue.Text;
+        function q_mask_change(src, ~, plot_panel)
+            if (src.Value)
+                obj.q_mask_bool = true;
+                src.BackgroundColor = obj.ACTIVE_COLOR;
+            else
+                obj.q_mask_bool = false;
+                src.BackgroundColor = obj.INACTIVE_COLOR;
+            end
 
+            obj.update_plot(plot_panel);
+        end
+
+        function q_mask_thresh_change(src, ~, plot_panel)
+            obj.q_mask_thresh = src.Value;
+            obj.update_plot(plot_panel);
+        end
+
+        function view_change_handler(selected_text, plot_panel)
             ax = findobj(plot_panel.Children, 'Type', 'axes');
             
             switch selected_text
@@ -799,46 +1025,213 @@ methods
 end
 
 methods (Access = private)
-    function phase_avg_stems = get_phase_avg_stems(obj, files)
+    function file_stems = get_file_stems(~, files, suffix)
         file_names = string({files.name});
-        phase_avg_files = endsWith(file_names, obj.file_suffix + ".mat");
-        phase_avg_stems = erase(file_names(phase_avg_files), obj.file_suffix + ".mat");
+        avg_files = endsWith(file_names, suffix + ".mat");
+        file_stems = erase(file_names(avg_files), suffix + ".mat");
     end
 
-    function [downstream_types, distance_labels] = get_available_downstream_options(obj, flapper_stems)
+    function stems = strip_RPCA_suffix(~, stems)
+        stems = regexprep(string(stems), "_RPCA$", "");
+    end
+
+    function case_id = with_RPCA_suffix(obj, case_id)
+        case_id = string(case_id);
+        if obj.RPCA && strlength(case_id) > 0 && ~endsWith(case_id, "_RPCA")
+            case_id = case_id + "_RPCA";
+        end
+    end
+
+    function tf = has_case_id(obj, case_ids, case_id)
+        tf = any(string(case_ids) == obj.with_RPCA_suffix(case_id));
+    end
+
+    function color = get_button_color(obj, is_active)
+        if is_active
+            color = obj.ACTIVE_COLOR;
+        else
+            color = obj.INACTIVE_COLOR;
+        end
+    end
+
+    function tf = is_flapper_source_mode(obj, source_mode)
+        tf = source_mode == obj.OLD_FLAPPER_SOURCE_MODE || source_mode == obj.NEW_FLAPPER_SOURCE_MODE;
+    end
+
+    function old_flapper_stems = get_old_flapper_stems(obj, flapper_stems)
+        flapper_stems = string(flapper_stems);
+        old_flapper_stems = flapper_stems(~obj.is_new_flapper_stem(flapper_stems));
+    end
+
+    function new_flapper_stems = get_new_flapper_stems(obj, flapper_stems)
+        flapper_stems = string(flapper_stems);
+        new_flapper_stems = flapper_stems(obj.is_new_flapper_stem(flapper_stems));
+    end
+
+    function mask = is_new_flapper_stem(obj, stems)
+        stems = string(stems);
+        mask = false(size(stems));
+        for i = 1:length(obj.NEW_FLAPPER_DOWNSTREAM_TYPES)
+            downstream_type = obj.NEW_FLAPPER_DOWNSTREAM_TYPES(i);
+            mask = mask | stems == downstream_type | startsWith(stems, downstream_type + "_");
+        end
+    end
+
+    function set_downstream_options_for_source_mode(obj, source_mode)
+        [obj.downstream_types, obj.distance_labels, obj.downstream_type_by_distance] = ...
+            obj.get_downstream_options_for_source_mode(source_mode);
+        if isempty(obj.downstream_types)
+            obj.current_downstream_type = "";
+        else
+            obj.current_downstream_type = obj.downstream_types(1);
+        end
+    end
+
+    function [downstream_types, distance_labels, downstream_type_by_distance] = get_downstream_options_for_source_mode(obj, source_mode)
+        if source_mode == obj.OLD_FLAPPER_SOURCE_MODE
+            downstream_types = obj.old_flapper_downstream_types;
+            distance_labels = obj.old_flapper_distance_labels;
+            downstream_type_by_distance = obj.old_flapper_downstream_type_by_distance;
+        elseif source_mode == obj.NEW_FLAPPER_SOURCE_MODE
+            downstream_types = obj.new_flapper_downstream_types;
+            distance_labels = obj.new_flapper_distance_labels;
+            downstream_type_by_distance = obj.new_flapper_downstream_type_by_distance;
+        else
+            downstream_types = strings(0, 1);
+            distance_labels = strings(0, 1);
+            downstream_type_by_distance = obj.build_downstream_type_map(distance_labels, downstream_types);
+        end
+    end
+
+    function downstream_type_by_distance = build_downstream_type_map(~, distance_labels, downstream_types)
+        if isempty(distance_labels)
+            downstream_type_by_distance = containers.Map('KeyType', 'char', 'ValueType', 'char');
+        else
+            downstream_type_by_distance = containers.Map(cellstr(distance_labels), cellstr(downstream_types));
+        end
+    end
+
+    function [downstream_types, distance_labels] = get_available_downstream_options(obj, flapper_stems, source_mode)
         downstream_types = strings(0, 1);
         distance_labels = strings(0, 1);
 
-        for i = 1:length(obj.KNOWN_DOWNSTREAM_TYPES)
-            downstream_type = obj.KNOWN_DOWNSTREAM_TYPES(i);
-            if any(startsWith(flapper_stems, downstream_type + "_"))
+        [known_downstream_types, known_distance_labels] = obj.get_known_downstream_options(source_mode);
+        for i = 1:length(known_downstream_types)
+            downstream_type = known_downstream_types(i);
+            matching_stems = obj.get_downstream_stems_for_type(flapper_stems, downstream_type, source_mode);
+            if ~isempty(matching_stems)
                 downstream_types(end + 1, 1) = downstream_type;
-                distance_labels(end + 1, 1) = obj.KNOWN_DISTANCE_LABELS(i);
+                distance_labels(end + 1, 1) = known_distance_labels(i);
             end
+        end
+    end
+
+    function [downstream_types, distance_labels] = get_known_downstream_options(obj, source_mode)
+        if source_mode == obj.OLD_FLAPPER_SOURCE_MODE
+            downstream_types = obj.OLD_FLAPPER_DOWNSTREAM_TYPES;
+            distance_labels = obj.OLD_FLAPPER_DISTANCE_LABELS;
+        elseif source_mode == obj.NEW_FLAPPER_SOURCE_MODE
+            downstream_types = obj.NEW_FLAPPER_DOWNSTREAM_TYPES;
+            distance_labels = obj.NEW_FLAPPER_DISTANCE_LABELS;
+        else
+            downstream_types = strings(0, 1);
+            distance_labels = strings(0, 1);
+        end
+    end
+
+    function matching_stems = get_downstream_stems_for_type(obj, flapper_stems, downstream_type, source_mode)
+        flapper_stems = string(flapper_stems);
+        prefix = downstream_type + "_";
+        mask = flapper_stems == downstream_type | startsWith(flapper_stems, prefix);
+
+        if source_mode == obj.OLD_FLAPPER_SOURCE_MODE && downstream_type == obj.OLD_FLAPPER_DOWNSTREAM_TYPES(1)
+            mask = mask | obj.is_legacy_default_distance_stem(flapper_stems);
+        end
+
+        matching_stems = flapper_stems(mask);
+    end
+
+    function mask = is_legacy_default_distance_stem(obj, stems)
+        stems = string(stems);
+        mask = ~obj.starts_with_any_downstream_type(stems, obj.OLD_FLAPPER_DOWNSTREAM_TYPES) & ...
+               ~obj.is_new_flapper_stem(stems);
+    end
+
+    function mask = starts_with_any_downstream_type(~, stems, downstream_types)
+        stems = string(stems);
+        mask = false(size(stems));
+        for i = 1:length(downstream_types)
+            downstream_type = downstream_types(i);
+            mask = mask | stems == downstream_type | startsWith(stems, downstream_type + "_");
         end
     end
 
     function source_modes = get_available_source_modes(obj)
         source_modes = strings(0);
 
-        if ~isempty(obj.flapper_case_name_list)
-            source_modes(end + 1) = "flapper";
+        if ~isempty(obj.phase_old_flapper_case_name_list) || ~isempty(obj.time_old_flapper_case_name_list)
+            source_modes(end + 1) = obj.OLD_FLAPPER_SOURCE_MODE;
         end
 
-        if ~isempty(obj.turbine_case_name_list)
-            source_modes(end + 1) = "turbine";
+        if ~isempty(obj.phase_new_flapper_case_name_list) || ~isempty(obj.time_new_flapper_case_name_list)
+            source_modes(end + 1) = obj.NEW_FLAPPER_SOURCE_MODE;
+        end
+
+        if ~isempty(obj.phase_turbine_case_name_list) || ~isempty(obj.time_turbine_case_name_list)
+            source_modes(end + 1) = obj.TURBINE_SOURCE_MODE;
         end
     end
 
-    function case_names = get_flapper_case_names(obj, phase_avg_stems)
+    function case_names = get_case_name_list_for_active_plot_type(obj)
+        case_names = obj.get_case_name_list(obj.source_mode, obj.plot_type);
+    end
+
+    function case_names = get_case_name_list(obj, source_mode, plot_type)
+        if source_mode == obj.TURBINE_SOURCE_MODE
+            phase_case_names = obj.phase_turbine_case_name_list;
+            time_case_names = obj.time_turbine_case_name_list;
+        elseif source_mode == obj.NEW_FLAPPER_SOURCE_MODE
+            phase_case_names = obj.phase_new_flapper_case_name_list;
+            time_case_names = obj.time_new_flapper_case_name_list;
+        else
+            phase_case_names = obj.phase_old_flapper_case_name_list;
+            time_case_names = obj.time_old_flapper_case_name_list;
+        end
+
+        if plot_type == obj.plot_types(1)
+            case_names = unique([phase_case_names, time_case_names], 'stable');
+        else
+            case_names = phase_case_names;
+        end
+    end
+
+    function case_names = get_flapper_case_names(obj, phase_avg_stems, downstream_types, distance_labels, source_mode)
         case_names = strings(0);
-        for i = 1:length(obj.downstream_types)
-            downstream_type = obj.downstream_types(i);
+
+        for i = 1:length(downstream_types)
+            downstream_type = downstream_types(i);
             prefix = downstream_type + "_";
-            matching_stems = phase_avg_stems(startsWith(phase_avg_stems, prefix));
-            case_names = [case_names, extractAfter(matching_stems, prefix)];
+            matching_stems = phase_avg_stems(phase_avg_stems == downstream_type | startsWith(phase_avg_stems, prefix));
+            if source_mode == obj.OLD_FLAPPER_SOURCE_MODE && ...
+                    i <= length(distance_labels) && distance_labels(i) == obj.OLD_FLAPPER_DISTANCE_LABELS(1)
+                matching_stems = unique([matching_stems, phase_avg_stems(obj.is_legacy_default_distance_stem(phase_avg_stems))], 'stable');
+            end
+            case_names = [case_names, obj.get_case_names_from_stems(matching_stems, downstream_type)];
         end
         case_names = unique(case_names, 'stable');
+    end
+
+    function case_names = get_case_names_from_stems(~, stems, downstream_type)
+        case_names = strings(size(stems));
+        prefix = downstream_type + "_";
+
+        for i = 1:length(stems)
+            if stems(i) == downstream_type || ~startsWith(stems(i), prefix)
+                case_names(i) = stems(i);
+            else
+                case_names(i) = extractAfter(stems(i), prefix);
+            end
+        end
     end
 
     function case_names = get_turbine_case_names(~, phase_avg_stems)
@@ -854,19 +1247,57 @@ methods (Access = private)
     end
 
     function case_id = get_current_case_id(obj)
-        if obj.source_mode == "turbine"
-            if startsWith(obj.case_name, "turbine")
-                case_id = obj.case_name;
+        case_name = string(obj.case_name);
+        current_downstream_type = string(obj.current_downstream_type);
+
+        if obj.source_mode == obj.TURBINE_SOURCE_MODE
+            if startsWith(case_name, "turbine")
+                base_case_id = case_name;
             else
-                case_id = "turbine_" + obj.case_name;
+                base_case_id = "turbine_" + case_name;
             end
         else
-            case_id = obj.current_downstream_type + "_" + obj.case_name;
+            if obj.plot_type == obj.plot_types(1) && obj.has_case_id(obj.time_avg_case_ids, case_name)
+                base_case_id = case_name;
+            elseif current_downstream_type == case_name && ...
+                    (obj.has_case_id(obj.phase_avg_case_ids, case_name) || obj.has_case_id(obj.time_avg_case_ids, case_name))
+                base_case_id = case_name;
+            elseif strlength(case_name) == 0
+                base_case_id = current_downstream_type;
+            else
+                base_case_id = current_downstream_type + "_" + case_name;
+            end
         end
+
+        case_id = obj.with_RPCA_suffix(base_case_id);
     end
 
     function file_base = get_current_file_base(obj)
-        file_base = obj.file_path + obj.get_current_case_id() + obj.file_suffix;
+        if obj.is_time_avg_file_selected()
+            file_base = obj.time_avg_file_path + obj.get_current_case_id() + "_time_avg";
+        else
+            file_base = obj.phase_avg_file_path + obj.get_current_case_id() + "_phase_avg";
+        end
+    end
+
+    function tf = current_case_has_phase_avg(obj)
+        tf = any(obj.phase_avg_case_ids == obj.get_current_case_id());
+    end
+
+    function tf = current_case_has_time_avg(obj)
+        tf = any(obj.time_avg_case_ids == obj.get_current_case_id());
+    end
+
+    function tf = is_time_avg_file_selected(obj)
+        tf = obj.plot_type == obj.plot_types(1) && obj.current_case_has_time_avg();
+    end
+
+    function plot_types = get_available_plot_types_for_current_case(obj)
+        if obj.is_time_avg_file_selected() || ~obj.current_case_has_phase_avg()
+            plot_types = obj.plot_types(1);
+        else
+            plot_types = obj.plot_types;
+        end
     end
 
     % Update the active plot after a selection or display setting changes.
@@ -881,29 +1312,46 @@ methods (Access = private)
         end
 
         plot_idx = find(obj.plot_types == obj.plot_type);
+        using_time_avg_file = obj.is_time_avg_file_selected();
+        use_extrapolated_data = obj.extrapolate_bool && ~using_time_avg_file;
+        q_mask_enabled = obj.q_mask_bool && ismember(plot_idx, [1, 2]) && ~use_extrapolated_data;
+        q_mask_var_name = "Q";
 
         cur_secondary_vars = {};
 
-        if ismember(plot_idx, [1, 2, 4, 8])
-            var_name = obj.variable_name_dict(obj.variable_name);
+        if ismember(plot_idx, [1, 2, 5, 9])
+            if using_time_avg_file
+                var_name = obj.time_avg_var_name_dict(obj.variable_name);
+                vars = {"L","U","z","y"};
+            else
+                var_name = obj.variable_name_dict(obj.variable_name);
+                vars = {"L","U","num_bins","cycle_freq","z","y"};
+            end
             var_clims = obj.get_color_limits(obj.variable_name);
 
-            if obj.extrapolate_bool
+            if use_extrapolated_data
                 var_name = obj.dict_B(var_name);
                 vars = {"L","U","num_bins","cycle_freq"};
                 cur_secondary_vars = {"z_B","y_B"};
-            else
-                vars = {"L","U","num_bins","cycle_freq","z","y"};
             end
 
-            if contains(obj.variable_name, obj.secondary_vars) || obj.extrapolate_bool
+            if contains(obj.variable_name, obj.secondary_vars) || use_extrapolated_data
                 cur_secondary_vars{end+1} = var_name;
             else
                 vars{end+1} = var_name;
             end
+
+            if q_mask_enabled && ~any(strcmp(string(cur_secondary_vars), q_mask_var_name))
+                cur_secondary_vars{end+1} = q_mask_var_name;
+            end
+        elseif plot_idx == 3
+            var_name = obj.std_var_name_dict(obj.variable_name);
+            var_clims = obj.get_color_limits(obj.variable_name);
+
+            vars = {"L","U","num_bins","cycle_freq","z","y",var_name};
         end
         
-        if plot_idx == 4 || plot_idx == 8 % 3D plot
+        if plot_idx == 5 || plot_idx == 9 % 3D plot or planar average
             iso_var_name = obj.variable_name_dict(obj.iso_var);
 
             if contains(obj.iso_var, obj.secondary_vars)
@@ -911,12 +1359,12 @@ methods (Access = private)
             else
                 vars{end+1} = iso_var_name;
             end
-        elseif plot_idx == 3
+        elseif plot_idx == 4
             var_name = obj.std_var_name_dict(obj.variable_name);
             var_clims = obj.get_color_limits(obj.variable_name);
 
             vars = {"L","U","num_bins","cycle_freq","z","y",var_name};
-        elseif plot_idx == 5
+        elseif plot_idx == 6
             var_name = obj.hist_var_name_dict(obj.variable_name);
 
             vars = {var_name};
@@ -924,17 +1372,18 @@ methods (Access = private)
                 x_var_name = "full_cycle";
                 vars{end+1} = x_var_name;
             end
-        elseif plot_idx == 6
+        elseif plot_idx == 7
             var_name = obj.freq_var_name_dict(obj.variable_name);
 
-            vars = {var_name};
+            vars = {};
+            cur_secondary_vars = {var_name};
             if obj.variable_name == obj.freq_vars(1)
                 x_var_name = "norm_time_speed";
                 cur_secondary_vars{end+1} = x_var_name;
                 std_name = "phase_std_speed";
                 cur_secondary_vars{end+1} = std_name;
             end
-        elseif plot_idx == 7
+        elseif plot_idx == 8
             var_name = obj.force_var_name_dict(obj.variable_name);
             vars = {"L","U","y","z","u_phase_avg","w_phase_avg",...
                 "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg"};
@@ -944,19 +1393,27 @@ methods (Access = private)
             return
         end
 
+        if ~obj.current_case_has_phase_avg() && ~obj.current_case_has_time_avg()
+            return
+        end
+
         full_file_path = obj.get_current_file_base();
 
         if ~isempty(cur_secondary_vars)
             d1 = load(full_file_path + "_integral.mat", cur_secondary_vars{:});
+            if ~isempty(vars)
             d2 = load(full_file_path + ".mat", vars{:});
     
             % Combine by converting to cell arrays of names/values and back to struct
             d = cell2struct([struct2cell(d1); struct2cell(d2)], [fieldnames(d1); fieldnames(d2)], 1);
+            else
+                d = d1;
+            end
         else
             d = load(full_file_path + ".mat", vars{:});
         end
 
-        if plot_idx == 2 || plot_idx == 3 || plot_idx == 4
+        if plot_idx == 2 || plot_idx == 4 || plot_idx == 5
             obj.slider.Visible = "on";
             obj.play_button.Visible = "on";
             % Adjust slider for number of bins
@@ -971,22 +1428,37 @@ methods (Access = private)
             obj.play_button.Visible = "off";
         end
 
-        if plot_idx ~= 7
+        if plot_idx ~= 8
             val = d.(var_name);
+            planeIdx = (size(val,1) + 1) / 2;
         end
 
-        if ismember(plot_idx, [1, 2, 3, 4, 8])
-            if obj.extrapolate_bool
+        if q_mask_enabled
+            q_mask_val = d.(q_mask_var_name);
+        end
+
+        if ismember(plot_idx, [1, 2, 3, 4, 5, 9])
+            if use_extrapolated_data
                 y = d.y_B;
                 z = d.z_B;
                 val = permute(val, [2 3 1]); % time dimension moved
                 if contains(var_name, "X")
                     val = val - 1; % add back freestream
                 end
+            elseif using_time_avg_file
+                y = squeeze(d.y(planeIdx,:,:));
+                z = squeeze(d.z(planeIdx,:,:));
+                val = squeeze(val(planeIdx,:,:));
+                if q_mask_enabled
+                    q_mask_val = squeeze(q_mask_val(planeIdx,:,:));
+                end
             else
-                y = squeeze(d.y(3,:,:));
-                z = squeeze(d.z(3,:,:));
-                val = squeeze(val(3,:,:,:));
+                y = squeeze(d.y(planeIdx,:,:));
+                z = squeeze(d.z(planeIdx,:,:));
+                val = squeeze(val(planeIdx,:,:,:));
+                if q_mask_enabled
+                    q_mask_val = squeeze(q_mask_val(planeIdx,:,:,:));
+                end
             end
 
             params.U = d.U;
@@ -999,29 +1471,48 @@ methods (Access = private)
                 params.zero = 1;
             end
     
-            if plot_idx == 4
+            cFlip = false;
+            if plot_idx == 5
                 if any(contains(["v","ω_z","ω_x"],obj.variable_name))
                     cFlip = true;
-                else
-                    cFlip = false;
                 end
             end
 
-            if obj.trim_bool && ~obj.extrapolate_bool
+            if obj.trim_bool && ~use_extrapolated_data
                 y_idx = find(y(:,1) > obj.TRIM_Y_BOUNDS(1) & y(:,1) < obj.TRIM_Y_BOUNDS(2));
                 z_idx = find(z(1,:) > obj.TRIM_Z_BOUNDS(1) & z(1,:) < obj.TRIM_Z_BOUNDS(2));
                 
                 y = y(y_idx, z_idx);
                 z = z(y_idx, z_idx);
-                val = val(y_idx,z_idx,:);
+                if using_time_avg_file
+                    val = val(y_idx,z_idx);
+                    if q_mask_enabled
+                        q_mask_val = q_mask_val(y_idx,z_idx);
+                    end
+                else
+                    val = val(y_idx,z_idx,:);
+                    if q_mask_enabled
+                        q_mask_val = q_mask_val(y_idx,z_idx,:);
+                    end
+                end
             end
-            if obj.mirror_bool && ~obj.extrapolate_bool
+            if obj.mirror_bool && ~use_extrapolated_data
                 % Mirror across the centerline to reconstruct the opposite side of the wake.
                 y_idx_m = find(y(:,1) > obj.MIRROR_CENTER_Y);
                 
                 y = y(y_idx_m, :);
                 z = z(y_idx_m, :);
-                val = val(y_idx_m,:,:);
+                if using_time_avg_file
+                    val = val(y_idx_m,:);
+                    if q_mask_enabled
+                        q_mask_val = q_mask_val(y_idx_m,:);
+                    end
+                else
+                    val = val(y_idx_m,:,:);
+                    if q_mask_enabled
+                        q_mask_val = q_mask_val(y_idx_m,:,:);
+                    end
+                end
                 
                 % Shift so the mirror center is the origin.
                 y = y - min(y, [], "all");
@@ -1030,27 +1521,57 @@ methods (Access = private)
                 y_add = flip(-y(2:end,:),1);
                 z_add = flip(z(2:end,:),1);
                 if cFlip
-                    val_add = flip(-val(2:end,:,:),1);
+                    if using_time_avg_file
+                        val_add = flip(-val(2:end,:),1);
+                    else
+                        val_add = flip(-val(2:end,:,:),1);
+                    end
                 else
-                    val_add = flip(val(2:end,:,:),1);
+                    if using_time_avg_file
+                        val_add = flip(val(2:end,:),1);
+                    else
+                        val_add = flip(val(2:end,:,:),1);
+                    end
                 end
                 y = [y_add; y];
                 z = [z_add; z];
                 val = [val_add; val]; 
+                if q_mask_enabled
+                    if using_time_avg_file
+                        q_mask_val_add = flip(q_mask_val(2:end,:),1);
+                    else
+                        q_mask_val_add = flip(q_mask_val(2:end,:,:),1);
+                    end
+                    q_mask_val = [q_mask_val_add; q_mask_val];
+                end
             end
 
             if obj.filter_bool
-                val = medfilt3(val);
+                if using_time_avg_file
+                    val = medfilt2(val);
+                    if q_mask_enabled
+                        q_mask_val = medfilt2(q_mask_val);
+                    end
+                else
+                    val = medfilt3(val);
+                    if q_mask_enabled
+                        q_mask_val = medfilt3(q_mask_val);
+                    end
+                end
             end
 
             if obj.floor_bool
                 val(val < (params.zero + obj.thresh) & val > (params.zero - obj.thresh)) = params.zero;
             end
+
+            if q_mask_enabled && plot_idx == 2
+                val(q_mask_val <= obj.q_mask_thresh) = NaN;
+            end
         end
 
-        if plot_idx == 4 || plot_idx == 8
+        if plot_idx == 5 || plot_idx == 9
             Q = d.(iso_var_name);
-            Q = squeeze(Q(3,:,:,:));
+            Q = squeeze(Q(planeIdx,:,:,:));
 
             if obj.trim_bool
                 Q = Q(y_idx,z_idx,:);
@@ -1071,18 +1592,38 @@ methods (Access = private)
         end
 
         switch plot_idx
-        case {1,2,4}
+        case {1,2,5}
             params.cb_lab = obj.label_dict(obj.variable_name);
-        case 3
+        case {3,4}
             params.cb_lab = obj.std_label_dict(obj.variable_name);
         end
 
         if plot_idx == 1
             params.clims = var_clims;
 
+            if using_time_avg_file
+                mean_val = val;
+                if q_mask_enabled
+                    q_mask_plot_val = q_mask_val;
+                end
+            else
+                mean_val = mean(val,3);
+                if q_mask_enabled
+                    q_mask_plot_val = mean(q_mask_val,3);
+                end
+            end
+
+            if q_mask_enabled
+                mean_val(q_mask_plot_val <= obj.q_mask_thresh) = NaN;
+            end
+
+            PIV_plot(y, z, mean_val, params, ax);
+        elseif plot_idx == 3
+            params.clims = var_clims;
+
             mean_val = mean(val,3);
             PIV_plot(y, z, mean_val, params, ax);
-        elseif plot_idx == 2 || plot_idx == 3
+        elseif plot_idx == 2 || plot_idx == 4
 
         params.clims = var_clims;
 
@@ -1111,7 +1652,7 @@ methods (Access = private)
             obj.frame_ind = 0; % reset for next loop iteration
             end
         end
-        elseif plot_idx == 4
+        elseif plot_idx == 5
             params.num_bins = d.num_bins;
             params.clims = var_clims;
             params.movie = false;
@@ -1149,7 +1690,7 @@ methods (Access = private)
                 plot_3D(ax, surface_data, color_data, params);
                 obj.plot_hold_bool = true;
             end
-        elseif plot_idx == 5
+        elseif plot_idx == 6
             if (obj.variable_name == obj.hist_vars(3))
                 histogram(ax, val, d.(x_var_name))
                 xlabel(ax, "Tick number", FontSize=16)
@@ -1159,7 +1700,7 @@ methods (Access = private)
                 xlabel(ax, "Bin number", FontSize=16)
                 ylabel(ax, obj.hist_label_dict(obj.variable_name), FontSize=16)
             end
-        elseif plot_idx == 6
+        elseif plot_idx == 7
             if (obj.variable_name == obj.freq_vars(1))
                 phase_avg_speed = val;
                 phase_std_speed = d.(std_name);
@@ -1191,7 +1732,7 @@ methods (Access = private)
                 xlabel(ax, "Bin number", FontSize=16)
                 ylabel(ax, obj.freq_label_dict(obj.variable_name), FontSize=16)
             end
-        elseif plot_idx == 7
+        elseif plot_idx == 8
             avg_type = 1;
             norm_bool = false;
             case_id = obj.get_current_case_id();
@@ -1202,7 +1743,7 @@ methods (Access = private)
             yline(ax, mean(val))
             xlabel(ax, "Time", FontSize=16)
             ylabel(ax, obj.force_label_dict(obj.variable_name), FontSize=16)
-        elseif plot_idx == 8
+        elseif plot_idx == 9
             val(Q <= 0.025) = NaN;
 
             mean_val = squeeze(mean(val, [1 2], "omitnan"));
@@ -1224,7 +1765,7 @@ methods (Access = private)
     end
 
     function set_active_color_limit_set(obj)
-        if strcmp(obj.plot_type, obj.plot_types(3))
+        if ismember(obj.plot_type, obj.plot_types([3 4]))
             obj.clims = obj.std_clims;
             obj.clim_dict = obj.std_clim_dict;
         else
@@ -1258,7 +1799,7 @@ methods (Access = private)
             obj.clims(var_idx,:) = new_clims;
         end
 
-        if strcmp(obj.plot_type, obj.plot_types(3))
+        if ismember(obj.plot_type, obj.plot_types([3 4]))
             obj.std_clims = obj.update_clim_matrix(obj.movie_3D_std_vars, obj.std_clims, var_name, new_clims);
             if isKey(obj.std_clim_dict, key)
                 obj.std_clim_dict(key) = new_clims;

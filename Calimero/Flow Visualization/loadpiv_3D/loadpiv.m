@@ -474,26 +474,20 @@ if any(selectedFrames < 1) || any(selectedFrames > numFiles) || any(mod(selected
 end
 end
 
-function configureReadimxPath()
-if exist('readimx', 'file') == 3
-    return
-end
-
-if ismac
-    cd('readimx_MAC');
-elseif ispc
-    cd('readimx_WIN');
-else
-    error('System not identified (if using LINUX I do not know what to do).')
-end
-end
-
 function data = zeroToNaN(data)
 data(data == 0) = NaN;
 end
 
 function data = zeroToMedian(data)
 data(data == 0) = median(data,"all");
+end
+
+function data = nanToMedian(data)
+    % Calculate the median of all non-NaN values
+    med = median(data, "all", "omitnan");
+    
+    % Replace NaNs with the calculated median
+    data(isnan(data)) = med;
 end
 
 function out1 = extractData(dataStructure, numCameraField)
@@ -525,7 +519,7 @@ end
 numPlanes = length(components{1, 1}.Planes);
 sizeXY = size(components{1, 1}.Planes{1, 1});
 
-trimBoundaryPlanes = true;
+trimBoundaryPlanes = false;
 if trimBoundaryPlanes
     planeIndices = 2:numPlanes-1;
     numTrimmedPlanes = numPlanes - 2;

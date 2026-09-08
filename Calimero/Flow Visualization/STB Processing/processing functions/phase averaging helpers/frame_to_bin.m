@@ -1,5 +1,5 @@
-function [norm_signal, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_freq] ...
-    = frame_to_bin(PIV_case_name, num_images, turbine_bool, plot_bool)
+function [norm_signal, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_freq, num_clusters, phase_spread_ratio] ...
+    = frame_to_bin(PIV_case_name, num_images, freq_cor, turbine_bool, plot_bool)
 
 [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name);
 
@@ -147,25 +147,31 @@ cam_fire_idx = find(results(:,13) == 2, 1, "first");
 laser_count_at_cam_fire = las_count(cam_fire_idx);
 disp("Laser pulses by camera fire: " + laser_count_at_cam_fire)
 
-norm_signal = get_norm_signal(results, phase_type, pulsesPerRev, cycle_freq, laser_ind, num_images);
+% could use cycle_freq or freq_cor here, but using the measured average
+% wingbeat frequency freq_cor seems more accurate
+norm_signal = get_norm_signal(results, phase_type, pulsesPerRev, freq_cor, laser_ind, num_images);
 norm_pos = get_norm_signal(results, 0, pulsesPerRev, cycle_freq, laser_ind, num_images);
 
-[M,I] = min(norm_pos);
+% associate t = 0 with theta = 0
+[~,I] = min(norm_pos);
 t_phase_zero = norm_signal(I);
 norm_signal(norm_signal < t_phase_zero) = norm_signal(norm_signal < t_phase_zero) + 1;
 norm_signal = norm_signal - t_phase_zero;
 
-if phase_type == 0
-    tick_frame_pos = round(norm_signal * pulsesPerRev,3);
-    full_cycle = 0.5:1:pulsesPerRev + 0.5;
-else
-    tick_frame_pos = zeros(size(norm_signal));
-    full_cycle = zeros(size(norm_signal));
-end
+tick_frame_pos = round(norm_pos * pulsesPerRev,3);
+full_cycle = 0.5:1:pulsesPerRev + 0.5;
 
-bins_list = 10:5:150;
+gap_thresh = 2;
+
+num_clusters = sum(diff(unique(tick_frame_pos)) > gap_thresh);
+
+phase_spread_ratio = length(unique(tick_frame_pos)) / length(tick_frame_pos);
+
+bins_list = 90:1:110;
 minFrames = 10;
-[num_bins, bin_ind_arr, bin_count, bin_std] = findBestNumBins(norm_signal, bins_list, minFrames);
+% [num_bins, bin_ind_arr, bin_count, bin_std] = findBestNumBins(norm_signal, bins_list, minFrames);
+num_shifts = 10;
+[num_bins, bin_offset, bin_ind_arr, bin_count,bin_std] = findBestNumBins2(norm_signal, bins_list, minFrames, num_shifts);
 disp("Using " + num_bins + " bins")
 
 % rough estimate of number of cycles based on value resetting to zero

@@ -1,4 +1,4 @@
-function [speed, wing_type, freq_vals, AoA_vals, amp, latest_timestamp] = eval_params(params_path)
+function [speed, wing_type, amp, latest_timestamp] = eval_params(params_path)
     files = dir(params_path);
     
     % Find params file with latest timestamp
@@ -16,7 +16,7 @@ function [speed, wing_type, freq_vals, AoA_vals, amp, latest_timestamp] = eval_p
         end
     end
     
-    vars = {"speed", "wing_type", "freq_vals", "AoA_vals", "amp"};
+    vars = {"speed", "wing_type", "amp"};
     load(params_path + latest_file, vars{:})
     disp("Loaded " + params_path + latest_file)
 end

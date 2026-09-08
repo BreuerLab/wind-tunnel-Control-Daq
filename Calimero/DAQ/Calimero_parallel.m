@@ -92,7 +92,12 @@ function setup_DAQ(obj, forceVoltage, rate)
 
     % channel for Galil encoder measurement
     % ch8 = this_DAQ.addinput(daq_ID, 20, "Voltage");
-    ch8 = obj.DAQ.addinput(daq_ID, "port0/line24", "Digital");
+    % ch8 = obj.DAQ.addinput(daq_ID, "port0/line24", "Digital");
+
+    % channel for z-index hall effect sensor
+    ch8 = obj.DAQ.addinput(daq_ID, "port0/line25", "Digital");
+
+    % ch8 = obj.DAQ.addinput(daq_ID, 20, "Voltage");
 
     % counter for galil OC pulses
     obj.DAQ.addinput(daq_ID,"ctr0","EdgeCount")
@@ -101,7 +106,7 @@ function setup_DAQ(obj, forceVoltage, rate)
     obj.DAQ.addinput(daq_ID,"ctr1","EdgeCount")
 
     % % counter for camera 1 trigger
-    % obj.DAQ.addinput(daq_ID,"ctr2","EdgeCount")
+    obj.DAQ.addinput(daq_ID,"ctr2","EdgeCount")
     
     if ~(forceVoltage == 5 || forceVoltage == 10)
         error("Invalid DAQ voltage for force transducer")
@@ -296,7 +301,7 @@ end
 % My, and Mz.
 
 % Note: This function also writes "results" to a .csv file
-function [results] = measure_force(obj, case_name, session_duration)
+function [results] = measure_force(obj, case_name, session_duration, save_path)
     % Start the DAQ session.
     % start(obj.daq, "Duration", session_duration);
 
@@ -369,7 +374,7 @@ function [results] = measure_force(obj, case_name, session_duration)
     currentDateTime = datetime('now', 'Format', 'yyyy_MM_dd_HH_mm_ss');
     currentDateTimeStr = char(currentDateTime);
     trial_name = strjoin([case_name, "experiment", currentDateTimeStr], "_");
-    trial_file_name = "data\experiment data\" + trial_name + ".mat";
+    trial_file_name = save_path + trial_name + ".mat";
     save(trial_file_name, "results");
 end
 

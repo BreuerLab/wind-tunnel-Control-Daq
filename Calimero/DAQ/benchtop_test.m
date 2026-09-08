@@ -14,40 +14,55 @@ cd(fileparts(mfilename('fullpath')));
 
 addpath(genpath("../"))
 
+%%
+% ----------------------------------------------------------------------
+% ------------------------- Parameter Selection ------------------------
+% ----------------------------------------------------------------------
+
 % case_name = wing_type + "_" + speed + "m.s_" + AoA_vals(j) + "deg_" + freq_vals(i) + "Hz";
 
 % Galil Setup
 galil_bool = true;
 galil_IP_address = "192.168.1.3";
 DR_bool = false; % false - store data in arrays (RA), true - data record packets (DR)
-ticksPerRev = 18432;
+dmc_params.ticksPerRev = 18432;
 freq = 0; % Hz
 acc = 3; % Hz
-measure_revs = 100; % 270
-padding_revs = 2;
-hold_time = 40; % sec
-wait_time = 1000; % ms
-OC_pulse_step = 4; % in ticks
+measure_revs = 220;
+padding_revs = 4;
+hold_time = 50; % sec
+dmc_params.wait_time = 1000; % ms
+dmc_params.OC_pulse_step = 4; % in ticks
 % REMEMBER MOTOR WIRES NEED TO BE FLIPPED TOO WHEN CHANGING DIRECTION
-galil_direction = 0; % 0 - forward, 1 - reverse
+dmc_params.galil_direction = 0; % 0 - forward, 1 - reverse
+improved_control = true;
+
 if DR_bool
     dmc_benchtop_filename = "benchtop_test_DR.dmc";
 else
     dmc_benchtop_filename = "benchtop_test_RA.dmc";
 end
 dmc_hold_filename = "hold.dmc";
+dmc_home_filename = "home_move.dmc";
+dmc_get_FF_filename = "obtain_cycle_torque.dmc";
+dmc_play_FF_filename = "benchtop_test_FF.dmc";
 
-% case_name = "benchtop_" + 0 + "m.s_" + 0 + "deg_" + freq + "Hz_";
+amp = 10;
+speed = 4;
+AoA = 10;
+wing_type = "TEST";
+% wing_type = "x5_flexible";
+case_name = wing_type + "_" + amp + "_" + speed + "m.s_" + AoA + "deg_" + freq + "Hz_";
 % case_name = "UP_two_PIV_flexible_20_" + 4 + "m.s_" + 10 + "deg_" + freq + "Hz_";
-case_name = "ringdown_" + 0 + "m.s_" + 10 + "deg_" + 0 + "Hz_";
+% case_name = "ringdown_" + 0 + "m.s_" + 10 + "deg_" + 0 + "Hz_";
 time_now = datetime;
-time_now.Format = 'yyyy-MM-dd HH-mm-ss';
+time_now.Format = 'yyyy_MM_dd_HH_mm_ss';
 case_name = case_name + string(time_now);
 
 daq_bool = true;
 async = true; % run daq in asynchronous or synchronous mode
 force_bool = true; % plot force data or not
-laser_bool = false; 
+laser_bool = true; % plot laser data or not
 % DAQ Setup
 if daq_bool
 [f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4] = makeForceFigures();
@@ -57,6 +72,8 @@ rate = 15000; % measurement rate of NI DAQ, in Hz
 offset_duration = 2; % in seconds
 calibration_filepath = "../DAQ/Calibration Files/Mini40/FT52907.cal"; 
 voltage = 5; % 5 or 10 volts for load cell
+results_path = "data\experiment data\";
+home_path = "data\home data\";
 
 if async
     flapper_obj = Calimero_parallel();
@@ -69,14 +86,17 @@ end
 cal_matrix = obtain_cal(calibration_filepath);
 end
 
-% estimate recording length based on parameters
-[num_revs, session_duration, time_to_speed, at_speed_pos] = estimate_duration(freq, acc, measure_revs, padding_revs, hold_time, wait_time, true);
+%% ----------------------------------------------------------------------
 
-% save data recording parameters
+% estimate recording length based on parameters
+[num_revs, session_duration, time_to_speed, at_speed_pos] = ...
+    estimate_duration(freq, acc, measure_revs, padding_revs, hold_time, dmc_params.wait_time, true);
+
+%% save data recording parameters
 currentDateTime = datetime('now', 'Format', 'yyyy_MM_dd_HH_mm_ss');
 currentDateTimeStr = char(currentDateTime);
 file_name = strjoin(["experiment_params", currentDateTimeStr], "_");
-full_file_name = "data\params\" + file_name + ".mat";
+full_file_name = "data\experiment parameters\" + file_name + ".mat";
 
 vars = whos;
 saveVars = {};
@@ -92,6 +112,7 @@ end
 
 save(full_file_name, saveVars{:});
 
+%% Setup galil, home wings, load motion profile program
 if galil_bool
 try
     galil = galil_setup(galil_IP_address);
@@ -108,9 +129,18 @@ catch
     cleanup = onCleanup(@()myCleanupFunB(galil));
 end
 
-% Set wings to midstroke
-time = 8; % countdown time for setting wing position
-set_hold_position(galil, dmc_hold_filename, galil_direction, time)
+auto_home = true;
+if auto_home
+    disp("Homing wings automatically...")
+    % Set wings to midstroke automatically
+    home_wings(flapper_obj, galil, home_path, case_name + "_home", dmc_home_filename, dmc_params)
+    pause(2)
+else
+    % Set wings to midstroke manually by giving user time to adjust wings
+    time = 8; % countdown time for setting wing position
+    set_hold_position(galil, dmc_hold_filename, dmc_params.galil_direction, time)
+    pause(5) % wait for wind tunnel door to be closed
+end
 
 % ---------------------------
 if DR_bool
@@ -129,39 +159,22 @@ dt = 10;
 galil.recordsStart(dt);
 end
 % ---------------------------
-if freq ~= 0
-    dmc = fileread(dmc_benchtop_filename);
+if freq == 0
+    default_motor_control(galil, dmc_hold_filename, dmc_params,...
+    num_revs, freq, acc, at_speed_pos, padding_revs, DR_bool);
 else
-    dmc = fileread(dmc_hold_filename);
+    if improved_control
+        improved_motor_control(galil, dmc_get_FF_filename, dmc_play_FF_filename,...
+    dmc_params, measure_revs, num_revs, at_speed_pos, freq, acc, padding_revs);
+    else
+        default_motor_control(galil, dmc_benchtop_filename, dmc_params,...
+    num_revs, freq, acc, at_speed_pos, padding_revs, DR_bool);
+    end
 end
-
-dmc = string(dmc);
-
-% Replace the place holders in the .dmc file with the values specified
-% here. Other parameters can be changed directly in .dmc file.
-if galil_direction == 1
-    dmc = strrep(dmc, "dir_TEMP", "2");
-else
-    dmc = strrep(dmc, "dir_TEMP", "0");
-end
-
-if (freq ~= 0)
-dmc = strrep(dmc, "ticks_TEMP", num2str(ticksPerRev));
-dmc = strrep(dmc, "revs_TEMP", num2str(num_revs));
-dmc = strrep(dmc, "speed_TEMP", num2str(freq));
-dmc = strrep(dmc, "acc_TEMP", num2str(acc));
-dmc = strrep(dmc, "waittime_TEMP", num2str(wait_time));
-dmc = strrep(dmc, "OC_TEMP", num2str(OC_pulse_step));
-if ~DR_bool
-    dmc = strrep(dmc, "revsRec_TEMP", num2str(round(at_speed_pos) + padding_revs));
-end
-end
-
-% Load the program described by the .dmc file to the Galil device.
-galil.programDownload(dmc);
 
 end
 
+%%
 if daq_bool
 % Get the offsets before experiment
 offsets_before = flapper_obj.get_force_offsets(case_name + "_before", offset_duration);
@@ -188,7 +201,7 @@ end
 if daq_bool
 % Collect experiment data during flapping
 disp("Experiment data collection has begun");
-results = flapper_obj.measure_force(case_name, session_duration);
+results = flapper_obj.measure_force(case_name, session_duration, results_path);
 disp("Experiment data has been gathered");
 beep2;
 
@@ -199,13 +212,57 @@ checkLimits(results);
 
 ticksPerRev = 18432;
 % Translate data from raw values into meaningful values
-[time, force, voltAdj, curAdj, speed] = ...
-    process_data(results, offsets_before, cal_matrix, ticksPerRev, OC_pulse_step, async);
+[time, force, voltAdj, curAdj, home_signal, pos, speed, acc, wing_pos, wing_speed, wing_acc] = ...
+    process_data(results, offsets_before, cal_matrix, dmc_params.ticksPerRev, dmc_params.OC_pulse_step, amp, async);
+
+disp("Collecting final offset")
+% Get offset data after flapping at this angle and windspeed
+offsets_after = flapper_obj.get_force_offsets(case_name + "_after", offset_duration);
+offsets_after = offsets_after(1,:); % just taking means, no SDs
+disp("Final offset data has been gathered");
+beep2;
+
+drift = offsets_after - offsets_before; % over one trial
+
+% Convert drift from voltages into forces and moments
+drift = cal_matrix * drift(1:6)';
+
+drift_string = string(drift);
+% separate numbers by space
+drift_string = [sprintf('%s   ',drift_string{1:end-1}), drift_string{end}];
+disp("Drift since tare with tunnel off: ")
+disp(drift_string)
+
+% save wind tunnel data for non-dimensionalization later
+wind_tunnel_save(case_name)
+
+try
+    % clf([f1 f2 f3], 'reset')
+    for k = 1:6
+        cla([tiles_1{k} tiles_2{k}])
+    end
+    for k = 1:3
+        cla([tiles_3{k} tiles_4{k}])
+    end
+catch
+    % disp("No figures to clear")
+    disp("No axes to clear")
+end
+
+fc = 100;  % cutoff frequency in Hz for filter
+% Display preliminary data
+raw_plot(time, force, voltAdj, curAdj, speed, case_name, drift, flapper_obj.DAQ.Rate, fc,...
+    f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4, force_bool);
 
 fc = 20;
 fs = rate;
 [b,a] = butter(6,fc/(fs/2));
 filtered_speed = filtfilt(b,a,speed);
+
+trim_length = 6;
+speed_tr = speed(trim_length*rate:end-trim_length*rate);
+disp("Trimming off first and last " + trim_length + " seconds,")
+disp("speed is " + mean(speed_tr) + " +/- " + std(speed_tr) + "Hz")
 
 OC_f = figure;
 plot(time, speed)
@@ -213,6 +270,31 @@ xlabel("Time (seconds)")
 ylabel("Filtered Speed (Hz)")
 title("Speed measured from OC pulses")
 saveas(OC_f,'data\plots\' + case_name + "_OC.png")
+
+if freq > 0
+learning_complete_rev = round(at_speed_pos + padding_revs) + 20;
+learning_complete_time = time(pos >= learning_complete_rev);
+learning_complete_time = learning_complete_time(1);
+xline(learning_complete_time)
+
+% pos_tr = pos(pos >= 6 & pos <= num_revs - 6);
+% time_tr = time(pos >= 6 & pos <= num_revs - 6);
+% % pos_tr = pos(trim_length*rate:end-trim_length*rate);
+% % time_tr = time(trim_length*rate:end-trim_length*rate);
+% 
+% 
+% pos_tr = pos_tr - min(pos_tr);
+% time_tr = time_tr - min(time_tr);
+% 
+% des_pos = linspace(0,max(pos_tr),length(pos_tr))';
+% err_pos = des_pos - pos_tr;
+% 
+% figure
+% plot(time_tr, err_pos*ticksPerRev)
+% xlabel("Time (seconds)")
+% ylabel("Position error (ticks)")
+% set(gca, FontSize=16);
+end
 
 % 1, 2, 3, 4, 6, 8, 9, 12, 16, 18, 24, 32, 36, 48, 64, 72, 96, 128,
 % 144, 192, 256, 288, 384, 512, 576, 768, 1024, 1152, 1536, 2048,
@@ -235,42 +317,85 @@ saveas(OC_f,'data\plots\' + case_name + "_OC.png")
 
 if laser_bool
 las_count = results(:,12);
-las_count_diff = diff(las_count);
-last_time = time(las_count_diff ~= 0);
-last_time = last_time(end);
-disp("-------------------------------------------------------------")
-disp("Final pulse fired at: " + last_time + " s")
 
-las_count = las_count(las_count ~= 0 & las_count ~= las_count(end));
-las_count_diff = diff(las_count);
+% trim beginning and end of recording session
+mid_indices = find(las_count ~= 0 & las_count ~= las_count(end));
+% if removed all mid_indices, would miss first and last pulse
+mid_indices_adj = [mid_indices(1) - 1; mid_indices; mid_indices(end) + 1];
+las_count_tr = las_count(mid_indices_adj);
+
+% find indices where laser counter increments
+las_count_diff = diff(las_count_tr);
 whole_idx = find(las_count_diff ~= 0);
-las_rep_rate = rate ./ diff(whole_idx);
-disp("Length of las_rep_rate: " + length(las_rep_rate) + ", with mean: " + mean(las_rep_rate))
-disp("-------------------------------------------------------------")
+laser_ind = whole_idx + mid_indices_adj(1);
 
-cam_count = results(:,13);
+Las_end_time = time(laser_ind(end));
+Las_start_time = time(laser_ind(1));
+disp("-------------------------------------------------------------")
+disp("First pulse fired at: " + Las_start_time + " s")
+disp("Final pulse fired at: " + Las_end_time + " s")
+xline(Las_start_time, LineWidth=2, LineStyle="--", Color="green")
+xline(Las_end_time, LineWidth=2, LineStyle="--", Color="red")
+
+% confirm laser fired at expected rate
+frames_bw_pulses = diff(whole_idx);
+las_rep_rate = rate / mean(frames_bw_pulses);
+disp("Laser recorded firing at: " + las_rep_rate + " Hz on average")
+
+% find value of laser counter when camera trigger signal initiated
+cam_fire_idx = find(results(:,13) ~= 0, 1, "first");
+% cam_fire_idx = find(results(:,13) == 2, 1, "first");
+laser_count_at_cam_fire = las_count(cam_fire_idx);
+disp("Laser pulses by camera fire: " + laser_count_at_cam_fire +...
+    ", total of " + las_count(laser_ind(end)) + " pulses")
+num_images = las_count(laser_ind(end)) - laser_count_at_cam_fire;
+
+if freq > 0
+ticksPerRev = 18432;
+OC_pulse_step = 4;
+pulsesPerRev = ticksPerRev / OC_pulse_step;
+
+%% Plot bin distribution for laser firing
+% Define the field names in the order they are returned by the function
+fNames = {'freq_avg', 'norm_time_speed', 'phase_avg_pos', 'phase_std_pos', ...
+          'phase_avg_speed', 'phase_std_speed',...
+          'phase_avg_acc', 'phase_std_acc',...
+          'phase_avg_wing_pos', 'phase_std_wing_pos',...
+          'phase_avg_wing_speed', 'phase_std_wing_speed',...
+          'phase_avg_wing_acc', 'phase_std_wing_acc',...
+          'bin_count_speed', 'bin_std_speed',...
+          'phase_avg_volt', 'phase_std_volt',...
+          'phase_avg_cur', 'phase_std_cur'};
+
+% Capture all outputs into a cell array
+plot_bool = true;
+outputs = cell(1, numel(fNames));
+[outputs{:}] = speed_phase_avg(results, voltAdj, curAdj, pos, speed, acc,...
+                wing_pos, wing_speed, wing_acc, pulsesPerRev, plot_bool);
+
+% Map cell array to struct fields
+for i = 1:numel(fNames)
+    D.(fNames{i}) = outputs{i};
 end
 
-% What's most important for phase averaging PIV is that a full cycle
-% has some repeatable time
-
-
+get_laser_phase_bins(results, rate, freq, D.freq_avg, num_images, pulsesPerRev, plot_bool);
+end
+end
 pause(3);
 else
     pause(session_duration + 9)
 end
 
+%% Plot data from galil recording
 if galil_bool && freq ~= 0
-% -----------------
 if DR_bool
 % Stop recording
 galil.recordsStart(0);
-% -----------------
 
 galil_data = cell2mat(ref.Data);
 
 galil_traj_plot_DR(galil_data, dt);
-else
+elseif ~improved_control
 [TimeArr, Current, DesPos, ActPos, ActVel] = galil_traj_plot(galil);
 
 currentDateTime = datetime('now', 'Format', 'yyyy_MM_dd_HH_mm_ss');
@@ -283,45 +408,6 @@ save(full_file_name, saveVars{:});
 
 plot_current_comp(time, curAdj, TimeArr, Current, freq, padding_revs, time_to_speed, case_name)
 end
-% ------------------
-end
-
-if daq_bool
-disp("Collecting final offset")
-% Get offset data after flapping at this angle and windspeed
-offsets_after = flapper_obj.get_force_offsets(case_name + "_after", offset_duration);
-offsets_after = offsets_after(1,:); % just taking means, no SDs
-disp("Final offset data has been gathered");
-beep2;
-
-drift = offsets_after - offsets_before; % over one trial
-
-% Convert drift from voltages into forces and moments
-drift = cal_matrix * drift(1:6)';
-
-drift_string = string(drift);
-% separate numbers by space
-drift_string = [sprintf('%s   ',drift_string{1:end-1}), drift_string{end}];
-disp("Drift since tare with tunnel off: ")
-disp(drift_string)
-
-try
-    % clf([f1 f2 f3], 'reset')
-    for k = 1:6
-        cla([tiles_1{k} tiles_2{k}])
-    end
-    for k = 1:3
-        cla([tiles_3{k} tiles_4{k}])
-    end
-catch
-    % disp("No figures to clear")
-    disp("No axes to clear")
-end
-
-fc = 100;  % cutoff frequency in Hz for filter
-% Display preliminary data
-raw_plot(time, force, voltAdj, curAdj, speed, case_name, drift, flapper_obj.DAQ.Rate, fc,...
-    f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4, force_bool);
 end
 
 clear cleanup

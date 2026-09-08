@@ -1,20 +1,23 @@
-function S = time_avg_STB(file_path, nondim_bool, U, L, num_files, save_filepath_local, PIV_case_name, RPCA_bool)
+function S = time_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, bools)
     tic;
+    save_path = fullfile(save_filepath_local, PIV_case_name + "_time_avg.mat");
 
+    if bools.proc_vel
     % wind tunnel properties were not measured for gliding data
     speed = U;
     density = 1.225;
+    num_images = 1000;
 
     % variable preallocation
-    lift_vals = zeros(1,num_files);
-    drag_vals = zeros(1,num_files);
+    lift_vals = zeros(1,num_images);
+    drag_vals = zeros(1,num_images);
     print_dim_bool = true;
 
     fields = get_STB_processing_fields();
-    
-    for i = 1:num_files
+
+    for i = 1:num_images
         % Import data (using a temporary struct or list)
-        [x, y, z, data{1:length(fields)}] = import_STB_data(file_path, nondim_bool, U, L, i, RPCA_bool);
+        [x, y, z, data{1:length(fields)}] = import_STB_data(file_path, bools.nondim, U, L, i, bools.RPCA);
         
         if i == 1
             % Initialize structure with zeros based on first file size
@@ -42,14 +45,14 @@ function S = time_avg_STB(file_path, nondim_bool, U, L, num_files, save_filepath
         drag_vals(i) = drag.tot;
         
         if mod(i, 100) == 0
-            fprintf('Processed %d/%d\n', i, num_files);
+            fprintf('Processed %d/%d\n', i, num_images);
         end
     end
 
-    % Divide all accumulated fields by num_files to compute average
+    % Divide all accumulated fields by num_images to compute average
     avg_fields = fieldnames(S);
     for f = 1:length(avg_fields)
-        S.(avg_fields{f}) = S.(avg_fields{f}) / num_files;
+        S.(avg_fields{f}) = S.(avg_fields{f}) / num_images;
     end
 
     % Add metadata to the struct
@@ -58,10 +61,17 @@ function S = time_avg_STB(file_path, nondim_bool, U, L, num_files, save_filepath
     S.mean_lift = mean(lift_vals); S.mean_drag = mean(drag_vals);
 
     % Save the entire structure
-    save_path = fullfile(save_filepath_local, [PIV_case_name, '_time_avg.mat']);
     save(save_path, '-struct', 'S');
     
     fprintf('Processing and saving took %.4f seconds.\n', toc);
 
     calc_secondary_vals_time(S, save_filepath_local)
+    else
+    % load in processed velocity field struct from an earlier run
+    S = load(save_path);
+    
+    % Calculate secondary values (Q, power, integral values) and save in
+    % separate file
+    calc_secondary_vals_time(S, save_filepath_local)
+    end
 end

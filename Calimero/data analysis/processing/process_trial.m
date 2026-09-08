@@ -63,23 +63,16 @@ end
 
 async = true; % We are doing async method of collecting data
 
-[time_data, force_data, voltAdj, curAdj, speed, OC_pulse_count] = ...
-    process_data(trimmed_results, offsets, cal_matrix, ticksPerRev, OC_pulse_step, async);
-
-dt = time_data(2) - time_data(1);
-% speed = gradient(results(:,11), dt)
-
-order = 3;
-framelen = 21;
-speed = savitskyGolayDiff(OC_pulse_count, order, framelen, dt);
-speed = speed / (ticksPerRev / OC_pulse_step);
+[time_data, force_data, voltAdj, curAdj, home_signal, pos, speed, acc, wing_pos, wing_speed, wing_acc] = ...
+    process_data(trimmed_results, offsets, cal_matrix, ticksPerRev, OC_pulse_step, amp, async);
+OC_pulse_count = trimmed_results(:,11);
 
 % Rotate the data from the force transducer reference frame to the wind
 % tunnel reference frame (body frame to global frame)
 results_lab = coordinate_transformation(force_data, AoA);
 
 % enc_pulse not added because this is the only data that is filtered
-mod_results = [results_lab; voltAdj'; curAdj'];
+mod_results = [results_lab; home_signal'; voltAdj'; curAdj'];
 
 % motor model check
 % if wing_freq ~= 0
@@ -88,7 +81,7 @@ mod_results = [results_lab; voltAdj'; curAdj'];
 
 % Non-dimensionalize the data. Newtons to Force Coefficients and
 % Newton*meters to Moment Coefficients
-[norm_data, norm_factors, St, Re] = non_dimensionalize_data(wind_tunnel_path, results_lab, file, type);
+% [norm_data, norm_factors, St, Re] = non_dimensionalize_data(wind_tunnel_path, results_lab, file, type);
 
 % Smooth the data with a butterworth filter
 % fc = 100; % cutoff frequency
@@ -106,6 +99,14 @@ if (wing_freq > 1)
     fc = 5*wing_freq; % cutoff frequency
 else
     fc = 10;
+end
+filtered_data_smoother = filter_data(mod_results, frame_rate, fc);
+
+if (wing_freq > 1)
+    % fc = 10*wing_freq; % cutoff frequency
+    fc = 2*wing_freq; % cutoff frequency
+else
+    fc = 4;
 end
 filtered_data_smoothest = filter_data(mod_results, frame_rate, fc);
 
@@ -125,8 +126,10 @@ filtered_data_smoothest = filter_data(mod_results, frame_rate, fc);
 filename = case_name + " " + time_stamp + ".mat"; % file name for processed data
 
 saved_vars = {'time_data', 'force_data', 'results_lab',...
-    'filtered_data','filtered_data_smoothest',...
-    'norm_factors', 'St', 'Re'};
+    'filtered_data','filtered_data_smoothest'};
+% saved_vars = {'time_data', 'force_data', 'results_lab',...
+%     'filtered_data','filtered_data_smoothest',...
+%     'norm_factors', 'St', 'Re'};
 
 % If this is a flapping trial, analyze data over each wingbeat rather than
 % just in time
@@ -141,10 +144,10 @@ if (wing_freq > 0)
     cycle_avg_forces]...
     = wingbeat_transformation(num_wingbeats, filtered_data, OC_pulse_count, speed, AoA);
 
-% [wingbeat_forces_smoother, frames_smoother, wingbeat_avg_forces_smoother, wingbeat_std_forces_smoother, ...
-%     wingbeat_rmse_forces_smoother, wingbeat_max_forces_smoother, wingbeat_min_forces_smoother, ...
-%     wingbeat_COP_smoother, cycle_avg_forces_smoother]...
-%     = wingbeat_transformation(num_wingbeats, filtered_data_smooth, AoA);
+[wingbeat_forces_smoother, frames_smoother, wingbeat_avg_forces_smoother, wingbeat_std_forces_smoother, ...
+    wingbeat_rmse_forces_smoother, wingbeat_max_forces_smoother, wingbeat_min_forces_smoother, ...
+    wingbeat_COP_smoother, cycle_avg_forces_smoother]...
+    = wingbeat_transformation(num_wingbeats, filtered_data_smoother, OC_pulse_count, speed, AoA);
 
 [wingbeat_forces_smoothest, frames_smoothest, wingbeat_avg_forces_smoothest, wingbeat_std_forces_smoothest,...
     wingbeat_rmse_forces_smoothest, wingbeat_max_forces_smoothest, wingbeat_min_forces_smoothest, wingbeat_COP_smoothest,...
@@ -163,10 +166,10 @@ filt_wing_vars = {'wingbeat_forces','frames',...
     'wingbeat_min_forces', 'wingbeat_COP', ...
     'cycle_avg_forces'}; % 'upstroke_avg_forces', 'downstroke_avg_forces'
 
-% filt_smooth_wing_vars = {'wingbeat_forces_smoother', 'frames_smoother',...
-%     'wingbeat_avg_forces_smoother', 'wingbeat_std_forces_smoother',...
-%     'wingbeat_rmse_forces_smoother', 'wingbeat_max_forces_smoother',...
-%     'wingbeat_min_forces_smoother', 'wingbeat_COP_smoother', 'cycle_avg_forces_smoother'};
+filt_smoother_wing_vars = {'wingbeat_forces_smoother', 'frames_smoother',...
+    'wingbeat_avg_forces_smoother', 'wingbeat_std_forces_smoother',...
+    'wingbeat_rmse_forces_smoother', 'wingbeat_max_forces_smoother',...
+    'wingbeat_min_forces_smoother', 'wingbeat_COP_smoother', 'cycle_avg_forces_smoother'};
 
 filt_smoothest_wing_vars = {'wingbeat_forces_smoothest', 'frames_smoothest',...
     'wingbeat_avg_forces_smoothest', 'wingbeat_std_forces_smoothest',...
@@ -174,7 +177,7 @@ filt_smoothest_wing_vars = {'wingbeat_forces_smoothest', 'frames_smoothest',...
     'wingbeat_min_forces_smoothest', 'wingbeat_COP_smoothest', ...
     'cycle_avg_forces_smoothest'}; % 'upstroke_avg_forces_smoothest', 'downstroke_avg_forces_smoothest'
 
-vars = [saved_vars, raw_wing_vars, filt_wing_vars, filt_smoothest_wing_vars];
+vars = [saved_vars, raw_wing_vars, filt_wing_vars, filt_smoother_wing_vars, filt_smoothest_wing_vars];
 
 else
     vars = saved_vars;
