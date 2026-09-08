@@ -482,6 +482,14 @@ function data = zeroToMedian(data)
 data(data == 0) = median(data,"all");
 end
 
+function data = nanToMedian(data)
+    % Calculate the median of all non-NaN values
+    med = median(data, "all", "omitnan");
+    
+    % Replace NaNs with the calculated median
+    data(isnan(data)) = med;
+end
+
 function out1 = extractData(dataStructure, numCameraField)
 
 frame = dataStructure.Frames{numCameraField, 1};
@@ -511,7 +519,7 @@ end
 numPlanes = length(components{1, 1}.Planes);
 sizeXY = size(components{1, 1}.Planes{1, 1});
 
-trimBoundaryPlanes = true;
+trimBoundaryPlanes = false;
 if trimBoundaryPlanes
     planeIndices = 2:numPlanes-1;
     numTrimmedPlanes = numPlanes - 2;

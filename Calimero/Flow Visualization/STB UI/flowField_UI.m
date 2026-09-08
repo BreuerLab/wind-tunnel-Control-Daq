@@ -286,7 +286,7 @@ methods
                       0, 0.005;...
                       0, 0.005;...
                       -1, 1;...
-                      0, 75;
+                      0, 150;
                       -0.1, 0.1;
                       -1, 1;
                       -1, 1;
@@ -296,7 +296,7 @@ methods
                       -0.2, 0.2;
                       -1, 1;
                       -1, 1;
-                      -0.3, 0.3;
+                      -0.1, 0.1;
                       0, 0.1;
                       0, 0.1];
 
@@ -339,19 +339,19 @@ methods
         obj.clims = obj.mean_clims;
         obj.clim_dict = obj.mean_clim_dict;
         obj.clim_scale = 2;
-        movie_3D_avg_labels = ["\boldmath$\frac{u c}{U_{\infty}}$",...
-                            "\boldmath$\frac{v c}{U_{\infty}}$",...
-                            "\boldmath$\frac{w c}{U_{\infty}}$",...
-                            "\boldmath$\frac{U c}{U_{\infty}}$",...
+        movie_3D_avg_labels = ["\boldmath$\frac{u}{U_{\infty}}$",...
+                            "\boldmath$\frac{v}{U_{\infty}}$",...
+                            "\boldmath$\frac{w}{U_{\infty}}$",...
+                            "\boldmath$\frac{U}{U_{\infty}}$",...
                             "\boldmath$\frac{\omega_x c}{U_{\infty}}$",...
                             "\boldmath$\frac{\omega_y c}{U_{\infty}}$",...
                             "\boldmath$\frac{\omega_z c}{U_{\infty}}$",...
                             "\boldmath$\frac{\omega c}{U_{\infty}}$",...
                             "","","","",...
-                            "\boldmath$\frac{u c}{U_{\infty}}$",...
-                            "\boldmath$\frac{v c}{U_{\infty}}$",...
-                            "\boldmath$\frac{w c}{U_{\infty}}$",...
-                            "\boldmath$\frac{U c}{U_{\infty}}$",...
+                            "\boldmath$\frac{u}{U_{\infty}}$",...
+                            "\boldmath$\frac{v}{U_{\infty}}$",...
+                            "\boldmath$\frac{w}{U_{\infty}}$",...
+                            "\boldmath$\frac{U}{U_{\infty}}$",...
                             "u'u'","v'v'","w'w'","u'v'","u'w'","v'w'" "","count",...
                             "\boldmath$\frac{\partial u}{\partial x} \frac{c}{U_{\infty}}$",...
                             "\boldmath$\frac{\partial u}{\partial y} \frac{c}{U_{\infty}}$",...
@@ -1366,7 +1366,8 @@ methods (Access = private)
         elseif plot_idx == 6
             var_name = obj.freq_var_name_dict(obj.variable_name);
 
-            vars = {var_name};
+            vars = {};
+            cur_secondary_vars = {var_name};
             if obj.variable_name == obj.freq_vars(1)
                 x_var_name = "norm_time_speed";
                 cur_secondary_vars{end+1} = x_var_name;
@@ -1391,10 +1392,14 @@ methods (Access = private)
 
         if ~isempty(cur_secondary_vars)
             d1 = load(full_file_path + "_integral.mat", cur_secondary_vars{:});
+            if ~isempty(vars)
             d2 = load(full_file_path + ".mat", vars{:});
     
             % Combine by converting to cell arrays of names/values and back to struct
             d = cell2struct([struct2cell(d1); struct2cell(d2)], [fieldnames(d1); fieldnames(d2)], 1);
+            else
+                d = d1;
+            end
         else
             d = load(full_file_path + ".mat", vars{:});
         end
@@ -1416,6 +1421,7 @@ methods (Access = private)
 
         if plot_idx ~= 7
             val = d.(var_name);
+            planeIdx = (size(val,1) + 1) / 2;
         end
 
         if q_mask_enabled
@@ -1431,18 +1437,18 @@ methods (Access = private)
                     val = val - 1; % add back freestream
                 end
             elseif using_time_avg_file
-                y = squeeze(d.y(3,:,:));
-                z = squeeze(d.z(3,:,:));
-                val = squeeze(val(3,:,:));
+                y = squeeze(d.y(planeIdx,:,:));
+                z = squeeze(d.z(planeIdx,:,:));
+                val = squeeze(val(planeIdx,:,:));
                 if q_mask_enabled
-                    q_mask_val = squeeze(q_mask_val(3,:,:));
+                    q_mask_val = squeeze(q_mask_val(planeIdx,:,:));
                 end
             else
-                y = squeeze(d.y(3,:,:));
-                z = squeeze(d.z(3,:,:));
-                val = squeeze(val(3,:,:,:));
+                y = squeeze(d.y(planeIdx,:,:));
+                z = squeeze(d.z(planeIdx,:,:));
+                val = squeeze(val(planeIdx,:,:,:));
                 if q_mask_enabled
-                    q_mask_val = squeeze(q_mask_val(3,:,:,:));
+                    q_mask_val = squeeze(q_mask_val(planeIdx,:,:,:));
                 end
             end
 
@@ -1556,7 +1562,7 @@ methods (Access = private)
 
         if plot_idx == 4 || plot_idx == 8
             Q = d.(iso_var_name);
-            Q = squeeze(Q(3,:,:,:));
+            Q = squeeze(Q(planeIdx,:,:,:));
 
             if obj.trim_bool
                 Q = Q(y_idx,z_idx,:);

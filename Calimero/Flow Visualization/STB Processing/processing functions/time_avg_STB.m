@@ -6,7 +6,7 @@ function S = time_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, b
     % wind tunnel properties were not measured for gliding data
     speed = U;
     density = 1.225;
-    num_images = 1500;
+    num_images = 1000;
 
     % variable preallocation
     lift_vals = zeros(1,num_images);
