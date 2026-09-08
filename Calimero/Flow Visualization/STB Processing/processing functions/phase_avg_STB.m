@@ -81,7 +81,7 @@ end
 % ------------ Calculate phase averaged STB fields ---------------
 % ----------------------------------------------------------------
 if bools.proc_vel
-num_images = 2500;
+num_images = 800;
 disp("-----------------------------------")
 disp("Assuming num images = " + num_images)
 disp("-----------------------------------")
@@ -96,6 +96,8 @@ disp("-----------------------------------")
 if ~bools.turbine
     if contains(daq_data_filename, regexpPattern('x\d'))
         new_bool = true;
+    else
+        new_bool = false;
     end
     WT_d = get_wind_tunnel_data(daq_data_path, daq_data_filename, new_bool);
     if new_bool

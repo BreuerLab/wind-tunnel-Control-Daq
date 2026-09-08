@@ -13,8 +13,8 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 
 % Want to know what case names are available?
 % Call "  case_names = get_case_names();  "
-% PIV_case_name = 'flexible_20deg_2Hz';
-PIV_case_name = 'x5_wings_20deg_0Hz';
+PIV_case_name = 'UP_two_flexible_20deg_6Hz';
+% PIV_case_name = 'x5_wings_20deg_0Hz';
 % PIV_case_name = 'x5_wings_20deg_6Hz_v2'; % UP_two_body
 % PIV_case_name = 'x5_NACA_refined'; % UP_two_body
 % PIV_case_name = 'turbine';
