@@ -10,6 +10,9 @@ classdef phaseAvg_UI < handle
         COLOR_INACTIVE = [1 1 1];
 
         cur_types = ["flexible";"UP_one_flexible";"UP_two_flexible"];
+        downstream_distance_labels = ["x = 0.9m"; "x = 1.3m"; "x = 1.7m"];
+        new_flapper_downstream_types = ["x1";"x2";"x3";"x4";"x5"];
+        new_flapper_distance_labels = ["x1";"x2";"x3";"x4";"x5"];
     end
 
 properties
@@ -578,8 +581,7 @@ methods
             end
 
             matching_indices = find(type_mask & amp_mask & freq_mask);
-            [~, type_order] = ismember(selection_types(matching_indices), obj.cur_types);
-            type_order(type_order == 0) = length(obj.cur_types) + 1;
+            type_order = obj.get_type_sort_order(selection_types(matching_indices));
             [~, sort_order] = sortrows([type_order(:),...
                                         selection_amps(matching_indices),...
                                         selection_freqs(matching_indices)]);
@@ -702,21 +704,14 @@ methods (Access = private)
     function [selection_types, selection_labels] = get_available_type_options(obj)
         available_types = unique(string(obj.available_selections(:, 1)), 'stable');
         available_types = available_types(strlength(available_types) > 0);
-        selection_types = strings(0, 1);
-        selection_labels = strings(0, 1);
+        selection_types = obj.get_ordered_type_options(available_types);
+        selection_labels = strings(length(selection_types), 1);
 
-        known_distance_labels = ["x = 0.9m"; "x = 1.3m"; "x = 1.7m"];
-        for i = 1:length(obj.cur_types)
-            type = obj.cur_types(i);
-            if any(available_types == type)
-                selection_types(end + 1, 1) = type;
-                selection_labels(end + 1, 1) = known_distance_labels(i);
-            end
+        for i = 1:length(selection_types)
+            selection_labels(i) = obj.get_type_label(selection_types(i));
         end
 
-        other_types = setdiff(available_types, selection_types, 'stable');
-        selection_types = [selection_types; other_types(:)];
-        selection_labels = [selection_labels; other_types(:)];
+        selection_labels = obj.disambiguate_duplicate_type_labels(selection_types, selection_labels);
     end
 
     function mask = get_type_mask(~, selection_types, selected_type)
@@ -791,6 +786,79 @@ methods (Access = private)
             dropdown.Value = string(obj.sel_amp) + " deg";
         else
             dropdown.Value = string(obj.sel_amp) + " deg";
+        end
+    end
+
+    function selection_types = get_ordered_type_options(obj, available_types)
+        available_types = unique(string(available_types(:)), 'stable');
+        available_types = available_types(strlength(available_types) > 0);
+        selection_types = strings(0, 1);
+
+        for i = 1:length(obj.cur_types)
+            type = obj.cur_types(i);
+            if any(available_types == type)
+                selection_types(end + 1, 1) = type;
+            end
+        end
+
+        for i = 1:length(obj.new_flapper_downstream_types)
+            downstream_type = obj.new_flapper_downstream_types(i);
+            matching_types = available_types(obj.is_new_flapper_type(available_types, downstream_type));
+            selection_types = [selection_types; matching_types(:)];
+        end
+
+        other_types = setdiff(available_types(:), selection_types, 'stable');
+        selection_types = [selection_types; other_types(:)];
+    end
+
+    function type_order = get_type_sort_order(obj, types)
+        types = string(types);
+        ordered_types = obj.get_ordered_type_options(types);
+        [~, type_order] = ismember(types, ordered_types);
+        type_order(type_order == 0) = length(ordered_types) + 1;
+    end
+
+    function label = get_type_label(obj, type)
+        type = string(type);
+        type_index = find(obj.cur_types == type, 1);
+        if ~isempty(type_index)
+            label = obj.downstream_distance_labels(type_index);
+            return
+        end
+
+        downstream_index = obj.get_new_flapper_downstream_index(type);
+        if ~isempty(downstream_index)
+            label = obj.new_flapper_distance_labels(downstream_index);
+            return
+        end
+
+        label = type;
+    end
+
+    function labels = disambiguate_duplicate_type_labels(~, types, labels)
+        types = string(types);
+        labels = string(labels);
+
+        for i = 1:length(labels)
+            if sum(labels == labels(i)) > 1
+                labels(i) = labels(i) + " (" + strrep(types(i), "_", " ") + ")";
+            end
+        end
+    end
+
+    function mask = is_new_flapper_type(~, types, downstream_type)
+        types = string(types);
+        downstream_type = string(downstream_type);
+        mask = types == downstream_type | startsWith(types, downstream_type + "_");
+    end
+
+    function downstream_index = get_new_flapper_downstream_index(obj, type)
+        downstream_index = [];
+        for i = 1:length(obj.new_flapper_downstream_types)
+            if obj.is_new_flapper_type(type, obj.new_flapper_downstream_types(i))
+                downstream_index = i;
+                return
+            end
         end
     end
 
