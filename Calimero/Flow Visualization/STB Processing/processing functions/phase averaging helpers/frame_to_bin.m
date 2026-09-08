@@ -168,11 +168,14 @@ num_clusters = sum(diff(unique(tick_frame_pos)) > gap_thresh);
 phase_spread_ratio = length(unique(tick_frame_pos)) / length(tick_frame_pos);
 
 bins_list = 90:1:110;
-minFrames = 10;
+minFrames = 2;
 % [num_bins, bin_ind_arr, bin_count, bin_std] = findBestNumBins(norm_signal, bins_list, minFrames);
 num_shifts = 10;
 [num_bins, bin_offset, bin_ind_arr, bin_count,bin_std] = findBestNumBins2(norm_signal, bins_list, minFrames, num_shifts);
 disp("Using " + num_bins + " bins")
+if num_bins == 0
+    error("Zero bins identified")
+end
 
 % rough estimate of number of cycles based on value resetting to zero
 num_cycles = length(find(diff(bin_ind_arr) < 0));
