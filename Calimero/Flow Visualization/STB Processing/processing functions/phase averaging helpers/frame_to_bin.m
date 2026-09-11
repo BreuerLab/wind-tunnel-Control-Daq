@@ -168,7 +168,7 @@ num_clusters = sum(diff(unique(tick_frame_pos)) > gap_thresh);
 phase_spread_ratio = length(unique(tick_frame_pos)) / length(tick_frame_pos);
 
 bins_list = 90:1:110;
-minFrames = 2;
+minFrames = 5;
 % [num_bins, bin_ind_arr, bin_count, bin_std] = findBestNumBins(norm_signal, bins_list, minFrames);
 num_shifts = 10;
 [num_bins, bin_offset, bin_ind_arr, bin_count,bin_std] = findBestNumBins2(norm_signal, bins_list, minFrames, num_shifts);

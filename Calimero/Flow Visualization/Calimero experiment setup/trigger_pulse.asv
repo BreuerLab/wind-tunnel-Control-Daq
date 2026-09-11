@@ -1,10 +1,14 @@
 clear
 close all
 
+% number of PIV vector fields according to the camera datasheet
+% numFrames = 21818 / 2;
+numFrames = 5100; % number from experience on DaVis
+
 ticksPerRev = 18432;
-f_w = 8; % Hz, wingbeat frequency
-N = 1:1:100; % number of phase points/bins
-p = 1:0.5:50; % phase step size
+f_w = 2; % Hz, wingbeat frequency
+N = 1:1:180; % number of phase points/bins
+p = 1:1:100; % phase step size
 [N_grid, p_grid] = meshgrid(N, p);
 
 f_l = (f_w .* N_grid) ./ p_grid; % Hz, laser frequency
@@ -58,10 +62,6 @@ p_fin = p_fin(ib);
 
 step = p_fin ./ N_fin;
 num_cycles = p_fin ./ gcd(N_fin, p_fin);
-
-% number of PIV vector fields according to the camera datasheet
-% numFrames = 21818 / 2;
-numFrames = 5000; % number from experience on DaVis
 
 disp("Wingbeat Frequency: " + f_w)
 disp(N_fin + " datapoints, stepping " + step + " (" + ticksPerRev*step + " ticks) at a time, collected over " ...

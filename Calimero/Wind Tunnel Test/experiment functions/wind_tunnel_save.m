@@ -10,6 +10,14 @@ function wind_tunnel_save(case_name)
     AFAM_Tunnel = load_afam_data;
     % not needed if AFAM_Tunnel already in base workspace
     % (i.e. running experiment code on AFAM PC)
+    time_now.Format = 'dd-MMM-yyyy HH:mm:ss'; % to match AFAM format
+
+    % Check that AFAM_tunnel updated recently enough
+    isWithin1Min = abs(AFAM_Tunnel.Time - time_now) <= minutes(1);
+    if ~isWithin1Min
+        error("AFAM_Tunnel data is outdated, please check the source.");
+    end
+
     eval("save(" + filepath_string + ", 'AFAM_Tunnel');");
     
     % Only keep wind tunnel file if values aren't NaN

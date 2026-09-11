@@ -19,7 +19,8 @@ clear
 color_lim = 0.25;
 I0 = 1; % normalized units
 % bw = 3.427; % mm, reported as 1/4 inch (6.35 mm) but effective diameter 86.5% listed in test at 3.4 mm
-bw = 3.875;
+% bw = 3.875; % commented out on 09/08/2026
+bw = 9;
 % bw = 5;Is t
 L = 350; % mm, vertical length of FOV, pre-DFD value was 400
 W = 350; % mm, horizontal width of FOV, pre-DFD value was 400
@@ -76,8 +77,10 @@ t = 2; % thickness of laser beam edge on plot (not physical)
 % fl = 3.91; % mm, a concave lens so this number is actually negative
 % bfl_vals = 100; % mm
 % bfl_vals = [5.2, 5.3, 7.1, 7.7, 9.0, 11.0, 14.0, 15.0 16.3, 20.3, 21.3, 23.5, 26.2, 26.7];
-bfl_vals = 8; % mm
-% bfl_vals = 20.3; % mm
+% bfl_vals = 11; % mm, currently installed lens
+% bfl_vals = 15; % mm, next size up in terms of lens dimensions
+% bfl_vals = 20.3; % mm, next size up after that, not in stock here
+bfl_vals = 21.3; % mm, next size up after that
 % back focal length (mechanical) different from effective focal length
 % (optical), "A mechanical measurement given as the distance between the
 % last surface of an optical lens to its image plane."
@@ -272,7 +275,8 @@ figure
 hold on
 imagesc(w_r(w_r > -W/2 & w_r < W/2), z(z > d+bfl & z < (d+bfl+L)), int_grid(z > d+bfl & z < (d+bfl+L),w_r > -W/2 & w_r < W/2))
 cb = colorbar;
-clim([0 color_lim])
+% clim([0 color_lim])
+clim([0 0.2])
 datacursormode on
 
 % FOV rectangle
