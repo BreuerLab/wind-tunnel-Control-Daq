@@ -3,9 +3,8 @@ function [omega_x, omega_y, omega_z] = calculateVorticity(xRaw,yRaw,zRaw,uRaw,vR
 
 % A: ALGORITHM TAKEN FROM RAFFEL'S PIV HANDBOOK
 % 6.4 Estimation of Differential Quantities, page 195
-omega_x = nan(size(uRaw));
-omega_y = nan(size(uRaw));
-omega_z = nan(size(uRaw));
+[dx, dy, dz] = validateVorticityGrid(xRaw, yRaw, zRaw, uRaw);
+validateVorticitySignConvention(dx, dy, dz);
 
 tmp = uRaw;
 tmp(tmp == 0) = median(uRaw,"all");
@@ -35,10 +34,6 @@ w = tmp;
 % v = fill3D(v);
 % w = fill3D(w);
 
-dx = abs(xRaw(2,1,1) - xRaw(1,1,1));
-dy = abs(yRaw(1,2,1) - yRaw(1,1,1));
-dz = abs(zRaw(1,1,2) - zRaw(1,1,1));
-
 %     C = 1 / (8 * dx * dy);
 % 
 %     i = 2:size(xRaw,1)-1; 
@@ -52,11 +47,14 @@ dz = abs(zRaw(1,1,2) - zRaw(1,1,1));
 %     +dy * (uRaw(i-1,j+1,k) + 2*uRaw(i-1,j,k) + uRaw(i-1,j-1,k)) ...
 % );
 
-% 1. Define the Kernels
-% Note: In MATLAB convolution, the kernel is effectively "flipped" 
-% during the operation, but for symmetric stencils like this, 
-% we just map the coefficients directly.
+[omega_x, omega_y, omega_z] = computeVorticityWithSignedSpacing(u, v, w, dx, dy, dz);
 
+end
+
+function [omega_x, omega_y, omega_z] = computeVorticityWithSignedSpacing(u, v, w, dx, dy, dz)
+% 1. Define the kernels. Signed spacing is intentional: STB grids may be
+% stored decreasing along a matrix dimension, and curl signs depend on that
+% orientation.
 Ku = [ -1,   0,  1;
        -2,  0, 2;
        -1,   0,  1 ] * dx;
@@ -214,4 +212,91 @@ omega_x = C * (convn(v, Kv, 'same') + convn(w, Kw, 'same'));
 % B: Using Matlab's curl function:
 % [omega_z, ~] = curl(xRaw, yRaw, uRaw, vRaw);
 
+end
+
+function [dx, dy, dz] = validateVorticityGrid(xRaw, yRaw, zRaw, uRaw)
+    if ~isequal(size(xRaw), size(yRaw), size(zRaw), size(uRaw))
+        error("Vorticity grid and velocity arrays must have matching sizes.")
+    end
+
+    dx = getSignedUniformSpacing(squeeze(xRaw(:,1,1)), "xRaw", "dimension 1");
+    dy = getSignedUniformSpacing(squeeze(yRaw(1,:,1)), "yRaw", "dimension 2");
+    dz = getSignedUniformSpacing(squeeze(zRaw(1,1,:)), "zRaw", "dimension 3");
+
+    assertNoCrossVariation(xRaw, [2 3], "xRaw");
+    assertNoCrossVariation(yRaw, [1 3], "yRaw");
+    assertNoCrossVariation(zRaw, [1 2], "zRaw");
+end
+
+function spacing = getSignedUniformSpacing(coord, coord_name, dim_name)
+    coord = coord(:);
+    if numel(coord) < 3
+        error(coord_name + " must have at least three points along " + dim_name + " for vorticity calculation.")
+    end
+
+    spacing_values = diff(coord);
+    spacing = spacing_values(1);
+    tolerance = 1e-9 * max(1, max(abs(coord)));
+
+    if abs(spacing) <= tolerance
+        error(coord_name + " has zero spacing along " + dim_name + ".")
+    end
+
+    if any(sign(spacing_values) ~= sign(spacing))
+        error(coord_name + " must be monotonic along " + dim_name + ".")
+    end
+
+    if max(abs(spacing_values - spacing)) > tolerance
+        error(coord_name + " spacing must be uniform along " + dim_name + ".")
+    end
+end
+
+function assertNoCrossVariation(coord, invariant_dims, coord_name)
+    tolerance = 1e-9 * max(1, max(abs(coord), [], "all"));
+
+    for dim = invariant_dims
+        if size(coord, dim) > 1 && max(abs(diff(coord, 1, dim)), [], "all") > tolerance
+            error(coord_name + " should vary only along its corresponding matrix dimension.")
+        end
+    end
+end
+
+function validateVorticitySignConvention(dx, dy, dz)
+    % Use a linear velocity field with known curl:
+    % u = 2y + 3z, v = 5x + 7z, w = 11x + 13y
+    % curl(u,v,w) = [13 - 7, 3 - 11, 5 - 2] = [6, -8, 3].
+    persistent checked_signatures
+
+    if isempty(checked_signatures)
+        checked_signatures = strings(0,1);
+    end
+
+    signature = string(sign(dx)) + "_" + string(sign(dy)) + "_" + string(sign(dz));
+    if any(checked_signatures == signature)
+        return
+    end
+
+    grid_size = 5;
+    [x, y, z] = ndgrid((0:grid_size-1) * dx, ...
+                       (0:grid_size-1) * dy, ...
+                       (0:grid_size-1) * dz);
+
+    u = 10 + 2*y + 3*z;
+    v = 20 + 5*x + 7*z;
+    w = 30 + 11*x + 13*y;
+
+    [omega_x, omega_y, omega_z] = computeVorticityWithSignedSpacing(u, v, w, dx, dy, dz);
+    interior = 2:grid_size-1;
+    tolerance = 1e-10;
+
+    max_error = max([...
+        max(abs(omega_x(interior,interior,interior) - 6), [], "all"), ...
+        max(abs(omega_y(interior,interior,interior) + 8), [], "all"), ...
+        max(abs(omega_z(interior,interior,interior) - 3), [], "all")]);
+
+    if max_error > tolerance
+        error("Vorticity sign convention self-check failed. Check coordinate orientation and kernel signs.")
+    end
+
+    checked_signatures(end+1) = signature;
 end
