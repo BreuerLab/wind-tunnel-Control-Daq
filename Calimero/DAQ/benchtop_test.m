@@ -26,16 +26,21 @@ galil_bool = true;
 galil_IP_address = "192.168.1.3";
 DR_bool = false; % false - store data in arrays (RA), true - data record packets (DR)
 dmc_params.ticksPerRev = 18432;
-freq = 0; % Hz
+freq = 6; % Hz
 acc = 3; % Hz
-measure_revs = 220;
+measure_revs = 80;
 padding_revs = 4;
 hold_time = 50; % sec
 dmc_params.wait_time = 1000; % ms
 dmc_params.OC_pulse_step = 4; % in ticks
 % REMEMBER MOTOR WIRES NEED TO BE FLIPPED TOO WHEN CHANGING DIRECTION
 dmc_params.galil_direction = 0; % 0 - forward, 1 - reverse
-improved_control = true;
+
+if freq < 1
+    improved_control = false;
+else
+    improved_control = true;
+end
 
 if DR_bool
     dmc_benchtop_filename = "benchtop_test_DR.dmc";
