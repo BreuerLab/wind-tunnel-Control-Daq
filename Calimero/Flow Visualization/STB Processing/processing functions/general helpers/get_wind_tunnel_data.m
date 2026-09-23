@@ -1,9 +1,27 @@
-function d = get_wind_tunnel_data(DAQ_file)
+function d = get_wind_tunnel_data(DAQ_path, DAQ_file, new_bool)
 
+des_case_name = extractBefore(DAQ_file, "_experiment");
+
+if new_bool
+WT_path = strrep(DAQ_path, "experiment data", "wind tunnel data");
+WT_file = "";
+
+files = dir(WT_path);
+for i = 1:length(files)
+    case_name = extractBefore(files(i).name, "_wind");
+    if strcmp(case_name, des_case_name)
+        WT_file = files(i).name;
+    end
+end
+
+temp = load(WT_path + WT_file);
+d = temp.AFAM_Tunnel;
+
+else
 % ----------------------------------------------------------------------
 % -------------------- Get date from file name -------------------------
 % ----------------------------------------------------------------------
-string_end = extractAfter(extractBefore(DAQ_file, "experiment"), "Hz");
+string_end = extractAfter(des_case_name, "Hz");
 
 % Extract all digits
 matches = regexp(string_end, '\d+', 'match');
@@ -37,5 +55,5 @@ bestMatchRow = data(minIdx, :);
 
 % Store row in struct to return
 d = table2struct(bestMatchRow, 'ToScalar', true);
-
+end
 end

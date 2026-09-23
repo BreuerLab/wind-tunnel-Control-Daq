@@ -17,9 +17,13 @@ config.numPField = 'mean_numP';
 config.helField = 'mean_hel';
 
 config.dudxField = 'mean_dudx';
+config.dudyField = 'mean_dudy';
+config.dudzField = 'mean_dudz';
 config.dvdxField = 'mean_dvdx';
-config.dwdxField = 'mean_dwdx';
 config.dvdyField = 'mean_dvdy';
+config.dvdzField = 'mean_dvdz';
+config.dwdxField = 'mean_dwdx';
+config.dwdyField = 'mean_dwdy';
 config.dwdzField = 'mean_dwdz';
 
 config.speed = D.U;

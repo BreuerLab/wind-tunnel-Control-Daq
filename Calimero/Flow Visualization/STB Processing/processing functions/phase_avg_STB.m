@@ -31,7 +31,7 @@ cal_mat = zeros(6,6);
 ticksPerRev = 18432;
 OC_pulse_step = 4;
 pulsesPerRev = ticksPerRev / OC_pulse_step;
-[~, ~, voltAdj, curAdj, pos, speed, acc, wing_pos, wing_speed, wing_acc] = ...
+[~, ~, voltAdj, curAdj, home_signal, pos, speed, acc, wing_pos, wing_speed, wing_acc] = ...
     process_data(results, offsets, cal_mat, ticksPerRev, OC_pulse_step, amp, true);
 
 % Define the field names in the order they are returned by the function
@@ -48,7 +48,7 @@ fNames = {'freq_avg', 'norm_time_speed', 'phase_avg_pos', 'phase_std_pos', ...
 % Capture all outputs into a cell array
 outputs = cell(1, numel(fNames));
 [outputs{:}] = speed_phase_avg(results, voltAdj, curAdj, pos, speed, acc,...
-                wing_pos, wing_speed, wing_acc, bools.plot);
+                wing_pos, wing_speed, wing_acc, pulsesPerRev, bools.plot);
 
 % Map cell array to struct fields
 for i = 1:numel(fNames)
@@ -59,19 +59,19 @@ D.phase_avg_speed_error = abs(D.phase_avg_speed - freq);
 D.phase_avg_power = D.phase_avg_volt .* D.phase_avg_cur;
 
 % Brushed DC motor parameters
-R = 51.4; % Ohms
-L = 1.8e-3; % H
-k = 27.4e-3; % Nm/A, torque constant
+mot_R = 51.4; % Ohms
+mot_L = 1.8e-3; % H
+mot_k = 27.4e-3; % Nm/A, torque constant
 gR = 9; % gear ratio
-eff = 0.81; % gearbox efficiency
+mot_eff = 0.81; % gearbox efficiency
 
 % Estimate motor current from voltage data using motor model
 
 % Estimate motor voltage from current data using motor model
 dt = (1/freq) / length(D.phase_avg_cur);
-mechTerm = k*(D.phase_avg_speed*2*pi*gR); % Nm/A = V/(speed in rad/s)
-resTerm = R*(D.phase_avg_cur/1000);
-indTerm = L*gradient(D.phase_avg_cur/1000, dt);
+mechTerm = mot_k*(D.phase_avg_speed*2*pi*gR); % Nm/A = V/(speed in rad/s)
+resTerm = mot_R*(D.phase_avg_cur/1000);
+indTerm = mot_L*gradient(D.phase_avg_cur/1000, dt);
 D.phase_avg_volt_model = mechTerm + resTerm + indTerm;
 % potentially a brush voltage drop term is missing
 
@@ -81,22 +81,36 @@ end
 % ------------ Calculate phase averaged STB fields ---------------
 % ----------------------------------------------------------------
 if bools.proc_vel
-num_images = 2500;
+num_images = 1000;
+disp("-----------------------------------")
 disp("Assuming num images = " + num_images)
+disp("-----------------------------------")
 % get bin number associated with each frame from DAQ measurements
 [norm_frame_pos, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_freq, num_clusters, phase_spread_ratio]...
     = frame_to_bin(PIV_case_name, num_images, D.freq_avg, bools.turbine, bools.plot);
 
 % Find matching DAQ file
-[daq_data_filename, ~] = get_daq_paths(PIV_case_name);
+[daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name);
 
 % Get AFAM parameters associated with that trial
 if ~bools.turbine
-    WT_d = get_wind_tunnel_data(daq_data_filename);
-    speed = WT_d.Speed_m_s_;
-    S.rho_act = WT_d.Density_kg_m3_;
+    if contains(daq_data_filename, regexpPattern('x\d'))
+        new_bool = true;
+    else
+        new_bool = false;
+    end
+    WT_d = get_wind_tunnel_data(daq_data_path, daq_data_filename, new_bool);
+    if new_bool
+        speed = WT_d.Speed;
+        S.rho_act = WT_d.Density;
+        mu = WT_d.Viscosity;
+    else
+        speed = WT_d.Speed_m_s_;
+        S.rho_act = WT_d.Density_kg_m3_;
+        mu = WT_d.Viscosity_N_s_m2_;
+    end
     S.U_act = speed / U;
-    S.Re = (WT_d.Density_kg_m3_ *speed * L) / WT_d.Viscosity_N_s_m2_;
+    S.Re = (S.rho_act * speed * L) / mu;
 end
 density = 1.225;
 
@@ -236,7 +250,7 @@ fprintf('Processing and saving data took %.4f seconds.\n', toc);
 
 % Calculate secondary values (Q, power, integral values) and save in
 % separate file
-calc_secondary_vals_phase(S, D, bools.turbine, bools.plot, save_filepath_local);
+calc_secondary_vals_phase(S, D, bools, save_filepath_local);
 
 else
 
@@ -245,6 +259,6 @@ S = load(save_path);
 
 % Calculate secondary values (Q, power, integral values) and save in
 % separate file
-calc_secondary_vals_phase(S, D, bools.turbine, bools.plot, save_filepath_local);
+calc_secondary_vals_phase(S, D, bools, save_filepath_local);
 end
 end

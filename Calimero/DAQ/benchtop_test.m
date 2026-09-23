@@ -26,16 +26,21 @@ galil_bool = true;
 galil_IP_address = "192.168.1.3";
 DR_bool = false; % false - store data in arrays (RA), true - data record packets (DR)
 dmc_params.ticksPerRev = 18432;
-freq = 2; % Hz
+freq = 6; % Hz
 acc = 3; % Hz
-measure_revs = 50;
+measure_revs = 80;
 padding_revs = 4;
 hold_time = 50; % sec
 dmc_params.wait_time = 1000; % ms
 dmc_params.OC_pulse_step = 4; % in ticks
 % REMEMBER MOTOR WIRES NEED TO BE FLIPPED TOO WHEN CHANGING DIRECTION
 dmc_params.galil_direction = 0; % 0 - forward, 1 - reverse
-improved_control = true;
+
+if freq < 1
+    improved_control = false;
+else
+    improved_control = true;
+end
 
 if DR_bool
     dmc_benchtop_filename = "benchtop_test_DR.dmc";
@@ -47,11 +52,11 @@ dmc_home_filename = "home_move.dmc";
 dmc_get_FF_filename = "obtain_cycle_torque.dmc";
 dmc_play_FF_filename = "benchtop_test_FF.dmc";
 
-amp = 20;
+amp = 10;
 speed = 4;
 AoA = 10;
 wing_type = "TEST";
-% wing_type = "x5_body";
+% wing_type = "x5_flexible";
 case_name = wing_type + "_" + amp + "_" + speed + "m.s_" + AoA + "deg_" + freq + "Hz_";
 % case_name = "UP_two_PIV_flexible_20_" + 4 + "m.s_" + 10 + "deg_" + freq + "Hz_";
 % case_name = "ringdown_" + 0 + "m.s_" + 10 + "deg_" + 0 + "Hz_";
