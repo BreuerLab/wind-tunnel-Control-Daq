@@ -54,7 +54,7 @@ disp("Identified " + num_clusters + " number of frame clusters, with a phase spr
 % [num_bins, bin_ind_arr, bin_count, bin_std] = findBestNumBins(norm_signal, bins_list, minFrames);
 % disp("Using " + num_bins + " bins")
 
-num_bins = 95;
+num_bins = 192;
 bins = linspace(0,1,num_bins+1);
 bin_ind_arr = discretize(norm_signal, bins);
 % variable preallocation

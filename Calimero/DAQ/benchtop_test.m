@@ -26,9 +26,9 @@ galil_bool = true;
 galil_IP_address = "192.168.1.3";
 DR_bool = false; % false - store data in arrays (RA), true - data record packets (DR)
 dmc_params.ticksPerRev = 18432;
-freq = 6; % Hz
+freq = 0; % Hz
 acc = 3; % Hz
-measure_revs = 80;
+measure_revs = 240;
 padding_revs = 4;
 hold_time = 50; % sec
 dmc_params.wait_time = 1000; % ms
@@ -55,7 +55,7 @@ dmc_play_FF_filename = "benchtop_test_FF.dmc";
 amp = 10;
 speed = 4;
 AoA = 10;
-wing_type = "TEST";
+wing_type = "x3_wings";
 % wing_type = "x5_flexible";
 case_name = wing_type + "_" + amp + "_" + speed + "m.s_" + AoA + "deg_" + freq + "Hz_";
 % case_name = "UP_two_PIV_flexible_20_" + 4 + "m.s_" + 10 + "deg_" + freq + "Hz_";
@@ -215,7 +215,6 @@ pause(1);
 % Are we approaching limits of load cell?
 checkLimits(results);
 
-ticksPerRev = 18432;
 % Translate data from raw values into meaningful values
 [time, force, voltAdj, curAdj, home_signal, pos, speed, acc, wing_pos, wing_speed, wing_acc] = ...
     process_data(results, offsets_before, cal_matrix, dmc_params.ticksPerRev, dmc_params.OC_pulse_step, amp, async);

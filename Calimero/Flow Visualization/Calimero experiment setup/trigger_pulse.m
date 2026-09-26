@@ -6,9 +6,11 @@ close all
 numFrames = 6000; % number from experience on DaVis
 
 ticksPerRev = 18432;
-f_w = 8; % Hz, wingbeat frequency
-N = 1:1:200; % number of phase points/bins
-p = 1:1:50; % phase step size
+f_w = 0.1; % Hz, wingbeat frequency
+N_max = 200;          % max number of phase points/bins
+p_max = 50;           % max phase step size (in cycles)
+N = 1:1:N_max;
+p = 1:1:p_max;
 [N_grid, p_grid] = meshgrid(N, p);
 
 f_l = (f_w .* N_grid) ./ p_grid; % Hz, laser frequency
@@ -30,8 +32,14 @@ err = abs(f_l_unwrapped - f_l_desired);
 
 % remove all cases which exceed the max repitition rate of the laser
 % and those which are too low
-idx(f_l_unwrapped(idx) > 200) = [];
-idx(f_l_unwrapped(idx) < 180) = [];
+f_laser_max = 200;                            % Hz, hardware limit
+f_l_hi = min(f_laser_max, f_w * N_max / min(p));
+f_l_lo = 0.9 * f_l_hi;                        % same 10% band as 180-200 Hz
+f_l_desired = f_l_hi;
+
+idx(f_l_unwrapped(idx) > f_l_hi) = [];
+idx(f_l_unwrapped(idx) < f_l_lo) = [];
+
 
 f_l_fin = f_l_unwrapped(idx);
 N_fin = N_rep(idx);

@@ -1,10 +1,10 @@
 function [force] = run_trial(flapper_obj, cal_matrix, case_name, offset_duration,...
-    offsets, ticksPerRev, freq, acc, measure_revs, padding_revs, hold_time, wait_time,...
-    galil_direction, OC_pulse_step, galil, dmc_motion_filename,...
+    offsets, dmc_params, amp, freq, acc, measure_revs, padding_revs, hold_time,...
+    galil, dmc_motion_filename, dmc_get_FF_filename, dmc_play_FF_filename,...
     f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4, async)
 
     [num_revs, session_duration, time_to_speed, at_speed_pos] = ...
-        estimate_duration(freq, acc, measure_revs, padding_revs, hold_time, wait_time, true);
+        estimate_duration(freq, acc, measure_revs, padding_revs, hold_time, dmc_params.wait_time, true);
 
     disp("Acquiring initial offset");
     % Get offset data before flapping at this angle and windspeed
@@ -13,30 +13,20 @@ function [force] = run_trial(flapper_obj, cal_matrix, case_name, offset_duration
     disp("Initial offset data has been gathered");
     beep2;
 
-    if (freq ~= 0)
-        dmc = fileread(dmc_motion_filename);
-        dmc = string(dmc);
+    if freq < 1
+        improved_control = false;
+    else
+        improved_control = true;
+    end
 
-        % Replace the place holders in the .dmc file with the values specified
-        % here. Other parameters can be changed directly in .dmc file.
-        if galil_direction == 1
-            dmc = strrep(dmc, "dir_TEMP", "2");
+    if freq ~= 0
+        if improved_control
+            improved_motor_control(galil, dmc_get_FF_filename, dmc_play_FF_filename,...
+        dmc_params, measure_revs, num_revs, at_speed_pos, freq, acc, padding_revs);
         else
-            dmc = strrep(dmc, "dir_TEMP", "0");
+            default_motor_control(galil, dmc_benchtop_filename, dmc_params,...
+        num_revs, freq, acc, at_speed_pos, padding_revs, DR_bool);
         end
-
-        dmc = strrep(dmc, "ticks_TEMP", num2str(ticksPerRev));
-        dmc = strrep(dmc, "revs_TEMP", num2str(num_revs));
-        dmc = strrep(dmc, "speed_TEMP", num2str(freq));
-        dmc = strrep(dmc, "acc_TEMP", num2str(acc));
-        dmc = strrep(dmc, "waittime_TEMP", num2str(wait_time));
-        dmc = strrep(dmc, "OC_TEMP", num2str(OC_pulse_step));
-    
-        % Load the program described by the .dmc file to the Galil device.
-        galil.programDownload(dmc);
-    
-        % Command the galil to execute the program
-        galil.command("XQ");
     end
 
     % Collect experiment data during flapping
@@ -54,8 +44,8 @@ function [force] = run_trial(flapper_obj, cal_matrix, case_name, offset_duration
     checkLimits(results);
 
     % Translate data from raw values into meaningful values
-    [time, force, voltAdj, curAdj, speed, OC_pulse_count] =...
-        process_data(results, offsets, cal_matrix,  ticksPerRev, OC_pulse_step, async);
+    [time, force, voltAdj, curAdj, home_signal, pos, speed, acc, wing_pos, wing_speed, wing_acc] =...
+        process_data(results, offsets, cal_matrix,  dmc_params.ticksPerRev, dmc_params.OC_pulse_step, amp, async);
 
     pause(0.5);
 
@@ -92,9 +82,16 @@ function [force] = run_trial(flapper_obj, cal_matrix, case_name, offset_duration
         disp("No axes to clear")
     end
 
+    learning_complete_rev = round(at_speed_pos + padding_revs) + 20;
+    LC_time = time(pos >= learning_complete_rev);
+    LC_time = LC_time(1);
+    end_rev = num_revs - (measure_revs + padding_revs);
+    end_time = time(pos >= end_rev);
+    end_time = end_time(1);
+
     fc = 100;  % cutoff frequency in Hz for filter
     force_bool = true;
     % Display preliminary data
     raw_plot(time, force, voltAdj, curAdj, speed, case_name, drift, flapper_obj.DAQ.Rate, fc,...
-        f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4, force_bool);
+        f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4, force_bool, LC_time, end_time);
 end

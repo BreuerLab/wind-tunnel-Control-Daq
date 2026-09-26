@@ -10,17 +10,21 @@ offset_duration = 6; % in seconds
 calibration_filepath = "../DAQ/Calibration Files/Mini40/FT52907.cal"; 
 voltage = 5; % 5 or 10 volts for load cell
 async = true;
+home_path = "data\home data\";
 
 % Galil Parameters
 galil_address = "192.168.1.3";
 dmc_motion_filename = "motion.dmc";
 dmc_hold_filename = "hold.dmc";
-ticksPerRev = 18432;
+dmc_home_filename = "home_move.dmc";
+dmc_get_FF_filename = "obtain_cycle_torque.dmc";
+dmc_play_FF_filename = "benchtop_test_FF.dmc";
+dmc_params.ticksPerRev = 18432;
 acc = 3; % Hz^2
 padding_revs = 4;
-wait_time = 4000; % ms
-galil_direction = 0; % 0 - clockwise, slow downstroke), 1 - reverse
-OC_pulse_step = 4; % in ticks
+dmc_params.wait_time = 4000; % ms
+dmc_params.OC_pulse_step = 4; % in ticks
+dmc_params.galil_direction = 0; % 0 - forward, 1 - reverse
 
 % save data recording parameters
 currentDateTime = datetime('now', 'Format', 'yyyy_MM_dd_HH_mm_ss');
@@ -36,6 +40,17 @@ procedure_UI();
 AFAM_bool = true;
 [f, tiles] = compare_AoA_fig(AFAM_bool);
 [f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4] = makeForceFigures();
+
+% Make Calimero data collection object
+if async
+    flapper_obj = Calimero_parallel();
+    flapper_obj.setup_DAQ(voltage, rate);
+else
+    flapper_obj = Calimero_serial(rate, voltage);
+end
+
+% Get calibration matrix from calibration file
+cal_matrix = obtain_cal(calibration_filepath);
 
 % Connect to galil
 try
@@ -53,48 +68,20 @@ catch
     cleanup = onCleanup(@()myCleanupFun(galil, f, wing_type, speed));
 end
 
-% Allow user to set wings at midstroke and then galil will hold that
-% position afterwards
-% Define the total countdown time in seconds
-totalTime = 10; 
-
-% Define the update interval in seconds (how frequently the display updates)
-interval = 2; 
-
-fprintf('Countdown starting...\n');
-
-for i = totalTime:-interval:interval
-    fprintf('Time remaining: %d seconds\n', i);
-    pause(interval); 
-end
-
-dmc = fileread(dmc_hold_filename);
-dmc = string(dmc);
-% Replace the place holders in the .dmc file with the values specified
-% here. Other parameters can be changed directly in .dmc file.
-if galil_direction == 1
-    dmc = strrep(dmc, "dir_TEMP", "2");
+auto_home = true;
+if auto_home
+    disp("Homing wings automatically...")
+    % Set wings to midstroke automatically
+    home_wings(flapper_obj, galil, home_path, speed + "ms_" + AoA_vals(j) + "deg_home", dmc_home_filename, dmc_params)
+    pause(2)
 else
-    dmc = strrep(dmc, "dir_TEMP", "0");
+    % Set wings to midstroke manually by giving user time to adjust wings
+    time = 8; % countdown time for setting wing position
+    set_hold_position(galil, dmc_hold_filename, dmc_params.galil_direction, time)
+    pause(5) % wait for wind tunnel door to be closed
 end
-
-% Load the program described by the .dmc file to the Galil device.
-galil.programDownload(dmc);
-% Command the galil to execute the program
-galil.command("XQ");
 
 diary off % IS THIS INITIAL DIARY NECESSARY, WHAT IS GETTING OUTPUT?
-
-% Make Calimero data collection object
-if async
-    flapper_obj = Calimero_parallel();
-    flapper_obj.setup_DAQ(voltage, rate);
-else
-    flapper_obj = Calimero_serial(rate, voltage);
-end
-
-% Get calibration matrix from calibration file
-cal_matrix = obtain_cal(calibration_filepath);
 
 % ----------------------------------------
 % ---- Loop through pitch angles ---------
@@ -124,8 +111,8 @@ case_name = wing_type + "_" + amp + "_" + speed + "m.s_" + AoA_vals(j) + "deg_" 
 % Collect data for single trial, turning flapper on and off
 % ----------------------------------------------------------
 [force] = run_trial(flapper_obj, cal_matrix, case_name, offset_duration,...
-    offsets, ticksPerRev, freq_vals(i), acc, measure_revs, padding_revs, hold_time, wait_time,...
-    galil_direction, OC_pulse_step, galil, dmc_motion_filename,...
+    offsets, dmc_params, amp, freq_vals(i), acc, measure_revs, padding_revs, hold_time,...
+    galil, dmc_motion_filename, dmc_get_FF_filename, dmc_play_FF_filename,...
     f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4, async);
 
 process_and_plot(force, i, AoA_vals, j, tiles, freq_vals);
