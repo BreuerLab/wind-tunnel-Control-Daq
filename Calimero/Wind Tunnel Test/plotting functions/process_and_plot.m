@@ -1,4 +1,4 @@
-function process_and_plot(force, cur_ind, AoA_vals, AoA_ind, tiles, wing_freq_sel)
+function process_and_plot(force, LC_idx, end_idx, cur_ind, AoA_vals, AoA_ind, tiles, wing_freq_sel)
     wing_freq = wing_freq_sel(cur_ind);
     AoA = AoA_vals(AoA_ind);
     wing_freq_sorted = sort(wing_freq_sel);
@@ -9,12 +9,9 @@ function process_and_plot(force, cur_ind, AoA_vals, AoA_ind, tiles, wing_freq_se
     results_lab = coordinate_transformation(force, AoA);
 
     % Trim data down to that where speed has been met
-    learning_complete_rev = round(at_speed_pos + padding_revs) + 20;
-    % learning_complete_time = time(pos >= learning_complete_rev);
-    % learning_complete_time = learning_complete_time(1);
-    end_rev = num_revs - (measure_revs + padding_revs);
+    results_lab_tr = results_lab(:,LC_idx:end_idx);
 
-    avg_force = mean(results_lab,2);
+    avg_force = mean(results_lab_tr,2);
 
     %% Plotting
     % colors = ["#67001f"; "#b2182b"; "#d6604d";...

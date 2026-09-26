@@ -10,6 +10,7 @@ offset_duration = 6; % in seconds
 calibration_filepath = "../DAQ/Calibration Files/Mini40/FT52907.cal"; 
 voltage = 5; % 5 or 10 volts for load cell
 async = true;
+results_path = "data\experiment data\";
 home_path = "data\home data\";
 
 % Galil Parameters
@@ -22,7 +23,7 @@ dmc_play_FF_filename = "benchtop_test_FF.dmc";
 dmc_params.ticksPerRev = 18432;
 acc = 3; % Hz^2
 padding_revs = 4;
-dmc_params.wait_time = 4000; % ms
+dmc_params.wait_time = 1000; % ms
 dmc_params.OC_pulse_step = 4; % in ticks
 dmc_params.galil_direction = 0; % 0 - forward, 1 - reverse
 
@@ -72,7 +73,7 @@ auto_home = true;
 if auto_home
     disp("Homing wings automatically...")
     % Set wings to midstroke automatically
-    home_wings(flapper_obj, galil, home_path, speed + "ms_" + AoA_vals(j) + "deg_home", dmc_home_filename, dmc_params)
+    home_wings(flapper_obj, galil, home_path, speed + "ms_home", dmc_home_filename, dmc_params)
     pause(2)
 else
     % Set wings to midstroke manually by giving user time to adjust wings
@@ -81,6 +82,7 @@ else
     pause(5) % wait for wind tunnel door to be closed
 end
 
+dmc_params.wait_time = 4000; % ms
 diary off % IS THIS INITIAL DIARY NECESSARY, WHAT IS GETTING OUTPUT?
 
 % ----------------------------------------
@@ -110,12 +112,12 @@ case_name = wing_type + "_" + amp + "_" + speed + "m.s_" + AoA_vals(j) + "deg_" 
 % ----------------------------------------------------------
 % Collect data for single trial, turning flapper on and off
 % ----------------------------------------------------------
-[force] = run_trial(flapper_obj, cal_matrix, case_name, offset_duration,...
+[force, LC_idx, end_idx] = run_trial(flapper_obj, cal_matrix, case_name, offset_duration,...
     offsets, dmc_params, amp, freq_vals(i), acc, measure_revs, padding_revs, hold_time,...
-    galil, dmc_motion_filename, dmc_get_FF_filename, dmc_play_FF_filename,...
+    results_path, galil, dmc_hold_filename, dmc_motion_filename, dmc_get_FF_filename, dmc_play_FF_filename,...
     f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4, async);
 
-process_and_plot(force, i, AoA_vals, j, tiles, freq_vals);
+process_and_plot(force, LC_idx, end_idx, i, AoA_vals, j, tiles, freq_vals);
 
 % -------------------------------------------------
 % -------- Move to next wingbeat frequency --------

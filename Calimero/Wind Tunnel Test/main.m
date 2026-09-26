@@ -26,15 +26,15 @@ addpath(genpath("../."))
 % AoA = [8 8.5:0.5:11.5]; % angle of attack, set by MPS system
 % AoA = flip(AoA);
 % AoA = ladder_sort(AoA); % rearrange in nonascending ladder order
-AoA = 10*ones(1,6);
+AoA = 10*ones(1,5);
 % [-16:1.5:-12 -12:1:-8 -8:0.5:8 8:1:12 12:1.5:16]
 freq = [4, 0, 2, 0.1, 8, 6]; % freq2 = freq(randperm(length(freq)))
-measure_revs = 180; % number of wingbeats
-hold_time = 15; % seconds for glide trials
+measure_revs = 200; % number of wingbeats
+hold_time = 20; % seconds for glide trials
 
 speed = 4; % wind tunnel air speed
-wing_type = "flexible"; % whatever name you'd like to use
-amp = 30; % degrees from midstroke to top of upstroke (or bottom of downstroke)
+wing_type = "wings"; % whatever name you'd like to use
+amp = 20; % degrees from midstroke to top of upstroke (or bottom of downstroke)
 automatic = true; % run through trials automatically?
 debug = false; % testing on personal computer?
 

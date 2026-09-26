@@ -1,7 +1,13 @@
-function [force] = run_trial(flapper_obj, cal_matrix, case_name, offset_duration,...
+function [force, LC_idx, end_idx] = run_trial(flapper_obj, cal_matrix, case_name, offset_duration,...
     offsets, dmc_params, amp, freq, acc, measure_revs, padding_revs, hold_time,...
-    galil, dmc_motion_filename, dmc_get_FF_filename, dmc_play_FF_filename,...
+    results_path, galil, dmc_hold_filename, dmc_motion_filename, dmc_get_FF_filename, dmc_play_FF_filename,...
     f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4, async)
+
+    % handle quasi-steady case
+    if freq < 1
+        measure_revs = 20;
+        padding_revs = 1;
+    end
 
     [num_revs, session_duration, time_to_speed, at_speed_pos] = ...
         estimate_duration(freq, acc, measure_revs, padding_revs, hold_time, dmc_params.wait_time, true);
@@ -19,21 +25,27 @@ function [force] = run_trial(flapper_obj, cal_matrix, case_name, offset_duration
         improved_control = true;
     end
 
-    if freq ~= 0
+    if freq == 0
+        default_motor_control(galil, dmc_hold_filename, dmc_params,...
+        num_revs, freq, acc, at_speed_pos, padding_revs, false);
+    else
         if improved_control
             improved_motor_control(galil, dmc_get_FF_filename, dmc_play_FF_filename,...
         dmc_params, measure_revs, num_revs, at_speed_pos, freq, acc, padding_revs);
         else
-            default_motor_control(galil, dmc_benchtop_filename, dmc_params,...
-        num_revs, freq, acc, at_speed_pos, padding_revs, DR_bool);
+            default_motor_control(galil, dmc_motion_filename, dmc_params,...
+        num_revs, freq, acc, at_speed_pos, padding_revs, false);
         end
     end
+
+    % Command the galil to execute the program
+    galil.command("XQ");
 
     % Collect experiment data during flapping
     disp("Acquiring experimental data");
     pause(0.2);
 
-    results = flapper_obj.measure_force(case_name, session_duration);
+    results = flapper_obj.measure_force(case_name, session_duration, results_path);
 
     disp("Experiment data has been gathered");
     beep2;
@@ -82,12 +94,21 @@ function [force] = run_trial(flapper_obj, cal_matrix, case_name, offset_duration
         disp("No axes to clear")
     end
 
-    learning_complete_rev = round(at_speed_pos + padding_revs) + 20;
-    LC_time = time(pos >= learning_complete_rev);
-    LC_time = LC_time(1);
-    end_rev = num_revs - (measure_revs + padding_revs);
-    end_time = time(pos >= end_rev);
-    end_time = end_time(1);
+    if freq ~= 0
+        learning_complete_rev = round(at_speed_pos + padding_revs) + 20;
+        LC_time = time(pos >= learning_complete_rev);
+        LC_time = LC_time(1);
+        LC_idx = find(time == LC_time);
+        end_rev = measure_revs + (padding_revs + round((at_speed_pos) + 0.5));
+        end_time = time(pos >= end_rev);
+        end_time = end_time(1);
+        end_idx = find(time == end_time);
+    else
+        LC_idx = 1;
+        LC_time = time(LC_idx);
+        end_idx = length(time);
+        end_time = time(end_idx);
+    end
 
     fc = 100;  % cutoff frequency in Hz for filter
     force_bool = true;
