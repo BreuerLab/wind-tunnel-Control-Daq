@@ -13,7 +13,14 @@ function wind_tunnel_save(case_name)
     time_now.Format = 'dd-MMM-yyyy HH:mm:ss'; % to match AFAM format
 
     % Check that AFAM_tunnel updated recently enough
-    isWithin1Min = abs(AFAM_Tunnel.Time - time_now) <= minutes(1);
+    try
+        isWithin1Min = abs(AFAM_Tunnel.Time - time_now) <= minutes(1);
+    catch
+        disp("Oops, almost threw error related to AFAM time")
+        pause(10)
+        isWithin1Min = abs(AFAM_Tunnel.Time - time_now) <= minutes(1);
+    end
+
     if ~isWithin1Min
         error("AFAM_Tunnel data is outdated, please check the source.");
     end

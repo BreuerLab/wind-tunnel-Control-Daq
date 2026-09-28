@@ -1,4 +1,4 @@
-function run_experiment(AoA_vals, freq_vals, speed, wing_type, amp, measure_revs, hold_time, automatic, debug)
+function run_experiment(AoA_vals, freq_vals, speed, wing_type, amp, measure_revs, hold_time, automatic, galil_bool, debug)
 
 time_now = datetime;
 time_now.Format = 'yyyy-MM-dd HH-mm-ss';
@@ -53,6 +53,7 @@ end
 % Get calibration matrix from calibration file
 cal_matrix = obtain_cal(calibration_filepath);
 
+if galil_bool
 % Connect to galil
 try
     galil = galil_setup(galil_address);
@@ -80,6 +81,9 @@ else
     time = 8; % countdown time for setting wing position
     set_hold_position(galil, dmc_hold_filename, dmc_params.galil_direction, time)
     pause(5) % wait for wind tunnel door to be closed
+end
+else
+    galil = "";
 end
 
 dmc_params.wait_time = 4000; % ms
@@ -115,7 +119,7 @@ case_name = wing_type + "_" + amp + "_" + speed + "m.s_" + AoA_vals(j) + "deg_" 
 [force, LC_idx, end_idx] = run_trial(flapper_obj, cal_matrix, case_name, offset_duration,...
     offsets, dmc_params, amp, freq_vals(i), acc, measure_revs, padding_revs, hold_time,...
     results_path, galil, dmc_hold_filename, dmc_motion_filename, dmc_get_FF_filename, dmc_play_FF_filename,...
-    f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4, async);
+    f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4, async, galil_bool);
 
 process_and_plot(force, LC_idx, end_idx, i, AoA_vals, j, tiles, freq_vals);
 

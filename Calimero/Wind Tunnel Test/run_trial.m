@@ -1,7 +1,7 @@
 function [force, LC_idx, end_idx] = run_trial(flapper_obj, cal_matrix, case_name, offset_duration,...
     offsets, dmc_params, amp, freq, acc, measure_revs, padding_revs, hold_time,...
     results_path, galil, dmc_hold_filename, dmc_motion_filename, dmc_get_FF_filename, dmc_play_FF_filename,...
-    f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4, async)
+    f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4, async, galil_bool)
 
     % handle quasi-steady case
     if freq < 1
@@ -25,6 +25,7 @@ function [force, LC_idx, end_idx] = run_trial(flapper_obj, cal_matrix, case_name
         improved_control = true;
     end
 
+    if galil_bool
     if freq == 0
         default_motor_control(galil, dmc_hold_filename, dmc_params,...
         num_revs, freq, acc, at_speed_pos, padding_revs, false);
@@ -40,6 +41,7 @@ function [force, LC_idx, end_idx] = run_trial(flapper_obj, cal_matrix, case_name
 
     % Command the galil to execute the program
     galil.command("XQ");
+    end
 
     % Collect experiment data during flapping
     disp("Acquiring experimental data");

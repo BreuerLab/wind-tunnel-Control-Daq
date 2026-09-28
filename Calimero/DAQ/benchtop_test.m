@@ -22,11 +22,11 @@ addpath(genpath("../"))
 % case_name = wing_type + "_" + speed + "m.s_" + AoA_vals(j) + "deg_" + freq_vals(i) + "Hz";
 
 % Galil Setup
-galil_bool = true;
+galil_bool = false;
 galil_IP_address = "192.168.1.3";
 DR_bool = false; % false - store data in arrays (RA), true - data record packets (DR)
 dmc_params.ticksPerRev = 18432;
-freq = 2; % Hz
+freq = 0; % Hz
 acc = 3; % Hz
 measure_revs = 40;
 padding_revs = 4;
@@ -55,8 +55,8 @@ dmc_play_FF_filename = "benchtop_test_FF.dmc";
 amp = 10;
 speed = 4;
 AoA = 10;
-wing_type = "x3_wings";
-% wing_type = "x5_flexible";
+wing_type = "MPS_NACA";
+% wing_type = "TEST";
 case_name = wing_type + "_" + amp + "_" + speed + "m.s_" + AoA + "deg_" + freq + "Hz_";
 % case_name = "UP_two_PIV_flexible_20_" + 4 + "m.s_" + 10 + "deg_" + freq + "Hz_";
 % case_name = "ringdown_" + 0 + "m.s_" + 10 + "deg_" + 0 + "Hz_";
@@ -253,10 +253,26 @@ catch
     disp("No axes to clear")
 end
 
+if freq ~= 0
+    learning_complete_rev = round(at_speed_pos + padding_revs) + 20;
+    LC_time = time(pos >= learning_complete_rev);
+    LC_time = LC_time(1);
+    LC_idx = find(time == LC_time);
+    end_rev = measure_revs + (padding_revs + round((at_speed_pos) + 0.5));
+    end_time = time(pos >= end_rev);
+    end_time = end_time(1);
+    end_idx = find(time == end_time);
+else
+    LC_idx = 1;
+    LC_time = time(LC_idx);
+    end_idx = length(time);
+    end_time = time(end_idx);
+end
+
 fc = 100;  % cutoff frequency in Hz for filter
 % Display preliminary data
 raw_plot(time, force, voltAdj, curAdj, speed, case_name, drift, flapper_obj.DAQ.Rate, fc,...
-    f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4, force_bool);
+    f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4, force_bool, LC_time, end_time);
 
 fc = 20;
 fs = rate;
