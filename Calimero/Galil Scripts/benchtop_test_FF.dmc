@@ -1,0 +1,55 @@
+#SETUP
+ST                   ; 'Stop all motion
+MO                   ; 'Motor off
+CO 1                 ;' Configures bank 2 as outputs on extended I/O
+
+AGA=0                ; 'Amplifier gain (0-2), 0 -> 0.4 A/Phase
+BRA=1                ; 'Brushed Motor
+AUA=0.5              ; 'Chopper Mode
+SH A                 ; 'Servo here (turn on motor)
+DPA=0                ; 'Define zero position
+CEA=dir_TEMP         ; 'Configure encoder
+TM 1000              ; 'Servo update time of controller
+
+PRA=ticks_TEMP*revs_TEMP            ; 'Set desired distance
+SPA=ticks_TEMP*speed_TEMP           ; 'Set desired speed in counts/sec
+ACA=ticks_TEMP*acc_TEMP             ; 'Acceleration in counts/sec^2
+DCA=ticks_TEMP*acc_TEMP             ; 'Deceleration in counts/sec^2
+
+KPA=1.5               ; 'Proportional gain
+KIA=0.05            ; 'Integral gain
+KDA=8               ; 'Derivative gain
+FVA=0               ;
+FAA=0               ;
+ILA=-2              ;'KI bit limited to 2V and starts after motion complete
+OCA=0,OC_TEMP       ;'Output compare pulse every 4 encoder pulses
+
+WT waittime_TEMP;
+
+BG A                ; 'Begin motion
+
+XQ #PLAYFF, 2           ; ' Execute playback loop on Thread 1
+EN
+
+#PLAYFF
+cur_rev = 0;
+shift = -10;
+step_sz = ticks_TEMP/128;
+OFA = 0;
+p_strt = ticks_TEMP*revsRec_TEMP;
+AR p_strt; 'Wait to play until at speed
+#REVLOOP
+  idx = 0;
+
+  #STEP
+    AP (p_strt + (cur_rev*ticks_TEMP) + (idx*step_sz) + shift);
+    OFA = voltCmd[idx];
+    idx = idx + 1;
+    AP (p_strt + (cur_rev*ticks_TEMP) + (idx*step_sz) + shift);
+  JP #STEP, (idx < NUM_SAMPLES_TEMP)
+	cur_rev = cur_rev + 1;
+
+'Stop before motor starts decelerating
+JP #REVLOOP, (cur_rev <= MAX_REV_TEMP)
+OFA = 0;
+EN

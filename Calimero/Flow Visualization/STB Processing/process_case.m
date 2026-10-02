@@ -27,15 +27,12 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 file_path = get_PIV_paths(PIV_case_name);
-files = dir(fullfile(file_path,'*.vc7'));
-num_files = length(files);
 
 switch avg_type
     case 0
         disp("Time Average: Loading file: " + file_path)
-        num_files = 1000; % TEMPORARY LINE ---- DELETE
-        S = time_avg_STB(file_path, bools.nondim, U, L, num_files, save_filepath_local,...
-            PIV_case_name, bools.RPCA);
+        S = time_avg_STB(file_path, U, L, save_filepath_local,...
+            PIV_case_name, bools);
         
         if bools.PIV_plot
             time_avg_plots(S);
