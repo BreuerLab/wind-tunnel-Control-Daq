@@ -28,7 +28,7 @@ DR_bool = false; % false - store data in arrays (RA), true - data record packets
 dmc_params.ticksPerRev = 18432;
 freq = 0; % Hz
 acc = 3; % Hz
-measure_revs = 420;
+measure_revs = 40;
 padding_revs = 4;
 hold_time = 50; % sec
 dmc_params.wait_time = 1000; % ms
@@ -55,7 +55,7 @@ dmc_play_FF_filename = "benchtop_test_FF.dmc";
 amp = 30;
 speed = 4;
 AoA = 10;
-wing_type = "x5_ring";
+wing_type = "x1_ring";
 % wing_type = "TEST";
 case_name = wing_type + "_" + amp + "_" + speed + "m.s_" + AoA + "deg_" + freq + "Hz_";
 % case_name = "UP_two_PIV_flexible_20_" + 4 + "m.s_" + 10 + "deg_" + freq + "Hz_";
@@ -242,7 +242,7 @@ try
     wind_tunnel_save(case_name)
 catch
     disp("Trying AFAM save again")
-    pause(1)
+    pause(5)
     wind_tunnel_save(case_name)
 end
 
