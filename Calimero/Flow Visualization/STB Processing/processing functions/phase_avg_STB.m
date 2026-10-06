@@ -1,4 +1,4 @@
-function S = phase_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, bools)
+function S = phase_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, num_images, bools)
 tic
 
 % Prepare path and name for file to be saved
@@ -81,7 +81,6 @@ end
 % ------------ Calculate phase averaged STB fields ---------------
 % ----------------------------------------------------------------
 if bools.proc_vel
-num_images = 3000;
 disp("-----------------------------------")
 disp("Assuming num images = " + num_images)
 disp("-----------------------------------")

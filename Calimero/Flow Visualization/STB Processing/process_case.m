@@ -1,4 +1,4 @@
-function process_case(PIV_case_name, save_filepath_local, bools)
+function process_case(PIV_case_name, save_filepath_local, num_images, bools)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % ------------------------ Dependent parameters --------------------------
@@ -32,7 +32,7 @@ switch avg_type
     case 0
         disp("Time Average: Loading file: " + file_path)
         S = time_avg_STB(file_path, U, L, save_filepath_local,...
-            PIV_case_name, bools);
+            PIV_case_name, num_images, bools);
         
         if bools.PIV_plot
             time_avg_plots(S);
@@ -40,7 +40,7 @@ switch avg_type
     case 1
         disp("Phase Average: Loading file: " + file_path)
         S = phase_avg_STB(file_path, U, L, save_filepath_local,...
-            PIV_case_name, bools);
+            PIV_case_name, num_images, bools);
 
         if bools.PIV_plot
             error("Plotting phase averaged results not currently supported")

@@ -71,8 +71,8 @@ function file_path = get_PIV_paths(PIV_case_name)
         'x5_wings_20deg_6Hz_v2',         month_2 + "x5_wings_20deg_6Hz_v2" + BIN
         'x5_wings_20deg_6Hz_v3',         month_2 + "x5_wings_20deg_6Hz_v3" + BIN
 
-        'x3_wings_20deg_6Hz_new',         month_3 + "x3_wings_20deg_6Hz" + BIN
-        'x3_wings_20deg_6Hz_v2',         month_3 + "x3_wings_20deg_6Hz" + BIN
+        'x3_wings_20deg_4Hz',         month_3 + "x3_wings_20deg_4Hz" + BIN
+        'x3_wings_20deg_6Hz',         month_3 + "x3_wings_20deg_6Hz" + BIN
     };
 
     % Convert to Map and Retrieve

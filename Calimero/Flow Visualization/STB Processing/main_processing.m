@@ -19,6 +19,8 @@ PIV_case_name = 'x3_wings_20deg_6Hz_v2';
 % PIV_case_name = 'x5_NACA_refined'; % UP_two_body
 % PIV_case_name = 'turbine';
 
+num_images = 3000;
+
 % save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
 save_filepath_local = "Y:\Processed Results\";
 
@@ -33,5 +35,5 @@ bools.PIV_plot = false;
 % Plot bin histograms, speed, current, voltage (small overhead, quick)
 bools.plot = true;
 
-process_case(PIV_case_name, save_filepath_local, bools);
+process_case(PIV_case_name, save_filepath_local, num_images, bools);
 return
