@@ -15,7 +15,7 @@ function wind_tunnel_save(case_name)
     % Check that AFAM_tunnel updated recently enough
     isWithin1Min = abs(AFAM_Tunnel.Time - time_now) <= minutes(1);
     if ~isWithin1Min
-        error("AFAM_Tunnel data is outdated, please check the source.");
+        warning("AFAM_Tunnel data is outdated, please check the source.");
     end
 
     eval("save(" + filepath_string + ", 'AFAM_Tunnel');");

@@ -22,20 +22,25 @@ addpath(genpath("../"))
 % case_name = wing_type + "_" + speed + "m.s_" + AoA_vals(j) + "deg_" + freq_vals(i) + "Hz";
 
 % Galil Setup
-galil_bool = true;
+galil_bool = false;
 galil_IP_address = "192.168.1.3";
 DR_bool = false; % false - store data in arrays (RA), true - data record packets (DR)
 dmc_params.ticksPerRev = 18432;
 freq = 0; % Hz
 acc = 3; % Hz
-measure_revs = 220;
+measure_revs = 40;
 padding_revs = 4;
 hold_time = 50; % sec
 dmc_params.wait_time = 1000; % ms
 dmc_params.OC_pulse_step = 4; % in ticks
 % REMEMBER MOTOR WIRES NEED TO BE FLIPPED TOO WHEN CHANGING DIRECTION
 dmc_params.galil_direction = 0; % 0 - forward, 1 - reverse
-improved_control = true;
+
+if freq < 1
+    improved_control = false;
+else
+    improved_control = true;
+end
 
 if DR_bool
     dmc_benchtop_filename = "benchtop_test_DR.dmc";
@@ -47,11 +52,11 @@ dmc_home_filename = "home_move.dmc";
 dmc_get_FF_filename = "obtain_cycle_torque.dmc";
 dmc_play_FF_filename = "benchtop_test_FF.dmc";
 
-amp = 10;
+amp = 30;
 speed = 4;
 AoA = 10;
-wing_type = "TEST";
-% wing_type = "x5_flexible";
+wing_type = "x1_ring";
+% wing_type = "TEST";
 case_name = wing_type + "_" + amp + "_" + speed + "m.s_" + AoA + "deg_" + freq + "Hz_";
 % case_name = "UP_two_PIV_flexible_20_" + 4 + "m.s_" + 10 + "deg_" + freq + "Hz_";
 % case_name = "ringdown_" + 0 + "m.s_" + 10 + "deg_" + 0 + "Hz_";
@@ -210,7 +215,6 @@ pause(1);
 % Are we approaching limits of load cell?
 checkLimits(results);
 
-ticksPerRev = 18432;
 % Translate data from raw values into meaningful values
 [time, force, voltAdj, curAdj, home_signal, pos, speed, acc, wing_pos, wing_speed, wing_acc] = ...
     process_data(results, offsets_before, cal_matrix, dmc_params.ticksPerRev, dmc_params.OC_pulse_step, amp, async);
@@ -234,7 +238,13 @@ disp("Drift since tare with tunnel off: ")
 disp(drift_string)
 
 % save wind tunnel data for non-dimensionalization later
-wind_tunnel_save(case_name)
+try
+    wind_tunnel_save(case_name)
+catch
+    disp("Trying AFAM save again")
+    pause(5)
+    wind_tunnel_save(case_name)
+end
 
 try
     % clf([f1 f2 f3], 'reset')
@@ -249,10 +259,26 @@ catch
     disp("No axes to clear")
 end
 
+if freq ~= 0
+    learning_complete_rev = round(at_speed_pos + padding_revs) + 20;
+    LC_time = time(pos >= learning_complete_rev);
+    LC_time = LC_time(1);
+    LC_idx = find(time == LC_time);
+    end_rev = measure_revs + (padding_revs + round((at_speed_pos) + 0.5));
+    end_time = time(pos >= end_rev);
+    end_time = end_time(1);
+    end_idx = find(time == end_time);
+else
+    LC_idx = 1;
+    LC_time = time(LC_idx);
+    end_idx = length(time);
+    end_time = time(end_idx);
+end
+
 fc = 100;  % cutoff frequency in Hz for filter
 % Display preliminary data
 raw_plot(time, force, voltAdj, curAdj, speed, case_name, drift, flapper_obj.DAQ.Rate, fc,...
-    f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4, force_bool);
+    f1, f2, f3, f4, tiles_1, tiles_2, tiles_3, tiles_4, force_bool, LC_time, end_time);
 
 fc = 20;
 fs = rate;
