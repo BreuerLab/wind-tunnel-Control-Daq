@@ -4,6 +4,7 @@ function file_path = get_PIV_paths(PIV_case_name)
     base_dir = drive + "VC7 Data\";
     month_1 = "February\";
     month_2 = "August\";
+    month_3 = "September\";
     
     % Standard processing suffixes
     BIN = "\Binning_48x48x48_75%ov_ord=0";
@@ -69,6 +70,9 @@ function file_path = get_PIV_paths(PIV_case_name)
         'x5_wings_20deg_6Hz',         month_2 + "x5_wings_20deg_6Hz" + BIN
         'x5_wings_20deg_6Hz_v2',         month_2 + "x5_wings_20deg_6Hz_v2" + BIN
         'x5_wings_20deg_6Hz_v3',         month_2 + "x5_wings_20deg_6Hz_v3" + BIN
+
+        'x3_wings_20deg_6Hz_new',         month_3 + "x3_wings_20deg_6Hz" + BIN
+        'x3_wings_20deg_6Hz_v2',         month_3 + "x3_wings_20deg_6Hz" + BIN
     };
 
     % Convert to Map and Retrieve

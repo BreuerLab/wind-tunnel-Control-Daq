@@ -5,6 +5,8 @@ function [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name)
 
     base_new = 'R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\STB Revamped\';
 
+    base_new_v2 = 'R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\STB Revamped v2\';
+
     % Map experimental dates to their specific subfolders
     d11 = [base_old, 'STB_02_11_2026\data\experiment data\'];
     d12 = [base_old, 'STB_02_12_2026\data\experiment data\'];
@@ -14,7 +16,8 @@ function [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name)
     d23 = [base_new, 'x3\daq data\experiment data\'];
     d24 = [base_new, 'x4\daq data\experiment data\'];
     d25 = [base_new, 'x5\daq data\experiment data\'];
-
+    d33 = [base_new_v2, 'x3\daq data\experiment data\'];
+    
     % Create an organized lookup structure
     % Format: cases.(alias) = {filename, path}
     cases = struct();
@@ -23,6 +26,11 @@ function [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name)
     cases.x5_wings_20deg_6Hz = {'x5_flexible_20_4m.s_10deg_6Hz_2026_08_16_20_01_59_experiment_2026_08_16_20_04_20.mat',d25};
     cases.x5_wings_20deg_6Hz_v2 = {'x5_flexible_20_4m.s_10deg_6Hz_2026_08_16_20_01_59_experiment_2026_08_16_20_04_20.mat',d25};
     cases.x5_wings_20deg_6Hz_v3 = {'x5_flexible_20_4m.s_10deg_6Hz_2026_08_16_20_01_59_experiment_2026_08_16_20_04_20.mat',d25};
+
+    % looks like I had a mistake here for _new, should be 20 not 10 for the
+    % filename
+    cases.x3_wings_20deg_6Hz_new = {'x3_wings_10_4m.s_10deg_6Hz_2026_09_23_21_51_18_experiment_2026_09_23_21_53_00.mat',d33};
+    cases.x3_wings_20deg_6Hz_v2 = {'x3_wings_20_4m.s_10deg_6Hz_2026_09_28_09_19_30_experiment_2026_09_28_09_21_16.mat',d33};
 
     % Feb 15th Data
     cases.UP_two_flexible_10deg_2Hz = {'UP_two_PIV_flexible_10_4m.s_10deg_2Hz_2026-02-15 13-19-51_experiment_2026_02_15_13_21_12.mat', d15};

@@ -81,7 +81,7 @@ end
 % ------------ Calculate phase averaged STB fields ---------------
 % ----------------------------------------------------------------
 if bools.proc_vel
-num_images = 1000;
+num_images = 3000;
 disp("-----------------------------------")
 disp("Assuming num images = " + num_images)
 disp("-----------------------------------")
