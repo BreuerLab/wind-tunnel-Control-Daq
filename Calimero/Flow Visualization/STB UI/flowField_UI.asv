@@ -1684,6 +1684,17 @@ methods (Access = private)
             params.num_cycles = obj.num_cycles;
 
             [xlims, surface_data, color_data] = stack_vortices_3D(y, z, val, Q, d.cycle_freq, params);
+
+            % persistent prev_s
+            % fprintf('faces: %d  vertices: %d  NaN colors: %d\n', ...
+            %     size(surface_data.faces,1), size(surface_data.vertices,1), nnz(isnan(color_data)));
+            % if ~isempty(prev_s)
+            %     fprintf('identical to last draw: %d\n', isequal(prev_s, surface_data));
+            % end
+            % prev_s = surface_data;
+
+            
+
             setColorBar(ax, params)
             xlim(ax,xlims) % otherwise when plotting multiple wingbeats awkward extra space added
 

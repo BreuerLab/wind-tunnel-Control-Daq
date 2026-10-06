@@ -15,11 +15,11 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 % Call "  case_names = get_case_names();  "
 % PIV_case_name = 'UP_two_flexible_20deg_6Hz';
 % PIV_case_name = 'x5_wings_20deg_0Hz';
-PIV_case_name = 'x3_wings_20deg_6Hz_v2';
+PIV_case_name = 'x3_wings_20deg_4Hz';
 % PIV_case_name = 'x5_NACA_refined'; % UP_two_body
 % PIV_case_name = 'turbine';
 
-num_images = 3000;
+num_images = 1800;
 
 % save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
 save_filepath_local = "Y:\Processed Results\";
