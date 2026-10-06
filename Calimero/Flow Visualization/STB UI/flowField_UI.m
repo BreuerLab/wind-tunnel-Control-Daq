@@ -1095,6 +1095,28 @@ methods (Access = private)
         end
     end
 
+    function A = nan_safe_medfilt(~, A)
+        % medfilt2/medfilt3 have undefined behaviour with NaN input: NaNs
+        % spread through the volume and results differ run to run, which
+        % slices isosurfaces at random places. Fill NaNs with their nearest
+        % neighbours before filtering, then restore them afterwards.
+        nan_mask = isnan(A);
+        if any(nan_mask, "all")
+            for dim = 1:ndims(A)
+                A = fillmissing(A, "nearest", dim);
+            end
+            A(isnan(A)) = 0; % only reached if an entire array is NaN
+        end
+
+        if ismatrix(A)
+            A = medfilt2(A);
+        else
+            A = medfilt3(A);
+        end
+
+        A(nan_mask) = NaN;
+    end
+
     function set_trim_settings_for_source_mode(obj, source_mode)
         % Old flapper uses its own set; new flapper and turbine share the
         % new-flapper set (turbine previously used these same values).
@@ -1570,14 +1592,14 @@ methods (Access = private)
 
             if obj.filter_bool
                 if using_time_avg_file
-                    val = medfilt2(val);
+                    val = obj.nan_safe_medfilt(val);
                     if q_mask_enabled
-                        q_mask_val = medfilt2(q_mask_val);
+                        q_mask_val = obj.nan_safe_medfilt(q_mask_val);
                     end
                 else
-                    val = medfilt3(val);
+                    val = obj.nan_safe_medfilt(val);
                     if q_mask_enabled
-                        q_mask_val = medfilt3(q_mask_val);
+                        q_mask_val = obj.nan_safe_medfilt(q_mask_val);
                     end
                 end
             end
@@ -1604,7 +1626,7 @@ methods (Access = private)
                 Q = [Q_add; Q];
             end
             if obj.filter_bool
-                Q = medfilt3(Q);
+                Q = obj.nan_safe_medfilt(Q);
             end
         end
         
