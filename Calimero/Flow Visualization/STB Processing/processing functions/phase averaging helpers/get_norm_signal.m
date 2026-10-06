@@ -20,14 +20,17 @@ switch phase_type
         norm_signal = time * cycle_freq;
 end
 
+% wrap values so only expressed between 0 and 1
+norm_signal = mod(norm_signal, 1);
+
+% phase averaging STB fields requires laser firing info
+if nargin > 4
 % find signal value corresponding to laser pulse
 norm_signal = norm_signal(laser_ind);
 
 disp("Cropped off " + (length(norm_signal) - num_images) + " extra laser pulses from beginning")
 % crop off first few extra pulses
 norm_signal = norm_signal(end-(num_images - 1):end);
-
-% wrap values so only expressed between 0 and 1
-norm_signal = mod(norm_signal, 1);
+end
 
 end

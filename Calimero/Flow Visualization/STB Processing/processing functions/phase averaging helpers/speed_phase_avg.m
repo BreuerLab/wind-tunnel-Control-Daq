@@ -1,27 +1,10 @@
-function [norm_time_speed, phase_avg_pos, phase_std_pos,...
+function [freq_avg, norm_time_speed, phase_avg_pos, phase_std_pos,...
     phase_avg_speed, phase_std_speed, phase_avg_acc, phase_std_acc,...
     phase_avg_wing_pos, phase_std_wing_pos,...
     phase_avg_wing_speed, phase_std_wing_speed, phase_avg_wing_acc, phase_std_wing_acc,...
     bin_count, bin_std, phase_avg_volt, phase_std_volt,...
-    phase_avg_cur, phase_std_cur] = speed_phase_avg(PIV_case_name, plot_bool)
-
-[daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name);
-[amp, type, freq] = parse_name(PIV_case_name);
-
-% Get raw data from file
-load([daq_data_path daq_data_filename]);
-
-% no load cell mounted, so blank values used
-offsets = zeros(1,size(results,2));
-cal_mat = zeros(6,6);
-
-ticksPerRev = 18432;
-OC_pulse_step = 4;
-[time_data, ~, voltAdj, curAdj, pos, speed, acc, wing_pos, wing_speed, wing_acc] = ...
-    process_data(results, offsets, cal_mat, ticksPerRev, OC_pulse_step, amp, true);
-
-OC_pulse_count = results(:,11);
-raw_pos = OC_pulse_count / (ticksPerRev / OC_pulse_step);
+    phase_avg_cur, phase_std_cur] = speed_phase_avg(results, voltAdj, curAdj, pos, speed, acc,...
+                wing_pos, wing_speed, wing_acc, pulsesPerRev, plot_bool)
 
 % Find indices where a laser fire has been recorded
 las_count = results(:,12);
@@ -30,8 +13,6 @@ mid_indices = find(las_count ~= 0 & las_count ~= las_count(end));
 mid_indices_adj = [mid_indices(1) - 1; mid_indices; mid_indices(end) + 1];
 
 % trim off begininning and end when accelerating
-raw_pos_tr = raw_pos(mid_indices_adj);
-time_tr = time_data(mid_indices_adj);
 pos_tr = pos(mid_indices_adj);
 speed_tr = speed(mid_indices_adj);
 acc_tr = acc(mid_indices_adj);
@@ -41,11 +22,26 @@ wing_acc_tr = wing_acc(mid_indices_adj);
 volt_tr = voltAdj(mid_indices_adj);
 cur_tr = curAdj(mid_indices_adj);
 
-norm_frame_pos_full = mod(raw_pos_tr,1);
+% signal for phase averaging using motor position
+norm_pos = get_norm_signal(results, 0, pulsesPerRev);
+norm_pos = norm_pos(mid_indices_adj);
 
-bins_list = 500:50:1500;
+% signal for phase averaging using wingbeat time
+freq_avg = mean(speed_tr);
+norm_signal = get_norm_signal(results, 1, pulsesPerRev, freq_avg);
+norm_signal = norm_signal(mid_indices_adj);
+
+% associate t = 0 with theta = 0
+[~,I] = min(norm_pos);
+t_phase_zero = norm_signal(I);
+norm_signal(norm_signal < t_phase_zero) = norm_signal(norm_signal < t_phase_zero) + 1;
+norm_signal = norm_signal - t_phase_zero;
+
+bins_list = 1000:50:1500;
 minFrames = 100;
-[num_bins, bin_ind_arr, bin_count, bin_std] = findBestNumBins(norm_frame_pos_full, bins_list, minFrames);
+% [num_bins, bin_ind_arr, bin_count, bin_std] = findBestNumBins(norm_signal, bins_list, minFrames);
+num_shifts = 5;
+[num_bins, bin_offset, bin_ind_arr, bin_count,bin_std] = findBestNumBins2(norm_signal, bins_list, minFrames, num_shifts);
 disp("Using " + num_bins + " bins for speed phase averaging")
 
 % Array preallocation
@@ -62,29 +58,31 @@ pos_tr_adj = mod(pos_tr, 2*pi);
 % no adjustment needed for wing position
 
 for j = 1:num_bins
-    phase_avg_pos(j) = mean(pos_tr_adj(bin_indices_speed));
-    phase_std_pos(j) = std(pos_tr_adj(bin_indices_speed));
+    bin_indices = find(bin_ind_arr == j);
 
-    phase_avg_speed(j) = mean(speed_tr(bin_indices_speed));
-    phase_std_speed(j) = std(speed_tr(bin_indices_speed));
+    phase_avg_pos(j) = mean(pos_tr_adj(bin_indices));
+    phase_std_pos(j) = std(pos_tr_adj(bin_indices));
 
-    phase_avg_acc(j) = mean(acc_tr(bin_indices_speed));
-    phase_std_acc(j) = std(acc_tr(bin_indices_speed));
+    phase_avg_speed(j) = mean(speed_tr(bin_indices));
+    phase_std_speed(j) = std(speed_tr(bin_indices));
 
-    phase_avg_wing_pos(j) = mean(wing_pos_tr(bin_indices_speed));
-    phase_std_wing_pos(j) = std(wing_pos_tr(bin_indices_speed));
+    phase_avg_acc(j) = mean(acc_tr(bin_indices));
+    phase_std_acc(j) = std(acc_tr(bin_indices));
 
-    phase_avg_wing_speed(j) = mean(wing_speed_tr(bin_indices_speed));
-    phase_std_wing_speed(j) = std(wing_speed_tr(bin_indices_speed));
+    phase_avg_wing_pos(j) = mean(wing_pos_tr(bin_indices));
+    phase_std_wing_pos(j) = std(wing_pos_tr(bin_indices));
 
-    phase_avg_wing_acc(j) = mean(wing_acc_tr(bin_indices_speed));
-    phase_std_wing_acc(j) = std(wing_acc_tr(bin_indices_speed));
+    phase_avg_wing_speed(j) = mean(wing_speed_tr(bin_indices));
+    phase_std_wing_speed(j) = std(wing_speed_tr(bin_indices));
 
-    phase_avg_volt(j) = mean(volt_tr(bin_indices_speed));
-    phase_std_volt(j) = std(volt_tr(bin_indices_speed));
+    phase_avg_wing_acc(j) = mean(wing_acc_tr(bin_indices));
+    phase_std_wing_acc(j) = std(wing_acc_tr(bin_indices));
 
-    phase_avg_cur(j) = mean(cur_tr(bin_indices_speed));
-    phase_std_cur(j) = std(cur_tr(bin_indices_speed));
+    phase_avg_volt(j) = mean(volt_tr(bin_indices));
+    phase_std_volt(j) = std(volt_tr(bin_indices));
+
+    phase_avg_cur(j) = mean(cur_tr(bin_indices));
+    phase_std_cur(j) = std(cur_tr(bin_indices));
 end
 
 norm_time_speed = linspace(0,1,num_bins);

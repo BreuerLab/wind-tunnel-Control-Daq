@@ -1,4 +1,4 @@
-function process_case(PIV_case_name, save_filepath_local, bools)
+function process_case(PIV_case_name, save_filepath_local, num_images, bools)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % ------------------------ Dependent parameters --------------------------
@@ -27,15 +27,12 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 file_path = get_PIV_paths(PIV_case_name);
-files = dir(fullfile(file_path,'*.vc7'));
-num_files = length(files);
 
 switch avg_type
     case 0
         disp("Time Average: Loading file: " + file_path)
-        num_files = 1000; % TEMPORARY LINE ---- DELETE
-        S = time_avg_STB(file_path, bools.nondim, U, L, num_files, save_filepath_local,...
-            PIV_case_name, bools.RPCA);
+        S = time_avg_STB(file_path, U, L, save_filepath_local,...
+            PIV_case_name, num_images, bools);
         
         if bools.PIV_plot
             time_avg_plots(S);
@@ -43,7 +40,7 @@ switch avg_type
     case 1
         disp("Phase Average: Loading file: " + file_path)
         S = phase_avg_STB(file_path, U, L, save_filepath_local,...
-            PIV_case_name, bools);
+            PIV_case_name, num_images, bools);
 
         if bools.PIV_plot
             error("Plotting phase averaged results not currently supported")

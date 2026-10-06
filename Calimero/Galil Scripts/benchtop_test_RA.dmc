@@ -18,7 +18,7 @@ DCA=ticks_TEMP*acc_TEMP             ; 'Deceleration in counts/sec^2
 
 KPA=1.5               ; 'Proportional gain
 KIA=0.05            ; 'Integral gain
-KDA=8               ; 'Derivative gain
+KDA=12               ; 'Derivative gain
 FVA=0               ;
 FAA=0               ;
 ILA=-2              ;'KI bit limited to 2V and starts after motion complete

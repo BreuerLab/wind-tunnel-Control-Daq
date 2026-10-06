@@ -19,5 +19,5 @@ z_tr = T.z;
 F.x = x_conv; F.y = y_tr; F.z = z_tr;
 F.u = T.u; F.v = T.v; F.w = T.w;
 F.vortX = T.vortX; F.vortY = T.vortY; F.vortZ = T.vortZ;
-F.unc = T.unc;
+F.unc = T.uncTot;
 end
