@@ -2,12 +2,15 @@ classdef flowField_UI < handle
 properties (Constant, Access = private)
     ACTIVE_COLOR = [0.3010 0.7450 0.9330];
     INACTIVE_COLOR = [1 1 1];
-    % TRIM_Y_BOUNDS = [-2.26 2]; % roughly -0.15 to 0.15 m
-    % TRIM_Z_BOUNDS = [-2.36 2.55]; % roughly -0.2 to 0.2 m
-    % Adjusted bounds for new data
-    TRIM_Y_BOUNDS = [-2.4 2.3]; % roughly -0.15 to 0.15 m
-    TRIM_Z_BOUNDS = [-2.39 2.64]; % roughly -0.2 to 0.2 m
-    MIRROR_CENTER_Y = -2.26;
+    % Trim bounds and mirror centerline for each flapper source mode.
+    % The active set is copied into trim_y_bounds / trim_z_bounds /
+    % mirror_center_y by set_trim_settings_for_source_mode().
+    OLD_FLAPPER_TRIM_Y_BOUNDS = [-2.26 2]; % roughly -0.15 to 0.15 m
+    OLD_FLAPPER_TRIM_Z_BOUNDS = [-2.36 2.55]; % roughly -0.2 to 0.2 m
+    OLD_FLAPPER_MIRROR_CENTER_Y = -2.26;
+    NEW_FLAPPER_TRIM_Y_BOUNDS = [-2.4 2.3]; % roughly -0.15 to 0.15 m
+    NEW_FLAPPER_TRIM_Z_BOUNDS = [-2.39 2.64]; % roughly -0.2 to 0.2 m
+    NEW_FLAPPER_MIRROR_CENTER_Y = -2.26;
     secondary_vars = ["Q_x","Q_y","Q_z","|Q|","div",...
         "KE", "power"];
     OLD_FLAPPER_SOURCE_MODE = "old flapper";
@@ -28,6 +31,9 @@ properties
     file_suffix;
     source_mode;
     source_modes;
+    trim_y_bounds;    % active trim/mirror settings, set per source mode
+    trim_z_bounds;
+    mirror_center_y;
     case_name;
     case_name_list;
     flapper_case_name_list;
@@ -213,6 +219,7 @@ methods
         end
         obj.source_mode = obj.source_modes(1);
         obj.set_downstream_options_for_source_mode(obj.source_mode);
+        obj.set_trim_settings_for_source_mode(obj.source_mode);
         obj.case_name_list = obj.get_case_name_list_for_active_plot_type();
         obj.flapper_case_name_list = unique([...
             obj.get_case_name_list(obj.OLD_FLAPPER_SOURCE_MODE, obj.plot_type), ...
@@ -651,6 +658,7 @@ methods
         function source_change(src, ~, plot_panel)
             previous_plot_type = obj.plot_type;
             obj.source_mode = src.Value;
+            obj.set_trim_settings_for_source_mode(obj.source_mode);
             refresh_distance_dropdown();
 
             refresh_case_dropdown();
@@ -1087,6 +1095,20 @@ methods (Access = private)
         end
     end
 
+    function set_trim_settings_for_source_mode(obj, source_mode)
+        % Old flapper uses its own set; new flapper and turbine share the
+        % new-flapper set (turbine previously used these same values).
+        if source_mode == obj.OLD_FLAPPER_SOURCE_MODE
+            obj.trim_y_bounds = obj.OLD_FLAPPER_TRIM_Y_BOUNDS;
+            obj.trim_z_bounds = obj.OLD_FLAPPER_TRIM_Z_BOUNDS;
+            obj.mirror_center_y = obj.OLD_FLAPPER_MIRROR_CENTER_Y;
+        else
+            obj.trim_y_bounds = obj.NEW_FLAPPER_TRIM_Y_BOUNDS;
+            obj.trim_z_bounds = obj.NEW_FLAPPER_TRIM_Z_BOUNDS;
+            obj.mirror_center_y = obj.NEW_FLAPPER_MIRROR_CENTER_Y;
+        end
+    end
+
     function [downstream_types, distance_labels, downstream_type_by_distance] = get_downstream_options_for_source_mode(obj, source_mode)
         if source_mode == obj.OLD_FLAPPER_SOURCE_MODE
             downstream_types = obj.old_flapper_downstream_types;
@@ -1479,8 +1501,8 @@ methods (Access = private)
             end
 
             if obj.trim_bool && ~use_extrapolated_data
-                y_idx = find(y(:,1) > obj.TRIM_Y_BOUNDS(1) & y(:,1) < obj.TRIM_Y_BOUNDS(2));
-                z_idx = find(z(1,:) > obj.TRIM_Z_BOUNDS(1) & z(1,:) < obj.TRIM_Z_BOUNDS(2));
+                y_idx = find(y(:,1) > obj.trim_y_bounds(1) & y(:,1) < obj.trim_y_bounds(2));
+                z_idx = find(z(1,:) > obj.trim_z_bounds(1) & z(1,:) < obj.trim_z_bounds(2));
                 
                 y = y(y_idx, z_idx);
                 z = z(y_idx, z_idx);
@@ -1498,7 +1520,7 @@ methods (Access = private)
             end
             if obj.mirror_bool && ~use_extrapolated_data
                 % Mirror across the centerline to reconstruct the opposite side of the wake.
-                y_idx_m = find(y(:,1) > obj.MIRROR_CENTER_Y);
+                y_idx_m = find(y(:,1) > obj.mirror_center_y);
                 
                 y = y(y_idx_m, :);
                 z = z(y_idx_m, :);
