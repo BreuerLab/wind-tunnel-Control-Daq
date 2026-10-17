@@ -10,7 +10,7 @@ properties (Constant, Access = private)
     OLD_FLAPPER_MIRROR_CENTER_Y = -2.26;
     NEW_FLAPPER_TRIM_Y_BOUNDS = [-2.4 2.8];
     NEW_FLAPPER_TRIM_Z_BOUNDS = [-2.9 3.1];
-    NEW_FLAPPER_MIRROR_CENTER_Y = -1.9;
+    NEW_FLAPPER_MIRROR_CENTER_Y = -2.06;
     secondary_vars = ["Q_x","Q_y","Q_z","|Q|","div",...
         "KE", "power"];
     OLD_FLAPPER_SOURCE_MODE = "old flapper";
@@ -1591,16 +1591,9 @@ methods (Access = private)
             end
 
             if obj.filter_bool
-                if using_time_avg_file
-                    val = obj.nan_safe_medfilt(val);
-                    if q_mask_enabled
-                        q_mask_val = obj.nan_safe_medfilt(q_mask_val);
-                    end
-                else
-                    val = obj.nan_safe_medfilt(val);
-                    if q_mask_enabled
-                        q_mask_val = obj.nan_safe_medfilt(q_mask_val);
-                    end
+                val = obj.nan_safe_medfilt(val);
+                if q_mask_enabled
+                    q_mask_val = obj.nan_safe_medfilt(q_mask_val);
                 end
             end
 
@@ -1732,7 +1725,7 @@ methods (Access = private)
                 p.FaceVertexCData = color_data;
             else
                 plot_3D(ax, surface_data, color_data, params);
-                obj.plot_hold_bool = false; % was true
+                obj.plot_hold_bool = true;
             end
         elseif plot_idx == 6
             if (obj.variable_name == obj.hist_vars(3))

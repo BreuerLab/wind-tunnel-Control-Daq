@@ -4,16 +4,16 @@ function [frame_rate, num_wingbeats, rec_wingbeats, ticksPerRev, OC_pulse_step] 
 
     % Number of wingbeats recorded for each trial
     if (wing_freq > 0.5)
-        num_wingbeats = 180;
+        num_wingbeats = 200;
+        padding_revs = 4;
     else
-        num_wingbeats = 12;
+        num_wingbeats = 20;
+        padding_revs = 1;
     end
 
     % num_wingbeats = 50;
 
     acc = 3;
-    padding_revs = 4;
-    % some random line
     hold_time = 15;
     wait_time = 4000; % ms
     print_bool = false;

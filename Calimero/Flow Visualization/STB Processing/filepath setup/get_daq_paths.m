@@ -22,15 +22,18 @@ function [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name)
     % Format: cases.(alias) = {filename, path}
     cases = struct();
     
-    cases.x5_wings_20deg_0Hz = {'x5_flexible_20_4m.s_10deg_0Hz_2026_08_16_19_25_04_experiment_2026_08_16_19_26_20.mat',d25};
-    cases.x5_wings_20deg_6Hz = {'x5_flexible_20_4m.s_10deg_6Hz_2026_08_16_20_01_59_experiment_2026_08_16_20_04_20.mat',d25};
-    cases.x5_wings_20deg_6Hz_v2 = {'x5_flexible_20_4m.s_10deg_6Hz_2026_08_16_20_01_59_experiment_2026_08_16_20_04_20.mat',d25};
-    cases.x5_wings_20deg_6Hz_v3 = {'x5_flexible_20_4m.s_10deg_6Hz_2026_08_16_20_01_59_experiment_2026_08_16_20_04_20.mat',d25};
+    % cases.x5_wings_20deg_0Hz = {'x5_flexible_20_4m.s_10deg_0Hz_2026_08_16_19_25_04_experiment_2026_08_16_19_26_20.mat',d25};
+    % cases.x5_wings_20deg_6Hz = {'x5_flexible_20_4m.s_10deg_6Hz_2026_08_16_20_01_59_experiment_2026_08_16_20_04_20.mat',d25};
+    % cases.x5_wings_20deg_6Hz_v2 = {'x5_flexible_20_4m.s_10deg_6Hz_2026_08_16_20_01_59_experiment_2026_08_16_20_04_20.mat',d25};
+    % cases.x5_wings_20deg_6Hz_v3 = {'x5_flexible_20_4m.s_10deg_6Hz_2026_08_16_20_01_59_experiment_2026_08_16_20_04_20.mat',d25};
 
     cases.x3_wings_20deg_2Hz = {'x3_wings_20_4m.s_10deg_2Hz_2026_09_28_08_58_56_experiment_2026_09_28_09_01_18.mat',d33};
     cases.x3_wings_20deg_4Hz = {'x3_wings_20_4m.s_10deg_4Hz_2026_09_28_09_08_17_experiment_2026_09_28_09_10_11.mat',d33};
     cases.x3_wings_20deg_6Hz = {'x3_wings_20_4m.s_10deg_6Hz_2026_09_28_09_19_30_experiment_2026_09_28_09_21_16.mat',d33};
     cases.x3_wings_20deg_8Hz = {'x3_wings_20_4m.s_10deg_8Hz_2026_09_28_09_28_32_experiment_2026_09_28_09_30_19.mat',d33};
+    cases.x3_wings_30deg_2Hz = {'x3_wings_30_4m.s_10deg_2Hz_2026_09_28_11_50_15_experiment_2026_09_28_11_52_40.mat',d33};
+    cases.x3_wings_30deg_4Hz = {'x3_wings_30_4m.s_10deg_4Hz_2026_09_28_12_01_09_experiment_2026_09_28_12_03_01.mat',d33};
+    cases.x3_wings_30deg_6Hz = {'x3_wings_30_4m.s_10deg_6Hz_2026_09_28_12_09_14_experiment_2026_09_28_12_10_58.mat',d33};
 
     % Feb 15th Data
     cases.UP_two_flexible_10deg_2Hz = {'UP_two_PIV_flexible_10_4m.s_10deg_2Hz_2026-02-15 13-19-51_experiment_2026_02_15_13_21_12.mat', d15};

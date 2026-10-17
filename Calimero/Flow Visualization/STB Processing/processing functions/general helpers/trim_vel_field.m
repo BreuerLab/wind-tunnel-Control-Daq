@@ -1,12 +1,17 @@
 function [y, z, u] = trim_vel_field(y, z, u)
 
-    ybounds = [-2.7 2]; % roughly -0.15 to 0.15 meters
-    zbounds = [-2.36 2.55]; % roughly -0.2 to 0.2 meters
-    ybounds = [-2.8 2.5]; % roughly -0.15 to 0.15 meters
+    % ybounds = [-2.7 2]; % roughly -0.15 to 0.15 meters
     % zbounds = [-2.36 2.55]; % roughly -0.2 to 0.2 meters
+    % ybounds = [-2.8 2.5]; % roughly -0.15 to 0.15 meters
+    % % zbounds = [-2.36 2.55]; % roughly -0.2 to 0.2 meters
+    % 
+    % y_cen = -2.26;
+    % z_cen = 0.043;
 
-    y_cen = -2.26;
-    z_cen = 0.043;
+    ybounds = [-2.4 2.8];
+    zbounds = [-2.9 3.1];
+    y_cen = -2.06;
+    z_cen = -0.35;
     
     x_ind = 3;
     y_idx = find(y(1,:,1) > ybounds(1) & y(1,:,1) < ybounds(2));  % columns
