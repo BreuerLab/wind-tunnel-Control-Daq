@@ -1149,7 +1149,10 @@ classdef timeAvg_UI < handle
                                 if body_amp == 30
                                     body_amp = 20;
                                 end
-                                body_force = get_force(obj.force_path, "body", body_amp, freq, idx, var_name_F);
+                                % keep the downstream prefix (e.g. "x3_") so get_force uses the
+                                % new flapper body folder ("20 deg body") rather than the old one
+                                body_type = string(regexp(char(type), '^x\d+_', 'match', 'once')) + "body";
+                                body_force = get_force(obj.force_path, body_type, body_amp, freq, idx, var_name_F);
                                 if is_shift_operation
                                     force_signals{j} = obj.subtract_alignment_body_signal(force_signal, body_force);
                                 else
