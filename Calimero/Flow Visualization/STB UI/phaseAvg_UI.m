@@ -89,6 +89,8 @@ properties
     pitch_shift;
     % boolean, subtraction on or off
     PIV_sub;
+    % which steady case to subtract: "ring", "body", or "gliding"
+    PIV_sub_case;
     force_sub;
     RPCA;
     load_cell_force_var;
@@ -151,6 +153,7 @@ methods
         obj.norm = false;
         obj.norm_period = true;
         obj.PIV_sub = false;
+        obj.PIV_sub_case = "ring";
         obj.force_sub = false;
         obj.RPCA = false;
         obj.load_cell_force_var = "wingbeat_avg_forces_smoothest";
@@ -350,13 +353,30 @@ methods
         var_dropdown2.Items = init_options;
         var_dropdown2.Value = "none";
 
-        b6 = uibutton(param_grid, "state");
-        b6.Layout.Row = 7;
+        PIV_sub_grid = uigridlayout(param_grid, [1, 2]);
+        PIV_sub_grid.Layout.Row = 7;
+        PIV_sub_grid.Layout.Column = 1;
+        PIV_sub_grid.ColumnWidth = {'1x', 85};
+        PIV_sub_grid.Padding = [0 0 0 0];
+        PIV_sub_grid.ColumnSpacing = 4;
+
+        b6 = uibutton(PIV_sub_grid, "state");
+        b6.Layout.Row = 1;
         b6.Layout.Column = 1;
         b6.Text = "PIV Body Sub";
         b6.FontSize = 18;
         b6.BackgroundColor = [1 1 1];
         b6.ValueChangedFcn = @(src, event) PIV_sub_change(src, event, plot_panel);
+
+        % Steady case used for the subtraction, matched to each
+        % selection's downstream position (and amplitude for body/gliding)
+        PIV_sub_dropdown = uidropdown(PIV_sub_grid);
+        PIV_sub_dropdown.Layout.Row = 1;
+        PIV_sub_dropdown.Layout.Column = 2;
+        PIV_sub_dropdown.Items = ["ring", "body", "gliding"];
+        PIV_sub_dropdown.Value = obj.PIV_sub_case;
+        PIV_sub_dropdown.Tooltip = "Steady case subtracted (e.g. for x3_wings_20deg_4Hz: ring = x3_ring, body = x3_body_20deg_0Hz, gliding = x3_wings_20deg_0Hz)";
+        PIV_sub_dropdown.ValueChangedFcn = @(src, event) PIV_sub_case_change(src, event, plot_panel);
 
         var_dropdown1.ValueChangedFcn = @(src, event) updateVariableSelection(src, event, plot_panel, var_dropdown1, var_dropdown2);
         var_dropdown2.ValueChangedFcn = @(src, event) updateVariableSelection(src, event, plot_panel, var_dropdown1, var_dropdown2);
@@ -563,6 +583,13 @@ methods
             obj.PIV_sub = src.Value;
             src.BackgroundColor = obj.get_button_color(obj.PIV_sub);
             obj.update_plot(plot_panel);
+        end
+
+        function PIV_sub_case_change(src, ~, plot_panel)
+            obj.PIV_sub_case = string(src.Value);
+            if obj.PIV_sub
+                obj.update_plot(plot_panel);
+            end
         end
 
         function RPCA_change(src, ~)
@@ -1303,6 +1330,45 @@ methods (Access = private)
                      ~isempty(obj.inds);
     end
 
+    function [file_path, secondary_file_path] = get_PIV_sub_file_paths(obj, type, amp)
+        % Steady (time averaged) case subtracted from a selection when
+        % "PIV Body Sub" is on. For x3_wings_20deg_4Hz:
+        %   ring    -> x3_ring
+        %   body    -> x3_body_20deg_0Hz
+        %   gliding -> x3_wings_20deg_0Hz
+        type = string(type);
+        amp = string(amp);
+
+        % downstream / upstream prefix shared by the steady cases
+        prefix = string(regexp(char(type), '^(x\d+_|UP_one_|UP_two_)', 'match', 'once'));
+
+        switch obj.PIV_sub_case
+            case "ring"
+                case_names = prefix + "ring";
+            case "body"
+                % older body cases were saved without an amplitude
+                case_names = [prefix + "body_" + amp + "deg_0Hz", prefix + "body"];
+            case "gliding"
+                case_names = type + "_" + amp + "deg_0Hz";
+            otherwise
+                error("Unknown PIV subtraction case: %s", obj.PIV_sub_case);
+        end
+
+        time_avg_dir = obj.PIV_path + "time_avg\";
+        for k = 1:length(case_names)
+            file_path = time_avg_dir + case_names(k) + "_time_avg.mat";
+            secondary_file_path = time_avg_dir + case_names(k) + "_time_avg_integral.mat";
+            if isfile(file_path) || isfile(secondary_file_path)
+                return
+            end
+        end
+
+        error("phaseAvg_UI:PIVSubNotFound",...
+            "No %s subtraction case found for %s at %s deg. Looked for:\n  %s",...
+            obj.PIV_sub_case, type, amp,...
+            strjoin(time_avg_dir + case_names + "_time_avg.mat", "\n  "));
+    end
+
     function [time_F, force] = get_load_cell_force(obj, type, amp, freq)
         time_F = [];
         force = [];
@@ -1585,10 +1651,7 @@ methods (Access = private)
             added_mass = get_added_mass(phase_avg_wing_pos, phase_avg_wing_speed, phase_avg_wing_acc);
 
             if obj.is_force_index(index) && obj.PIV_sub
-                % filename = "body_phase_avg.mat";
-                filename = "ring_time_avg";
-                file_path_t = obj.PIV_path + "time_avg/" + filename + ".mat";
-                secondary_file_path_t = obj.PIV_path + "time_avg/" + filename + "_integral.mat";
+                [file_path_t, secondary_file_path_t] = obj.get_PIV_sub_file_paths(type, amp);
 
                 if ~strcmp(var_name, "lift.vortY")
                 if obj.calc_bool
