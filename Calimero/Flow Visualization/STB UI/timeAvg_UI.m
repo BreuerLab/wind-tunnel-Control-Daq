@@ -1051,6 +1051,9 @@ classdef timeAvg_UI < handle
 
                 color_idx = (i - 1) * num_vars + var_idx;
                 original_color = curve_colors(color_idx,:);
+                % load cell points use a lighter shade of the STB color
+                % (getLightColor takes a hex color)
+                force_color = getLightColor(rgb2hex(original_color));
                 curve_label = obj.get_curve_label(info);
                 legend_label = obj.get_plot_legend_label(curve_label, force_var, num_vars);
 
@@ -1250,7 +1253,8 @@ classdef timeAvg_UI < handle
                     if obj.force_bool && ~isempty(load_cell_idx)
                         s2 = scatter(ax, x_var, forces(2,:), 125, "filled");
                         s2.Marker = char(variable_marker);
-                        s2.MarkerFaceColor = original_color;
+                        s2.MarkerFaceColor = force_color;
+                        s2.MarkerEdgeColor = original_color;
                         s2.DisplayName = "Force: " + legend_label;
                     end
                 elseif obj.err_bool && ~isempty(load_cell_idx)
@@ -1279,7 +1283,8 @@ classdef timeAvg_UI < handle
                     if obj.force_bool && ~isempty(load_cell_idx)
                         s2 = scatter(ax, x_var, forces(2,:), 125,"filled");
                         s2.Marker = char(variable_marker);
-                        s2.MarkerFaceColor = original_color;
+                        s2.MarkerFaceColor = force_color;
+                        s2.MarkerEdgeColor = original_color;
                         s2.DisplayName = "Force: " + legend_label;
                     end
                 end
