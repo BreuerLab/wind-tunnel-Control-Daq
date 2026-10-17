@@ -207,9 +207,9 @@ methods
             option_panel.Scrollable = "on";
         end
 
-        sidebar_grid = uigridlayout(option_panel, [20, 1]);
+        sidebar_grid = uigridlayout(option_panel, [19, 1]);
         sidebar_grid.ColumnWidth = {'1x'};
-        sidebar_grid.RowHeight = {30, 30, 30, 30, 30, 30, 30, 110, 30, 230, 30, 0, 30, 30, 30, 30, 24, 30, 30, 30};
+        sidebar_grid.RowHeight = {30, 30, 30, 30, 30, 30, 30, 110, 30, 260, 30, 0, 30, 30, 30, 24, 30, 30, 30};
         sidebar_grid.Padding = [10 10 10 10];
         sidebar_grid.RowSpacing = 6;
         if isprop(sidebar_grid, "Scrollable")
@@ -311,9 +311,9 @@ methods
         param_panel.Title = "Plot Parameters";
         param_panel.TitlePosition = 'centertop';
 
-        param_grid = uigridlayout(param_panel, [7, 1]);
+        param_grid = uigridlayout(param_panel, [8, 1]);
         param_grid.ColumnWidth = {'1x'};
-        param_grid.RowHeight = {22, 25, 22, 25, 22, 25, 30};
+        param_grid.RowHeight = {22, 25, 22, 25, 22, 25, 30, 25};
         param_grid.Padding = [10 8 10 8];
         param_grid.RowSpacing = 4;
 
@@ -353,15 +353,8 @@ methods
         var_dropdown2.Items = init_options;
         var_dropdown2.Value = "none";
 
-        PIV_sub_grid = uigridlayout(param_grid, [1, 2]);
-        PIV_sub_grid.Layout.Row = 7;
-        PIV_sub_grid.Layout.Column = 1;
-        PIV_sub_grid.ColumnWidth = {'1x', 85};
-        PIV_sub_grid.Padding = [0 0 0 0];
-        PIV_sub_grid.ColumnSpacing = 4;
-
-        b6 = uibutton(PIV_sub_grid, "state");
-        b6.Layout.Row = 1;
+        b6 = uibutton(param_grid, "state");
+        b6.Layout.Row = 7;
         b6.Layout.Column = 1;
         b6.Text = "PIV Body Sub";
         b6.FontSize = 18;
@@ -370,9 +363,9 @@ methods
 
         % Steady case used for the subtraction, matched to each
         % selection's downstream position (and amplitude for body/gliding)
-        PIV_sub_dropdown = uidropdown(PIV_sub_grid);
-        PIV_sub_dropdown.Layout.Row = 1;
-        PIV_sub_dropdown.Layout.Column = 2;
+        PIV_sub_dropdown = uidropdown(param_grid);
+        PIV_sub_dropdown.Layout.Row = 8;
+        PIV_sub_dropdown.Layout.Column = 1;
         PIV_sub_dropdown.Items = ["ring", "body", "gliding"];
         PIV_sub_dropdown.Value = obj.PIV_sub_case;
         PIV_sub_dropdown.Tooltip = "Steady case subtracted (e.g. for x3_wings_20deg_4Hz: ring = x3_ring, body = x3_body_20deg_0Hz, gliding = x3_wings_20deg_0Hz)";
@@ -452,44 +445,51 @@ methods
         b88.BackgroundColor = [1 1 1];
         b88.ValueChangedFcn = @(src, event) align_change(src, event, plot_panel);
 
-        b99 = uibutton(sidebar_grid, "state");
-        b99.Layout.Row = 15;
+        y_mean_grid = uigridlayout(sidebar_grid, [1, 2]);
+        y_mean_grid.Layout.Row = 15;
+        y_mean_grid.Layout.Column = 1;
+        y_mean_grid.ColumnWidth = {'1x', '1x'};
+        y_mean_grid.Padding = [0 0 0 0];
+        y_mean_grid.ColumnSpacing = 6;
+
+        b99 = uibutton(y_mean_grid, "state");
+        b99.Layout.Row = 1;
         b99.Layout.Column = 1;
         b99.Text = "Separate Y-Axis";
-        b99.FontSize = 18;
+        b99.FontSize = 13;
         b99.BackgroundColor = [1 1 1];
         b99.ValueChangedFcn = @(src, event) separate_y_axis_change(src, event, plot_panel);
 
-        b100 = uibutton(sidebar_grid, "state");
-        b100.Layout.Row = 16;
-        b100.Layout.Column = 1;
+        b100 = uibutton(y_mean_grid, "state");
+        b100.Layout.Row = 1;
+        b100.Layout.Column = 2;
         b100.Text = "Mean Subtraction";
-        b100.FontSize = 18;
+        b100.FontSize = 13;
         b100.BackgroundColor = [1 1 1];
         b100.ValueChangedFcn = @(src, event) mean_subtraction_change(src, event, plot_panel);
 
 
         % Remaining file output controls.
         fnl = uilabel(sidebar_grid);
-        fnl.Layout.Row = 17;
+        fnl.Layout.Row = 16;
         fnl.Layout.Column = 1;
         fnl.HorizontalAlignment = "center";
         fnl.Text = "File Name";
 
         ef = uieditfield(sidebar_grid);
-        ef.Layout.Row = 18;
+        ef.Layout.Row = 17;
         ef.Layout.Column = 1;
         ef.Placeholder = "test";
 
         % Button to export data on plot to .mat file
         b10 = uibutton(sidebar_grid);
-        b10.Layout.Row = 19;
+        b10.Layout.Row = 18;
         b10.Layout.Column = 1;
         b10.Text = "Export Data";
         b10.ButtonPushedFcn = @(src, event) exportData(src, event, ef);
 
         b4 = uibutton(sidebar_grid);
-        b4.Layout.Row = 20;
+        b4.Layout.Row = 19;
         b4.Layout.Column = 1;
         b4.Text = "Save Fig";
         b4.FontSize = 18;
