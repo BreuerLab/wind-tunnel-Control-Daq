@@ -44,6 +44,8 @@ classdef timeAvg_UI < handle
         force_vars;
         PIV_bool;
         PIV_sub;
+        % which steady case to subtract: "ring", "body", or "gliding"
+        PIV_sub_case;
         force_sub;
         RPCA;
         err_bool;
@@ -104,6 +106,7 @@ classdef timeAvg_UI < handle
                 "Speed", "Speed", "Speed",...
                 "Freestream Speed", "Uncertainty", "count", "count", "count", ""];
             obj.PIV_sub = false;
+            obj.PIV_sub_case = "ring";
             obj.force_sub = false;
             obj.RPCA = false;
             obj.filt_num = 3;
@@ -154,10 +157,10 @@ classdef timeAvg_UI < handle
                 option_panel.Scrollable = "on";
             end
 
-            sidebar_grid = uigridlayout(option_panel, [20, 1]);
+            sidebar_grid = uigridlayout(option_panel, [21, 1]);
             sidebar_grid.ColumnWidth = {'1x'};
             sidebar_grid.RowHeight = {30, 30, 30, 30, 30, 110, 30, 30, 30, 30,...
-                                      30, 30, 30, 30, 30, 30, 30, 30, 30, 30};
+                                      30, 30, 25, 30, 30, 30, 30, 30, 30, 30, 30};
             sidebar_grid.Padding = [10 10 10 10];
             sidebar_grid.RowSpacing = 6;
             if isprop(sidebar_grid, "Scrollable")
@@ -268,8 +271,18 @@ classdef timeAvg_UI < handle
             piv_sub_button.BackgroundColor = obj.COLOR_INACTIVE;
             piv_sub_button.ValueChangedFcn = @(src, event) PIV_sub_change(src, event, plot_panel);
 
+            % Steady case used for the subtraction, matched to each
+            % selection's downstream position (and amplitude for body/gliding)
+            piv_sub_dropdown = uidropdown(sidebar_grid);
+            piv_sub_dropdown.Layout.Row = 13;
+            piv_sub_dropdown.Layout.Column = 1;
+            piv_sub_dropdown.Items = ["ring", "body", "gliding"];
+            piv_sub_dropdown.Value = obj.PIV_sub_case;
+            piv_sub_dropdown.Tooltip = "Steady case subtracted (e.g. for x3_wings_20deg_4Hz: ring = x3_ring, body = x3_body_20deg_0Hz, gliding = x3_wings_20deg_0Hz)";
+            piv_sub_dropdown.ValueChangedFcn = @(src, event) PIV_sub_case_change(src, event, plot_panel);
+
             force_button = uibutton(sidebar_grid, "state");
-            force_button.Layout.Row = 13;
+            force_button.Layout.Row = 14;
             force_button.Layout.Column = 1;
             force_button.Text = "Show Force";
             force_button.FontSize = 18;
@@ -277,7 +290,7 @@ classdef timeAvg_UI < handle
             force_button.ValueChangedFcn = @(src, event) force_bool_change(src, event, plot_panel);
 
             force_sub_button = uibutton(sidebar_grid, "state");
-            force_sub_button.Layout.Row = 14;
+            force_sub_button.Layout.Row = 15;
             force_sub_button.Layout.Column = 1;
             force_sub_button.Text = "Force Body Sub";
             force_sub_button.FontSize = 18;
@@ -285,7 +298,7 @@ classdef timeAvg_UI < handle
             force_sub_button.ValueChangedFcn = @(src, event) force_sub_change(src, event, plot_panel);
 
             x_norm_button = uibutton(sidebar_grid, "state");
-            x_norm_button.Layout.Row = 15;
+            x_norm_button.Layout.Row = 16;
             x_norm_button.Layout.Column = 1;
             x_norm_button.Text = "Normalize X-axis";
             x_norm_button.FontSize = 18;
@@ -293,7 +306,7 @@ classdef timeAvg_UI < handle
             x_norm_button.ValueChangedFcn = @(src, event) x_norm_change(src, event, plot_panel);
 
             y_norm_button = uibutton(sidebar_grid, "state");
-            y_norm_button.Layout.Row = 16;
+            y_norm_button.Layout.Row = 17;
             y_norm_button.Layout.Column = 1;
             y_norm_button.Text = "Normalize Y-axis";
             y_norm_button.FontSize = 18;
@@ -301,7 +314,7 @@ classdef timeAvg_UI < handle
             y_norm_button.ValueChangedFcn = @(src, event) y_norm_change(src, event, plot_panel);
 
             err_button = uibutton(sidebar_grid, "state");
-            err_button.Layout.Row = 17;
+            err_button.Layout.Row = 18;
             err_button.Layout.Column = 1;
             err_button.Text = "Error";
             err_button.FontSize = 18;
@@ -309,13 +322,13 @@ classdef timeAvg_UI < handle
             err_button.ValueChangedFcn = @(src, event) err_change(src, event, plot_panel);
 
             y_cen_field = uieditfield(sidebar_grid, 'numeric');
-            y_cen_field.Layout.Row = 18;
+            y_cen_field.Layout.Row = 19;
             y_cen_field.Layout.Column = 1;
             y_cen_field.Value = obj.y_cen;
             y_cen_field.ValueChangedFcn = @(src, event) y_cen_change(src, event, plot_panel);
 
             calc_button = uibutton(sidebar_grid, "state");
-            calc_button.Layout.Row = 19;
+            calc_button.Layout.Row = 20;
             calc_button.Layout.Column = 1;
             calc_button.Text = "Live Calculate";
             calc_button.FontSize = 18;
@@ -323,7 +336,7 @@ classdef timeAvg_UI < handle
             calc_button.ValueChangedFcn = @(src, event) calc_change(src, event, plot_panel);
 
             save_fig_button = uibutton(sidebar_grid);
-            save_fig_button.Layout.Row = 20;
+            save_fig_button.Layout.Row = 21;
             save_fig_button.Layout.Column = 1;
             save_fig_button.Text = "Save Fig";
             save_fig_button.FontSize = 18;
@@ -396,6 +409,13 @@ classdef timeAvg_UI < handle
                 obj.PIV_sub = src.Value;
                 src.BackgroundColor = obj.get_button_color(obj.PIV_sub);
                 obj.update_plot(plot_panel);
+            end
+
+            function PIV_sub_case_change(src, ~, plot_panel)
+                obj.PIV_sub_case = string(src.Value);
+                if obj.PIV_sub
+                    obj.update_plot(plot_panel);
+                end
             end
 
             function RPCA_change(src, ~)
@@ -1068,9 +1088,7 @@ classdef timeAvg_UI < handle
                             [var, err] = get_PIV_force(filepath, name, force_var, avg_type, obj.y_norm, obj.y_cen);
 
                             if obj.PIV_sub
-                                % filename = "body_time_avg.mat";
-                                filename = "ring_time_avg.mat";
-                                bod_filepath = obj.PIV_path + "time_avg/" + filename;
+                                [bod_filepath, ~] = obj.get_PIV_sub_file_paths(type, amp);
                                 [bod_var, ~] = get_PIV_force(bod_filepath, "", force_var, 0, obj.y_norm, obj.y_cen);
                                 var = var - bod_var;
                             end
@@ -1093,14 +1111,13 @@ classdef timeAvg_UI < handle
                             % var = var * (1/2) * density * wind_speed^3 * area;
 
                             if obj.PIV_sub
-                                % filename = "body_time_avg.mat";
-                                filename = "ring_time_avg_integral.mat";
+                                [~, bod_secondary_filepath] = obj.get_PIV_sub_file_paths(type, amp);
                                 if contains(force_var, ".")
                                     abbrv_name = extractBefore(force_var, ".");
-                                    bod = load(obj.PIV_path + "time_avg/" + filename, abbrv_name);
+                                    bod = load(bod_secondary_filepath, abbrv_name);
                                     bod_var = eval("bod." + force_var);
                                 else
-                                    bod = load(obj.PIV_path + "time_avg/" + filename, force_var);
+                                    bod = load(bod_secondary_filepath, force_var);
                                     bod_var = bod.(force_var);
                                 end
                                 var = var - bod_var;
@@ -1365,6 +1382,53 @@ classdef timeAvg_UI < handle
         function force_variable = is_piv_force_variable(obj, force_var)
             force_index = find(obj.var_names == force_var, 1);
             force_variable = ~isempty(force_index) && force_index <= 6;
+        end
+
+        function [file_path, secondary_file_path] = get_PIV_sub_file_paths(obj, type, amp)
+            % Steady (time averaged) case subtracted from a selection when
+            % "PIV Body Sub" is on. For x3_wings_20deg_4Hz:
+            %   ring    -> x3_ring
+            %   body    -> x3_body_20deg_0Hz
+            %   gliding -> x3_wings_20deg_0Hz
+            type = string(type);
+            amp = string(amp);
+
+            % downstream / upstream prefix shared by the steady cases
+            prefix = string(regexp(char(type), '^(x\d+_|UP_one_|UP_two_)', 'match', 'once'));
+
+            switch obj.PIV_sub_case
+                case "ring"
+                    case_names = prefix + "ring";
+                case "body"
+                    % older body cases were saved without an amplitude
+                    case_names = [prefix + "body_" + amp + "deg_0Hz", prefix + "body"];
+                case "gliding"
+                    case_names = type + "_" + amp + "deg_0Hz";
+                otherwise
+                    error("Unknown PIV subtraction case: %s", obj.PIV_sub_case);
+            end
+
+            % steady cases may sit in a time_avg subfolder (old ring
+            % location), next to the phase averaged files, or in
+            % Processed Results\time_avg
+            search_dirs = [obj.PIV_path + "time_avg\", obj.PIV_path,...
+                           obj.root_path + "Processed Results\time_avg\"];
+
+            tried = strings(0);
+            for k = 1:length(case_names)
+                for m = 1:length(search_dirs)
+                    file_path = search_dirs(m) + case_names(k) + "_time_avg.mat";
+                    secondary_file_path = search_dirs(m) + case_names(k) + "_time_avg_integral.mat";
+                    tried(end+1) = file_path; %#ok<AGROW>
+                    if isfile(file_path) || isfile(secondary_file_path)
+                        return
+                    end
+                end
+            end
+
+            error("timeAvg_UI:PIVSubNotFound",...
+                "No %s subtraction case found for %s at %s deg. Looked for:\n  %s",...
+                obj.PIV_sub_case, type, amp, strjoin(tried, "\n  "));
         end
 
         function signal = subtract_alignment_body_signal(~, signal, body_signal)
