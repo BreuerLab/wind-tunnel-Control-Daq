@@ -21,6 +21,7 @@ classdef timeAvg_UI < handle
 
         root_path; % file path to data
         PIV_path;
+        time_avg_path; % steady (0 Hz) cases, saved as mean flow fields
         force_path;
 
         % integer, 0-6, defines which force/moment axes to display
@@ -78,6 +79,7 @@ classdef timeAvg_UI < handle
             obj.mon_num = mon_num;
             obj.root_path = data_path;
             obj.PIV_path = obj.root_path + "Processed Results\phase_avg\";
+            obj.time_avg_path = obj.root_path + "Processed Results\time_avg\";
             obj.force_path = obj.root_path + "Force Measurements\";
 
             obj.index = 1;
@@ -123,12 +125,30 @@ classdef timeAvg_UI < handle
             obj.calc_bool = false;
             obj.y_cen = -2.26; % -2.16, 2.55, -0.142 / d.L;
 
-            % Search through files in path to get types and speeds
+            % Search through files in path to get types and speeds.
+            % Phase averaged cases live in phase_avg\, the 0 Hz (gliding)
+            % cases are time averaged and live in time_avg\.
             contents = dir(obj.PIV_path);
             files = contents(~[contents.isdir]);
+            if isfolder(obj.time_avg_path)
+                contents_t = dir(obj.time_avg_path);
+                contents_t = contents_t(~[contents_t.isdir]);
+                % only take the 0 Hz cases (ring/body files have no "Hz")
+                is_zero_hz = ~cellfun(@isempty, regexp({contents_t.name}, '_0Hz_time_avg\.mat$', 'once'));
+                files = [files; contents_t(is_zero_hz)];
+            end
 
             % Get amps, freqs, types from file names
             obj.available_selections = get_sel_from_file(files);
+
+            % drop duplicate cases (e.g. a 0 Hz file present in both folders)
+            if ~isempty(obj.available_selections)
+                sel_keys = string(obj.available_selections(:, 1)) + "|" +...
+                    string(cell2mat(obj.available_selections(:, 2))) + "|" +...
+                    string(cell2mat(obj.available_selections(:, 3)));
+                [~, keep] = unique(sel_keys, 'stable');
+                obj.available_selections = obj.available_selections(sort(keep), :);
+            end
 
             if isempty(obj.available_selections)
                 error("No STB files found in %s. Expected *_phase_avg.mat or *_time_avg.mat files.", obj.PIV_path)
@@ -1051,7 +1071,8 @@ classdef timeAvg_UI < handle
 
                     if obj.PIV_bool
                         name = type + "_" + amp + "deg_" + freq + "Hz";
-                        if info.RPCA
+                        % RPCA only applies to phase averaged cases
+                        if info.RPCA && freq ~= 0
                             name = name + "_RPCA";
                         end
                         if freq == 0
@@ -1059,8 +1080,9 @@ classdef timeAvg_UI < handle
                         else
                             suffix = "_phase_avg";
                         end
-                        filepath = obj.PIV_path + name + suffix + ".mat";
-                        secondary_filepath = obj.PIV_path + name + suffix + "_integral.mat";
+                        case_dir = obj.get_case_dir(name, suffix);
+                        filepath = case_dir + name + suffix + ".mat";
+                        secondary_filepath = case_dir + name + suffix + "_integral.mat";
 
                         if freq == 0
                             avg_type = 0;
@@ -1092,6 +1114,13 @@ classdef timeAvg_UI < handle
                                 [bod_var, ~] = get_PIV_force(bod_filepath, "", force_var, 0, obj.y_norm, obj.y_cen);
                                 var = var - bod_var;
                             end
+                        elseif freq == 0 && ~obj.mat_has_variable(...
+                                obj.get_stored_var_file(force_var, filepath, secondary_filepath),...
+                                extractBefore(force_var + ".", "."))
+                            % mean flow field files don't hold the
+                            % phase-resolved quantities (wing speed, bins, ...)
+                            disp(force_var + " not stored for 0 Hz case " + name + ", skipping point")
+                            var = NaN;
                         elseif ~is_shift_operation || freq > 0
                             if contains(force_var, ".")
                                 abbrv_name = extractBefore(force_var, ".");
@@ -1099,11 +1128,7 @@ classdef timeAvg_UI < handle
 
                                 var = eval("d." + force_var);
                             else
-                                if ismember(force_var, ["U_act", "num_bins","num_clusters","phase_spread_ratio"])
-                                    d = load(filepath, force_var);
-                                else
-                                    d = load(secondary_filepath, force_var);
-                                end
+                                d = load(obj.get_stored_var_file(force_var, filepath, secondary_filepath), force_var);
                                 var = d.(force_var);
                             end
 
@@ -1382,6 +1407,32 @@ classdef timeAvg_UI < handle
         function force_variable = is_piv_force_variable(obj, force_var)
             force_index = find(obj.var_names == force_var, 1);
             force_variable = ~isempty(force_index) && force_index <= 6;
+        end
+
+        function case_dir = get_case_dir(obj, name, suffix)
+            % Folder holding a case: phase_avg\ first, then time_avg\
+            % (where the 0 Hz mean flow field cases are saved)
+            case_dir = obj.PIV_path;
+            if ~isfile(case_dir + name + suffix + ".mat") &&...
+                    ~isfile(case_dir + name + suffix + "_integral.mat") &&...
+                    (isfile(obj.time_avg_path + name + suffix + ".mat") ||...
+                     isfile(obj.time_avg_path + name + suffix + "_integral.mat"))
+                case_dir = obj.time_avg_path;
+            end
+        end
+
+        function file = get_stored_var_file(~, force_var, filepath, secondary_filepath)
+            % a few variables are stored in the main file, the rest in
+            % the secondary (integral) file
+            if ismember(force_var, ["U_act", "num_bins","num_clusters","phase_spread_ratio"])
+                file = filepath;
+            else
+                file = secondary_filepath;
+            end
+        end
+
+        function tf = mat_has_variable(~, file, var_name)
+            tf = isfile(file) && ismember(char(var_name), who('-file', file));
         end
 
         function [file_path, secondary_file_path] = get_PIV_sub_file_paths(obj, type, amp)
