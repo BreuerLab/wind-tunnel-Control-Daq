@@ -456,7 +456,7 @@ methods
         b99.Layout.Row = 1;
         b99.Layout.Column = 1;
         b99.Text = "Separate Y-Axis";
-        b99.FontSize = 13;
+        b99.FontSize = 10;
         b99.BackgroundColor = [1 1 1];
         b99.ValueChangedFcn = @(src, event) separate_y_axis_change(src, event, plot_panel);
 
@@ -464,7 +464,7 @@ methods
         b100.Layout.Row = 1;
         b100.Layout.Column = 2;
         b100.Text = "Mean Subtraction";
-        b100.FontSize = 13;
+        b100.FontSize = 10;
         b100.BackgroundColor = [1 1 1];
         b100.ValueChangedFcn = @(src, event) mean_subtraction_change(src, event, plot_panel);
 

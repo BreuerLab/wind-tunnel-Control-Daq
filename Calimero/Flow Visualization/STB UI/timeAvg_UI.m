@@ -1121,12 +1121,12 @@ classdef timeAvg_UI < handle
                     end
 
                     if obj.force_bool && ~contains(type, "UP") && ~isempty(load_cell_idx)
-                        var_name_F = "results_lab";
-                        % var_name_F = "filtered_data";
+                        % var_name_F = "results_lab";
+                        var_name_F = "filtered_data";
                         % var_name_F = "wingbeat_avg_forces_smoothest";
                         if freq == 0
-                            var_name_F = "results_lab";
-                            % var_name_F = "filtered_data";
+                            % var_name_F = "results_lab";
+                            var_name_F = "filtered_data";
                         end
 
                         idx = load_cell_idx;
