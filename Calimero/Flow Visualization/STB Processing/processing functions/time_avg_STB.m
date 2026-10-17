@@ -1,4 +1,4 @@
-function S = time_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, bools)
+function S = time_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, num_images, bools)
     tic;
     save_path = fullfile(save_filepath_local, PIV_case_name + "_time_avg.mat");
 
