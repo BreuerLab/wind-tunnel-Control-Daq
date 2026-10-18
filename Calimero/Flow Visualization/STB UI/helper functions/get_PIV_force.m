@@ -52,91 +52,91 @@ function [var, err] = get_PIV_force(file_name, case_name, force_var_name, avg_ty
             x_conv = 0;
         end
         
-% ------------------------------------------------------------
-% Trim velocity field before calculating integral quantities
-% -------------------------------------------------------------
-y = d.y;
-z = d.z;
-
-switch avg_type
-case 0
-u_tr = d.mean_u;
-v_tr = d.mean_v;
-w_tr = d.mean_w;
-
-if vort_bool
-vortX_tr = d.mean_vortX;
-vortY_tr = d.mean_vortY;
-vortZ_tr = d.mean_vortZ;
-end
-
-unc_tr = d.mean_uncTot;
-case 1
-u_tr = d.u_phase_avg;
-v_tr = d.v_phase_avg;
-w_tr = d.w_phase_avg;
-
-if vort_bool
-vortX_tr = d.vortX_phase_avg;
-vortY_tr = d.vortY_phase_avg;
-vortZ_tr = d.vortZ_phase_avg;
-end
-
-unc_tr = d.uncTot_phase_avg;
-end
-
-[y_tr, z_tr, u_tr] = trim_vel_field(y, z, u_tr);
-[~, ~, v_tr] = trim_vel_field(y, z, v_tr);
-[~, ~, w_tr] = trim_vel_field(y, z, w_tr);
-if vort_bool
-[~, ~, vortX_tr] = trim_vel_field(y, z, vortX_tr);
-[~, ~, vortY_tr] = trim_vel_field(y, z, vortY_tr);
-[~, ~, vortZ_tr] = trim_vel_field(y, z, vortZ_tr);
-end
-[~, ~, unc_tr] = trim_vel_field(y, z, unc_tr);
-
-% Replace nans in velocity field with median values so integral
-% calculations aren't skewed
-u_tr = nanToMedian(u_tr);
-v_tr = nanToMedian(v_tr);
-w_tr = nanToMedian(w_tr);
-
-D.x = x_conv; D.y = y_tr; D.z = z_tr;
-D.u = u_tr; D.v = v_tr; D.w = w_tr;
-if vort_bool
-D.vortX = vortX_tr; D.vortY = vortY_tr; D.vortZ = vortZ_tr;
-end
-D.unc = unc_tr;
-
-        % Capture all outputs into a cell array
-        % [outputs{1:2}] = get_wake_lift(speed, d.L, x, d.y, d.z, d, avg_type, vort_bool, y_cen, z_cen, density);
-        [outputs{1:2}] = get_wake_lift(speed, d.L, D, vort_bool, density);
+    % ------------------------------------------------------------
+    % Trim velocity field before calculating integral quantities
+    % -------------------------------------------------------------
+    y = d.y;
+    z = d.z;
+    
+    switch avg_type
+    case 0
+        u_tr = d.mean_u;
+        v_tr = d.mean_v;
+        w_tr = d.mean_w;
         
-        % Define your field names
-        fields = {'lift', 'drag'};
+        if vort_bool
+        vortX_tr = d.mean_vortX;
+        vortY_tr = d.mean_vortY;
+        vortZ_tr = d.mean_vortZ;
+        end
         
-        % Convert to a struct
-        F = cell2struct(outputs, fields, 2);
-
-        % Pull out the requested (possibly nested) force. Terms that
-        % aren't defined for a case, e.g. lift.vortY for a time average
-        % (no convection axis), are replaced with zero.
-        parts = split(string(force_var_name), ".");
-        var = F;
-        for k = 1:numel(parts)
-            if isstruct(var) && isfield(var, parts(k))
-                var = var.(parts(k));
-            else
-                [~, file_label] = fileparts(file_name);
-                fprintf("%s not defined for %s, using 0\n", force_var_name, file_label);
-                var = 0;
-                break
-            end
+        unc_tr = d.mean_uncTot;
+    case 1
+        u_tr = d.u_phase_avg;
+        v_tr = d.v_phase_avg;
+        w_tr = d.w_phase_avg;
+        
+        if vort_bool
+        vortX_tr = d.vortX_phase_avg;
+        vortY_tr = d.vortY_phase_avg;
+        vortZ_tr = d.vortZ_phase_avg;
         end
-        err = 0;
-
-        if norm_bool
-            var = var / (0.5 * density * d.L^2 * d.U_act^2);
-            % should be chord * span, not chord^2
+    
+        unc_tr = d.uncTot_phase_avg;
+    end
+    
+    [y_tr, z_tr, u_tr] = trim_vel_field(y, z, u_tr);
+    [~, ~, v_tr] = trim_vel_field(y, z, v_tr);
+    [~, ~, w_tr] = trim_vel_field(y, z, w_tr);
+    if vort_bool
+    [~, ~, vortX_tr] = trim_vel_field(y, z, vortX_tr);
+    [~, ~, vortY_tr] = trim_vel_field(y, z, vortY_tr);
+    [~, ~, vortZ_tr] = trim_vel_field(y, z, vortZ_tr);
+    end
+    [~, ~, unc_tr] = trim_vel_field(y, z, unc_tr);
+    
+    % Replace nans in velocity field with median values so integral
+    % calculations aren't skewed
+    u_tr = nanToMedian(u_tr);
+    v_tr = nanToMedian(v_tr);
+    w_tr = nanToMedian(w_tr);
+    
+    D.x = x_conv; D.y = y_tr; D.z = z_tr;
+    D.u = u_tr; D.v = v_tr; D.w = w_tr;
+    if vort_bool
+    D.vortX = vortX_tr; D.vortY = vortY_tr; D.vortZ = vortZ_tr;
+    end
+    D.unc = unc_tr;
+    
+    % Capture all outputs into a cell array
+    % [outputs{1:2}] = get_wake_lift(speed, d.L, x, d.y, d.z, d, avg_type, vort_bool, y_cen, z_cen, density);
+    [outputs{1:2}] = get_wake_lift(speed, d.L, D, vort_bool, density);
+    
+    % Define your field names
+    fields = {'lift', 'drag'};
+    
+    % Convert to a struct
+    F = cell2struct(outputs, fields, 2);
+    
+    % Pull out the requested (possibly nested) force. Terms that
+    % aren't defined for a case, e.g. lift.vortY for a time average
+    % (no convection axis), are replaced with zero.
+    parts = split(string(force_var_name), ".");
+    var = F;
+    for k = 1:numel(parts)
+        if isstruct(var) && isfield(var, parts(k))
+            var = var.(parts(k));
+        else
+            [~, file_label] = fileparts(file_name);
+            fprintf("%s not defined for %s, using 0\n", force_var_name, file_label);
+            var = 0;
+            break
         end
+    end
+    err = 0;
+    
+    if norm_bool
+        var = var / (0.5 * density * d.L^2 * d.U_act^2);
+        % should be chord * span, not chord^2
+    end
 end
