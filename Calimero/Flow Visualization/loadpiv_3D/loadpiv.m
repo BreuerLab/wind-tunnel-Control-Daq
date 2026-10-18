@@ -596,15 +596,22 @@ out1.uRaw = permute(uTmp, permutationOrder);
 out1.vRaw = permute(vTmp, permutationOrder);
 out1.wRaw = permute(wTmp, permutationOrder);
 
+% Fill holes once per component and reuse the filled copies for vorticity
+% and gradients (fill3D returns immediately on arrays without NaNs). The
+% stored u/v/w keep their NaNs so later averaging can omit missing data.
+uFilled = fill3D(out1.uRaw);
+vFilled = fill3D(out1.vRaw);
+wFilled = fill3D(out1.wRaw);
+
 [out1.vortXRaw, out1.vortYRaw, out1.vortZRaw] = ...
-    calculateVorticity(out1.xRaw, out1.yRaw, out1.zRaw, out1.uRaw, out1.vRaw, out1.wRaw);
+    calculateVorticity(out1.xRaw, out1.yRaw, out1.zRaw, uFilled, vFilled, wFilled);
 
 [out1.dudx, out1.dudy, out1.dudz] = ...
-    get_gradients(out1.xRaw, out1.yRaw, out1.zRaw, out1.uRaw);
+    get_gradients(out1.xRaw, out1.yRaw, out1.zRaw, uFilled);
 [out1.dvdx, out1.dvdy, out1.dvdz] = ...
-    get_gradients(out1.xRaw, out1.yRaw, out1.zRaw, out1.vRaw);
+    get_gradients(out1.xRaw, out1.yRaw, out1.zRaw, vFilled);
 [out1.dwdx, out1.dwdy, out1.dwdz] = ...
-    get_gradients(out1.xRaw, out1.yRaw, out1.zRaw, out1.wRaw);
+    get_gradients(out1.xRaw, out1.yRaw, out1.zRaw, wFilled);
 
 out1.uncURaw = nan([sizeXY numTrimmedPlanes]);
 out1.uncVRaw = nan(size(out1.uncURaw));
