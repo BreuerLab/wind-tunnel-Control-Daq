@@ -11,11 +11,11 @@ function file_name = findInitialOffsetsFile(path, case_name)
         baseFileName = theFiles(k).name;
         [case_name_cur, ~, ~, ~, ~, ~, ~, file_type] = parse_filename(baseFileName);
 
-        % Temp code for benchtop test file processing
-        parts = split(case_name_cur);
-        case_name_cur = strjoin(parts(1:end-1), " "); % removing wingbeat frequency
+        % % Temp code for benchtop test file processing
+        % parts = split(case_name_cur);
+        % case_name_cur = strjoin(parts(1:end-1), " "); % removing wingbeat frequency
 
-        if strcmp(case_name, case_name_cur) && strcmp(file_type, "before_offsets") % REPLACE WITH offsets, temp change for benchtop
+        if strcmp(case_name, case_name_cur) && strcmp(file_type, "offsets") % REPLACE WITH offsets, temp change for benchtop
                 file_name = convertCharsToStrings(baseFileName);
                 break
         end

@@ -12,37 +12,35 @@
 % A .mat file is produced in the directory described by processed_data_path
 % containing a number of variables whose contents describe the results of
 % the experiment in more ways than simply the raw data does.
-function process_trial(file, raw_data_path, offsets_path, processed_data_path, wind_tunnel_path, type)
+function process_trial(file, raw_data_path, offsets_path, processed_data_path, params)
 
 % I don't want to use wing_type_from_name, I want type from eval_params.m
 [case_name, time_stamp, wing_type_from_name, wing_freq, AoA, wind_speed, amp, ~] = parse_filename(file);
 
-% NUM_WINGBEATS IS CURRENTLY NOT 180 EXACTLY SINCE JUST USING PWM
 [frame_rate, num_wingbeats, rec_wingbeats, ticksPerRev, OC_pulse_step] = get_sampling_info(wing_freq);
 
 % Get force calibration file
 calibration_filepath = "../../DAQ/Calibration Files/Mini40/FT52907.cal"; 
 cal_matrix = obtain_cal(calibration_filepath);
 
-% UNCOMMENT !!!!!!!!!!!!!!!!!!!!!!!
 % find matching offsets file
 offsets_file = findInitialOffsetsFile(offsets_path, case_name);
 load(offsets_path + offsets_file); % load in results var
 offsets = offsets(1,:);
 disp("Matching offsets: " + offsets_file)
 
-% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-% filePattern = fullfile(offsets_path, '*.mat'); % Change to whatever pattern you need.
-% offsets_files = [];
-% for i = 1:length(filePattern)
-%     offsets_files = [offsets_files; dir(filePattern(i))];
-% end
-% 
+filePattern = fullfile(offsets_path, '*.mat'); % Change to whatever pattern you need.
+offsets_files = [];
+for i = 1:length(filePattern)
+    offsets_files = [offsets_files; dir(filePattern(i))];
+end
+
+[drift, offsets_before, offsets_after] = get_drift(file, offsets_files, params.freq_vals);
+
 % offsets_string = "before_offsets";
 % [offsets_cur, offsets_cur_filename] = findMatchingOffset...
 % (offsets_files, offsets_string, wing_freq, AoA, wind_speed, type, time_stamp);
 % disp("Current offsets: " + offsets_cur_filename)
-% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 % Get raw data from file
 load(raw_data_path + file); % load in results var
@@ -54,12 +52,6 @@ else
 % trim off period when acceleration + padding
 trimmed_results = trim_data(results, rec_wingbeats, num_wingbeats);
 end
-
-% REPLACE WITH PROPER TRIMMING!!!!!!!!!!!!!!!!!!!!!!!
-% trimmed_results = results;
-% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 async = true; % We are doing async method of collecting data
 
