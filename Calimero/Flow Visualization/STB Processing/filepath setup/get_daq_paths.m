@@ -16,6 +16,8 @@ function [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name)
     d23 = [base_new, 'x3\daq data\experiment data\'];
     d24 = [base_new, 'x4\daq data\experiment data\'];
     d25 = [base_new, 'x5\daq data\experiment data\'];
+
+    d32 = [base_new_v2, 'x2\daq data\experiment data\'];
     d33 = [base_new_v2, 'x3\daq data\experiment data\'];
     
     % Create an organized lookup structure
@@ -26,6 +28,12 @@ function [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name)
     % cases.x5_wings_20deg_6Hz = {'x5_flexible_20_4m.s_10deg_6Hz_2026_08_16_20_01_59_experiment_2026_08_16_20_04_20.mat',d25};
     % cases.x5_wings_20deg_6Hz_v2 = {'x5_flexible_20_4m.s_10deg_6Hz_2026_08_16_20_01_59_experiment_2026_08_16_20_04_20.mat',d25};
     % cases.x5_wings_20deg_6Hz_v3 = {'x5_flexible_20_4m.s_10deg_6Hz_2026_08_16_20_01_59_experiment_2026_08_16_20_04_20.mat',d25};
+
+    cases.x2_wings_20deg_0Hz = {'x2_wings_20_4m.s_10deg_0Hz_2026_10_01_15_49_18_experiment_2026_10_01_15_50_36.mat',d32};
+    cases.x2_wings_20deg_2Hz = {'x2_wings_20_4m.s_10deg_2Hz_2026_10_01_15_57_43_experiment_2026_10_01_15_59_58.mat',d32};
+    cases.x2_wings_20deg_4Hz = {'x2_wings_20_4m.s_10deg_4Hz_2026_10_01_16_07_17_experiment_2026_10_01_16_09_12.mat',d32};
+    cases.x2_wings_20deg_6Hz = {'x2_wings_20_4m.s_10deg_6Hz_2026_10_01_16_16_01_experiment_2026_10_01_16_17_45.mat',d32};
+    cases.x2_wings_20deg_8Hz = {'x2_wings_20_4m.s_10deg_8Hz_2026_10_01_16_27_29_experiment_2026_10_01_16_29_17.mat',d32};
 
     cases.x3_ring = {'x3_ring_30_4m.s_10deg_0Hz_2026_09_28_12_44_11_experiment_2026_09_28_12_45_15.mat',d33};
     cases.x3_NACA = {'x3_NACA_30_4m.s_10deg_0Hz_2026_09_28_12_37_44_experiment_2026_09_28_12_38_48.mat',d33};

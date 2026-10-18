@@ -72,6 +72,9 @@ function file_path = get_PIV_paths(PIV_case_name)
         'x5_wings_20deg_6Hz_v2',         month_2 + "x5_wings_20deg_6Hz_v2" + BIN
         'x5_wings_20deg_6Hz_v3',         month_2 + "x5_wings_20deg_6Hz_v3" + BIN
 
+
+        'x2_wings_20deg_6Hz',         month_3 + "x2_wings_20deg_6Hz" + BIN
+
         'x3_ring',         month_3 + "x3_ring" + BIN
         'x3_NACA',         month_3 + "x3_NACA" + BIN
         'x3_body_20deg_0Hz',         month_3 + "x3_body_20deg_0Hz" + BIN
