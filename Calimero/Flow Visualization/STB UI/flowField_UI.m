@@ -2,6 +2,10 @@ classdef flowField_UI < handle
 properties (Constant, Access = private)
     ACTIVE_COLOR = [0.3010 0.7450 0.9330];
     INACTIVE_COLOR = [1 1 1];
+    % Derived variable: lift integrand from the wake, computed on the fly
+    % from stored fields (term1 in get_wake_lift: -U .* y .* -vortX)
+    LIFT_WX_VAR = "lift (U y ω_x)"; % name shown in the variable dropdown
+    LIFT_WX_FIELD = "lift_wx_field"; % internal name, not stored in files
     % Trim bounds and mirror centerline for each flapper source mode.
     % The active set is copied into trim_y_bounds / trim_z_bounds /
     % mirror_center_y by set_trim_settings_for_source_mode().
@@ -253,6 +257,12 @@ methods
         obj.movie_3D_std_vars = [obj.movie_3D_avg_vars(1:8) obj.movie_3D_avg_vars(13:end)];
         movie_3D_std_values = [movie_3D_avg_values(1:8) movie_3D_avg_values(13:end)];
         movie_3D_std_values = strrep(movie_3D_std_values,"avg","std");
+
+        % Derived variables (computed in update_plot, not loaded directly).
+        % Appended after the std list is built since they have no std field.
+        obj.movie_3D_avg_vars(end+1) = obj.LIFT_WX_VAR;
+        movie_3D_avg_values(end+1) = obj.LIFT_WX_FIELD;
+        time_avg_values(end+1) = obj.LIFT_WX_FIELD;
         % ["u_phase_std","v_phase_std","w_phase_std","Utot_phase_std",...
         % "vortX_phase_std","vortY_phase_std","vortZ_phase_std","vortTot_phase_std",...
         % "uncU_phase_std","uncV_phase_std","uncW_phase_std","uncTot_phase_std","hel_phase_std", "numP_phase_std"];
@@ -305,7 +315,8 @@ methods
                       -1, 1;
                       -0.1, 0.1;
                       0, 0.1;
-                      0, 0.1];
+                      0, 0.1;
+                      -20, 20]; % lift (U y ω_x), dimensional (m^2/s^2)
 
         % for std plots
         obj.std_clims = [0, 0.05;...
@@ -372,6 +383,7 @@ methods
                             "\boldmath$\nabla \cdot u \frac{c}{U_{\infty}}$",...
                             "KE","power"];
         movie_3D_std_labels = [movie_3D_avg_labels(1:8) movie_3D_avg_labels(13:end)];
+        movie_3D_avg_labels(end+1) = "\boldmath$U_{\infty}\, y\, \omega_x \; (\mathrm{m^2/s^2})$";
 
         keys = cellstr(obj.movie_3D_avg_vars);
         values = movie_3D_avg_values;
@@ -1379,7 +1391,10 @@ methods (Access = private)
                 cur_secondary_vars = {"z_B","y_B"};
             end
 
-            if contains(obj.variable_name, obj.secondary_vars) || use_extrapolated_data
+            if strcmp(var_name, obj.LIFT_WX_FIELD)
+                % derived field: load the stored fields it is built from
+                vars = [vars, obj.get_lift_wx_inputs(using_time_avg_file)];
+            elseif contains(obj.variable_name, obj.secondary_vars) || use_extrapolated_data
                 cur_secondary_vars{end+1} = var_name;
             else
                 vars{end+1} = var_name;
@@ -1472,6 +1487,10 @@ methods (Access = private)
             obj.play_button.Visible = "off";
         end
 
+        if ismember(plot_idx, [1, 2, 5, 9]) && strcmp(var_name, obj.LIFT_WX_FIELD)
+            d.(var_name) = obj.compute_lift_wx_field(d, using_time_avg_file);
+        end
+
         if plot_idx ~= 8
             val = d.(var_name);
             planeIdx = (size(val,1) + 1) / 2;
@@ -1507,7 +1526,9 @@ methods (Access = private)
 
             params.U = d.U;
 
-            if min(var_clims) < -1
+            if strcmp(var_name, obj.LIFT_WX_FIELD)
+                params.zero = 0; % signed field centred on zero
+            elseif min(var_clims) < -1
                 params.zero = -1;
             elseif min(var_clims) < 0.5
                 params.zero = 0;
@@ -1793,6 +1814,39 @@ methods (Access = private)
             xlabel(ax, "Time", FontSize=16)
             ylabel(ax, obj.label_dict(obj.variable_name), FontSize=16, Interpreter="latex")
         end
+    end
+
+    function inputs = get_lift_wx_inputs(~, using_time_avg_file)
+        % Stored fields needed for the derived lift field, on top of the
+        % y, U and L already loaded for every 2D/3D plot
+        if using_time_avg_file
+            inputs = {"mean_vortX"};
+        else
+            inputs = {"U_act","vortX_phase_avg"};
+        end
+    end
+
+    function field = compute_lift_wx_field(~, d, using_time_avg_file)
+        % Lift integrand from the wake, matching term1 in get_wake_lift:
+        %   term1 = -U .* y .* -vortX
+        % with y and vortX made dimensional the same way (y*L, vortX*U/L)
+        % and the same speed get_PIV_force passes in (U_act*U for phase
+        % averages, U for time averages). Integrating 2*rho*term1 over the
+        % y-z plane gives the lift.vortX value. Units: m^2/s^2.
+        if using_time_avg_file
+            speed = d.U;
+            vortX = d.mean_vortX;
+        else
+            speed = d.U_act * d.U;
+            vortX = d.vortX_phase_avg;
+        end
+
+        y = d.y * d.L;
+        vortX = vortX / (d.L / speed);
+
+        % y is [x y z]; phase averaged vortX has a trailing bin dimension,
+        % so implicit expansion applies y to every bin
+        field = -speed .* y .* -vortX;
     end
 
     function clim_dict = build_clim_dict(~, var_names, clim_values)
