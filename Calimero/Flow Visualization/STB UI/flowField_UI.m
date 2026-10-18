@@ -3,7 +3,8 @@ properties (Constant, Access = private)
     ACTIVE_COLOR = [0.3010 0.7450 0.9330];
     INACTIVE_COLOR = [1 1 1];
     % Derived variable: lift integrand from the wake, computed on the fly
-    % from stored fields (term1 in get_wake_lift: -U .* y .* -vortX)
+    % from stored fields (term1 in get_wake_lift: -U .* y .* -vortX, with y
+    % measured from the mirror centerline)
     LIFT_WX_VAR = "lift (U y ω_x)"; % name shown in the variable dropdown
     LIFT_WX_FIELD = "lift_wx_field"; % internal name, not stored in files
     % Trim bounds and mirror centerline for each flapper source mode.
@@ -1826,13 +1827,17 @@ methods (Access = private)
         end
     end
 
-    function field = compute_lift_wx_field(~, d, using_time_avg_file)
+    function field = compute_lift_wx_field(obj, d, using_time_avg_file)
         % Lift integrand from the wake, matching term1 in get_wake_lift:
         %   term1 = -U .* y .* -vortX
         % with y and vortX made dimensional the same way (y*L, vortX*U/L)
         % and the same speed get_PIV_force passes in (U_act*U for phase
         % averages, U for time averages). Integrating 2*rho*term1 over the
         % y-z plane gives the lift.vortX value. Units: m^2/s^2.
+        %
+        % y is measured from the mirror centerline, as in the stored force
+        % calculation (calc_secondary_vals_common -> prepare_STB_wake_field
+        % -> trim_vel_field subtracts y_cen before get_wake_lift).
         if using_time_avg_file
             speed = d.U;
             vortX = d.mean_vortX;
@@ -1841,7 +1846,7 @@ methods (Access = private)
             vortX = d.vortX_phase_avg;
         end
 
-        y = d.y * d.L;
+        y = (d.y - obj.mirror_center_y) * d.L;
         vortX = vortX / (d.L / speed);
 
         % y is [x y z]; phase averaged vortX has a trailing bin dimension,
