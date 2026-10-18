@@ -64,6 +64,10 @@ classdef timeAvg_UI < handle
         available_selections;
 
         selection; % list of selected cases
+        % wingbeat frequencies in the data and the [low high] range plotted
+        % when the x-axis is wingbeat frequency
+        available_freqs;
+        freq_range;
         sel_type;
         sel_freq;
         sel_amp;
@@ -176,6 +180,13 @@ classdef timeAvg_UI < handle
                 error("No STB files found in %s. Expected *_phase_avg.mat or *_time_avg.mat files.", obj.PIV_path)
             end
 
+            % full frequency range to start (0 to 8 Hz for the current data)
+            obj.available_freqs = unique(cell2mat(obj.available_selections(:, 3)))';
+            obj.freq_range = [min(obj.available_freqs), max(obj.available_freqs)];
+            if obj.freq_range(1) == obj.freq_range(2)
+                obj.freq_range(2) = obj.freq_range(1) + 1; % slider needs a span
+            end
+
             obj.plot_curves = [];
             obj.selection = strings(0);
 
@@ -199,9 +210,9 @@ classdef timeAvg_UI < handle
                 option_panel.Scrollable = "on";
             end
 
-            sidebar_grid = uigridlayout(option_panel, [21, 1]);
+            sidebar_grid = uigridlayout(option_panel, [22, 1]);
             sidebar_grid.ColumnWidth = {'1x'};
-            sidebar_grid.RowHeight = {30, 30, 30, 30, 30, 110, 30, 30, 30, 30,...
+            sidebar_grid.RowHeight = {30, 60, 30, 30, 30, 30, 110, 30, 30, 30, 30,...
                                       30, 30, 25, 30, 30, 30, 30, 30, 30, 130, 30};
             sidebar_grid.Padding = [10 10 10 10];
             sidebar_grid.RowSpacing = 6;
@@ -216,19 +227,45 @@ classdef timeAvg_UI < handle
             x_axis_dropdown.Items = obj.x_axis_labels(:);
             x_axis_dropdown.Value = obj.get_x_axis_label(obj.x_axis_type);
 
+            % Range of wingbeat frequencies plotted when the x-axis is
+            % wingbeat frequency. Cases measured over a shorter range (e.g.
+            % 30 deg, up to 6 Hz) plot whatever falls inside it.
+            freq_grid = uigridlayout(sidebar_grid, [2, 1]);
+            freq_grid.Layout.Row = 2;
+            freq_grid.Layout.Column = 1;
+            freq_grid.RowHeight = {16, '1x'};
+            freq_grid.Padding = [8 0 8 0];
+            freq_grid.RowSpacing = 0;
+
+            freq_label = uilabel(freq_grid);
+            freq_label.Layout.Row = 1;
+            freq_label.Layout.Column = 1;
+            freq_label.HorizontalAlignment = "center";
+
+            freq_slider = uislider(freq_grid, "range");
+            freq_slider.Layout.Row = 2;
+            freq_slider.Layout.Column = 1;
+            freq_slider.Limits = obj.freq_range;
+            freq_slider.Value = obj.freq_range;
+            freq_slider.MajorTicks = obj.available_freqs;
+            freq_slider.MinorTicks = [];
+            freq_slider.ValueChangedFcn = @(src, event) freq_range_change(src, event, freq_label, plot_panel);
+            obj.update_freq_range_label(freq_label);
+            obj.set_freq_slider_enable(freq_slider, freq_label);
+
             % Dropdown boxes for variables held fixed while the x-axis varies
             fixed_dropdown_1 = uidropdown(sidebar_grid);
-            fixed_dropdown_1.Layout.Row = 2;
+            fixed_dropdown_1.Layout.Row = 3;
             fixed_dropdown_1.Layout.Column = 1;
 
             fixed_dropdown_2 = uidropdown(sidebar_grid);
-            fixed_dropdown_2.Layout.Row = 3;
+            fixed_dropdown_2.Layout.Row = 4;
             fixed_dropdown_2.Layout.Column = 1;
             obj.reset_fixed_variable_defaults();
             obj.update_fixed_dropdowns(fixed_dropdown_1, fixed_dropdown_2);
 
             rpca_button = uibutton(sidebar_grid, "state");
-            rpca_button.Layout.Row = 4;
+            rpca_button.Layout.Row = 5;
             rpca_button.Layout.Column = 1;
             rpca_button.Text = "RPCA";
             rpca_button.FontSize = 18;
@@ -237,7 +274,7 @@ classdef timeAvg_UI < handle
 
             % Button to add entry
             entry_button_grid = uigridlayout(sidebar_grid, [1, 2]);
-            entry_button_grid.Layout.Row = 5;
+            entry_button_grid.Layout.Row = 6;
             entry_button_grid.Layout.Column = 1;
             entry_button_grid.ColumnWidth = {'1x', '1x'};
             entry_button_grid.RowHeight = {'1x'};
@@ -257,18 +294,18 @@ classdef timeAvg_UI < handle
 
             % List of cases currently displayed on the plots
             lbox = uilistbox(sidebar_grid);
-            lbox.Layout.Row = 6;
+            lbox.Layout.Row = 7;
             lbox.Layout.Column = 1;
             lbox.Items = strings(0);
 
-            x_axis_dropdown.ValueChangedFcn = @(src, event) x_axis_change(src, event, fixed_dropdown_1, fixed_dropdown_2, plot_panel, lbox);
+            x_axis_dropdown.ValueChangedFcn = @(src, event) x_axis_change(src, event, fixed_dropdown_1, fixed_dropdown_2, plot_panel, lbox, freq_slider, freq_label);
             fixed_dropdown_1.ValueChangedFcn = @(src, event) fixed_1_change(src, event, fixed_dropdown_2);
             fixed_dropdown_2.ValueChangedFcn = @(src, event) fixed_2_change(src, event);
             add_button.ButtonPushedFcn = @(src, event) addToList(src, event, plot_panel, lbox);
             delete_button.ButtonPushedFcn = @(src, event) removeFromList(src, event, plot_panel, lbox);
 
             clear_button = uibutton(sidebar_grid);
-            clear_button.Layout.Row = 7;
+            clear_button.Layout.Row = 8;
             clear_button.Layout.Column = 1;
             clear_button.Text = "Clear Entries";
             clear_button.FontSize = 18;
@@ -277,13 +314,13 @@ classdef timeAvg_UI < handle
 
             % Dropdown boxes for variable selection
             force_var_dropdown_1 = uidropdown(sidebar_grid);
-            force_var_dropdown_1.Layout.Row = 8;
+            force_var_dropdown_1.Layout.Row = 9;
             force_var_dropdown_1.Layout.Column = 1;
             force_var_dropdown_1.Items = ["none", obj.box_labels];
             force_var_dropdown_1.Value = obj.get_force_var_label(obj.force_var);
 
             force_var_dropdown_2 = uidropdown(sidebar_grid);
-            force_var_dropdown_2.Layout.Row = 9;
+            force_var_dropdown_2.Layout.Row = 10;
             force_var_dropdown_2.Layout.Column = 1;
             force_var_dropdown_2.Items = ["none", obj.box_labels];
             force_var_dropdown_2.Value = "none";
@@ -291,13 +328,13 @@ classdef timeAvg_UI < handle
             force_var_dropdown_2.ValueChangedFcn = @(src, event) force_var_change(src, event, plot_panel, force_var_dropdown_1, force_var_dropdown_2);
 
             operation_dropdown = uidropdown(sidebar_grid);
-            operation_dropdown.Layout.Row = 10;
+            operation_dropdown.Layout.Row = 11;
             operation_dropdown.Layout.Column = 1;
             operation_dropdown.Items = obj.operations;
             operation_dropdown.ValueChangedFcn = @(src, event) operation_change(src, event, plot_panel);
 
             piv_button = uibutton(sidebar_grid, "state");
-            piv_button.Layout.Row = 11;
+            piv_button.Layout.Row = 12;
             piv_button.Layout.Column = 1;
             piv_button.Text = "Show PIV";
             piv_button.Value = true;
@@ -306,7 +343,7 @@ classdef timeAvg_UI < handle
             piv_button.ValueChangedFcn = @(src, event) PIV_bool_change(src, event, plot_panel);
 
             piv_sub_button = uibutton(sidebar_grid, "state");
-            piv_sub_button.Layout.Row = 12;
+            piv_sub_button.Layout.Row = 13;
             piv_sub_button.Layout.Column = 1;
             piv_sub_button.Text = "PIV Body Sub";
             piv_sub_button.FontSize = 18;
@@ -316,7 +353,7 @@ classdef timeAvg_UI < handle
             % Steady case used for the subtraction, matched to each
             % selection's downstream position (and amplitude for body/gliding)
             piv_sub_dropdown = uidropdown(sidebar_grid);
-            piv_sub_dropdown.Layout.Row = 13;
+            piv_sub_dropdown.Layout.Row = 14;
             piv_sub_dropdown.Layout.Column = 1;
             piv_sub_dropdown.Items = ["ring", "body", "gliding"];
             piv_sub_dropdown.Value = obj.PIV_sub_case;
@@ -324,7 +361,7 @@ classdef timeAvg_UI < handle
             piv_sub_dropdown.ValueChangedFcn = @(src, event) PIV_sub_case_change(src, event, plot_panel);
 
             force_button = uibutton(sidebar_grid, "state");
-            force_button.Layout.Row = 14;
+            force_button.Layout.Row = 15;
             force_button.Layout.Column = 1;
             force_button.Text = "Show Force";
             force_button.FontSize = 18;
@@ -332,7 +369,7 @@ classdef timeAvg_UI < handle
             force_button.ValueChangedFcn = @(src, event) force_bool_change(src, event, plot_panel);
 
             force_sub_button = uibutton(sidebar_grid, "state");
-            force_sub_button.Layout.Row = 15;
+            force_sub_button.Layout.Row = 16;
             force_sub_button.Layout.Column = 1;
             force_sub_button.Text = "Force Body Sub";
             force_sub_button.FontSize = 18;
@@ -340,7 +377,7 @@ classdef timeAvg_UI < handle
             force_sub_button.ValueChangedFcn = @(src, event) force_sub_change(src, event, plot_panel);
 
             x_norm_button = uibutton(sidebar_grid, "state");
-            x_norm_button.Layout.Row = 16;
+            x_norm_button.Layout.Row = 17;
             x_norm_button.Layout.Column = 1;
             x_norm_button.Text = "Normalize X-axis";
             x_norm_button.FontSize = 18;
@@ -348,7 +385,7 @@ classdef timeAvg_UI < handle
             x_norm_button.ValueChangedFcn = @(src, event) x_norm_change(src, event, plot_panel);
 
             y_norm_button = uibutton(sidebar_grid, "state");
-            y_norm_button.Layout.Row = 17;
+            y_norm_button.Layout.Row = 18;
             y_norm_button.Layout.Column = 1;
             y_norm_button.Text = "Normalize Y-axis";
             y_norm_button.FontSize = 18;
@@ -356,7 +393,7 @@ classdef timeAvg_UI < handle
             y_norm_button.ValueChangedFcn = @(src, event) y_norm_change(src, event, plot_panel);
 
             err_button = uibutton(sidebar_grid, "state");
-            err_button.Layout.Row = 18;
+            err_button.Layout.Row = 19;
             err_button.Layout.Column = 1;
             err_button.Text = "Error";
             err_button.FontSize = 18;
@@ -364,7 +401,7 @@ classdef timeAvg_UI < handle
             err_button.ValueChangedFcn = @(src, event) err_change(src, event, plot_panel);
 
             calc_button = uibutton(sidebar_grid, "state");
-            calc_button.Layout.Row = 19;
+            calc_button.Layout.Row = 20;
             calc_button.Layout.Column = 1;
             calc_button.Text = "Live Calculate";
             calc_button.FontSize = 18;
@@ -373,7 +410,7 @@ classdef timeAvg_UI < handle
             % Trim limits and center point for Live Calculate,
             % nondimensional (divided by L)
             bounds_panel = uipanel(sidebar_grid);
-            bounds_panel.Layout.Row = 20;
+            bounds_panel.Layout.Row = 21;
             bounds_panel.Layout.Column = 1;
             bounds_panel.Title = "Live Calc Bounds (y/L, z/L)";
             bounds_panel.TitlePosition = 'centertop';
@@ -410,7 +447,7 @@ classdef timeAvg_UI < handle
             calc_button.ValueChangedFcn = @(src, event) calc_change(src, event, plot_panel, bounds_fields);
 
             save_fig_button = uibutton(sidebar_grid);
-            save_fig_button.Layout.Row = 21;
+            save_fig_button.Layout.Row = 22;
             save_fig_button.Layout.Column = 1;
             save_fig_button.Text = "Save Fig";
             save_fig_button.FontSize = 18;
@@ -422,12 +459,22 @@ classdef timeAvg_UI < handle
 
             % ===== Nested Callback Functions =====
             
-            function x_axis_change(src, ~, fixed_dropdown_1, fixed_dropdown_2, plot_panel, lbox)
+            function x_axis_change(src, ~, fixed_dropdown_1, fixed_dropdown_2, plot_panel, lbox, freq_slider, freq_label)
                 obj.x_axis_type = obj.get_x_axis_type(src.Value);
+                obj.set_freq_slider_enable(freq_slider, freq_label);
                 obj.reset_fixed_variable_defaults();
                 obj.update_fixed_dropdowns(fixed_dropdown_1, fixed_dropdown_2);
                 obj.selection = strings(0);
                 lbox.Items = strings(0);
+                obj.update_plot(plot_panel);
+            end
+
+            function freq_range_change(src, ~, freq_label, plot_panel)
+                % snap both ends to measured frequencies
+                new_range = obj.snap_to_available_freqs(src.Value);
+                src.Value = new_range;
+                obj.freq_range = new_range;
+                obj.update_freq_range_label(freq_label);
                 obj.update_plot(plot_panel);
             end
 
@@ -942,6 +989,15 @@ classdef timeAvg_UI < handle
                 case "wingbeat frequency"
                     mask = selection_types == info.type & selection_amps == info.amp;
                     freqs = unique(selection_freqs(mask));
+                    % keep frequencies inside the selected range; cases
+                    % measured over a shorter range (30 deg: up to 6 Hz)
+                    % just contribute what they have
+                    in_range = freqs >= obj.freq_range(1) - 1e-9 & freqs <= obj.freq_range(2) + 1e-9;
+                    if ~any(in_range) && ~isempty(freqs)
+                        fprintf("%s, %g deg: measured %g-%g Hz, nothing in %g-%g Hz, not plotted\n",...
+                            info.type, info.amp, min(freqs), max(freqs), obj.freq_range(1), obj.freq_range(2));
+                    end
+                    freqs = freqs(in_range);
                     points.types = repmat(info.type, 1, length(freqs));
                     points.amps = repmat(info.amp, 1, length(freqs));
                     points.freqs = freqs(:)';
@@ -1578,6 +1634,31 @@ classdef timeAvg_UI < handle
                 case "zmax", obj.trim_bounds.zbounds(2) = value;
                 otherwise,   obj.trim_bounds.(field_name) = value;
             end
+        end
+
+        function new_range = snap_to_available_freqs(obj, value)
+            % move each end of the slider to the nearest measured frequency
+            new_range = value;
+            for k = 1:2
+                [~, idx] = min(abs(obj.available_freqs - value(k)));
+                new_range(k) = obj.available_freqs(idx);
+            end
+            new_range = sort(new_range);
+        end
+
+        function update_freq_range_label(obj, freq_label)
+            freq_label.Text = sprintf("Frequencies: %g - %g Hz", obj.freq_range(1), obj.freq_range(2));
+        end
+
+        function set_freq_slider_enable(obj, freq_slider, freq_label)
+            % the range only applies to the wingbeat frequency x-axis
+            if obj.x_axis_type == "wingbeat frequency"
+                state = "on";
+            else
+                state = "off";
+            end
+            freq_slider.Enable = state;
+            freq_label.Enable = state;
         end
 
         function tf = is_plain_steady_type(obj, type)
