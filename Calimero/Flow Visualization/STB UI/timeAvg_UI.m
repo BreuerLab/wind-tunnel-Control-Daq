@@ -1117,37 +1117,23 @@ classdef timeAvg_UI < handle
                                 [bod_var, ~] = get_PIV_force(bod_filepath, "", force_var, 0, obj.y_norm, obj.y_cen);
                                 var = var - bod_var;
                             end
-                        elseif freq == 0 && ~obj.mat_has_variable(...
-                                obj.get_stored_var_file(force_var, filepath, secondary_filepath),...
-                                extractBefore(force_var + ".", "."))
-                            % mean flow field files don't hold the
-                            % phase-resolved quantities (wing speed, bins, ...)
-                            disp(force_var + " not stored for 0 Hz case " + name + ", skipping point")
-                            var = NaN;
                         elseif ~is_shift_operation || freq > 0
+                            % variables not defined for a case (e.g.
+                            % lift.vortY for a 0 Hz mean flow field) are
+                            % replaced with zero
                             if contains(force_var, ".")
-                                abbrv_name = extractBefore(force_var, ".");
-                                d = load(secondary_filepath, abbrv_name);
-
-                                var = eval("d." + force_var);
+                                var_file = secondary_filepath;
                             else
-                                d = load(obj.get_stored_var_file(force_var, filepath, secondary_filepath), force_var);
-                                var = d.(force_var);
+                                var_file = obj.get_stored_var_file(force_var, filepath, secondary_filepath);
                             end
+                            var = obj.load_stored_var(var_file, force_var);
 
                             % TEMPORARY for dimensionalization of power
                             % var = var * (1/2) * density * wind_speed^3 * area;
 
                             if obj.PIV_sub
                                 [~, bod_secondary_filepath] = obj.get_PIV_sub_file_paths(type, amp);
-                                if contains(force_var, ".")
-                                    abbrv_name = extractBefore(force_var, ".");
-                                    bod = load(bod_secondary_filepath, abbrv_name);
-                                    bod_var = eval("bod." + force_var);
-                                else
-                                    bod = load(bod_secondary_filepath, force_var);
-                                    bod_var = bod.(force_var);
-                                end
+                                bod_var = obj.load_stored_var(bod_secondary_filepath, force_var);
                                 var = var - bod_var;
                             end  
                         end
@@ -1436,8 +1422,35 @@ classdef timeAvg_UI < handle
             end
         end
 
-        function tf = mat_has_variable(~, file, var_name)
-            tf = isfile(file) && ismember(char(var_name), who('-file', file));
+        function var = load_stored_var(~, file, var_name)
+            % Load a (possibly nested, e.g. "lift.vortY") variable from a
+            % .mat file. If the file exists but the variable or field is
+            % not defined for this case, return 0 and say so.
+            parts = split(string(var_name), ".");
+            [~, file_name] = fileparts(file);
+
+            if ~isfile(file)
+                error("timeAvg_UI:fileNotFound", "File not found: %s", file);
+            end
+
+            if ismember(char(parts(1)), who('-file', file))
+                d = load(file, parts(1));
+                var = d.(parts(1));
+                for k = 2:numel(parts)
+                    if isstruct(var) && isfield(var, parts(k))
+                        var = var.(parts(k));
+                    else
+                        var = [];
+                        break
+                    end
+                end
+                if ~isempty(var)
+                    return
+                end
+            end
+
+            fprintf("%s not defined for %s, using 0\n", var_name, file_name);
+            var = 0;
         end
 
         function [file_path, secondary_file_path] = get_PIV_sub_file_paths(obj, type, amp)

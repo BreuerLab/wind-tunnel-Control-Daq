@@ -118,7 +118,21 @@ D.unc = unc_tr;
         % Convert to a struct
         F = cell2struct(outputs, fields, 2);
 
-        var = eval("F." + force_var_name);
+        % Pull out the requested (possibly nested) force. Terms that
+        % aren't defined for a case, e.g. lift.vortY for a time average
+        % (no convection axis), are replaced with zero.
+        parts = split(string(force_var_name), ".");
+        var = F;
+        for k = 1:numel(parts)
+            if isstruct(var) && isfield(var, parts(k))
+                var = var.(parts(k));
+            else
+                [~, file_label] = fileparts(file_name);
+                fprintf("%s not defined for %s, using 0\n", force_var_name, file_label);
+                var = 0;
+                break
+            end
+        end
         err = 0;
 
         if norm_bool
