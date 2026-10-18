@@ -544,6 +544,20 @@ for planeIndex = planeIndices
     out1.numP(:,:,planeCount) = components{numParticlesIndex, 1}.Planes{planeIndex, 1};
 end
 
+% DaVis stores empty bins as 0. Mark them as NaN BEFORE any derivative is
+% taken, so calculateVorticity (via fill3D) and get_gradients interpolate
+% across the holes instead of differencing real velocities against 0,
+% which creates spurious vorticity spikes around every missing vector.
+% (Assumes the velocity Scale.Offset is 0, so empty bins are exactly 0.)
+if out1.dimNum == 3
+    emptyBins = out1.uRaw == 0 & out1.vRaw == 0 & out1.wRaw == 0;
+else
+    emptyBins = out1.uRaw == 0 & out1.vRaw == 0;
+end
+out1.uRaw(emptyBins) = NaN;
+out1.vRaw(emptyBins) = NaN;
+out1.wRaw(emptyBins) = NaN;
+
 xRaw = (1:size(out1.uRaw, 1)) - 0.5;
 yRaw = (1:size(out1.uRaw, 2)) - 0.5;
 zRaw = (1:numPlanes) - 0.5;
@@ -662,7 +676,9 @@ function dudx = central_diff_4th_3D(x, u)
 end
 
 function [dudx, dudy, dudz] = get_gradients(x, y, z, u)
-    u = zeroToMedian(u);
+    % empty bins are NaN at this point (see emptyBins above); interpolate
+    % across them, consistent with calculateVorticity
+    u = fill3D(u);
 
     dudx = central_diff_4th_3D(squeeze(x(:,1,1)), u);
     dudy = central_diff_4th_3D(squeeze(y(1,:,1)), u);

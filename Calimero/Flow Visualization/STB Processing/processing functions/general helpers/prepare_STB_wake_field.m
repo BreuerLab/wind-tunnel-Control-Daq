@@ -9,9 +9,10 @@ end
 T = trim_STB_source_fields(L, y, z, source, print_dim_bool, bounds);
 
 if fill_velocity_nans
-    T.u = nanToMedian(T.u);
-    T.v = nanToMedian(T.v);
-    T.w = nanToMedian(T.w);
+    % Laplace interpolation of holes, plane by plane (was a global median)
+    T.u = nanRegionFill(T.u);
+    T.v = nanRegionFill(T.v);
+    T.w = nanRegionFill(T.w);
 end
 
 y_tr = T.y;
