@@ -22,6 +22,7 @@ function S = time_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, n
             % Initialize structure with zeros based on first file size
             for f = 1:length(fields)
                 S.(['mean_' fields{f}]) = zeros(size(x));
+                n_valid.(['mean_' fields{f}]) = zeros(size(x)); % frames with data, per bin
             end
 
             % turn printing boolean off for printing of trimmed dimensions
@@ -33,8 +34,10 @@ function S = time_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, n
         for f = 1:length(fields)
             fn = ['mean_' fields{f}];
             current_data = data{f};
-            current_data(isnan(current_data)) = 0;
+            valid = ~isnan(current_data);
+            current_data(~valid) = 0;
             S.(fn) = S.(fn) + current_data;
+            n_valid.(fn) = n_valid.(fn) + valid;
         end
 
         F = prepare_STB_wake_field(L, y, z, print_dim_bool, data, 0, bounds); % trimming
@@ -48,10 +51,13 @@ function S = time_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, n
         end
     end
 
-    % Divide all accumulated fields by num_images to compute average
+    % Divide each bin's sum by the number of frames that actually had data
+    % in that bin (NaN-omitting mean). Dividing by num_images would pull
+    % bins with intermittent holes toward zero. Bins with no data in any
+    % frame come out NaN and are filled downstream (nanRegionFill).
     avg_fields = fieldnames(S);
     for f = 1:length(avg_fields)
-        S.(avg_fields{f}) = S.(avg_fields{f}) / num_images;
+        S.(avg_fields{f}) = S.(avg_fields{f}) ./ n_valid.(avg_fields{f});
     end
 
     % Add metadata to the struct
