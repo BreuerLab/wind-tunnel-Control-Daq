@@ -1,6 +1,6 @@
 function [var, err] = get_PIV_force(file_name, case_name, force_var_name, avg_type, norm_bool, bounds)
-        % bounds: trim limits and center point for trim_vel_field (see
-        % get_trim_bounds in the STB UIs)
+        % bounds: trim limits and center point for trim_vel_field
+        % (defaults in default_trim_bounds.m)
 
         vort_bool = true;
         if contains(force_var_name, "vel")

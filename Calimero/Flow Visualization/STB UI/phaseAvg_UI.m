@@ -1369,16 +1369,6 @@ methods (Access = private)
             strjoin(time_avg_dir + case_names + "_time_avg.mat", "\n  "));
     end
 
-    function bounds = get_trim_bounds(~)
-        % Region of the wake kept for live-calculated forces
-        % (get_PIV_force -> trim_vel_field), nondimensional (divided by L).
-        % Matches the values in process_case.m used for the stored forces.
-        bounds.ybounds = [-2.4 2.8];
-        bounds.zbounds = [-2.9 3.1];
-        bounds.y_cen = -2.06;
-        bounds.z_cen = -0.35;
-    end
-
     function [time_F, force] = get_load_cell_force(obj, type, amp, freq)
         time_F = [];
         force = [];
@@ -1622,7 +1612,7 @@ methods (Access = private)
                 avg_type = 1;
                 norm_bool = false;
                 % Compute forces from flow field live
-                [var, err] = get_PIV_force(file_path, cur_sel, var_name, avg_type, norm_bool, obj.get_trim_bounds());
+                [var, err] = get_PIV_force(file_path, cur_sel, var_name, avg_type, norm_bool, default_trim_bounds());
             else
                 vars = {"L","U"};
                 d2 = load(file_path, vars{:});
@@ -1667,7 +1657,7 @@ methods (Access = private)
                 if obj.calc_bool
                     % Compute aerodynamic forces
                     norm_bool = false;
-                    [bod_var, bod_err] = get_PIV_force(file_path_t, "", var_name, 0, norm_bool, obj.get_trim_bounds());
+                    [bod_var, bod_err] = get_PIV_force(file_path_t, "", var_name, 0, norm_bool, default_trim_bounds());
                     var = var - bod_var;
                 else
                     if contains(var_name, ".")

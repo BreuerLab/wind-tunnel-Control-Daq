@@ -55,7 +55,10 @@ classdef timeAvg_UI < handle
         err_bool;
         calc_bool;
 
-        y_cen; % spanwise position of center of body for mirroring
+        % trim limits and center point used by Live Calculate
+        % (get_PIV_force -> trim_vel_field); starts from
+        % default_trim_bounds() and is adjusted in the sidebar
+        trim_bounds;
 
         % ------- Available parameters user can select from -------
         available_selections;
@@ -126,7 +129,7 @@ classdef timeAvg_UI < handle
             obj.saveFig = false;
             obj.err_bool = false;
             obj.calc_bool = false;
-            obj.y_cen = -2.26; % -2.16, 2.55, -0.142 / d.L;
+            obj.trim_bounds = default_trim_bounds();
 
             % Search through files in path to get types and speeds.
             % Phase averaged cases live in phase_avg\, the 0 Hz (gliding)
@@ -199,7 +202,7 @@ classdef timeAvg_UI < handle
             sidebar_grid = uigridlayout(option_panel, [21, 1]);
             sidebar_grid.ColumnWidth = {'1x'};
             sidebar_grid.RowHeight = {30, 30, 30, 30, 30, 110, 30, 30, 30, 30,...
-                                      30, 30, 25, 30, 30, 30, 30, 30, 30, 30, 30};
+                                      30, 30, 25, 30, 30, 30, 30, 30, 30, 130, 30};
             sidebar_grid.Padding = [10 10 10 10];
             sidebar_grid.RowSpacing = 6;
             if isprop(sidebar_grid, "Scrollable")
@@ -360,19 +363,51 @@ classdef timeAvg_UI < handle
             err_button.BackgroundColor = obj.COLOR_INACTIVE;
             err_button.ValueChangedFcn = @(src, event) err_change(src, event, plot_panel);
 
-            y_cen_field = uieditfield(sidebar_grid, 'numeric');
-            y_cen_field.Layout.Row = 19;
-            y_cen_field.Layout.Column = 1;
-            y_cen_field.Value = obj.y_cen;
-            y_cen_field.ValueChangedFcn = @(src, event) y_cen_change(src, event, plot_panel);
-
             calc_button = uibutton(sidebar_grid, "state");
-            calc_button.Layout.Row = 20;
+            calc_button.Layout.Row = 19;
             calc_button.Layout.Column = 1;
             calc_button.Text = "Live Calculate";
             calc_button.FontSize = 18;
             calc_button.BackgroundColor = obj.COLOR_INACTIVE;
-            calc_button.ValueChangedFcn = @(src, event) calc_change(src, event, plot_panel);
+
+            % Trim limits and center point for Live Calculate,
+            % nondimensional (divided by L)
+            bounds_panel = uipanel(sidebar_grid);
+            bounds_panel.Layout.Row = 20;
+            bounds_panel.Layout.Column = 1;
+            bounds_panel.Title = "Live Calc Bounds (y/L, z/L)";
+            bounds_panel.TitlePosition = 'centertop';
+
+            bounds_grid = uigridlayout(bounds_panel, [3, 3]);
+            bounds_grid.ColumnWidth = {45, '1x', '1x'};
+            bounds_grid.RowHeight = {25, 25, 25};
+            bounds_grid.Padding = [6 4 6 4];
+            bounds_grid.RowSpacing = 4;
+            bounds_grid.ColumnSpacing = 4;
+
+            % {row label, [field, field] names, tooltips}
+            bounds_rows = {"y", ["ymin", "ymax"], ["y lower bound", "y upper bound"];
+                           "z", ["zmin", "zmax"], ["z lower bound", "z upper bound"];
+                           "center", ["y_cen", "z_cen"], ["y center (new origin)", "z center (new origin)"]};
+            bounds_fields = gobjects(0);
+            for r = 1:size(bounds_rows, 1)
+                row_label = uilabel(bounds_grid);
+                row_label.Layout.Row = r;
+                row_label.Layout.Column = 1;
+                row_label.Text = bounds_rows{r, 1};
+                for c = 1:2
+                    bound_name = bounds_rows{r, 2}(c);
+                    bound_field = uieditfield(bounds_grid, 'numeric');
+                    bound_field.Layout.Row = r;
+                    bound_field.Layout.Column = c + 1;
+                    bound_field.Value = obj.get_trim_bound_value(bound_name);
+                    bound_field.Tooltip = bounds_rows{r, 3}(c);
+                    bound_field.ValueChangedFcn = @(src, event) trim_bound_change(src, event, bound_name, plot_panel);
+                    bounds_fields(end+1) = bound_field; %#ok<AGROW>
+                end
+            end
+            set(bounds_fields, 'Enable', 'off'); % only used with Live Calculate
+            calc_button.ValueChangedFcn = @(src, event) calc_change(src, event, plot_panel, bounds_fields);
 
             save_fig_button = uibutton(sidebar_grid);
             save_fig_button.Layout.Row = 21;
@@ -493,9 +528,14 @@ classdef timeAvg_UI < handle
                 obj.update_plot(plot_panel);
             end
             
-            function calc_change(src, ~, plot_panel)
+            function calc_change(src, ~, plot_panel, bounds_fields)
                 obj.calc_bool = src.Value;
                 src.BackgroundColor = obj.get_button_color(obj.calc_bool);
+                if obj.calc_bool
+                    set(bounds_fields, 'Enable', 'on');
+                else
+                    set(bounds_fields, 'Enable', 'off');
+                end
                 obj.update_plot(plot_panel);
             end
 
@@ -535,9 +575,19 @@ classdef timeAvg_UI < handle
                 obj.update_plot(plot_panel);
             end
 
-            function y_cen_change(src, ~, plot_panel)
-                obj.y_cen = src.Value;
-                obj.update_plot(plot_panel);
+            function trim_bound_change(src, event, bound_name, plot_panel)
+                obj.set_trim_bound_value(bound_name, src.Value);
+                b = obj.trim_bounds;
+                if b.ybounds(1) >= b.ybounds(2) || b.zbounds(1) >= b.zbounds(2)
+                    % reject: put the previous value back
+                    obj.set_trim_bound_value(bound_name, event.PreviousValue);
+                    src.Value = event.PreviousValue;
+                    disp("Live Calc Bounds: lower bound must be below upper bound, value not changed")
+                    return
+                end
+                if obj.calc_bool
+                    obj.update_plot(plot_panel);
+                end
             end
 
             function save_figure(~, ~, plot_panel)
@@ -1164,11 +1214,11 @@ classdef timeAvg_UI < handle
                         if is_shift_operation && freq == 0
                             disp("Skipping 0 Hz time-average case for phase shift")
                         elseif obj.calc_bool && obj.is_piv_force_variable(force_var)
-                            [var, err] = get_PIV_force(filepath, name, force_var, avg_type, obj.y_norm, obj.get_trim_bounds());
+                            [var, err] = get_PIV_force(filepath, name, force_var, avg_type, obj.y_norm, obj.trim_bounds);
 
                             if obj.PIV_sub
                                 [bod_filepath, ~] = obj.get_PIV_sub_file_paths(type, amp);
-                                [bod_var, ~] = get_PIV_force(bod_filepath, "", force_var, 0, obj.y_norm, obj.get_trim_bounds());
+                                [bod_var, ~] = get_PIV_force(bod_filepath, "", force_var, 0, obj.y_norm, obj.trim_bounds);
                                 var = var - bod_var;
                             end
                         elseif ~is_shift_operation || freq > 0
@@ -1509,14 +1559,25 @@ classdef timeAvg_UI < handle
             var = 0;
         end
 
-        function bounds = get_trim_bounds(~)
-            % Region of the wake kept for live-calculated forces
-            % (get_PIV_force -> trim_vel_field), nondimensional (divided by L).
-            % Matches the values in process_case.m used for the stored forces.
-            bounds.ybounds = [-2.4 2.8];
-            bounds.zbounds = [-2.9 3.1];
-            bounds.y_cen = -2.06;
-            bounds.z_cen = -0.35;
+        function value = get_trim_bound_value(obj, field_name)
+            % sidebar field name -> value in obj.trim_bounds
+            switch field_name
+                case "ymin", value = obj.trim_bounds.ybounds(1);
+                case "ymax", value = obj.trim_bounds.ybounds(2);
+                case "zmin", value = obj.trim_bounds.zbounds(1);
+                case "zmax", value = obj.trim_bounds.zbounds(2);
+                otherwise,   value = obj.trim_bounds.(field_name);
+            end
+        end
+
+        function set_trim_bound_value(obj, field_name, value)
+            switch field_name
+                case "ymin", obj.trim_bounds.ybounds(1) = value;
+                case "ymax", obj.trim_bounds.ybounds(2) = value;
+                case "zmin", obj.trim_bounds.zbounds(1) = value;
+                case "zmax", obj.trim_bounds.zbounds(2) = value;
+                otherwise,   obj.trim_bounds.(field_name) = value;
+            end
         end
 
         function tf = is_plain_steady_type(obj, type)
