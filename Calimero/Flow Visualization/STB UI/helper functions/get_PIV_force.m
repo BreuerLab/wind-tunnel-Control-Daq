@@ -97,11 +97,13 @@ function [var, err] = get_PIV_force(file_name, case_name, force_var_name, avg_ty
     end
     [~, ~, unc_tr] = trim_vel_field(y, z, unc_tr, bounds);
     
-    % Replace nans in velocity field with median values so integral
-    % calculations aren't skewed
-    u_tr = nanToMedian(u_tr);
-    v_tr = nanToMedian(v_tr);
-    w_tr = nanToMedian(w_tr);
+    % Fill holes in the (averaged) velocity field by Laplace interpolation
+    % from surrounding data, plane by plane. A global median fill puts
+    % ~freestream values into holes inside the downwash region, which
+    % biases the integral of w (and hence the lift estimate).
+    u_tr = nanRegionFill(u_tr);
+    v_tr = nanRegionFill(v_tr);
+    w_tr = nanRegionFill(w_tr);
     
     D.x = x_conv; D.y = y_tr; D.z = z_tr;
     D.u = u_tr; D.v = v_tr; D.w = w_tr;

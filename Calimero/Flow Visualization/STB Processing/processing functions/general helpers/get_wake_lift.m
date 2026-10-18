@@ -15,74 +15,19 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density)
     vortZ = D.vortZ / (L/U);
     end
 
-    unc = D.unc;
-
-    % mask regions where missing STB information
-    % u(isnan(unc)) = NaN;
-    % w(isnan(unc)) = NaN;
-    if vort_bool
-        default_value = 0;
-
-    % if avg_type
-    vortX(isnan(unc)) = default_value; %  & unc > 0.03
-    vortY(isnan(unc)) = default_value;
-    vortZ(isnan(unc)) = default_value;
-
-    % dudy(isnan(unc)) = default_value;
-    % dudz(isnan(unc)) = default_value;
-    % end
-
-    % vortX = medfilt3(vortX);
-    % vortY = medfilt3(vortY);
-    % vortZ = medfilt3(vortZ);
-
-    % median filter for each image, rather than 3D wake
-    filter_dim = [3 3];
-    if ndims(vortX) == 3
-        for k = 1:size(vortX,3)
-        vortX(:,:,k) = medfilt2(vortX(:,:,k), filter_dim);
-        vortY(:,:,k) = medfilt2(vortY(:,:,k), filter_dim);
-        vortZ(:,:,k) = medfilt2(vortZ(:,:,k), filter_dim);
-
-        % dudy(:,:,k) = medfilt2(dudy(:,:,k), filter_dim);
-        % dudz(:,:,k) = medfilt2(dudz(:,:,k), filter_dim);
-        end
-    else
-        vortX = medfilt2(vortX, filter_dim);
-        vortY = medfilt2(vortY, filter_dim);
-        vortZ = medfilt2(vortZ, filter_dim);
-    end
-
-    % gaussian filter
-    % filter_dim = [3 3];
-    % sigma = 0.5; % Standard deviation of the Gaussian kernel (adjust as needed)
-    % 
-    % if ndims(vortX) == 3
-    %     for k = 1:size(vortX,3)
-    %         vortX(:,:,k) = imgaussfilt(vortX(:,:,k), sigma, 'FilterSize', filter_dim);
-    %         vortY(:,:,k) = imgaussfilt(vortY(:,:,k), sigma, 'FilterSize', filter_dim);
-    %         vortZ(:,:,k) = imgaussfilt(vortZ(:,:,k), sigma, 'FilterSize', filter_dim);
-    %     end
-    % else
-    %     vortX = imgaussfilt(vortX, sigma, 'FilterSize', filter_dim);
-    %     vortY = imgaussfilt(vortY, sigma, 'FilterSize', filter_dim);
-    %     vortZ = imgaussfilt(vortZ, sigma, 'FilterSize', filter_dim);
-    % end
-
-    % Q_mask_bool = true;
-    % if Q_mask_bool
-    %     vortX(Q < 0) = 0;
-    %     % disp("Q mask active")
-    % end
-
-    % Flooring the noise below some threshold makes the trends with
-    % wingbeat frequency appear smoother, but appears to worsen agreement
-    % for phase averaged data (b/w load cell and STB)
-    if ndims(vortX) == 3
-    % thresh = 0.1 * (U/L);
-    % vortX(vortX < thresh & vortX > -thresh) = default_value;
-    % vortY(vortY < thresh & vortY > -thresh) = default_value;
-    end
+    % Vorticity is used as computed from the hole-filled velocity field
+    % (holes are marked NaN in loadpiv and interpolated before any
+    % derivative is taken). It is deliberately NOT zeroed where data is
+    % missing and NOT median filtered: zeroing removes circulation from
+    % poorly seeded vortex cores, and a median filter is nonlinear and
+    % clips concentrated cores, so neither preserves the integral of
+    % y*omega_x that the lift estimate depends on.
+    % NOTE: .mat files processed before this change contain vorticity
+    % computed with holes treated as zero velocity - reprocess them.
+    if vort_bool && (any(isnan(vortX), 'all') || any(isnan(vortY), 'all'))
+        warning("get_wake_lift:nanVorticity", ...
+            "Vorticity contains NaNs; lift/drag integrals will be NaN. " + ...
+            "Fill holes in the velocity field before computing vorticity.")
     end
 
     % in my reference frame right wing produces positive vorticity, but
