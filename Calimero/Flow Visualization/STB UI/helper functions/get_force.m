@@ -38,6 +38,26 @@ function force = get_force(path, type, amp, freq, idx, var_name_F)
         end
     end
 
+    % Steady cases without a set amplitude (e.g. NACA, ring) may sit in a
+    % folder like "30 deg NACA" or "NACA": use the single folder whose name
+    % is the type, optionally preceded by "<number> deg "
+    if parentDir == ""
+        folders = dir(path);
+        folders = folders([folders.isdir] & ~ismember({folders.name}, {'.', '..'}));
+        folder_names = string({folders.name});
+        pattern = "^(\d+ deg )?" + regexptranslate('escape', char(type)) + "$";
+        is_match = ~cellfun(@isempty, regexpi(folder_names, pattern, 'once'));
+        matches = folder_names(is_match);
+        matches = matches(isfolder(path + matches + "\4 m.s"));
+        if numel(matches) == 1
+            parentDir = path + matches + "\4 m.s\";
+        elseif numel(matches) > 1
+            error("get_force:ambiguousFolder",...
+                "Several load cell folders match type '%s':\n  %s",...
+                type, strjoin(path + matches, "\n  "));
+        end
+    end
+
     if parentDir == ""
         error("get_force:folderNotFound",...
             "No load cell folder found for type '%s' at %s deg. Tried:\n  %s",...
@@ -72,7 +92,9 @@ function force = get_force(path, type, amp, freq, idx, var_name_F)
     for j = 1:length(force_files)
         cur_name = force_files(j).name;
          % 10 deg AoA case and matching frequency
-        if contains(cur_name, "10deg") && contains(cur_name, freq + "Hz")
+        % (the lookbehind stops "0Hz" from also matching "10Hz")
+        if contains(cur_name, "10deg") &&...
+                ~isempty(regexp(cur_name, "(?<![\d.])" + freq + "Hz", 'once'))
             force_filename = cur_name;
         end
     end

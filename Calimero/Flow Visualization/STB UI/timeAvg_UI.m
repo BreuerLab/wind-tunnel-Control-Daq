@@ -22,6 +22,9 @@ classdef timeAvg_UI < handle
         root_path; % file path to data
         PIV_path;
         time_avg_path; % steady (0 Hz) cases, saved as mean flow fields
+        % steady cases saved without amplitude/frequency in the name
+        % (e.g. "x3_NACA", "x3_ring"); treated as amp = 0, freq = 0
+        plain_steady_types;
         force_path;
 
         % integer, 0-6, defines which force/moment axes to display
@@ -133,13 +136,29 @@ classdef timeAvg_UI < handle
             if isfolder(obj.time_avg_path)
                 contents_t = dir(obj.time_avg_path);
                 contents_t = contents_t(~[contents_t.isdir]);
-                % only take the 0 Hz cases (ring/body files have no "Hz")
+                % 0 Hz cases named like the flapping ones (plain-named
+                % steady cases are added below)
                 is_zero_hz = ~cellfun(@isempty, regexp({contents_t.name}, '_0Hz_time_avg\.mat$', 'once'));
                 files = [files; contents_t(is_zero_hz)];
             end
 
             % Get amps, freqs, types from file names
             obj.available_selections = get_sel_from_file(files);
+
+            % Steady cases named without amplitude/frequency (e.g.
+            % x3_NACA_time_avg.mat) are added as their own type with
+            % amp = 0 and freq = 0
+            obj.plain_steady_types = strings(0, 1);
+            if isfolder(obj.time_avg_path)
+                steady_names = string({contents_t.name});
+                steady_names = steady_names(endsWith(steady_names, "_time_avg.mat") &...
+                                            ~contains(steady_names, "Hz"));
+                steady_types = erase(steady_names, "_time_avg.mat");
+                obj.plain_steady_types = unique(steady_types(:), 'stable');
+                for k = 1:length(obj.plain_steady_types)
+                    obj.available_selections(end+1, :) = {obj.plain_steady_types(k), 0, 0};
+                end
+            end
 
             % drop duplicate cases (e.g. a 0 Hz file present in both folders)
             if ~isempty(obj.available_selections)
@@ -1108,7 +1127,7 @@ classdef timeAvg_UI < handle
                     freq = points.freqs(j);
 
                     if obj.PIV_bool
-                        name = type + "_" + amp + "deg_" + freq + "Hz";
+                        name = obj.get_case_name(type, amp, freq);
                         % RPCA only applies to phase averaged cases
                         if info.RPCA && freq ~= 0
                             name = name + "_RPCA";
@@ -1210,7 +1229,9 @@ classdef timeAvg_UI < handle
                                 forces(2,j) = range(force_signal);
                             end
 
-                            if obj.force_sub
+                            if obj.force_sub && obj.is_plain_steady_type(type)
+                                disp("Force Body Sub skipped for steady case " + type)
+                            elseif obj.force_sub
                                 body_amp = amp;
                                 if body_amp == 30
                                     body_amp = 20;
@@ -1251,7 +1272,7 @@ classdef timeAvg_UI < handle
                         type = points.types(k);
                         amp = points.amps(k);
                         freq = points.freqs(k);
-                        name = type + "_" + amp + "deg_" + freq + "Hz";
+                        name = obj.get_case_name(type, amp, freq);
                         d = load(obj.PIV_path + name + "_phase_avg.mat", "U", "U_act");
                         wind_speed_acts(k) = d.U_act * d.U;
                     end
@@ -1488,6 +1509,20 @@ classdef timeAvg_UI < handle
             var = 0;
         end
 
+        function tf = is_plain_steady_type(obj, type)
+            tf = ismember(string(type), obj.plain_steady_types);
+        end
+
+        function name = get_case_name(obj, type, amp, freq)
+            % File stem for a case: "x3_wings_20deg_4Hz", or just the type
+            % for plain-named steady cases ("x3_NACA")
+            if obj.is_plain_steady_type(type)
+                name = string(type);
+            else
+                name = type + "_" + amp + "deg_" + freq + "Hz";
+            end
+        end
+
         function [file_path, secondary_file_path] = get_PIV_sub_file_paths(obj, type, amp)
             % Steady (time averaged) case subtracted from a selection when
             % "PIV Body Sub" is on. For x3_wings_20deg_4Hz:
@@ -1507,7 +1542,12 @@ classdef timeAvg_UI < handle
                     % older body cases were saved without an amplitude
                     case_names = [prefix + "body_" + amp + "deg_0Hz", prefix + "body"];
                 case "gliding"
-                    case_names = type + "_" + amp + "deg_0Hz";
+                    if obj.is_plain_steady_type(type)
+                        % a steady case is its own gliding case
+                        case_names = type;
+                    else
+                        case_names = type + "_" + amp + "deg_0Hz";
+                    end
                 otherwise
                     error("Unknown PIV subtraction case: %s", obj.PIV_sub_case);
             end
