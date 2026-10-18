@@ -1007,6 +1007,24 @@ classdef timeAvg_UI < handle
             end
         end
 
+        function label = get_load_cell_legend_label(obj, curve_label, load_cell_idx)
+            % The load cell gives total lift or drag, with no breakdown
+            % into the STB terms
+            switch load_cell_idx
+                case 1
+                    quantity = "drag";
+                case 3
+                    quantity = "lift";
+                otherwise
+                    quantity = "";
+            end
+
+            label = "Force: " + quantity;
+            if length(obj.selection) > 1
+                label = label + " - " + curve_label;
+            end
+        end
+
         function marker = get_variable_marker(~, var_idx)
             markers = ["o", "s", "^", "d", "v", ">", "<", "p", "h", "x", "+", "*"];
             marker = markers(mod(var_idx - 1, length(markers)) + 1);
@@ -1035,6 +1053,12 @@ classdef timeAvg_UI < handle
             num_vars = length(selected_force_vars);
             curve_colors = lines(max(1, length(obj.selection) * max(1, num_vars)));
 
+            % The load cell only measures total lift or drag, so several STB
+            % terms (e.g. lift.vortX and lift.vortY) share one load cell
+            % series. Track which ones are already on the plot so each is
+            % drawn once per selection.
+            plotted_load_cell_keys = strings(0);
+
             for var_idx = 1:num_vars % Loop through each selected variable
                 force_var = selected_force_vars(var_idx);
                 load_cell_idx = obj.get_load_cell_index(force_var);
@@ -1056,6 +1080,17 @@ classdef timeAvg_UI < handle
                 force_color = getLightColor(rgb2hex(original_color));
                 curve_label = obj.get_curve_label(info);
                 legend_label = obj.get_plot_legend_label(curve_label, force_var, num_vars);
+
+                % plot this load cell series only the first time it comes up
+                show_load_cell = false;
+                if obj.force_bool && ~isempty(load_cell_idx)
+                    load_cell_key = string(i) + "|" + string(load_cell_idx);
+                    if ~ismember(load_cell_key, plotted_load_cell_keys)
+                        show_load_cell = true;
+                        plotted_load_cell_keys(end+1) = load_cell_key;
+                    end
+                end
+                force_legend_label = obj.get_load_cell_legend_label(curve_label, load_cell_idx);
 
                 forces = zeros(2, num_points);
                 if is_shift_operation
@@ -1236,12 +1271,12 @@ classdef timeAvg_UI < handle
                         s1.DisplayName = legend_label;
                     end
 
-                    if obj.force_bool && ~isempty(load_cell_idx)
+                    if show_load_cell
                         s2 = scatter(ax, x_var, forces(2,:), 125, "filled");
                         s2.Marker = char(variable_marker);
                         s2.MarkerFaceColor = force_color;
                         s2.MarkerEdgeColor = original_color;
-                        s2.DisplayName = "Force: " + legend_label;
+                        s2.DisplayName = force_legend_label;
                     end
                 elseif obj.err_bool && ~isempty(load_cell_idx)
                     ylabel(ax, "Error (N)")
@@ -1266,12 +1301,12 @@ classdef timeAvg_UI < handle
                         s1.DisplayName = legend_label;
                     end
 
-                    if obj.force_bool && ~isempty(load_cell_idx)
+                    if show_load_cell
                         s2 = scatter(ax, x_var, forces(2,:), 125,"filled");
                         s2.Marker = char(variable_marker);
                         s2.MarkerFaceColor = force_color;
                         s2.MarkerEdgeColor = original_color;
-                        s2.DisplayName = "Force: " + legend_label;
+                        s2.DisplayName = force_legend_label;
                     end
                 end
             end
