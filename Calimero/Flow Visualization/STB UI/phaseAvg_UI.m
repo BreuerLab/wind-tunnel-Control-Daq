@@ -106,7 +106,6 @@ properties
     % 3 - Filtered - 10*wingbeat frequency cutoff frequency
     filt_num;
     saveFig;
-    y_cen;
 
     calc_bool;
     align_bool;
@@ -161,7 +160,6 @@ methods
         obj.log_scale = false;
         obj.filt_num = 3;
         obj.saveFig = false;
-        obj.y_cen = -2.26; % -2.16, 2.55, -0.142 / d.L;
 
         obj.force_index = [];
         obj.calc_bool = false;
