@@ -1,4 +1,6 @@
-function [var, err] = get_PIV_force(file_name, case_name, force_var_name, avg_type, norm_bool, y_cen)
+function [var, err] = get_PIV_force(file_name, case_name, force_var_name, avg_type, norm_bool, bounds)
+        % bounds: trim limits and center point for trim_vel_field (see
+        % get_trim_bounds in the STB UIs)
 
         vort_bool = true;
         if contains(force_var_name, "vel")
@@ -85,15 +87,15 @@ function [var, err] = get_PIV_force(file_name, case_name, force_var_name, avg_ty
         unc_tr = d.uncTot_phase_avg;
     end
     
-    [y_tr, z_tr, u_tr] = trim_vel_field(y, z, u_tr);
-    [~, ~, v_tr] = trim_vel_field(y, z, v_tr);
-    [~, ~, w_tr] = trim_vel_field(y, z, w_tr);
+    [y_tr, z_tr, u_tr] = trim_vel_field(y, z, u_tr, bounds);
+    [~, ~, v_tr] = trim_vel_field(y, z, v_tr, bounds);
+    [~, ~, w_tr] = trim_vel_field(y, z, w_tr, bounds);
     if vort_bool
-    [~, ~, vortX_tr] = trim_vel_field(y, z, vortX_tr);
-    [~, ~, vortY_tr] = trim_vel_field(y, z, vortY_tr);
-    [~, ~, vortZ_tr] = trim_vel_field(y, z, vortZ_tr);
+    [~, ~, vortX_tr] = trim_vel_field(y, z, vortX_tr, bounds);
+    [~, ~, vortY_tr] = trim_vel_field(y, z, vortY_tr, bounds);
+    [~, ~, vortZ_tr] = trim_vel_field(y, z, vortZ_tr, bounds);
     end
-    [~, ~, unc_tr] = trim_vel_field(y, z, unc_tr);
+    [~, ~, unc_tr] = trim_vel_field(y, z, unc_tr, bounds);
     
     % Replace nans in velocity field with median values so integral
     % calculations aren't skewed

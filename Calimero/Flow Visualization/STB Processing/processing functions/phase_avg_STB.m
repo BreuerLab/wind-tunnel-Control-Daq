@@ -1,4 +1,4 @@
-function S = phase_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, num_images, bools)
+function S = phase_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, num_images, bools, bounds)
 tic
 
 % Prepare path and name for file to be saved
@@ -140,7 +140,7 @@ for i = 1:num_bins
     [x, y, z, data{1:length(fields)}] = ...
         import_STB_data(file_path, bools.nondim, U, L, bin_indices, bools.RPCA);
 
-    F = prepare_STB_wake_field(L, y, z, print_dim_bool, data, x_conv); % trimming fields
+    F = prepare_STB_wake_field(L, y, z, print_dim_bool, data, x_conv, bounds); % trimming fields
 
     if ~bools.turbine
     [lift_vals, drag_vals] = get_wake_lift(speed, L, F, true, S.rho_act);
@@ -249,7 +249,7 @@ fprintf('Processing and saving data took %.4f seconds.\n', toc);
 
 % Calculate secondary values (Q, power, integral values) and save in
 % separate file
-calc_secondary_vals_phase(S, D, bools, save_filepath_local);
+calc_secondary_vals_phase(S, D, bools, save_filepath_local, bounds);
 
 else
 
@@ -258,6 +258,6 @@ S = load(save_path);
 
 % Calculate secondary values (Q, power, integral values) and save in
 % separate file
-calc_secondary_vals_phase(S, D, bools, save_filepath_local);
+calc_secondary_vals_phase(S, D, bools, save_filepath_local, bounds);
 end
 end

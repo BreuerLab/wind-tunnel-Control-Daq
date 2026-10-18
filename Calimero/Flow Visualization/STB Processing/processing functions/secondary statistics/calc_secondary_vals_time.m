@@ -1,4 +1,4 @@
-function calc_secondary_vals_time(D, save_filepath_local)
+function calc_secondary_vals_time(D, save_filepath_local, bounds)
 tic
 
 config.uField = 'mean_u';
@@ -30,7 +30,7 @@ config.speed = D.U;
 config.length = D.L;
 config.density = D.rho;
 
-S = calc_secondary_vals_common(D, config);
+S = calc_secondary_vals_common(D, config, bounds);
 
 % Save the entire structure
 save_filename = D.PIV_case_name + "_time_avg_integral.mat";

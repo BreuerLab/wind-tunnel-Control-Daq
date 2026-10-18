@@ -1164,11 +1164,11 @@ classdef timeAvg_UI < handle
                         if is_shift_operation && freq == 0
                             disp("Skipping 0 Hz time-average case for phase shift")
                         elseif obj.calc_bool && obj.is_piv_force_variable(force_var)
-                            [var, err] = get_PIV_force(filepath, name, force_var, avg_type, obj.y_norm, obj.y_cen);
+                            [var, err] = get_PIV_force(filepath, name, force_var, avg_type, obj.y_norm, obj.get_trim_bounds());
 
                             if obj.PIV_sub
                                 [bod_filepath, ~] = obj.get_PIV_sub_file_paths(type, amp);
-                                [bod_var, ~] = get_PIV_force(bod_filepath, "", force_var, 0, obj.y_norm, obj.y_cen);
+                                [bod_var, ~] = get_PIV_force(bod_filepath, "", force_var, 0, obj.y_norm, obj.get_trim_bounds());
                                 var = var - bod_var;
                             end
                         elseif ~is_shift_operation || freq > 0
@@ -1507,6 +1507,16 @@ classdef timeAvg_UI < handle
 
             fprintf("%s not defined for %s, using 0\n", var_name, file_name);
             var = 0;
+        end
+
+        function bounds = get_trim_bounds(~)
+            % Region of the wake kept for live-calculated forces
+            % (get_PIV_force -> trim_vel_field), nondimensional (divided by L).
+            % Matches the values in process_case.m used for the stored forces.
+            bounds.ybounds = [-2.4 2.8];
+            bounds.zbounds = [-2.9 3.1];
+            bounds.y_cen = -2.06;
+            bounds.z_cen = -0.35;
         end
 
         function tf = is_plain_steady_type(obj, type)

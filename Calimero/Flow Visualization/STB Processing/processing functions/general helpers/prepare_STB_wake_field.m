@@ -1,11 +1,12 @@
 % Trim STB fields and build get_wake_lift input.
-function [F, y_tr, z_tr, T] = prepare_STB_wake_field(L, y, z, print_dim_bool, source, x_conv, fill_velocity_nans)
+function [F, y_tr, z_tr, T] = prepare_STB_wake_field(L, y, z, print_dim_bool, source, x_conv, bounds, fill_velocity_nans)
+% bounds: trim limits and center point passed on to trim_vel_field
 
-if nargin < 7
+if nargin < 8
     fill_velocity_nans = false;
 end
 
-T = trim_STB_source_fields(L, y, z, source, print_dim_bool);
+T = trim_STB_source_fields(L, y, z, source, print_dim_bool, bounds);
 
 if fill_velocity_nans
     T.u = nanToMedian(T.u);

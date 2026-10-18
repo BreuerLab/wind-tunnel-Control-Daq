@@ -1,4 +1,4 @@
-function S = time_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, num_images, bools)
+function S = time_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, num_images, bools, bounds)
     tic;
     save_path = fullfile(save_filepath_local, PIV_case_name + "_time_avg.mat");
 
@@ -37,7 +37,7 @@ function S = time_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, n
             S.(fn) = S.(fn) + current_data;
         end
 
-        F = prepare_STB_wake_field(L, y, z, print_dim_bool, data, 0); % trimming
+        F = prepare_STB_wake_field(L, y, z, print_dim_bool, data, 0, bounds); % trimming
 
         [lift, drag] = get_wake_lift(speed, L, F, true, density);
         lift_vals(i) = lift.vortX;
@@ -64,13 +64,13 @@ function S = time_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, n
     
     fprintf('Processing and saving took %.4f seconds.\n', toc);
 
-    calc_secondary_vals_time(S, save_filepath_local)
+    calc_secondary_vals_time(S, save_filepath_local, bounds)
     else
     % load in processed velocity field struct from an earlier run
     S = load(save_path);
     
     % Calculate secondary values (Q, power, integral values) and save in
     % separate file
-    calc_secondary_vals_time(S, save_filepath_local)
+    calc_secondary_vals_time(S, save_filepath_local, bounds)
     end
 end

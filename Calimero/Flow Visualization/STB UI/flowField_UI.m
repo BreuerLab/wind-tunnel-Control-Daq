@@ -1795,7 +1795,7 @@ methods (Access = private)
             avg_type = 1;
             norm_bool = false;
             case_id = obj.get_current_case_id();
-            val = get_PIV_force(full_file_path, case_id, var_name, avg_type, norm_bool);
+            val = get_PIV_force(full_file_path, case_id, var_name, avg_type, norm_bool, obj.get_trim_bounds());
 
             plot(ax, val)
             hold(ax, "on")
@@ -1815,6 +1815,16 @@ methods (Access = private)
             xlabel(ax, "Time", FontSize=16)
             ylabel(ax, obj.label_dict(obj.variable_name), FontSize=16, Interpreter="latex")
         end
+    end
+
+    function bounds = get_trim_bounds(~)
+        % Region of the wake kept for live-calculated forces
+        % (get_PIV_force -> trim_vel_field), nondimensional (divided by L).
+        % Matches the values in process_case.m used for the stored forces.
+        bounds.ybounds = [-2.4 2.8];
+        bounds.zbounds = [-2.9 3.1];
+        bounds.y_cen = -2.06;
+        bounds.z_cen = -0.35;
     end
 
     function inputs = get_lift_wx_inputs(~, using_time_avg_file)

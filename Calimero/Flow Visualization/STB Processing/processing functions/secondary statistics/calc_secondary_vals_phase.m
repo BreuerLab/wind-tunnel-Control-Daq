@@ -1,4 +1,4 @@
-function calc_secondary_vals_phase(D, F, bools, save_filepath_local)
+function calc_secondary_vals_phase(D, F, bools, save_filepath_local, bounds)
 tic
 
 config.uField = 'u_phase_avg';
@@ -55,7 +55,7 @@ end
 
 config.length = D.L;
 
-S = calc_secondary_vals_common(D, config);
+S = calc_secondary_vals_common(D, config, bounds);
 
 % copy over data from phase averaged kinematics and power
 fnames = fieldnames(F);
