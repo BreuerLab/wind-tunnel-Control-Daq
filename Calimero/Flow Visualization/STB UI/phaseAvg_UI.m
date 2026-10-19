@@ -1412,7 +1412,7 @@ methods (Access = private)
 
     function signal = subtract_signal_mean(obj, signal)
         if obj.mean_subtraction_bool && ~isempty(signal)
-            signal = signal - mean(signal);
+            signal = signal - mean(signal, "omitnan");
         end
     end
 
@@ -1638,6 +1638,13 @@ methods (Access = private)
                 end
                 % TEMP CODE TO NORMALIZE SPEEDS
                 % var = var / mean(var);
+
+                % omega_x centroid: drop bins where the net omega_x is
+                % near zero (ratio blows up there); shows as gaps
+                if ismember(var_name, ["wx_y", "wx_z"])
+                    dv = load(secondary_file_path, "vortX_avg");
+                    var = mask_vortex_centroid(var, dv.vortX_avg, cur_sel);
+                end
             end
             
             % vars_kin = {"phase_avg_pos", "phase_avg_speed", "phase_avg_acc"};

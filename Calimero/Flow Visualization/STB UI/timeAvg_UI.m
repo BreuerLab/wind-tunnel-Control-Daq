@@ -1419,6 +1419,13 @@ classdef timeAvg_UI < handle
                             end
                             var = obj.load_stored_var(var_files, force_var);
 
+                            % omega_x centroid: drop bins where the net
+                            % omega_x is near zero (ratio blows up there)
+                            if ismember(force_var, ["wx_y", "wx_z"])
+                                vortX_avg = obj.load_stored_var(var_files, "vortX_avg");
+                                var = mask_vortex_centroid(var, vortX_avg, name);
+                            end
+
                             % TEMPORARY for dimensionalization of power
                             % var = var * (1/2) * density * wind_speed^3 * area;
 
@@ -1436,7 +1443,7 @@ classdef timeAvg_UI < handle
                             end
                             PIV_signals{j} = var;
                         elseif strcmp(obj.operation, "mean")
-                            forces(1,j) = mean(var);
+                            forces(1,j) = mean(var, "omitnan");
                         elseif strcmp(obj.operation, "range")
                             forces(1,j) = range(var);
                         end
