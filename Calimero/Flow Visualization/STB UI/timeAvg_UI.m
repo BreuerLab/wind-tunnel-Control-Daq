@@ -1134,7 +1134,13 @@ classdef timeAvg_UI < handle
 
         function label = get_load_cell_legend_label(obj, curve_label, load_cell_idx)
             % The load cell gives total lift or drag, with no breakdown
-            % into the STB terms
+            % into the STB terms. Non-force variables (helicity, u, ...)
+            % have no load cell column, so load_cell_idx is empty.
+            label = "";
+            if isempty(load_cell_idx)
+                return
+            end
+
             switch load_cell_idx
                 case 1
                     quantity = "drag";
