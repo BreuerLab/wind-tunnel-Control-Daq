@@ -1218,11 +1218,7 @@ classdef timeAvg_UI < handle
                 return
             end
 
-            if ismember(quantity, ["lift", "drag"])
-                label = "Force: " + quantity;
-            else
-                label = "Load cell: " + quantity;
-            end
+            label = "Load cell: " + quantity;
             if length(obj.selection) > 1
                 label = label + " - " + curve_label;
             end
@@ -1260,6 +1256,12 @@ classdef timeAvg_UI < handle
                     var_name_F = "filtered_data";
                     idx = 9;
                     quantity = "current";
+                case "phase_avg_power"
+                    % voltage (V) x current (mA) = mW, multiplied sample
+                    % by sample in update_plot
+                    var_name_F = "filtered_data";
+                    idx = [8 9];
+                    quantity = "electric power";
                 otherwise
                     if contains(force_var, "drag")
                         var_name_F = "filtered_data";
@@ -1486,6 +1488,11 @@ classdef timeAvg_UI < handle
                                 % rho_act were saved: leave the point off
                                 disp(ME.message + " - point not plotted")
                                 force_signal = NaN;
+                            end
+
+                            if load_cell_quantity == "electric power" && size(force_signal, 1) == 2
+                                % instantaneous power, then averaged below
+                                force_signal = force_signal(1,:) .* force_signal(2,:);
                             end
 
                             if var_name_F == "U_act"
