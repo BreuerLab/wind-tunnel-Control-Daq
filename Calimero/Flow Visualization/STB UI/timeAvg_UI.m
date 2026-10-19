@@ -1780,7 +1780,7 @@ classdef timeAvg_UI < handle
                 if ~ismember(char(parts(1)), who('-file', files(f)))
                     continue
                 end
-                d = add_vel_diff_alias(load(files(f), parts(1)));
+                d = load(files(f), parts(1));
                 var = d.(parts(1));
                 for k = 2:numel(parts)
                     if isstruct(var) && isfield(var, parts(k))
