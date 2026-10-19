@@ -129,19 +129,24 @@ classdef timeAvg_UI < handle
             % (no BA lift vortY: phase_avg_STB computes the per-frame lift
             % at a single convection position, so lift_phase_avg has no
             % vortY field)
+            % BA lift vel / drag vel are the velocity-only estimates
+            % bin averaged in phase_avg_STB (lift_vel_phase_avg,
+            % drag_vel_phase_avg)
             obj.box_labels = [obj.box_labels, "wx centroid y", "wx centroid z",...
-                "BA: lift vortX", "BA: lift vel diff", "BA: drag vort"];
+                "BA: lift vortX", "BA: lift vel diff", "BA: lift vel", "BA: drag vort", "BA: drag vel"];
             obj.var_names = [obj.var_names, "wx_y", "wx_z",...
-                "lift_phase_avg.vortX", "lift_phase_avg.vel", "drag_phase_avg.tot"];
+                "lift_phase_avg.vortX", "lift_phase_avg.vel", "lift_vel_phase_avg",...
+                "drag_phase_avg.tot", "drag_vel_phase_avg"];
             obj.y_labels = [obj.y_labels, "$\omega_x$ centroid $y/L$", "$\omega_x$ centroid $z/L$",...
-                "Lift (N)", "Lift (N)", "Drag (N)"];
+                "Lift (N)", "Lift (N)", "Lift (N)", "Drag (N)", "Drag (N)"];
 
             % Category of each variable, matching the Variable Type dropdown
             % (same groups as phaseAvg_UI)
             obj.var_categories = strings(size(obj.var_names));
             obj.var_categories(ismember(obj.var_names, ["lift.vortX", "lift.vortY", "lift.vel",...
                 "lift_vel", "drag.tot", "drag_vel"])) = "force";
-            obj.var_categories(startsWith(obj.var_names, ["lift_phase_avg", "drag_phase_avg"])) = "BA: force";
+            obj.var_categories(startsWith(obj.var_names, ["lift_phase_avg", "drag_phase_avg"]) |...
+                endsWith(obj.var_names, ["lift_vel_phase_avg", "drag_vel_phase_avg"])) = "BA: force";
             obj.var_categories(ismember(obj.var_names, ["phase_avg_speed", "phase_avg_speed_error",...
                 "phase_avg_volt", "phase_avg_cur", "phase_avg_power",...
                 "num_bins", "num_clusters", "phase_spread_ratio"])) = "kinematics";
@@ -1171,13 +1176,7 @@ classdef timeAvg_UI < handle
         function items = get_var_dropdown_items(obj, current_label)
             % "none" plus the variables of the current type, keeping the
             % current selection listed if it belongs to another type
-            in_type = obj.var_categories == obj.var_type;
-            if obj.var_type == "BA: force"
-                % lift vel (u*w) has no separate bin-averaged version, so
-                % it is listed here too, as in phaseAvg_UI
-                in_type = in_type | obj.var_names == "lift_vel";
-            end
-            items = ["none", obj.box_labels(in_type)];
+            items = ["none", obj.box_labels(obj.var_categories == obj.var_type)];
             current_label = string(current_label);
             if current_label ~= "none" && ~ismember(current_label, items)
                 items = [items, current_label];

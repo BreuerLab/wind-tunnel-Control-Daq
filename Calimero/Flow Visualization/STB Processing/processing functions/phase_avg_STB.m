@@ -118,6 +118,9 @@ bin_count = zeros(1,num_bins);
 bin_std = zeros(1,num_bins);
 lift_phase_avg = struct();
 drag_phase_avg = struct();
+% velocity-only lift (u*w) and drag (get_wake_lift with vort_bool false)
+lift_vel_phase_avg = zeros(1,num_bins);
+drag_vel_phase_avg = zeros(1,num_bins);
 print_dim_bool = true;
 
 fields = get_STB_processing_fields();
@@ -144,6 +147,7 @@ for i = 1:num_bins
 
     if ~bools.turbine
     [lift_vals, drag_vals] = get_wake_lift(speed, L, F, true, S.rho_act);
+    [lift_vel_vals, drag_vel_vals] = get_wake_lift(speed, L, F, false, S.rho_act);
     end
         
     % Variable preallocation that is dependent on the data content 
@@ -223,6 +227,10 @@ for i = 1:num_bins
         cur_vals = drag_vals.(field_name);
         drag_phase_avg.(field_name)(i) = mean(cur_vals(:), "omitnan");
     end
+
+    % Velocity-only lift and drag in current bin
+    lift_vel_phase_avg(i) = mean(lift_vel_vals(:), "omitnan");
+    drag_vel_phase_avg(i) = mean(drag_vel_vals(:), "omitnan");
     end
 
     if mod(i,5) == 0
@@ -239,6 +247,7 @@ S.PIV_case_name = PIV_case_name;
 
 if ~bools.turbine
 S.lift_phase_avg = lift_phase_avg; S.drag_phase_avg = drag_phase_avg;
+S.lift_vel_phase_avg = lift_vel_phase_avg; S.drag_vel_phase_avg = drag_vel_phase_avg;
 end
 
 % Save the entire structure

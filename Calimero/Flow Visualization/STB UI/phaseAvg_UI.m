@@ -1144,11 +1144,21 @@ methods (Access = private)
 
     function [types, names, labels] = get_all_variable_options(obj)
         ba_force_types = "BA: " + obj.force_var_types;
-        ba_force_names = regexprep(obj.force_var_names, '\.', "_phase_avg" + ".");
+        ba_force_names = obj.get_ba_force_names();
 
         types = [obj.force_var_types, ba_force_types, obj.flow_var_types, obj.kin_var_types];
         names = [obj.force_var_names, ba_force_names, obj.flow_var_names, obj.kin_var_names];
         labels = [obj.force_y_labels, obj.force_y_labels, obj.flow_y_labels, obj.kin_y_labels];
+    end
+
+    function names = get_ba_force_names(obj)
+        % bin-averaged versions of the force variables saved by
+        % phase_avg_STB: lift.vortX -> lift_phase_avg.vortX, and the
+        % velocity-only lift_vel / drag_vel -> lift_vel_phase_avg /
+        % drag_vel_phase_avg
+        names = regexprep(obj.force_var_names, '\.', "_phase_avg" + ".");
+        is_vel_only = ismember(names, ["lift_vel", "drag_vel"]);
+        names(is_vel_only) = names(is_vel_only) + "_phase_avg";
     end
 
     function [types, names, labels] = get_variable_options(obj, var_type)
@@ -1166,7 +1176,7 @@ methods (Access = private)
             labels = obj.force_y_labels;
         elseif strcmp(var_type, "BA: force")
             types = "BA: " + obj.force_var_types;
-            names = regexprep(obj.force_var_names, '\.', "_phase_avg" + ".");
+            names = obj.get_ba_force_names();
             labels = obj.force_y_labels;
         else
             error("invalid var type")
@@ -1614,7 +1624,8 @@ methods (Access = private)
             else
                 vars = {"L","U"};
                 d2 = load(file_path, vars{:});
-                if contains(var_name, ["lift_phase_avg", "drag_phase_avg"])
+                if contains(var_name, ["lift_phase_avg", "drag_phase_avg",...
+                        "lift_vel_phase_avg", "drag_vel_phase_avg"])
                     if contains(var_name, ".")
                         abbrv_name = extractBefore(var_name, ".");
                         d2 = load(file_path, abbrv_name);

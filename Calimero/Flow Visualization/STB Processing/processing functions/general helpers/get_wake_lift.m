@@ -81,9 +81,12 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density)
         % L_z = abs(z(1,end) - z(1,1));
         % lift_wx2 = 2 * density * squeeze(mean(term1, [1,2])) * (L_y*L_z);
 
-        lift_vec_vel = trapz(y(:,1), term2, 1);
-        lift_vel = 2 * density * trapz(z(1,:), lift_vec_vel, 2);
-        lift_vel = squeeze(lift_vel);
+        % velocity term that goes with the omega_x term, (u+U)*w. Named
+        % lift_vel_diff so it isn't confused with the velocity-only lift
+        % (u*w) returned when vort_bool is false (saved as lift_vel).
+        lift_vec_vel_diff = trapz(y(:,1), term2, 1);
+        lift_vel_diff = 2 * density * trapz(z(1,:), lift_vec_vel_diff, 2);
+        lift_vel_diff = squeeze(lift_vel_diff);
 
         % lift_vec_du = trapz(y(:,1), term3, 1);
         % lift_du = 2 * density * trapz(z(1,:), lift_vec_du, 2);
@@ -165,13 +168,13 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density)
         % expression from June 10th 2026
         % lift_wy_F = 2 * density * lift_wy_F' * (1 / (dt*length(x)));
 
-        total = lift_wx + lift_vel;
+        total = lift_wx + lift_vel_diff;
         lift.vortY = lift_wy_F;
         else
-            total = lift_wx + lift_vel;
+            total = lift_wx + lift_vel_diff;
         end
         lift.vortX = lift_wx;
-        lift.vel = lift_vel;
+        lift.vel = lift_vel_diff;
         lift.tot = total;
     else
         lift_mat_full = -(u .* -w);
