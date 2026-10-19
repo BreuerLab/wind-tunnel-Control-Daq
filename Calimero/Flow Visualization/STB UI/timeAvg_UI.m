@@ -38,6 +38,8 @@ classdef timeAvg_UI < handle
 
         % boolean, normalization/non-dimensionalization on or off
         y_norm;
+        % boolean, plot the two selected variables on left/right y-axes
+        separate_y_axis_bool;
         x_norm;
         x_axis_type;
 
@@ -126,6 +128,7 @@ classdef timeAvg_UI < handle
 
             obj.x_norm = false;
             obj.y_norm = false;
+            obj.separate_y_axis_bool = false;
             obj.force_bool = false;
             obj.PIV_bool = true;
             obj.force_var = obj.var_names(1);
@@ -210,10 +213,10 @@ classdef timeAvg_UI < handle
                 option_panel.Scrollable = "on";
             end
 
-            sidebar_grid = uigridlayout(option_panel, [22, 1]);
+            sidebar_grid = uigridlayout(option_panel, [23, 1]);
             sidebar_grid.ColumnWidth = {'1x'};
             sidebar_grid.RowHeight = {30, 60, 30, 30, 30, 30, 110, 30, 30, 30, 30,...
-                                      30, 30, 25, 30, 30, 30, 30, 30, 30, 130, 30};
+                                      30, 30, 25, 30, 30, 30, 30, 30, 30, 30, 130, 30};
             sidebar_grid.Padding = [10 10 10 10];
             sidebar_grid.RowSpacing = 6;
             if isprop(sidebar_grid, "Scrollable")
@@ -392,8 +395,17 @@ classdef timeAvg_UI < handle
             y_norm_button.BackgroundColor = obj.COLOR_INACTIVE;
             y_norm_button.ValueChangedFcn = @(src, event) y_norm_change(src, event, plot_panel);
 
+            % Put the two selected variables on separate left/right y-axes
+            separate_y_button = uibutton(sidebar_grid, "state");
+            separate_y_button.Layout.Row = 19;
+            separate_y_button.Layout.Column = 1;
+            separate_y_button.Text = "Separate Y-Axis";
+            separate_y_button.FontSize = 18;
+            separate_y_button.BackgroundColor = obj.COLOR_INACTIVE;
+            separate_y_button.ValueChangedFcn = @(src, event) separate_y_axis_change(src, event, plot_panel);
+
             err_button = uibutton(sidebar_grid, "state");
-            err_button.Layout.Row = 19;
+            err_button.Layout.Row = 20;
             err_button.Layout.Column = 1;
             err_button.Text = "Error";
             err_button.FontSize = 18;
@@ -401,7 +413,7 @@ classdef timeAvg_UI < handle
             err_button.ValueChangedFcn = @(src, event) err_change(src, event, plot_panel);
 
             calc_button = uibutton(sidebar_grid, "state");
-            calc_button.Layout.Row = 20;
+            calc_button.Layout.Row = 21;
             calc_button.Layout.Column = 1;
             calc_button.Text = "Live Calculate";
             calc_button.FontSize = 18;
@@ -410,7 +422,7 @@ classdef timeAvg_UI < handle
             % Trim limits and center point for Live Calculate,
             % nondimensional (divided by L)
             bounds_panel = uipanel(sidebar_grid);
-            bounds_panel.Layout.Row = 21;
+            bounds_panel.Layout.Row = 22;
             bounds_panel.Layout.Column = 1;
             bounds_panel.Title = "Live Calc Bounds (y/L, z/L)";
             bounds_panel.TitlePosition = 'centertop';
@@ -447,7 +459,7 @@ classdef timeAvg_UI < handle
             calc_button.ValueChangedFcn = @(src, event) calc_change(src, event, plot_panel, bounds_fields);
 
             save_fig_button = uibutton(sidebar_grid);
-            save_fig_button.Layout.Row = 22;
+            save_fig_button.Layout.Row = 23;
             save_fig_button.Layout.Column = 1;
             save_fig_button.Text = "Save Fig";
             save_fig_button.FontSize = 18;
@@ -560,6 +572,12 @@ classdef timeAvg_UI < handle
             function x_norm_change(src, ~, plot_panel)
                 obj.x_norm = src.Value;
                 src.BackgroundColor = obj.get_button_color(obj.x_norm);
+                obj.update_plot(plot_panel);
+            end
+
+            function separate_y_axis_change(src, ~, plot_panel)
+                obj.separate_y_axis_bool = src.Value;
+                src.BackgroundColor = obj.get_button_color(obj.separate_y_axis_bool);
                 obj.update_plot(plot_panel);
             end
 
@@ -1190,8 +1208,25 @@ classdef timeAvg_UI < handle
             % drawn once per selection.
             plotted_load_cell_keys = strings(0);
 
+            % With "Separate Y-Axis" on and two variables selected, the
+            % first goes on the left y-axis and the second on the right
+            split_y_axes = obj.separate_y_axis_bool && num_vars == 2;
+
             for var_idx = 1:num_vars % Loop through each selected variable
                 force_var = selected_force_vars(var_idx);
+                if split_y_axes
+                    if var_idx == 1
+                        yyaxis(ax, 'left')
+                    else
+                        yyaxis(ax, 'right')
+                    end
+                    hold(ax, 'on');
+                    % neutral axis color, the markers tell the variables apart
+                    ax.YAxis(var_idx).Color = [0.15 0.15 0.15];
+                    y_label_vars = force_var;
+                else
+                    y_label_vars = selected_force_vars;
+                end
                 load_cell_idx = obj.get_load_cell_index(force_var);
                 variable_marker = obj.get_variable_marker(var_idx);
 
@@ -1423,7 +1458,7 @@ classdef timeAvg_UI < handle
                     s1.MarkerFaceColor = original_color;
                     s1.DisplayName = legend_label;
                 else
-                    ylabel(ax, obj.get_force_vars_y_label(selected_force_vars), Interpreter="latex")
+                    ylabel(ax, obj.get_force_vars_y_label(y_label_vars), Interpreter="latex")
 
                     if obj.PIV_bool
                         s1 = errorbar(ax, x_var, forces(1,:), errors, char(variable_marker));
