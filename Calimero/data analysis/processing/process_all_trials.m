@@ -214,7 +214,7 @@ for k = 1 : length(exp_files)
     disp("Reading from: ")
     disp(baseFileName)
 
-    process_trial(baseFileName, raw_data_path, offsets_path, processed_data_path, params);
+    process_trial(baseFileName, raw_data_path, offsets_path, processed_data_path, wind_tunnel_path, params);
     end
 
     percent_complete = round((k / length(exp_files)) * 100, 2);

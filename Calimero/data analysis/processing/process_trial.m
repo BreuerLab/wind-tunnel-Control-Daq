@@ -12,7 +12,7 @@
 % A .mat file is produced in the directory described by processed_data_path
 % containing a number of variables whose contents describe the results of
 % the experiment in more ways than simply the raw data does.
-function process_trial(file, raw_data_path, offsets_path, processed_data_path, params)
+function process_trial(file, raw_data_path, offsets_path, processed_data_path, wind_tunnel_path, params)
 
 % I don't want to use wing_type_from_name, I want type from eval_params.m
 [case_name, time_stamp, wing_type_from_name, wing_freq, AoA, wind_speed, amp, ~] = parse_filename(file);
@@ -73,7 +73,8 @@ mod_results = [results_lab; home_signal'; voltAdj'; curAdj'];
 
 % Non-dimensionalize the data. Newtons to Force Coefficients and
 % Newton*meters to Moment Coefficients
-% [norm_data, norm_factors, St, Re] = non_dimensionalize_data(wind_tunnel_path, results_lab, file, type);
+[norm_data, norm_factors, St, Re, U_act, rho_act] =...
+    non_dimensionalize_data(wind_tunnel_path, results_lab, file, params.freq_vals);
 
 % Smooth the data with a butterworth filter
 % fc = 100; % cutoff frequency
@@ -118,7 +119,8 @@ filtered_data_smoothest = filter_data(mod_results, frame_rate, fc);
 filename = case_name + " " + time_stamp + ".mat"; % file name for processed data
 
 saved_vars = {'time_data', 'force_data', 'results_lab',...
-    'filtered_data','filtered_data_smoothest'};
+    'filtered_data','filtered_data_smoothest','norm_factors',...
+    'St', 'Re', 'U_act', 'rho_act'};
 % saved_vars = {'time_data', 'force_data', 'results_lab',...
 %     'filtered_data','filtered_data_smoothest',...
 %     'norm_factors', 'St', 'Re'};
