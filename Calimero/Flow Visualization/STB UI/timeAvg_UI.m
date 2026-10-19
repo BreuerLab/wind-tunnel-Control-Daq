@@ -1190,9 +1190,17 @@ classdef timeAvg_UI < handle
 
         % Update plot after user changes selected variables
         function update_plot(obj, plot_panel)
-            delete(plot_panel.Children)
-
-            ax = axes(plot_panel);
+            % When saving, draw straight into a hidden figure rather than
+            % copying the on-screen axes: copyobj can't copy axes that use
+            % yyaxis (Separate Y-Axis). The on-screen plot is left as is.
+            if obj.saveFig
+                fignew = figure('Visible','off'); % Invisible figure
+                fignew.Position = [500,491,800,600];
+                ax = axes(fignew);
+            else
+                delete(plot_panel.Children)
+                ax = axes(plot_panel);
+            end
             hold(ax, 'on');
             l = legend(ax, Location="best");
             set(ax, FontSize=18)
@@ -1482,16 +1490,6 @@ classdef timeAvg_UI < handle
 
             if (obj.saveFig)
                 filename = "saved_figure.fig";
-                fignew = figure('Visible','off'); % Invisible figure
-                fignew.Position = [500,491,800,600];
-                if (exist("l", "var"))
-                    copyobj([l ax], fignew); % Copy the appropriate axes
-                elseif (exist("cb", "var"))
-                    copyobj([ax cb], fignew); % Copy the appropriate axes
-                else
-                    copyobj(ax, fignew); % Copy the appropriate axes
-                end
-    
                 % set(fignew, 'Position', [200 200 800 600])
                 set(fignew,'CreateFcn','set(gcbf,''Visible'',''on'')'); % Make it visible upon loading
                 savefig(fignew,filename);
