@@ -174,7 +174,7 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density)
             total = lift_wx + lift_vel_diff;
         end
         lift.vortX = lift_wx;
-        lift.vel = lift_vel_diff;
+        lift.vel_diff = lift_vel_diff;
         lift.tot = total;
     else
         lift_mat_full = -(u .* -w);

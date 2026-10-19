@@ -3,7 +3,9 @@ function [var, err] = get_PIV_force(file_name, case_name, force_var_name, avg_ty
         % (defaults in default_trim_bounds.m)
 
         vort_bool = true;
-        if contains(force_var_name, "vel")
+        % velocity-only estimates (lift_vel, drag_vel) use vort_bool false;
+        % lift.vel_diff is a term of the vorticity-based lift
+        if endsWith(force_var_name, "_vel")
             force_var_name = extractBefore(force_var_name, "_vel");
             vort_bool = false;
         end

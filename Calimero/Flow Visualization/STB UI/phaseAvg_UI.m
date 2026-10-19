@@ -40,7 +40,7 @@ properties
                 "Wing Position", "Wing Speed", "Wing Acceleration",...
                 "Voltage", "Modeled Voltage", "Current", "Power"];
 
-    force_var_names = ["lift.vortX", "lift.vortY", "lift.vel", "lift_vel",...
+    force_var_names = ["lift.vortX", "lift.vortY", "lift.vel_diff", "lift_vel",...
                     "drag.tot", "drag.vortY", "drag.vortZ", "drag_vel"];
     flow_var_names = ["u_avg", "v_avg", "w_avg",...
                     "vortX_avg", "vortY_avg","vortZ_avg", "hel_avg",...
@@ -1632,6 +1632,7 @@ methods (Access = private)
                     else
                         d2 = load(file_path, var_name);
                     end
+                    d2 = add_vel_diff_alias(d2);
                     var = eval("d2." + var_name);
                 else
                 if contains(var_name, ".")
@@ -1641,6 +1642,7 @@ methods (Access = private)
                     d1 = load(secondary_file_path, var_name);
                 end
 
+                d1 = add_vel_diff_alias(d1);
                 var = eval("d1." + var_name);
         
                 % Combine by converting to cell arrays of names/values and back to struct
@@ -1683,6 +1685,7 @@ methods (Access = private)
                         d2 = load(secondary_file_path_t, var_name);
                     end
 
+                    d2 = add_vel_diff_alias(d2);
                     body_var = eval("d2." + var_name);
                     var = var - body_var;
                 end
