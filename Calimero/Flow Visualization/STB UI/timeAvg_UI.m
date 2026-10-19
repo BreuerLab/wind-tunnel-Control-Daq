@@ -1208,22 +1208,13 @@ classdef timeAvg_UI < handle
             end
         end
 
-        function label = get_load_cell_legend_label(obj, curve_label, load_cell_idx)
-            % The load cell gives total lift or drag, with no breakdown
-            % into the STB terms. Non-force variables (helicity, u, ...)
-            % have no load cell column, so load_cell_idx is empty.
+        function label = get_load_cell_legend_label(obj, curve_label, quantity)
+            % The load cell gives total lift or drag (no breakdown into the
+            % STB terms), plus the wind speed and density it measured.
+            % Variables with no load cell equivalent have quantity "".
             label = "";
-            if isempty(load_cell_idx)
+            if quantity == ""
                 return
-            end
-
-            switch load_cell_idx
-                case 1
-                    quantity = "drag";
-                case 3
-                    quantity = "lift";
-                otherwise
-                    quantity = "";
             end
 
             label = "Force: " + quantity;
@@ -1237,12 +1228,43 @@ classdef timeAvg_UI < handle
             marker = markers(mod(var_idx - 1, length(markers)) + 1);
         end
 
-        function idx = get_load_cell_index(~, force_var)
+        function [var_name_F, idx, quantity] = get_load_cell_source(~, force_var)
+            % What to read from the processed load cell file for a plot
+            % variable: the saved variable, the row within it, and what
+            % it measures. Empty idx means no load cell equivalent.
+            var_name_F = "";
             idx = [];
-            if contains(force_var, "drag")
-                idx = 1;
-            elseif contains(force_var, "lift")
-                idx = 3;
+            quantity = "";
+            switch string(force_var)
+                case "U_act" % pitot U
+                    var_name_F = "U_act";
+                    idx = 1;
+                    quantity = "wind speed";
+                case "rho_act" % density
+                    var_name_F = "rho_act";
+                    idx = 1;
+                    quantity = "density";
+                otherwise
+                    if contains(force_var, "drag")
+                        var_name_F = "filtered_data";
+                        idx = 1;
+                        quantity = "drag";
+                    elseif contains(force_var, "lift")
+                        var_name_F = "filtered_data";
+                        idx = 3;
+                        quantity = "lift";
+                    end
+            end
+        end
+
+        function U = get_nominal_speed(~, filepath)
+            % nominal freestream speed the STB "pitot U" (U_act) is
+            % normalised by; 4 m/s unless the case file says otherwise
+            U = 4;
+            if strlength(filepath) > 0 && isfile(filepath) &&...
+                    ismember('U', who('-file', filepath))
+                d = load(filepath, "U");
+                U = d.U;
             end
         end
 
@@ -1293,7 +1315,7 @@ classdef timeAvg_UI < handle
                 else
                     y_label_vars = selected_force_vars;
                 end
-                load_cell_idx = obj.get_load_cell_index(force_var);
+                [load_cell_var, load_cell_idx, load_cell_quantity] = obj.get_load_cell_source(force_var);
                 variable_marker = obj.get_variable_marker(var_idx);
 
             for i = 1:length(obj.selection) % Loop through each selection
@@ -1316,13 +1338,13 @@ classdef timeAvg_UI < handle
                 % plot this load cell series only the first time it comes up
                 show_load_cell = false;
                 if obj.force_bool && ~isempty(load_cell_idx)
-                    load_cell_key = string(i) + "|" + string(load_cell_idx);
+                    load_cell_key = string(i) + "|" + load_cell_quantity;
                     if ~ismember(load_cell_key, plotted_load_cell_keys)
                         show_load_cell = true;
                         plotted_load_cell_keys(end+1) = load_cell_key;
                     end
                 end
-                force_legend_label = obj.get_load_cell_legend_label(curve_label, load_cell_idx);
+                force_legend_label = obj.get_load_cell_legend_label(curve_label, load_cell_quantity);
 
                 forces = zeros(2, num_points);
                 if is_shift_operation
@@ -1422,19 +1444,36 @@ classdef timeAvg_UI < handle
 
                     if obj.force_bool && ~contains(type, "UP") && ~isempty(load_cell_idx)
                         % var_name_F = "results_lab";
-                        var_name_F = "filtered_data";
                         % var_name_F = "wingbeat_avg_forces_smoothest";
-                        if freq == 0
-                            % var_name_F = "results_lab";
-                            var_name_F = "filtered_data";
-                        end
+                        var_name_F = load_cell_var; % filtered_data, U_act or rho_act
+                        is_tunnel_var = ismember(var_name_F, ["U_act", "rho_act"]);
 
                         idx = load_cell_idx;
 
-                        if is_shift_operation && freq == 0
-                            disp("Skipping 0 Hz force case for phase shift")
+                        if is_shift_operation && (freq == 0 || is_tunnel_var)
+                            disp("Skipping " + type + " " + freq + " Hz load cell " + load_cell_quantity + " for phase shift")
                         else
-                            force_signal = get_force(obj.force_path, type, amp, freq, idx, var_name_F);
+                            try
+                                force_signal = get_force(obj.force_path, type, amp, freq, idx, var_name_F);
+                            catch ME
+                                if ~strcmp(ME.identifier, "get_force:varNotFound")
+                                    rethrow(ME)
+                                end
+                                % load cell file processed before U_act /
+                                % rho_act were saved: leave the point off
+                                disp(ME.message + " - point not plotted")
+                                force_signal = NaN;
+                            end
+
+                            if var_name_F == "U_act"
+                                % load cell saves m/s; STB "pitot U" is
+                                % U_act / U, so put it on the same scale
+                                if obj.PIV_bool
+                                    force_signal = force_signal / obj.get_nominal_speed(filepath);
+                                else
+                                    force_signal = force_signal / obj.get_nominal_speed("");
+                                end
+                            end
 
                             if is_shift_operation
                                 force_signals{j} = force_signal;
@@ -1444,7 +1483,9 @@ classdef timeAvg_UI < handle
                                 forces(2,j) = range(force_signal);
                             end
 
-                            if obj.force_sub && obj.is_plain_steady_type(type)
+                            if obj.force_sub && is_tunnel_var
+                                % wind speed / density: nothing to subtract
+                            elseif obj.force_sub && obj.is_plain_steady_type(type)
                                 disp("Force Body Sub skipped for steady case " + type)
                             elseif obj.force_sub
                                 body_amp = amp;

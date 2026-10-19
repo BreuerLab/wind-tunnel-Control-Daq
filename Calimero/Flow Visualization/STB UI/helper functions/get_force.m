@@ -109,6 +109,11 @@ function force = get_force(path, type, amp, freq, idx, var_name_F)
     % var_name_F = "filtered_data";
     % var_name_F = "wingbeat_avg_forces_smoothest";
     disp("Load cell file: " + force_path + force_filename)
+    file_vars = who('-file', force_path + force_filename);
+    if ~ismember(char(var_name_F), file_vars)
+        error("get_force:varNotFound", "%s not saved in load cell file %s",...
+            var_name_F, force_path + force_filename);
+    end
     c = load(force_path + force_filename, var_name_F);
     var_F = c.(var_name_F);
 
