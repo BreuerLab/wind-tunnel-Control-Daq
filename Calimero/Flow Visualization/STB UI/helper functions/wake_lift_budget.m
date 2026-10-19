@@ -30,6 +30,17 @@ function B = wake_lift_budget(file_path, case_name, bounds, opts)
 %               u-edge term (default 1 = the identity exactly; >1 is less
 %               noisy but approximate)
 %   opts.plot   (default true)
+%   opts.taper  width (in chords) of a smooth cosine taper at the outer
+%               spanwise edge and the top/bottom edges (default 0 = sharp
+%               edges). With a taper phi(y,z) that is 1 inside and 0 on
+%               the edges, the identity becomes, exactly,
+%                 d/dx int int y phi wx dA = int int phi wy dA
+%                     + int int y (wy dphi/dy + wz dphi/dz) dA
+%               so the edge terms are averages over a band of width
+%               opts.taper instead of a single noisy row/column, and no
+%               one-sided derivatives are involved. Both A and Gamma_y are
+%               weighted by phi so the two estimates stay comparable.
+%               Try 0.5-1 (c); the result should not depend on it.
 %
 %   Sign checks: the code-frame analysis says omega_x, omega_y are stored
 %   with the opposite sign to a right-handed curl and z decreases with
@@ -42,6 +53,7 @@ if nargin < 4, opts = struct(); end
 if ~isfield(opts, 'nEdge'), opts.nEdge = 1; end
 if ~isfield(opts, 'plot'), opts.plot = true; end
 if ~isfield(opts, 'signEz'), opts.signEz = 1; end
+if ~isfield(opts, 'taper'), opts.taper = 0; end
 
 vars = {"L","U","U_act","rho_act","cycle_freq","y","z", ...
         "u_phase_avg","w_phase_avg", ...
@@ -93,11 +105,33 @@ E_y   = Y * squeeze(trapz(zv, mean(wy(iyY,:,:), 1), 2));
 E_z   = opts.signEz * squeeze(trapz(yv, yv .* (mean(wz(:,izT,:), 2) - mean(wz(:,izB,:), 2)), 1));
 Uedge = squeeze(trapz(yv, mean(u(:,izT,:), 2) - mean(u(:,izB,:), 2), 1));
 Wint  = I2(w);
+Idwdx = NaN;
+if has_dwdx, Idwdx = I2(dwdx); end
+Tz0 = ones(size(zv));
+
+if opts.taper > 0
+    % Smooth weight: taper outer y edge and both z edges; the y = 0
+    % (symmetry) side is left at 1, its boundary term is weighted by y = 0.
+    ell = opts.taper * L;
+    [Ty, dTy] = cos_taper(yv, min(yv), max(yv), ell, false, true);
+    [Tz, dTz] = cos_taper(zv(:), min(zv), max(zv), ell, true, true);
+    phi = Ty * Tz';  py = dTy * Tz';  pz = Ty * dTz';   % [ny, nz]
+    A     = I2(y .* phi .* wx);
+    Gam   = I2(phi .* wy);
+    % code frame: I2 integrates z in decreasing order (-), wy stored with
+    % the opposite sign of a right-handed curl, wz with the same sign
+    E_y   = -I2(y .* wy .* py);
+    E_z   = opts.signEz * I2(y .* wz .* pz);
+    Uedge = I2(u .* pz);                 % = int int phi du/dz dA
+    Wint  = I2(phi .* w);
+    if has_dwdx, Idwdx = I2(phi .* dwdx); end
+    Tz0 = Tz';
+end
 
 % the y_cen sensitivity: shifting the symmetry plane by dy0 adds
 % -dy0 * int omega_y(0, z) dz to dA/dx
 [~, iy0] = min(yv);
-S0 = squeeze(trapz(zv, wy(iy0,:,:), 2));
+S0 = squeeze(trapz(zv, Tz0 .* wy(iy0,:,:), 2));
 
 ddt = @(f) (circshift(f, -1) - circshift(f, 1)) / (2*dt);  % periodic
 K = 2 * rho * U;                                            % lift factor
@@ -113,8 +147,8 @@ B.residual  = B.dLdt_wx - (B.rate_Gam + B.rate_Ey + B.rate_Ez);
 % Gamma_y split and frozen-flow check of the slab derivative
 B.rate_Gam_uedge = K * U * Uedge;
 if has_dwdx
-    B.rate_Gam_dwdx  = -K * U * I2(dwdx);            % sign: see header
-    B.frozen_slab    = I2(dwdx);                     % int int dw/dx from the slab
+    B.rate_Gam_dwdx  = -K * U * Idwdx;               % sign: see header
+    B.frozen_slab    = Idwdx;                        % int int dw/dx from the slab
     B.frozen_time    = ddt(Wint) / U;                % (1/U) d/dt int int w
 end
 
@@ -128,7 +162,7 @@ B.L_wy_corr = B.L_wy_corr - mean(B.L_wy_corr);
 
 % Summary
 r = @(f) std(f);
-fprintf("\n%s  (f = %.2f Hz, U = %.2f m/s, %d bins)\n", string(case_name), freq, U, nb);
+fprintf("\n%s  (f = %.2f Hz, U = %.2f m/s, %d bins, taper %.2fc)\n", string(case_name), freq, U, nb, opts.taper);
 fprintf("  rms rates (N/s):  dL/dt from wx %.3f | U*Gamma_y %.3f | outer edge %.3f | top/bottom %.3f | residual %.3f\n", ...
     r(B.dLdt_wx), r(B.rate_Gam), r(B.rate_Ey), r(B.rate_Ez), r(B.residual));
 fprintf("  corr with dL/dt(wx):  Gamma_y %.2f | Gamma_y+edges %.2f\n", ...
@@ -184,4 +218,21 @@ end
 
 function p = ptp(a)
 p = max(a) - min(a);
+end
+
+function [t, dt] = cos_taper(c, lo, hi, ell, do_lo, do_hi)
+% 1 in the interior, 0.5-0.5cos ramp to 0 over ell at the chosen ends.
+% Works on coordinate values, so array ordering does not matter.
+tl = ones(size(c)); dtl = zeros(size(c));
+th = ones(size(c)); dth = zeros(size(c));
+if do_lo
+    m = c < lo + ell; s = (c(m) - lo) / ell;
+    tl(m) = 0.5 - 0.5*cos(pi*s);  dtl(m) =  0.5*pi/ell*sin(pi*s);
+end
+if do_hi
+    m = c > hi - ell; s = (hi - c(m)) / ell;
+    th(m) = 0.5 - 0.5*cos(pi*s);  dth(m) = -0.5*pi/ell*sin(pi*s);
+end
+t  = tl .* th;
+dt = dtl .* th + tl .* dth;
 end
