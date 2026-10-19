@@ -1330,19 +1330,21 @@ classdef timeAvg_UI < handle
                             % variables not defined for a case (e.g.
                             % lift.vortY for a 0 Hz mean flow field) are
                             % replaced with zero
+                            % look in the expected file first, then the other
                             if contains(force_var, ".")
-                                var_file = secondary_filepath;
+                                var_files = [secondary_filepath, filepath];
                             else
                                 var_file = obj.get_stored_var_file(force_var, filepath, secondary_filepath);
+                                var_files = [var_file, setdiff([filepath, secondary_filepath], var_file)];
                             end
-                            var = obj.load_stored_var(var_file, force_var);
+                            var = obj.load_stored_var(var_files, force_var);
 
                             % TEMPORARY for dimensionalization of power
                             % var = var * (1/2) * density * wind_speed^3 * area;
 
                             if obj.PIV_sub
-                                [~, bod_secondary_filepath] = obj.get_PIV_sub_file_paths(type, amp);
-                                bod_var = obj.load_stored_var(bod_secondary_filepath, force_var);
+                                [bod_filepath, bod_secondary_filepath] = obj.get_PIV_sub_file_paths(type, amp);
+                                bod_var = obj.load_stored_var([bod_secondary_filepath, bod_filepath], force_var);
                                 var = var - bod_var;
                             end  
                         end
@@ -1616,26 +1618,31 @@ classdef timeAvg_UI < handle
         function file = get_stored_var_file(~, force_var, filepath, secondary_filepath)
             % a few variables are stored in the main file, the rest in
             % the secondary (integral) file
-            if ismember(force_var, ["U_act", "num_bins","num_clusters","phase_spread_ratio"])
+            if ismember(force_var, ["U_act", "rho_act", "num_bins","num_clusters","phase_spread_ratio"])
                 file = filepath;
             else
                 file = secondary_filepath;
             end
         end
 
-        function var = load_stored_var(~, file, var_name)
-            % Load a (possibly nested, e.g. "lift.vortY") variable from a
-            % .mat file. If the file exists but the variable or field is
-            % not defined for this case, return 0 and say so.
-            parts = split(string(var_name), ".");
-            [~, file_name] = fileparts(file);
-
-            if ~isfile(file)
-                error("timeAvg_UI:fileNotFound", "File not found: %s", file);
+        function var = load_stored_var(~, files, var_name)
+            % Load a (possibly nested, e.g. "lift.vortY") variable from the
+            % first of the given .mat files that has it (a case's main
+            % file and its _integral file hold different variables). If
+            % none of them define it for this case, return 0 and say so.
+            requested = string(files);
+            files = requested(isfile(requested));
+            if isempty(files)
+                error("timeAvg_UI:fileNotFound", "None of these files were found:\n  %s",...
+                    strjoin(requested, "\n  "));
             end
 
-            if ismember(char(parts(1)), who('-file', file))
-                d = load(file, parts(1));
+            parts = split(string(var_name), ".");
+            for f = 1:numel(files)
+                if ~ismember(char(parts(1)), who('-file', files(f)))
+                    continue
+                end
+                d = load(files(f), parts(1));
                 var = d.(parts(1));
                 for k = 2:numel(parts)
                     if isstruct(var) && isfield(var, parts(k))
@@ -1650,6 +1657,7 @@ classdef timeAvg_UI < handle
                 end
             end
 
+            [~, file_name] = fileparts(files(1));
             fprintf("%s not defined for %s, using 0\n", var_name, file_name);
             var = 0;
         end
