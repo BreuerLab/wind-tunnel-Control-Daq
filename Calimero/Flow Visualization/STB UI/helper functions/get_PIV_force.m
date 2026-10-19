@@ -1,4 +1,8 @@
-function [var, err] = get_PIV_force(file_name, case_name, force_var_name, avg_type, norm_bool, bounds)
+function [var, err] = get_PIV_force(file_name, case_name, force_var_name, avg_type, norm_bool, bounds, wls_bool)
+        % wls_bool (optional, default true): for phase averages, use the
+        % uncertainty-weighted 5-plane omega_y / omega_z from
+        % add_wls_vorticity when the file contains them.
+        if nargin < 7 || isempty(wls_bool), wls_bool = true; end
         % bounds: trim limits and center point for trim_vel_field
         % (defaults in default_trim_bounds.m)
 
@@ -82,6 +86,11 @@ function [var, err] = get_PIV_force(file_name, case_name, force_var_name, avg_ty
         vortX_tr = d.vortX_phase_avg;
         vortY_tr = d.vortY_phase_avg;
         vortZ_tr = d.vortZ_phase_avg;
+        if wls_bool && ismember('vortY_wls_phase_avg', who('-file', file_name))
+            dw = load(file_name, 'vortY_wls_phase_avg', 'vortZ_wls_phase_avg');
+            vortY_tr = dw.vortY_wls_phase_avg;
+            vortZ_tr = dw.vortZ_wls_phase_avg;
+        end
         end
     
         unc_tr = d.uncTot_phase_avg;
