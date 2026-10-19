@@ -1210,14 +1210,19 @@ classdef timeAvg_UI < handle
 
         function label = get_load_cell_legend_label(obj, curve_label, quantity)
             % The load cell gives total lift or drag (no breakdown into the
-            % STB terms), plus the wind speed and density it measured.
-            % Variables with no load cell equivalent have quantity "".
+            % STB terms), plus the wind speed, density, voltage and current
+            % recorded with it. Variables with no load cell equivalent
+            % have quantity "".
             label = "";
             if quantity == ""
                 return
             end
 
-            label = "Force: " + quantity;
+            if ismember(quantity, ["lift", "drag"])
+                label = "Force: " + quantity;
+            else
+                label = "Load cell: " + quantity;
+            end
             if length(obj.selection) > 1
                 label = label + " - " + curve_label;
             end
@@ -1244,6 +1249,17 @@ classdef timeAvg_UI < handle
                     var_name_F = "rho_act";
                     idx = 1;
                     quantity = "density";
+                % voltage (V) and current (mA): rows 8 and 9 of the
+                % processed load cell data ([6 forces/moments; home
+                % signal; voltage; current], see process_trial.m)
+                case "phase_avg_volt"
+                    var_name_F = "filtered_data";
+                    idx = 8;
+                    quantity = "voltage";
+                case "phase_avg_cur"
+                    var_name_F = "filtered_data";
+                    idx = 9;
+                    quantity = "current";
                 otherwise
                     if contains(force_var, "drag")
                         var_name_F = "filtered_data";
@@ -1490,8 +1506,9 @@ classdef timeAvg_UI < handle
                                 forces(2,j) = range(force_signal);
                             end
 
-                            if obj.force_sub && is_tunnel_var
-                                % wind speed / density: nothing to subtract
+                            if obj.force_sub && ~ismember(load_cell_quantity, ["lift", "drag"])
+                                % wind speed, density, voltage, current:
+                                % body subtraction only applies to forces
                             elseif obj.force_sub && obj.is_plain_steady_type(type)
                                 disp("Force Body Sub skipped for steady case " + type)
                             elseif obj.force_sub
