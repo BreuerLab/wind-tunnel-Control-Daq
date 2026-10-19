@@ -34,6 +34,10 @@ classdef timeAvg_UI < handle
 
         box_labels;
         var_names;
+        % "kinematics", "flow", "force" or "BA: force" for each variable,
+        % and the type currently shown in the variable dropdowns
+        var_categories;
+        var_type;
         y_labels;
 
         % boolean, normalization/non-dimensionalization on or off
@@ -119,6 +123,27 @@ classdef timeAvg_UI < handle
                 "KE", "Enstrophy", "Helicity",...
                 "Speed", "Speed", "Speed",...
                 "Freestream Speed", "Density", "Uncertainty", "count", "count", "count", ""];
+
+            % omega_x centroid position (flow) and bin-averaged forces
+            % (BA: force, stored as lift_phase_avg / drag_phase_avg)
+            obj.box_labels = [obj.box_labels, "wx centroid y", "wx centroid z",...
+                "BA: lift vortX", "BA: lift vortY", "BA: lift vel diff", "BA: drag vort"];
+            obj.var_names = [obj.var_names, "wx_y", "wx_z",...
+                "lift_phase_avg.vortX", "lift_phase_avg.vortY", "lift_phase_avg.vel", "drag_phase_avg.tot"];
+            obj.y_labels = [obj.y_labels, "$\omega_x$ centroid $y/L$", "$\omega_x$ centroid $z/L$",...
+                "Lift (N)", "Lift (N)", "Lift (N)", "Drag (N)"];
+
+            % Category of each variable, matching the Variable Type dropdown
+            % (same groups as phaseAvg_UI)
+            obj.var_categories = strings(size(obj.var_names));
+            obj.var_categories(ismember(obj.var_names, ["lift.vortX", "lift.vortY", "lift.vel",...
+                "lift_vel", "drag.tot", "drag_vel"])) = "force";
+            obj.var_categories(startsWith(obj.var_names, ["lift_phase_avg", "drag_phase_avg"])) = "BA: force";
+            obj.var_categories(ismember(obj.var_names, ["phase_avg_speed", "phase_avg_speed_error",...
+                "phase_avg_volt", "phase_avg_cur", "phase_avg_power",...
+                "num_bins", "num_clusters", "phase_spread_ratio"])) = "kinematics";
+            obj.var_categories(obj.var_categories == "") = "flow";
+            obj.var_type = obj.get_var_category(obj.var_names(1));
             obj.PIV_sub = false;
             obj.PIV_sub_case = "ring";
             obj.force_sub = false;
@@ -213,9 +238,9 @@ classdef timeAvg_UI < handle
                 option_panel.Scrollable = "on";
             end
 
-            sidebar_grid = uigridlayout(option_panel, [23, 1]);
+            sidebar_grid = uigridlayout(option_panel, [24, 1]);
             sidebar_grid.ColumnWidth = {'1x'};
-            sidebar_grid.RowHeight = {30, 60, 30, 30, 30, 30, 110, 30, 30, 30, 30,...
+            sidebar_grid.RowHeight = {30, 60, 30, 30, 30, 30, 110, 30, 30, 30, 30, 30,...
                                       30, 30, 25, 30, 30, 30, 30, 30, 30, 30, 130, 30};
             sidebar_grid.Padding = [10 10 10 10];
             sidebar_grid.RowSpacing = 6;
@@ -315,29 +340,37 @@ classdef timeAvg_UI < handle
             clear_button.BackgroundColor = [1 1 1];
             clear_button.ButtonPushedFcn = @(src, event) clearList(src, event, plot_panel, lbox);
 
+            % Variable type filters the two variable dropdowns below
+            var_type_dropdown = uidropdown(sidebar_grid);
+            var_type_dropdown.Layout.Row = 9;
+            var_type_dropdown.Layout.Column = 1;
+            var_type_dropdown.Items = ["kinematics", "flow", "force", "BA: force"];
+            var_type_dropdown.Value = obj.var_type;
+
             % Dropdown boxes for variable selection
             force_var_dropdown_1 = uidropdown(sidebar_grid);
-            force_var_dropdown_1.Layout.Row = 9;
+            force_var_dropdown_1.Layout.Row = 10;
             force_var_dropdown_1.Layout.Column = 1;
-            force_var_dropdown_1.Items = ["none", obj.box_labels];
+            force_var_dropdown_1.Items = obj.get_var_dropdown_items(obj.get_force_var_label(obj.force_var));
             force_var_dropdown_1.Value = obj.get_force_var_label(obj.force_var);
 
             force_var_dropdown_2 = uidropdown(sidebar_grid);
-            force_var_dropdown_2.Layout.Row = 10;
+            force_var_dropdown_2.Layout.Row = 11;
             force_var_dropdown_2.Layout.Column = 1;
-            force_var_dropdown_2.Items = ["none", obj.box_labels];
+            force_var_dropdown_2.Items = obj.get_var_dropdown_items("none");
             force_var_dropdown_2.Value = "none";
+            var_type_dropdown.ValueChangedFcn = @(src, event) var_type_change(src, event, force_var_dropdown_1, force_var_dropdown_2);
             force_var_dropdown_1.ValueChangedFcn = @(src, event) force_var_change(src, event, plot_panel, force_var_dropdown_1, force_var_dropdown_2);
             force_var_dropdown_2.ValueChangedFcn = @(src, event) force_var_change(src, event, plot_panel, force_var_dropdown_1, force_var_dropdown_2);
 
             operation_dropdown = uidropdown(sidebar_grid);
-            operation_dropdown.Layout.Row = 11;
+            operation_dropdown.Layout.Row = 12;
             operation_dropdown.Layout.Column = 1;
             operation_dropdown.Items = obj.operations;
             operation_dropdown.ValueChangedFcn = @(src, event) operation_change(src, event, plot_panel);
 
             piv_button = uibutton(sidebar_grid, "state");
-            piv_button.Layout.Row = 12;
+            piv_button.Layout.Row = 13;
             piv_button.Layout.Column = 1;
             piv_button.Text = "Show PIV";
             piv_button.Value = true;
@@ -346,7 +379,7 @@ classdef timeAvg_UI < handle
             piv_button.ValueChangedFcn = @(src, event) PIV_bool_change(src, event, plot_panel);
 
             piv_sub_button = uibutton(sidebar_grid, "state");
-            piv_sub_button.Layout.Row = 13;
+            piv_sub_button.Layout.Row = 14;
             piv_sub_button.Layout.Column = 1;
             piv_sub_button.Text = "PIV Body Sub";
             piv_sub_button.FontSize = 18;
@@ -356,7 +389,7 @@ classdef timeAvg_UI < handle
             % Steady case used for the subtraction, matched to each
             % selection's downstream position (and amplitude for body/gliding)
             piv_sub_dropdown = uidropdown(sidebar_grid);
-            piv_sub_dropdown.Layout.Row = 14;
+            piv_sub_dropdown.Layout.Row = 15;
             piv_sub_dropdown.Layout.Column = 1;
             piv_sub_dropdown.Items = ["ring", "body", "gliding"];
             piv_sub_dropdown.Value = obj.PIV_sub_case;
@@ -364,7 +397,7 @@ classdef timeAvg_UI < handle
             piv_sub_dropdown.ValueChangedFcn = @(src, event) PIV_sub_case_change(src, event, plot_panel);
 
             force_button = uibutton(sidebar_grid, "state");
-            force_button.Layout.Row = 15;
+            force_button.Layout.Row = 16;
             force_button.Layout.Column = 1;
             force_button.Text = "Show Force";
             force_button.FontSize = 18;
@@ -372,7 +405,7 @@ classdef timeAvg_UI < handle
             force_button.ValueChangedFcn = @(src, event) force_bool_change(src, event, plot_panel);
 
             force_sub_button = uibutton(sidebar_grid, "state");
-            force_sub_button.Layout.Row = 16;
+            force_sub_button.Layout.Row = 17;
             force_sub_button.Layout.Column = 1;
             force_sub_button.Text = "Force Body Sub";
             force_sub_button.FontSize = 18;
@@ -380,7 +413,7 @@ classdef timeAvg_UI < handle
             force_sub_button.ValueChangedFcn = @(src, event) force_sub_change(src, event, plot_panel);
 
             x_norm_button = uibutton(sidebar_grid, "state");
-            x_norm_button.Layout.Row = 17;
+            x_norm_button.Layout.Row = 18;
             x_norm_button.Layout.Column = 1;
             x_norm_button.Text = "Normalize X-axis";
             x_norm_button.FontSize = 18;
@@ -388,7 +421,7 @@ classdef timeAvg_UI < handle
             x_norm_button.ValueChangedFcn = @(src, event) x_norm_change(src, event, plot_panel);
 
             y_norm_button = uibutton(sidebar_grid, "state");
-            y_norm_button.Layout.Row = 18;
+            y_norm_button.Layout.Row = 19;
             y_norm_button.Layout.Column = 1;
             y_norm_button.Text = "Normalize Y-axis";
             y_norm_button.FontSize = 18;
@@ -397,7 +430,7 @@ classdef timeAvg_UI < handle
 
             % Put the two selected variables on separate left/right y-axes
             separate_y_button = uibutton(sidebar_grid, "state");
-            separate_y_button.Layout.Row = 19;
+            separate_y_button.Layout.Row = 20;
             separate_y_button.Layout.Column = 1;
             separate_y_button.Text = "Separate Y-Axis";
             separate_y_button.FontSize = 18;
@@ -405,7 +438,7 @@ classdef timeAvg_UI < handle
             separate_y_button.ValueChangedFcn = @(src, event) separate_y_axis_change(src, event, plot_panel);
 
             err_button = uibutton(sidebar_grid, "state");
-            err_button.Layout.Row = 20;
+            err_button.Layout.Row = 21;
             err_button.Layout.Column = 1;
             err_button.Text = "Error";
             err_button.FontSize = 18;
@@ -413,7 +446,7 @@ classdef timeAvg_UI < handle
             err_button.ValueChangedFcn = @(src, event) err_change(src, event, plot_panel);
 
             calc_button = uibutton(sidebar_grid, "state");
-            calc_button.Layout.Row = 21;
+            calc_button.Layout.Row = 22;
             calc_button.Layout.Column = 1;
             calc_button.Text = "Live Calculate";
             calc_button.FontSize = 18;
@@ -422,7 +455,7 @@ classdef timeAvg_UI < handle
             % Trim limits and center point for Live Calculate,
             % nondimensional (divided by L)
             bounds_panel = uipanel(sidebar_grid);
-            bounds_panel.Layout.Row = 22;
+            bounds_panel.Layout.Row = 23;
             bounds_panel.Layout.Column = 1;
             bounds_panel.Title = "Live Calc Bounds (y/L, z/L)";
             bounds_panel.TitlePosition = 'centertop';
@@ -459,7 +492,7 @@ classdef timeAvg_UI < handle
             calc_button.ValueChangedFcn = @(src, event) calc_change(src, event, plot_panel, bounds_fields);
 
             save_fig_button = uibutton(sidebar_grid);
-            save_fig_button.Layout.Row = 23;
+            save_fig_button.Layout.Row = 24;
             save_fig_button.Layout.Column = 1;
             save_fig_button.Text = "Save Fig";
             save_fig_button.FontSize = 18;
@@ -500,6 +533,14 @@ classdef timeAvg_UI < handle
             function fixed_2_change(src, ~)
                 fixed_vars = obj.get_fixed_variable_names();
                 obj.set_selected_value_from_item(fixed_vars(2), src.Value);
+            end
+
+            function var_type_change(src, ~, dropdown_1, dropdown_2)
+                % show the chosen type's variables; a variable already
+                % selected from another type stays selected
+                obj.var_type = string(src.Value);
+                dropdown_1.Items = obj.get_var_dropdown_items(string(dropdown_1.Value));
+                dropdown_2.Items = obj.get_var_dropdown_items(string(dropdown_2.Value));
             end
 
             function force_var_change(~, ~, plot_panel, dropdown_1, dropdown_2)
@@ -1115,6 +1156,23 @@ classdef timeAvg_UI < handle
             force_vars = force_vars(strlength(force_vars) > 0);
             force_vars = force_vars(ismember(force_vars, obj.var_names));
             force_vars = unique(force_vars, 'stable');
+        end
+
+        function category = get_var_category(obj, var_name)
+            category = obj.var_categories(obj.var_names == string(var_name));
+            if isempty(category)
+                category = "flow";
+            end
+        end
+
+        function items = get_var_dropdown_items(obj, current_label)
+            % "none" plus the variables of the current type, keeping the
+            % current selection listed if it belongs to another type
+            items = ["none", obj.box_labels(obj.var_categories == obj.var_type)];
+            current_label = string(current_label);
+            if current_label ~= "none" && ~ismember(current_label, items)
+                items = [items, current_label];
+            end
         end
 
         function label = get_force_var_label(obj, force_var)
