@@ -152,7 +152,6 @@ for i = 1:num_bins
         for f = 1:length(fields)
             S.([fields{f} '_phase_avg']) = zeros(size(x,1), size(x,2), size(x,3), num_bins);
         end
-        S.n_valid_phase = zeros(size(x,1), size(x,2), size(x,3), num_bins);
         S.uu_stress = zeros(size(x,1), size(x,2), size(x,3), num_bins);
         S.vv_stress = zeros(size(x,1), size(x,2), size(x,3), num_bins);
         S.ww_stress = zeros(size(x,1), size(x,2), size(x,3), num_bins);
@@ -186,10 +185,6 @@ for i = 1:num_bins
         fname = [fields{f}, '_phase_std'];
         S.(fname)(:,:,:,i) = std(data{f}, 0, 4, "omitnan");
     end
-
-    % Number of valid vectors per point in this bin (used to turn the
-    % phase std into a standard error, e.g. in add_wls_vorticity)
-    S.n_valid_phase(:,:,:,i) = sum(~isnan(data{1}), 4);
 
     % Velocity fluctuations for Reynolds stress calculation
     u_fluc = data{1} - S.u_phase_avg(:,:,:,i);

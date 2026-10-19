@@ -29,6 +29,9 @@ function [vortY, vortZ, sigY, sigZ, info] = vorticity_slab_wls(x, y, z, u, v, w,
 %   Planes with large sigma contribute little; a plane with NaN sigma is
 %   ignored.
 %
+%   Called per frame from loadpiv (extractData -> slab_wls_centre_plane),
+%   with one DaVis-uncertainty sigma per plane.
+%
 %   Outputs are [ny, nz]. sigY/sigZ propagate the WLS covariances through
 %   the in-plane differencing/smoothing (neighbouring points treated as
 %   independent). info holds the intermediate terms and fit diagnostics.

@@ -27,6 +27,9 @@ function varargout = loadpiv(folderPIV, varargin)
 %  `D = loadpiv(folderPIV, "fovRot", 0.23)`
 %
 %  `D = loadpiv(folderPIV, "Validate", 0.4)`
+%  `D = loadpiv(folderPIV, "vortMethod", "stencil")` : centre-plane omega_y,
+%            omega_z from the 3-plane Raffel stencil instead of the default
+%            "wls" uncertainty-weighted fit across all planes
 %
 %  -------------------------------------------------------------------------
 %  ### Mandatory inputs:
@@ -236,7 +239,7 @@ for frameCounter = 1:numSelectedFrames
         end
     end
 
-    frameData = extractData(rawFrame, options.numCameraField);
+    frameData = extractData(rawFrame, options.numCameraField, options.vortMethod);
 
     if frameCounter == 1
         if frameData.dimNum > 3
@@ -365,6 +368,7 @@ options.fovCenter = [0, 0];
 options.fovRot = 0;
 options.numCameraField = 1;
 options.selectedFrames = [];
+options.vortMethod = "wls";
 
 skipNext = false;
 for optionIndex = 1:length(varargin)
@@ -437,6 +441,14 @@ for optionIndex = 1:length(varargin)
             fprintf('Extracting fields for camera: %1.0d\n', options.numCameraField);
             skipNext = true;
 
+        case 'vortMethod'
+            vortMethod = string(getFollowingValue(varargin, optionIndex, optionName));
+            if ~ismember(vortMethod, ["wls", "stencil"])
+                error('"vortMethod" must be "wls" or "stencil".')
+            end
+            options.vortMethod = vortMethod;
+            skipNext = true;
+
         otherwise
             error(['Invalid argument: "', optionName, '" for input "options."']);
     end
@@ -490,7 +502,8 @@ function data = nanToMedian(data)
     data(isnan(data)) = med;
 end
 
-function out1 = extractData(dataStructure, numCameraField)
+function out1 = extractData(dataStructure, numCameraField, vortMethod)
+if nargin < 3, vortMethod = "wls"; end
 
 frame = dataStructure.Frames{numCameraField, 1};
 components = frame.Components;
@@ -642,6 +655,44 @@ out1.uncVRaw = permute(vUncertaintyTmp, permutationOrder);
 out1.uncWRaw = permute(wUncertaintyTmp, permutationOrder);
 
 out1.numP = permute(rotateStbVolume(out1.numP), permutationOrder);
+
+% Out-of-plane vorticity on the centre plane from an uncertainty-weighted
+% fit across ALL binned planes (needs the uncertainties, hence done here
+% after they are extracted). See vorticity_slab_wls.
+if out1.dimNum == 3 && vortMethod == "wls" && size(out1.uRaw, 1) >= 3
+    [out1.vortYRaw, out1.vortZRaw] = slab_wls_centre_plane(out1);
+end
+end
+
+function [vortY, vortZ] = slab_wls_centre_plane(out1)
+% Replace omega_y and omega_z on the centre plane (the plane trim_vel_field
+% uses) with the WLS slab fit. Planes are weighted by 1/sigma^2, where sigma
+% is the median DaVis per-vector uncertainty of that plane in this frame,
+% so poorly lit / out-of-focus edge planes count less. Empty bins (NaN
+% velocity) get zero weight instead of being hole-filled first. The other
+% planes keep the 3-point stencil values from calculateVorticity.
+vortY = out1.vortYRaw;
+vortZ = out1.vortZRaw;
+nx = size(out1.uRaw, 1);
+i0 = ceil(nx / 2);
+
+opts = struct('order', 2, 'i0', i0);
+[wy, wz] = vorticity_slab_wls(out1.xRaw, out1.yRaw, out1.zRaw, ...
+    out1.uRaw, out1.vRaw, out1.wRaw, ...
+    plane_sigma(out1.uncURaw), plane_sigma(out1.uncVRaw), plane_sigma(out1.uncWRaw), opts);
+
+% columns with < 3 usable planes come back NaN; fill like the velocities
+vortY(i0, :, :) = reshape(fill3D(wy), [1, size(wy)]);
+vortZ(i0, :, :) = reshape(fill3D(wz), [1, size(wz)]);
+end
+
+function s = plane_sigma(unc)
+% One uncertainty per plane: median of the valid per-vector values. Only
+% the relative size between planes matters for the weights, so DaVis'
+% uncertainty scaling does not need to match the velocity scaling here.
+nx = size(unc, 1);
+unc(~isfinite(unc) | unc <= 0) = NaN;     % DaVis stores empty bins as 0
+s = median(reshape(unc, nx, []), 2, "omitnan");
 end
 
 function dudx = central_diff_4th_3D(x, u)
