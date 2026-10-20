@@ -23,8 +23,8 @@ properties (Constant, Access = private)
     TURBINE_SOURCE_MODE = "turbine";
     OLD_FLAPPER_DOWNSTREAM_TYPES = ["flexible";"UP_one_flexible";"UP_two_flexible"];
     OLD_FLAPPER_DISTANCE_LABELS = ["x = 0.9m";"x = 1.3m";"x = 1.7m"];
-    NEW_FLAPPER_DOWNSTREAM_TYPES = ["x1";"x2";"x3";"x4";"x5"];
-    NEW_FLAPPER_DISTANCE_LABELS = ["x1";"x2";"x3";"x4";"x5"];
+    NEW_FLAPPER_DOWNSTREAM_TYPES = ["x1";"x2";"x3";"x4";"x5";"MPS"];
+    NEW_FLAPPER_DISTANCE_LABELS = ["x1";"x2";"x3";"x4";"x5";"MPS"];
 end
 
 properties
