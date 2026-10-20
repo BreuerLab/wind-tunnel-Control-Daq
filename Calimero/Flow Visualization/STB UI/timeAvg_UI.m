@@ -12,6 +12,18 @@ classdef timeAvg_UI < handle
         cur_types = ["flexible";"UP_one_flexible";"UP_two_flexible"];
         x_axis_types = ["wingbeat frequency", "wingbeat amplitude", "downstream distance"];
         x_axis_labels = ["Wingbeat Frequency", "Wingbeat Amplitude", "Downstream Distance"];
+        % Load cell data options (variables saved by process_trial.m). The
+        % cutoffs fc are multiples of the wingbeat frequency f (fixed
+        % 10 / 10 / 4 Hz for 0 Hz trials). "phase-averaged" = the
+        % wingbeat_forces arrays (data split into wingbeats), only saved
+        % for flapping trials.
+        load_cell_data_labels = ["raw", "fc = 10*f", "fc = 5*f", "fc = 2*f",...
+            "raw phase-averaged", "fc = 10*f phase-averaged",...
+            "fc = 5*f phase-averaged", "fc = 2*f phase-averaged"];
+        load_cell_data_vars = ["mod_results", "filtered_data",...
+            "filtered_data_smoother", "filtered_data_smoothest",...
+            "wingbeat_forces_raw", "wingbeat_forces",...
+            "wingbeat_forces_smoother", "wingbeat_forces_smoothest"];
         downstream_distances = [0.9; 1.3; 1.7];
         downstream_distance_labels = ["x = 0.9m"; "x = 1.3m"; "x = 1.7m"];
     end
@@ -50,6 +62,9 @@ classdef timeAvg_UI < handle
         filt_num;
 
         force_bool;
+        % variable read from the processed load cell file for forces,
+        % voltage and current (one of load_cell_data_vars)
+        load_cell_data_var;
         force_var;
         force_vars;
         PIV_bool;
@@ -163,6 +178,7 @@ classdef timeAvg_UI < handle
             obj.y_norm = false;
             obj.separate_y_axis_bool = false;
             obj.force_bool = false;
+            obj.load_cell_data_var = "filtered_data";
             obj.PIV_bool = true;
             obj.force_var = obj.var_names(1);
             obj.force_vars = obj.force_var;
@@ -246,10 +262,10 @@ classdef timeAvg_UI < handle
                 option_panel.Scrollable = "on";
             end
 
-            sidebar_grid = uigridlayout(option_panel, [24, 1]);
+            sidebar_grid = uigridlayout(option_panel, [25, 1]);
             sidebar_grid.ColumnWidth = {'1x'};
             sidebar_grid.RowHeight = {30, 60, 30, 30, 30, 30, 110, 30, 30, 30, 30, 30,...
-                                      30, 30, 25, 30, 30, 30, 30, 30, 30, 30, 130, 30};
+                                      30, 30, 25, 30, 30, 30, 30, 30, 30, 30, 30, 130, 30};
             sidebar_grid.Padding = [10 10 10 10];
             sidebar_grid.RowSpacing = 6;
             if isprop(sidebar_grid, "Scrollable")
@@ -410,7 +426,6 @@ classdef timeAvg_UI < handle
             force_button.Text = "Show Force";
             force_button.FontSize = 18;
             force_button.BackgroundColor = obj.COLOR_INACTIVE;
-            force_button.ValueChangedFcn = @(src, event) force_bool_change(src, event, plot_panel);
 
             force_sub_button = uibutton(sidebar_grid, "state");
             force_sub_button.Layout.Row = 17;
@@ -420,8 +435,20 @@ classdef timeAvg_UI < handle
             force_sub_button.BackgroundColor = obj.COLOR_INACTIVE;
             force_sub_button.ValueChangedFcn = @(src, event) force_sub_change(src, event, plot_panel);
 
+            % Which processed load cell data to read (forces, voltage,
+            % current); only used with Show Force on
+            load_cell_data_dropdown = uidropdown(sidebar_grid);
+            load_cell_data_dropdown.Layout.Row = 18;
+            load_cell_data_dropdown.Layout.Column = 1;
+            load_cell_data_dropdown.Items = obj.load_cell_data_labels;
+            load_cell_data_dropdown.Value = obj.load_cell_data_labels(obj.load_cell_data_vars == obj.load_cell_data_var);
+            load_cell_data_dropdown.Tooltip = "Load cell data used with Show Force";
+            load_cell_data_dropdown.Enable = "off";
+            load_cell_data_dropdown.ValueChangedFcn = @(src, event) load_cell_data_change(src, event, plot_panel);
+            force_button.ValueChangedFcn = @(src, event) force_bool_change(src, event, plot_panel, load_cell_data_dropdown);
+
             x_norm_button = uibutton(sidebar_grid, "state");
-            x_norm_button.Layout.Row = 18;
+            x_norm_button.Layout.Row = 19;
             x_norm_button.Layout.Column = 1;
             x_norm_button.Text = "Normalize X-axis";
             x_norm_button.FontSize = 18;
@@ -429,7 +456,7 @@ classdef timeAvg_UI < handle
             x_norm_button.ValueChangedFcn = @(src, event) x_norm_change(src, event, plot_panel);
 
             y_norm_button = uibutton(sidebar_grid, "state");
-            y_norm_button.Layout.Row = 19;
+            y_norm_button.Layout.Row = 20;
             y_norm_button.Layout.Column = 1;
             y_norm_button.Text = "Normalize Y-axis";
             y_norm_button.FontSize = 18;
@@ -438,7 +465,7 @@ classdef timeAvg_UI < handle
 
             % Put the two selected variables on separate left/right y-axes
             separate_y_button = uibutton(sidebar_grid, "state");
-            separate_y_button.Layout.Row = 20;
+            separate_y_button.Layout.Row = 21;
             separate_y_button.Layout.Column = 1;
             separate_y_button.Text = "Separate Y-Axis";
             separate_y_button.FontSize = 18;
@@ -446,7 +473,7 @@ classdef timeAvg_UI < handle
             separate_y_button.ValueChangedFcn = @(src, event) separate_y_axis_change(src, event, plot_panel);
 
             err_button = uibutton(sidebar_grid, "state");
-            err_button.Layout.Row = 21;
+            err_button.Layout.Row = 22;
             err_button.Layout.Column = 1;
             err_button.Text = "Error";
             err_button.FontSize = 18;
@@ -454,7 +481,7 @@ classdef timeAvg_UI < handle
             err_button.ValueChangedFcn = @(src, event) err_change(src, event, plot_panel);
 
             calc_button = uibutton(sidebar_grid, "state");
-            calc_button.Layout.Row = 22;
+            calc_button.Layout.Row = 23;
             calc_button.Layout.Column = 1;
             calc_button.Text = "Live Calculate";
             calc_button.FontSize = 18;
@@ -463,7 +490,7 @@ classdef timeAvg_UI < handle
             % Trim limits and center point for Live Calculate,
             % nondimensional (divided by L)
             bounds_panel = uipanel(sidebar_grid);
-            bounds_panel.Layout.Row = 23;
+            bounds_panel.Layout.Row = 24;
             bounds_panel.Layout.Column = 1;
             bounds_panel.Title = "Live Calc Bounds (y/L, z/L)";
             bounds_panel.TitlePosition = 'centertop';
@@ -500,7 +527,7 @@ classdef timeAvg_UI < handle
             calc_button.ValueChangedFcn = @(src, event) calc_change(src, event, plot_panel, bounds_fields);
 
             save_fig_button = uibutton(sidebar_grid);
-            save_fig_button.Layout.Row = 24;
+            save_fig_button.Layout.Row = 25;
             save_fig_button.Layout.Column = 1;
             save_fig_button.Text = "Save Fig";
             save_fig_button.FontSize = 18;
@@ -611,11 +638,23 @@ classdef timeAvg_UI < handle
                 obj.update_plot(plot_panel);
             end
 
-            function force_bool_change(src, ~, plot_panel)
+            function force_bool_change(src, ~, plot_panel, load_cell_data_dropdown)
                 obj.force_bool = src.Value;
                 src.BackgroundColor = obj.get_button_color(obj.force_bool);
                 src.Text = obj.get_button_text(obj.force_bool, "Force");
+                if obj.force_bool
+                    load_cell_data_dropdown.Enable = "on";
+                else
+                    load_cell_data_dropdown.Enable = "off";
+                end
                 obj.update_plot(plot_panel);
+            end
+
+            function load_cell_data_change(src, ~, plot_panel)
+                obj.load_cell_data_var = obj.load_cell_data_vars(obj.load_cell_data_labels == string(src.Value));
+                if obj.force_bool
+                    obj.update_plot(plot_panel);
+                end
             end
 
             function x_norm_change(src, ~, plot_panel)
@@ -1479,6 +1518,11 @@ classdef timeAvg_UI < handle
                         % var_name_F = "results_lab";
                         % var_name_F = "wingbeat_avg_forces_smoothest";
                         var_name_F = load_cell_var; % filtered_data, U_act or rho_act
+                        if var_name_F == "filtered_data"
+                            % forces, voltage, current: use the selected
+                            % load cell data (same rows in every option)
+                            var_name_F = obj.load_cell_data_var;
+                        end
                         is_tunnel_var = ismember(var_name_F, ["U_act", "rho_act"]);
 
                         idx = load_cell_idx;
