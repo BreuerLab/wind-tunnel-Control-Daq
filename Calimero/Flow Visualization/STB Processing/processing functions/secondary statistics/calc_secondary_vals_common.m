@@ -102,9 +102,13 @@ S.dwdx_avg = squeeze(mean(T.dwdx, [1, 2]));
 % S.uwx_avg = squeeze(mean(T.uwx, [1, 2]));
 % S.uwy_avg = squeeze(mean(T.uwy, [1, 2]));
 
-% Vortex centroids
+% Vortex centroids from streamwise vorticity, perhaps a flawed metric since
+% this has a singularity when the planar average of vorticity is zero
 S.wx_z = integrate_planar(y_arr, z_arr, z_tr .* T.vortX) ./ integrate_planar(y_arr, z_arr, T.vortX);
 S.wx_y = integrate_planar(y_arr, z_arr, y_tr .* T.vortX) ./ integrate_planar(y_arr, z_arr, T.vortX);
+
+S.Qx_z = integrate_planar(y_arr, z_arr, z_tr .* Q) ./ integrate_planar(y_arr, z_arr, Q);
+S.Qx_y = integrate_planar(y_arr, z_arr, y_tr .* Q) ./ integrate_planar(y_arr, z_arr, Q);
 
 % Vortex stretching/tilting terms for \omega_x term
 S.wx_stretch = integrate_planar(y_arr, z_arr, T.vortX .* T.dudx);

@@ -12,8 +12,8 @@ data_file_path = "F:\";
 % data_file_path = "R:\ENG_Breuer_Shared\group\Wind turbine\Turbine_STB\Turbine_STB_02_17_2026\Processed Data\";
 
 % GUI for plotting vector fields and wake topology
-% a = flowField_UI(1,data_file_path);
-% a.dynamic_plotting();
+a = flowField_UI(1,data_file_path);
+a.dynamic_plotting();
 
 % GUI for plotting instantaneous vector fields before phase averaging
 % b = flowFieldInst_UI(1,data_file_path);
@@ -24,5 +24,10 @@ data_file_path = "F:\";
 % c.dynamic_plotting();
 
 % % GUI for plotting time averaged quantities
-d = timeAvg_UI(1, data_file_path);
-d.dynamic_plotting();
+% d = timeAvg_UI(1, data_file_path);
+% d.dynamic_plotting();
+
+% case_name = "x3_wings_20deg_6Hz";
+% o.taper = 0.75;   % taper width in chords
+% file = data_file_path + "Processed Results\phase_avg\" + case_name + "_phase_avg.mat";
+% B = wake_lift_budget(file, case_name, default_trim_bounds(), o);

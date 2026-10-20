@@ -15,8 +15,8 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 % Call "  case_names = get_case_names();  "
 % PIV_case_name = 'UP_two_flexible_20deg_6Hz';
 % PIV_case_name = 'x5_wings_20deg_0Hz';
-PIV_case_name = 'MPS_wings_20deg_6Hz';
-% PIV_case_name = 'x2_wings_20deg_8Hz';
+% PIV_case_name = 'MPS_wings_20deg_6Hz';
+PIV_case_name = 'x3_wings_20deg_6Hz';
 % PIV_case_name = 'x3_ring';
 % PIV_case_name = 'turbine';
 
@@ -28,7 +28,7 @@ save_filepath_local = "F:\Processed Results\";
 
 bools.nondim = true; % non-dimensionalize data
 bools.RPCA = false; % RPCA filtering of vector fields
-bools.proc_vel = true; % false if just calculating secondary values
+bools.proc_vel = false; % false if just calculating secondary values
 
 % If you want to make plots here, you can. However, it is NOT recommended.
 % Intead, use main_analysis to produce plots easily in a GUI interface.
