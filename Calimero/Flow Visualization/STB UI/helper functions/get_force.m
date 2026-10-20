@@ -15,8 +15,8 @@ function force = get_force(path, type, amp, freq, idx, var_name_F)
     amp = string(amp);
     freq = string(freq);
 
-    downstream_prefix = regexp(char(type), '^x\d+_', 'match', 'once');
-    is_new_flapper = ~isempty(downstream_prefix);
+    downstream_prefix = get_downstream_prefix(type); % "x3_", "MPS_", ...
+    is_new_flapper = strlength(downstream_prefix) > 0;
     if is_new_flapper
         type = extractAfter(type, strlength(downstream_prefix));
     end

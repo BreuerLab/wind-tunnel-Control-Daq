@@ -14,8 +14,8 @@ classdef phaseAvg_UI < handle
         DEFAULT_VERSION_LABEL = "default";
         cur_types = ["flexible";"UP_one_flexible";"UP_two_flexible"];
         downstream_distance_labels = ["x = 0.9m"; "x = 1.3m"; "x = 1.7m"];
-        new_flapper_downstream_types = ["x1";"x2";"x3";"x4";"x5"];
-        new_flapper_distance_labels = ["x1";"x2";"x3";"x4";"x5"];
+        new_flapper_downstream_types = ["x1";"x2";"x3";"x4";"x5";"MPS"];
+        new_flapper_distance_labels = ["x1";"x2";"x3";"x4";"x5";"MPS"];
     end
 
 properties
@@ -1348,7 +1348,7 @@ methods (Access = private)
         amp = string(amp);
 
         % downstream / upstream prefix shared by the steady cases
-        prefix = string(regexp(char(type), '^(x\d+_|UP_one_|UP_two_)', 'match', 'once'));
+        prefix = get_downstream_prefix(type, true); % x1-x5, MPS, UP_one, UP_two
 
         switch obj.PIV_sub_case
             case "ring"
@@ -1392,9 +1392,9 @@ methods (Access = private)
             if body_amp == 30
                 body_amp = 20;
             end
-            % keep the downstream prefix (e.g. "x3_") so get_force uses the
+            % keep the downstream prefix (e.g. "x3_", "MPS_") so get_force uses the
             % new flapper body folder ("20 deg body") rather than the old one
-            body_type = string(regexp(char(type), '^x\d+_', 'match', 'once')) + "body";
+            body_type = get_downstream_prefix(type) + "body";
             body_force = get_force(obj.force_path, body_type, body_amp, freq, obj.force_index, var_name_F);
             force = force - body_force;
         end
