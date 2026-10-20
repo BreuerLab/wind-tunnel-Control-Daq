@@ -108,9 +108,12 @@ S.dwdx_avg = squeeze(mean(T.dwdx, [1, 2]));
 S.wx_z = integrate_planar(y_arr, z_arr, z_tr .* T.vortX) ./ integrate_planar(y_arr, z_arr, T.vortX);
 S.wx_y = integrate_planar(y_arr, z_arr, y_tr .* T.vortX) ./ integrate_planar(y_arr, z_arr, T.vortX);
 
-% Vortex centroids weighted by Q (trimmed and recentred like y_tr, z_tr)
-S.Qx_z = integrate_planar(y_arr, z_arr, z_tr .* T.Q) ./ integrate_planar(y_arr, z_arr, T.Q);
-S.Qx_y = integrate_planar(y_arr, z_arr, y_tr .* T.Q) ./ integrate_planar(y_arr, z_arr, T.Q);
+% Vortex core centroids weighted by positive Q only (Q > 0 marks vortex
+% cores; the negative, strain-dominated regions would partly cancel the
+% denominator). Q is trimmed and recentred like y_tr, z_tr.
+Q_pos = max(T.Q, 0);
+S.Qx_z = integrate_planar(y_arr, z_arr, z_tr .* Q_pos) ./ integrate_planar(y_arr, z_arr, Q_pos);
+S.Qx_y = integrate_planar(y_arr, z_arr, y_tr .* Q_pos) ./ integrate_planar(y_arr, z_arr, Q_pos);
 
 % Vortex stretching/tilting terms for \omega_x term
 S.wx_stretch = integrate_planar(y_arr, z_arr, T.vortX .* T.dudx);
