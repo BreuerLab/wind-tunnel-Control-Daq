@@ -9,6 +9,7 @@ dy = abs(D.y(1,2,1) - D.y(1,1,1));
 dz = abs(D.z(1,1,2) - D.z(1,1,1));
 
 % Compute Q-Criterion
+disp("Calculating Q...")
 [Qx,Qy,Qz,Q] = calQlate3D(D.(config.uField), D.(config.vField), D.(config.wField), dx,dy,dz);
 S.Qx = Qx; S.Qy = Qy; S.Qz = Qz; S.Q = Q;
 
