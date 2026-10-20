@@ -116,11 +116,11 @@ density = 1.225;
 % variable preallocation
 bin_count = zeros(1,num_bins);
 bin_std = zeros(1,num_bins);
-lift_phase_avg = struct();
-drag_phase_avg = struct();
+lift_before_avg = struct();
+drag_before_avg = struct();
 % velocity-only lift (u*w) and drag (get_wake_lift with vort_bool false)
-lift_vel_phase_avg = zeros(1,num_bins);
-drag_vel_phase_avg = zeros(1,num_bins);
+lift_vel_before_avg = zeros(1,num_bins);
+drag_vel_before_avg = zeros(1,num_bins);
 print_dim_bool = true;
 
 fields = get_STB_processing_fields();
@@ -166,12 +166,12 @@ for i = 1:num_bins
         if ~bools.turbine
         lift_fields = fieldnames(lift_vals);
         for f = 1:length(lift_fields)
-            lift_phase_avg.(lift_fields{f}) = zeros(1,num_bins);
+            lift_before_avg.(lift_fields{f}) = zeros(1,num_bins);
         end
 
         drag_fields = fieldnames(drag_vals);
         for f = 1:length(drag_fields)
-            drag_phase_avg.(drag_fields{f}) = zeros(1,num_bins);
+            drag_before_avg.(drag_fields{f}) = zeros(1,num_bins);
         end
         end
 
@@ -218,19 +218,19 @@ for i = 1:num_bins
     for f = 1:length(lift_fields)
         field_name = lift_fields{f};
         cur_vals = lift_vals.(field_name);
-        lift_phase_avg.(field_name)(i) = mean(cur_vals(:), "omitnan");
+        lift_before_avg.(field_name)(i) = mean(cur_vals(:), "omitnan");
     end
 
     % Compute phase averages from drag data in current bin
     for f = 1:length(drag_fields)
         field_name = drag_fields{f};
         cur_vals = drag_vals.(field_name);
-        drag_phase_avg.(field_name)(i) = mean(cur_vals(:), "omitnan");
+        drag_before_avg.(field_name)(i) = mean(cur_vals(:), "omitnan");
     end
 
     % Velocity-only lift and drag in current bin
-    lift_vel_phase_avg(i) = mean(lift_vel_vals(:), "omitnan");
-    drag_vel_phase_avg(i) = mean(drag_vel_vals(:), "omitnan");
+    lift_vel_before_avg(i) = mean(lift_vel_vals(:), "omitnan");
+    drag_vel_before_avg(i) = mean(drag_vel_vals(:), "omitnan");
     end
 
     if mod(i,5) == 0
@@ -246,8 +246,9 @@ S.num_clusters = num_clusters; S.phase_spread_ratio = phase_spread_ratio;
 S.PIV_case_name = PIV_case_name;
 
 if ~bools.turbine
-S.lift_phase_avg = lift_phase_avg; S.drag_phase_avg = drag_phase_avg;
-S.lift_vel_phase_avg = lift_vel_phase_avg; S.drag_vel_phase_avg = drag_vel_phase_avg;
+% before-averaging (BA) forces: computed per frame, then averaged per bin
+S.lift_before_avg = lift_before_avg; S.drag_before_avg = drag_before_avg;
+S.lift_vel_before_avg = lift_vel_before_avg; S.drag_vel_before_avg = drag_vel_before_avg;
 end
 
 % Save the entire structure

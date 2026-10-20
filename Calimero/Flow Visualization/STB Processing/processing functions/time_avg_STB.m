@@ -94,20 +94,20 @@ function S = time_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, n
     S.PIV_case_name = PIV_case_name;
     S.mean_lift = mean(lift_vals); S.mean_drag = mean(drag_vals);
 
-    % Frame-averaged (BA) lift and drag: the mean over all frames of the
-    % lift / drag computed for each frame. Same names as phase_avg_STB,
-    % with one value instead of one per bin.
-    lift_phase_avg = struct();
+    % Before-averaging (BA) lift and drag: lift / drag computed for each
+    % frame, then averaged over all frames. Same names as phase_avg_STB
+    % (*_before_avg), with one value instead of one per bin.
+    lift_before_avg = struct();
     for f = 1:length(lift_fields)
-        lift_phase_avg.(lift_fields{f}) = mean(lift_frames.(lift_fields{f}), "omitnan");
+        lift_before_avg.(lift_fields{f}) = mean(lift_frames.(lift_fields{f}), "omitnan");
     end
-    drag_phase_avg = struct();
+    drag_before_avg = struct();
     for f = 1:length(drag_fields)
-        drag_phase_avg.(drag_fields{f}) = mean(drag_frames.(drag_fields{f}), "omitnan");
+        drag_before_avg.(drag_fields{f}) = mean(drag_frames.(drag_fields{f}), "omitnan");
     end
-    S.lift_phase_avg = lift_phase_avg; S.drag_phase_avg = drag_phase_avg;
-    S.lift_vel_phase_avg = mean(lift_vel_frames, "omitnan");
-    S.drag_vel_phase_avg = mean(drag_vel_frames, "omitnan");
+    S.lift_before_avg = lift_before_avg; S.drag_before_avg = drag_before_avg;
+    S.lift_vel_before_avg = mean(lift_vel_frames, "omitnan");
+    S.drag_vel_before_avg = mean(drag_vel_frames, "omitnan");
 
     % Save the entire structure
     save(save_path, '-struct', 'S');

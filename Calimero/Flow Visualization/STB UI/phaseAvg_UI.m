@@ -146,8 +146,8 @@ methods
         [obj.active_types, obj.active_names, obj.active_labels] = obj.get_all_variable_options();
         % bj.force_var_types = ["Lift - Vorticity", "y*\omega_x", "x*\omega_y", "u*w", "BA: y*\omega_x",...
         %     "Drag - Vorticity", "z*\omega_y", "y*\omega_z", "(u-U)*u", "BA: (u-U)*u"];
-        % obj.force_var_names = ["lift.tot", "lift.vortX", "lift.vortY", "lift_vel", "lift_phase_avg.vortX",...
-        %             "drag.tot", "drag.vortY", "drag.vortZ", "drag_vel", "drag_phase_avg"];
+        % obj.force_var_names = ["lift.tot", "lift.vortX", "lift.vortY", "lift_vel", "lift_before_avg.vortX",...
+        %             "drag.tot", "drag.vortY", "drag.vortZ", "drag_vel", "drag_before_avg"];
 
         obj.norm = false;
         obj.norm_period = true;
@@ -1152,13 +1152,14 @@ methods (Access = private)
     end
 
     function names = get_ba_force_names(obj)
-        % bin-averaged versions of the force variables saved by
-        % phase_avg_STB: lift.vortX -> lift_phase_avg.vortX, and the
-        % velocity-only lift_vel / drag_vel -> lift_vel_phase_avg /
-        % drag_vel_phase_avg
-        names = regexprep(obj.force_var_names, '\.', "_phase_avg" + ".");
+        % before-averaging (BA) versions of the force variables saved by
+        % phase_avg_STB / time_avg_STB (force computed per frame, then
+        % averaged): lift.vortX -> lift_before_avg.vortX, and the
+        % velocity-only lift_vel / drag_vel -> lift_vel_before_avg /
+        % drag_vel_before_avg
+        names = regexprep(obj.force_var_names, '\.', "_before_avg" + ".");
         is_vel_only = ismember(names, ["lift_vel", "drag_vel"]);
-        names(is_vel_only) = names(is_vel_only) + "_phase_avg";
+        names(is_vel_only) = names(is_vel_only) + "_before_avg";
     end
 
     function [types, names, labels] = get_variable_options(obj, var_type)
@@ -1624,8 +1625,8 @@ methods (Access = private)
             else
                 vars = {"L","U"};
                 d2 = load(file_path, vars{:});
-                if contains(var_name, ["lift_phase_avg", "drag_phase_avg",...
-                        "lift_vel_phase_avg", "drag_vel_phase_avg"])
+                if contains(var_name, ["lift_before_avg", "drag_before_avg",...
+                        "lift_vel_before_avg", "drag_vel_before_avg"])
                     if contains(var_name, ".")
                         abbrv_name = extractBefore(var_name, ".");
                         d2 = load(file_path, abbrv_name);
