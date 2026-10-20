@@ -36,6 +36,7 @@ trim_source.dvdx = D.(config.dvdxField);
 trim_source.dwdx = D.(config.dwdxField);
 trim_source.KE_diff = S.KE_diff_field;
 trim_source.power = S.power_field;
+trim_source.Q = Q; % trimmed like the other fields, for the Q centroid
 
 % TURNED OFF TEMPORARILY SINCE NOT SUPPORTED BY TIME AVERAGE
 % trim_source.uu = D.(config.uuField);
@@ -107,8 +108,9 @@ S.dwdx_avg = squeeze(mean(T.dwdx, [1, 2]));
 S.wx_z = integrate_planar(y_arr, z_arr, z_tr .* T.vortX) ./ integrate_planar(y_arr, z_arr, T.vortX);
 S.wx_y = integrate_planar(y_arr, z_arr, y_tr .* T.vortX) ./ integrate_planar(y_arr, z_arr, T.vortX);
 
-S.Qx_z = integrate_planar(y_arr, z_arr, z_tr .* Q) ./ integrate_planar(y_arr, z_arr, Q);
-S.Qx_y = integrate_planar(y_arr, z_arr, y_tr .* Q) ./ integrate_planar(y_arr, z_arr, Q);
+% Vortex centroids weighted by Q (trimmed and recentred like y_tr, z_tr)
+S.Qx_z = integrate_planar(y_arr, z_arr, z_tr .* T.Q) ./ integrate_planar(y_arr, z_arr, T.Q);
+S.Qx_y = integrate_planar(y_arr, z_arr, y_tr .* T.Q) ./ integrate_planar(y_arr, z_arr, T.Q);
 
 % Vortex stretching/tilting terms for \omega_x term
 S.wx_stretch = integrate_planar(y_arr, z_arr, T.vortX .* T.dudx);
