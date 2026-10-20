@@ -162,6 +162,10 @@ for i = 1:num_bins
         S.uv_stress = zeros(size(x,1), size(x,2), size(x,3), num_bins);
         S.uw_stress = zeros(size(x,1), size(x,2), size(x,3), num_bins);
         S.vw_stress = zeros(size(x,1), size(x,2), size(x,3), num_bins);
+        % Q from each frame, averaged over the bin (vs Q of the
+        % phase-averaged field, computed in calc_secondary_vals_phase)
+        S.Q_inst_avg = zeros(size(x,1), size(x,2), size(x,3), num_bins);
+        S.Q_pos_inst_avg = zeros(size(x,1), size(x,2), size(x,3), num_bins);
 
         if ~bools.turbine
         lift_fields = fieldnames(lift_vals);
@@ -189,6 +193,10 @@ for i = 1:num_bins
         fname = [fields{f}, '_phase_std'];
         S.(fname)(:,:,:,i) = std(data{f}, 0, 4, "omitnan");
     end
+
+    % Q on each instantaneous field, then averaged over the bin
+    [S.Q_inst_avg(:,:,:,i), S.Q_pos_inst_avg(:,:,:,i)] = ...
+        inst_Q_avg(data{1}, data{2}, data{3}, x, y, z);
 
     % Velocity fluctuations for Reynolds stress calculation
     u_fluc = data{1} - S.u_phase_avg(:,:,:,i);

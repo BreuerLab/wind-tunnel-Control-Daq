@@ -15,6 +15,7 @@ function S = time_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, n
     lift_frames = struct();
     drag_frames = struct();
     lift_vel_frames = NaN(1,num_images); % velocity-only lift (u*w)
+    Q_sum = 0; Q_pos_sum = 0; Q_n = 0; % for Q of each frame, averaged
     drag_vel_frames = NaN(1,num_images); % velocity-only drag
     print_dim_bool = true;
 
@@ -45,6 +46,14 @@ function S = time_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, n
             S.(fn) = S.(fn) + current_data;
             n_valid.(fn) = n_valid.(fn) + valid;
         end
+
+        % Q on this instantaneous field (accumulated, averaged below)
+        [Q_frame, Q_pos_frame] = inst_Q_avg(data{1}, data{2}, data{3}, x, y, z);
+        Q_ok = isfinite(Q_frame);
+        Q_frame(~Q_ok) = 0; Q_pos_frame(~Q_ok) = 0;
+        Q_sum = Q_sum + Q_frame;
+        Q_pos_sum = Q_pos_sum + Q_pos_frame;
+        Q_n = Q_n + Q_ok;
 
         F = prepare_STB_wake_field(L, y, z, print_dim_bool, data, 0, bounds); % trimming
 
@@ -93,6 +102,11 @@ function S = time_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, n
     S.x = x; S.y = y; S.z = z; S.L = L; S.U = U; S.rho = density;
     S.PIV_case_name = PIV_case_name;
     S.mean_lift = mean(lift_vals); S.mean_drag = mean(drag_vals);
+
+    % Q of each frame averaged over all frames (vs Q of the mean field,
+    % computed in calc_secondary_vals_time)
+    S.Q_inst_avg = Q_sum ./ Q_n;
+    S.Q_pos_inst_avg = Q_pos_sum ./ Q_n;
 
     % Before-averaging (BA) lift and drag: lift / drag computed for each
     % frame, then averaged over all frames. Same names as phase_avg_STB

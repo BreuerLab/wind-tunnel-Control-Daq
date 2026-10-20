@@ -156,7 +156,7 @@ methods
         obj.iso_var_list = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
                             "Q_x","Q_y","Q_z","|Q|", "helicity",...
                             "du/dx","du/dy","du/dz","dv/dx","dv/dy",...
-                            "dv/dz","dw/dx","dw/dy","dw/dz"];
+                            "dv/dz","dw/dx","dw/dy","dw/dz", "<Q> inst", "<Q+> inst"];
         obj.iso_var = "|Q|";
         obj.iso_val = 0.05;
         % obj.iso_val = -0.05;
@@ -264,6 +264,11 @@ methods
         obj.movie_3D_avg_vars(end+1) = obj.LIFT_WX_VAR;
         movie_3D_avg_values(end+1) = obj.LIFT_WX_FIELD;
         time_avg_values(end+1) = obj.LIFT_WX_FIELD;
+        % Q computed per frame, then averaged (saved in the main
+        % phase / time average files by phase_avg_STB / time_avg_STB)
+        obj.movie_3D_avg_vars = [obj.movie_3D_avg_vars, "<Q> inst", "<Q+> inst"];
+        movie_3D_avg_values = [movie_3D_avg_values, "Q_inst_avg", "Q_pos_inst_avg"];
+        time_avg_values = [time_avg_values, "Q_inst_avg", "Q_pos_inst_avg"];
         % ["u_phase_std","v_phase_std","w_phase_std","Utot_phase_std",...
         % "vortX_phase_std","vortY_phase_std","vortZ_phase_std","vortTot_phase_std",...
         % "uncU_phase_std","uncV_phase_std","uncW_phase_std","uncTot_phase_std","hel_phase_std", "numP_phase_std"];
@@ -317,7 +322,9 @@ methods
                       -0.1, 0.1;
                       0, 0.1;
                       0, 0.1;
-                      -20, 20]; % lift (U y ω_x), dimensional (m^2/s^2)
+                      -20, 20;... % lift (U y ω_x), dimensional (m^2/s^2)
+                      0, 0.1;...  % <Q> inst
+                      0, 0.1];    % <Q+> inst
 
         % for std plots
         obj.std_clims = [0, 0.05;...
@@ -385,6 +392,8 @@ methods
                             "KE","power"];
         movie_3D_std_labels = [movie_3D_avg_labels(1:8) movie_3D_avg_labels(13:end)];
         movie_3D_avg_labels(end+1) = "\boldmath$U_{\infty}\, y\, \omega_x \; (\mathrm{m^2/s^2})$";
+        movie_3D_avg_labels = [movie_3D_avg_labels, "\boldmath$\langle Q \rangle \frac{c^2}{U_{\infty}^2}$",...
+            "\boldmath$\langle Q^+ \rangle \frac{c^2}{U_{\infty}^2}$"];
 
         keys = cellstr(obj.movie_3D_avg_vars);
         values = movie_3D_avg_values;
