@@ -14,6 +14,7 @@ for i = 1:length(files)
     end
 end
 
+disp("Loading " + WT_path + WT_file)
 temp = load(WT_path + WT_file);
 d = temp.AFAM_Tunnel;
 

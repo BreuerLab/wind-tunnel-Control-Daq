@@ -93,7 +93,7 @@ disp("-----------------------------------")
 
 % Get AFAM parameters associated with that trial
 if ~bools.turbine
-    if contains(daq_data_filename, regexpPattern('x\d'))
+    if contains(daq_data_filename, regexpPattern('x\d')) || contains(daq_data_filename, "MPS")
         new_bool = true;
     else
         new_bool = false;

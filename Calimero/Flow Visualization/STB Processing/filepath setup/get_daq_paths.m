@@ -17,6 +17,7 @@ function [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name)
     d24 = [base_new, 'x4\daq data\experiment data\'];
     d25 = [base_new, 'x5\daq data\experiment data\'];
 
+    d30 = [base_new_v2, 'MPS Testing Sept\daq data\experiment data\'];
     d32 = [base_new_v2, 'x2\daq data\experiment data\'];
     d33 = [base_new_v2, 'x3\daq data\experiment data\'];
     
@@ -28,6 +29,11 @@ function [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name)
     % cases.x5_wings_20deg_6Hz = {'x5_flexible_20_4m.s_10deg_6Hz_2026_08_16_20_01_59_experiment_2026_08_16_20_04_20.mat',d25};
     % cases.x5_wings_20deg_6Hz_v2 = {'x5_flexible_20_4m.s_10deg_6Hz_2026_08_16_20_01_59_experiment_2026_08_16_20_04_20.mat',d25};
     % cases.x5_wings_20deg_6Hz_v3 = {'x5_flexible_20_4m.s_10deg_6Hz_2026_08_16_20_01_59_experiment_2026_08_16_20_04_20.mat',d25};
+
+    cases.MPS_wings_20deg_2Hz = {'MPS_wings_20_4m.s_10deg_2Hz_2026_09_27_09_21_50_experiment_2026_09_27_09_24_14.mat',d30};
+    cases.MPS_wings_20deg_4Hz = {'MPS_wings_20_4m.s_10deg_4Hz_2026_09_27_09_39_30_experiment_2026_09_27_09_41_24.mat',d30};
+    cases.MPS_wings_20deg_6Hz = {'MPS_wings_20_4m.s_10deg_6Hz_2026_09_27_09_52_47_experiment_2026_09_27_09_54_32.mat',d30};
+    cases.MPS_wings_20deg_8Hz = {'MPS_wings_20_4m.s_10deg_8Hz_2026_09_27_10_02_37_experiment_2026_09_27_10_04_24.mat',d30};
 
     cases.x2_wings_20deg_0Hz = {'x2_wings_20_4m.s_10deg_0Hz_2026_10_01_15_49_18_experiment_2026_10_01_15_50_36.mat',d32};
     cases.x2_wings_20deg_2Hz = {'x2_wings_20_4m.s_10deg_2Hz_2026_10_01_15_57_43_experiment_2026_10_01_15_59_58.mat',d32};
