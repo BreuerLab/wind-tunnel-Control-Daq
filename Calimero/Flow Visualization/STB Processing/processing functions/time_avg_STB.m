@@ -10,6 +10,12 @@ function S = time_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, n
     % variable preallocation
     lift_vals = zeros(1,num_images);
     drag_vals = zeros(1,num_images);
+    % per-frame lift/drag for the frame (bin) averages, as in
+    % phase_avg_STB but with the whole run as a single bin
+    lift_frames = struct();
+    drag_frames = struct();
+    lift_vel_frames = NaN(1,num_images); % velocity-only lift (u*w)
+    drag_vel_frames = NaN(1,num_images); % velocity-only drag
     print_dim_bool = true;
 
     fields = get_STB_processing_fields();
@@ -45,6 +51,29 @@ function S = time_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, n
         [lift, drag] = get_wake_lift(speed, L, F, true, density);
         lift_vals(i) = lift.vortX;
         drag_vals(i) = drag.tot;
+
+        % keep every lift / drag term for this frame
+        if i == 1
+            lift_fields = fieldnames(lift);
+            drag_fields = fieldnames(drag);
+            for f = 1:length(lift_fields)
+                lift_frames.(lift_fields{f}) = NaN(1,num_images);
+            end
+            for f = 1:length(drag_fields)
+                drag_frames.(drag_fields{f}) = NaN(1,num_images);
+            end
+        end
+        for f = 1:length(lift_fields)
+            lift_frames.(lift_fields{f})(i) = mean(lift.(lift_fields{f}), "all", "omitnan");
+        end
+        for f = 1:length(drag_fields)
+            drag_frames.(drag_fields{f})(i) = mean(drag.(drag_fields{f}), "all", "omitnan");
+        end
+
+        % velocity-only estimates (vort_bool false)
+        [lift_vel, drag_vel] = get_wake_lift(speed, L, F, false, density);
+        lift_vel_frames(i) = mean(lift_vel, "all", "omitnan");
+        drag_vel_frames(i) = mean(drag_vel, "all", "omitnan");
         
         if mod(i, 100) == 0
             fprintf('Processed %d/%d\n', i, num_images);
@@ -64,6 +93,21 @@ function S = time_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, n
     S.x = x; S.y = y; S.z = z; S.L = L; S.U = U; S.rho = density;
     S.PIV_case_name = PIV_case_name;
     S.mean_lift = mean(lift_vals); S.mean_drag = mean(drag_vals);
+
+    % Frame-averaged (BA) lift and drag: the mean over all frames of the
+    % lift / drag computed for each frame. Same names as phase_avg_STB,
+    % with one value instead of one per bin.
+    lift_phase_avg = struct();
+    for f = 1:length(lift_fields)
+        lift_phase_avg.(lift_fields{f}) = mean(lift_frames.(lift_fields{f}), "omitnan");
+    end
+    drag_phase_avg = struct();
+    for f = 1:length(drag_fields)
+        drag_phase_avg.(drag_fields{f}) = mean(drag_frames.(drag_fields{f}), "omitnan");
+    end
+    S.lift_phase_avg = lift_phase_avg; S.drag_phase_avg = drag_phase_avg;
+    S.lift_vel_phase_avg = mean(lift_vel_frames, "omitnan");
+    S.drag_vel_phase_avg = mean(drag_vel_frames, "omitnan");
 
     % Save the entire structure
     save(save_path, '-struct', 'S');
