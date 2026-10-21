@@ -13,15 +13,15 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 
 % Cases to process, using the names in get_PIV_paths.m
 % (call "  get_PIV_paths()  " with no input to list them all)
-sel_case_names = ["x3_wings_20deg_2Hz", "x3_wings_20deg_4Hz", ...
-                  "x3_wings_20deg_6Hz", "x3_wings_20deg_8Hz"];
+% sel_case_names = ["x3_wings_20deg_2Hz", "x3_wings_20deg_4Hz", ...
+%                   "x3_wings_20deg_6Hz", "x3_wings_20deg_8Hz"];
 
 % Alternatively, select cases by filter. Leave a filter empty to accept
 % any value. Uncomment the line below the filters to use them.
 positions = ["x3"];        % "x1"-"x5", "MPS", "UP_one", "UP_two", "" = old 0.9 m cases (no prefix)
 amps = [20];               % flapping amplitude (deg)
 freqs = [2 4 6 8];         % wingbeat frequency (Hz), 0 = gliding
-% sel_case_names = select_cases(get_PIV_paths(), positions, amps, freqs);
+sel_case_names = select_cases(get_PIV_paths(), positions, amps, freqs);
 
 % num_images = 1200;
 num_images = 3000;

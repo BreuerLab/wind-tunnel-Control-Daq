@@ -447,7 +447,7 @@ methods
             "\boldmath$\frac{1}{U}\frac{\partial w}{\partial t}\frac{c}{U_{\infty}}$", ...
             "\boldmath$\frac{\mathrm{rms}(\partial_x w)}{\mathrm{rms}(\partial_t w / U)}$", ...
             "\boldmath$\rho$"];
-        obj.frozen_clims = [-0.2 0.2; -0.2 0.2; 0 2; -1 1];
+        obj.frozen_clims = [-0.2 0.2; -0.2 0.2; 0 1.5; -1 1];
         obj.frozen_label_dict = containers.Map(cellstr(obj.frozen_vars), frozen_labels);
         obj.frozen_clim_dict = obj.build_clim_dict(obj.frozen_vars, obj.frozen_clims);
 

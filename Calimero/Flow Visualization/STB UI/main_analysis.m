@@ -27,7 +27,12 @@ a.dynamic_plotting();
 % d = timeAvg_UI(1, data_file_path);
 % d.dynamic_plotting();
 
+% ----------------------------------------------
+% Diagnostic recommendations from Claude
+
 % case_name = "x3_wings_20deg_6Hz";
-% o.taper = 0.75;   % taper width in chords
 % file = data_file_path + "Processed Results\phase_avg\" + case_name + "_phase_avg.mat";
+% o.taper = 0.75;   % taper width in chords
 % B = wake_lift_budget(file, case_name, default_trim_bounds(), o);
+
+% M = slab_derivative_map(file);
