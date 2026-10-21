@@ -79,6 +79,10 @@ properties
     hist_vars;
     freq_vars;
     force_vars;
+    frozen_vars;      % "frozen flow" plot: slab dw/dx vs (1/U) dw/dt
+    frozen_label_dict;
+    frozen_clims;
+    frozen_clim_dict;
 
     variable_name_dict;
     time_avg_var_name_dict;
@@ -150,7 +154,8 @@ methods
         obj.play = false;
 
         obj.plot_types = ["time avg of phase avg","phase avg: movie", "time avg of phase std","phase std: movie", "phase avg: 3D plot",...
-            "image wingbeat phase", "wingbeat frequency","wake forces","phase avg: planar avg"];
+            "image wingbeat phase", "wingbeat frequency","wake forces","phase avg: planar avg",...
+            "frozen flow"];
         obj.plot_type = obj.plot_types(1);
         obj.plot_hold_bool = false;
         obj.iso_var_list = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
@@ -433,6 +438,18 @@ methods
         freq_keys = cellstr(obj.freq_vars);
         obj.freq_var_name_dict = containers.Map(freq_keys, freq_vals);
         obj.freq_label_dict = containers.Map(freq_keys, freq_labels);
+
+        % Frozen-flow check of the slab-normal derivative (centre plane):
+        % movies of each estimate, then pointwise rms ratio / correlation
+        % over the wingbeat. All nondimensional like dwdx_phase_avg.
+        obj.frozen_vars = ["dw/dx (slab)", "(1/U) dw/dt", "rms ratio", "correlation over phase"];
+        frozen_labels = ["\boldmath$\frac{\partial w}{\partial x}\frac{c}{U_{\infty}}$", ...
+            "\boldmath$\frac{1}{U}\frac{\partial w}{\partial t}\frac{c}{U_{\infty}}$", ...
+            "\boldmath$\frac{\mathrm{rms}(\partial_x w)}{\mathrm{rms}(\partial_t w / U)}$", ...
+            "\boldmath$\rho$"];
+        obj.frozen_clims = [-0.2 0.2; -0.2 0.2; 0 2; -1 1];
+        obj.frozen_label_dict = containers.Map(cellstr(obj.frozen_vars), frozen_labels);
+        obj.frozen_clim_dict = obj.build_clim_dict(obj.frozen_vars, obj.frozen_clims);
 
         force_keys = cellstr(obj.force_vars);
         obj.force_var_name_dict = containers.Map(force_keys, force_vals);
@@ -836,6 +853,8 @@ methods
                     obj.var_name_list = obj.freq_vars;
                 elseif strcmp(obj.plot_type, obj.plot_types(8))
                     obj.var_name_list = obj.force_vars;
+                elseif strcmp(obj.plot_type, obj.plot_types(10))
+                    obj.var_name_list = obj.frozen_vars;
                 else
                     obj.var_name_list = obj.movie_3D_avg_vars;
                 end
@@ -1405,6 +1424,11 @@ methods (Access = private)
 
         cur_secondary_vars = {};
 
+        if plot_idx == 10
+            obj.plot_frozen_flow(plot_panel);
+            return
+        end
+
         if ismember(plot_idx, [1, 2, 5, 9])
             if using_time_avg_file
                 var_name = obj.time_avg_var_name_dict(obj.variable_name);
@@ -1855,6 +1879,107 @@ methods (Access = private)
         end
     end
 
+    % "frozen flow" plot type: compares the slab-normal derivative dw/dx on
+    % the centre plane with the frozen-flow estimate (1/U) dw/dt from the
+    % phase series (x points upstream, so dw/dx = (1/U) dw/dt). Both are
+    % nondimensional, (L/U) * derivative, like dwdx_phase_avg. Same check
+    % as helper functions/slab_derivative_map.m.
+    function plot_frozen_flow(obj, plot_panel)
+        if strlength(obj.case_name) == 0 || ~obj.current_case_has_phase_avg()
+            return
+        end
+        file = obj.get_current_file_base() + ".mat";
+        have = who('-file', file);
+
+        ax = axes(plot_panel);
+        if ~all(ismember({'dwdx_phase_avg', 'w_phase_avg'}, have))
+            text(ax, 0.5, 0.5, "dwdx\_phase\_avg or w\_phase\_avg not in this file", ...
+                'HorizontalAlignment', 'center', FontSize=16);
+            axis(ax, 'off');
+            obj.slider.Visible = "off"; obj.play_button.Visible = "off";
+            return
+        end
+
+        vars = {"L", "U", "num_bins", "cycle_freq", "y", "z", "dwdx_phase_avg", "w_phase_avg"};
+        if ismember('U_act', have), vars{end+1} = "U_act"; end
+        d = load(file, vars{:});
+        U_conv = d.U;
+        if isfield(d, 'U_act'), U_conv = d.U_act * d.U; end
+
+        nb = size(d.w_phase_avg, 4);
+        dt = 1 / (d.cycle_freq * nb);
+        planeIdx = (size(d.w_phase_avg, 1) + 1) / 2;
+        y = squeeze(d.y(planeIdx,:,:));
+        z = squeeze(d.z(planeIdx,:,:));
+        dwdx = squeeze(d.dwdx_phase_avg(planeIdx,:,:,:));
+        w    = squeeze(d.w_phase_avg(planeIdx,:,:,:));
+        for k = 1:nb
+            dwdx(:,:,k) = fill3D(dwdx(:,:,k));
+            w(:,:,k)    = fill3D(w(:,:,k));
+        end
+        dwdt_U = (circshift(w, -1, 3) - circshift(w, 1, 3)) / (2*dt) * (d.L / U_conv);
+
+        if obj.trim_bool
+            y_idx = find(y(:,1) > obj.trim_y_bounds(1) & y(:,1) < obj.trim_y_bounds(2));
+            z_idx = find(z(1,:) > obj.trim_z_bounds(1) & z(1,:) < obj.trim_z_bounds(2));
+            y = y(y_idx, z_idx);  z = z(y_idx, z_idx);
+            dwdx = dwdx(y_idx, z_idx, :);  dwdt_U = dwdt_U(y_idx, z_idx, :);
+        end
+
+        params.U = d.U;
+        params.zero = 0;
+        params.clims = obj.get_color_limits(obj.variable_name);
+        params.cb_lab = obj.frozen_label_dict(char(obj.variable_name));
+
+        is_movie = ismember(obj.variable_name, obj.frozen_vars(1:2));
+        if is_movie
+            obj.slider.Visible = "on";
+            obj.play_button.Visible = "on";
+            if d.num_bins ~= obj.num_bins
+                obj.num_bins = d.num_bins;
+                obj.slider.Limits = [1 d.num_bins];
+                obj.slider.MajorTicks = 1:5:d.num_bins;
+                obj.slider.MinorTicks = 1:d.num_bins;
+            end
+            obj.frame_ind = min(max(obj.frame_ind, 1), obj.num_bins);
+            if obj.variable_name == obj.frozen_vars(1)
+                val = dwdx;
+            else
+                val = dwdt_U;
+            end
+
+            h = PIV_plot(y, z, val(:,:,obj.frame_ind), params, ax);
+            t = title(ax, "Bin number: " + obj.frame_ind, FontSize=18);
+            while obj.play && (obj.frame_ind < obj.num_bins)
+                obj.frame_ind = obj.frame_ind + 1;
+                obj.slider.Value = obj.frame_ind;
+                tmp = val(:,:,obj.frame_ind);
+                tmp(tmp < params.clims(1)) = params.clims(1);
+                tmp(tmp > params.clims(2)) = params.clims(2);
+                set(h, 'ZData', tmp);
+                set(t, 'String', "Bin number: " + obj.frame_ind);
+                drawnow;
+                pause(0.05);
+                if obj.frame_ind == obj.num_bins
+                    obj.frame_ind = 0; % reset for next loop iteration
+                end
+            end
+            return
+        end
+
+        obj.slider.Visible = "off";
+        obj.play_button.Visible = "off";
+        a = dwdx   - mean(dwdx, 3, 'omitnan');
+        b = dwdt_U - mean(dwdt_U, 3, 'omitnan');
+        if obj.variable_name == obj.frozen_vars(3)
+            val = std(a, 0, 3, 'omitnan') ./ std(b, 0, 3, 'omitnan');
+        else
+            val = sum(a.*b, 3, 'omitnan') ./ sqrt(sum(a.^2, 3, 'omitnan') .* sum(b.^2, 3, 'omitnan'));
+        end
+        PIV_plot(y, z, val, params, ax);
+        title(ax, string(obj.variable_name) + sprintf(" (median %.2f)", median(val(:), 'omitnan')), FontSize=18);
+    end
+
     function plot_tick_distribution(~, ax, ticks, edges, bin_ind)
         % Histogram of frame encoder ticks, coloured by the phase bin each
         % frame was averaged into (alternating colours), with dotted lines
@@ -1994,6 +2119,9 @@ methods (Access = private)
         if ismember(obj.plot_type, obj.plot_types([3 4]))
             obj.clims = obj.std_clims;
             obj.clim_dict = obj.std_clim_dict;
+        elseif obj.plot_type == obj.plot_types(10)
+            obj.clims = obj.frozen_clims;
+            obj.clim_dict = obj.frozen_clim_dict;
         else
             obj.clims = obj.mean_clims;
             obj.clim_dict = obj.mean_clim_dict;
@@ -2025,7 +2153,9 @@ methods (Access = private)
             obj.clims(var_idx,:) = new_clims;
         end
 
-        if ismember(obj.plot_type, obj.plot_types([3 4]))
+        if obj.plot_type == obj.plot_types(10)
+            obj.frozen_clims = obj.update_clim_matrix(obj.frozen_vars, obj.frozen_clims, var_name, new_clims);
+        elseif ismember(obj.plot_type, obj.plot_types([3 4]))
             obj.std_clims = obj.update_clim_matrix(obj.movie_3D_std_vars, obj.std_clims, var_name, new_clims);
             if isKey(obj.std_clim_dict, key)
                 obj.std_clim_dict(key) = new_clims;
