@@ -19,10 +19,10 @@ classdef phaseAvg_UI < handle
 
         % Streamwise separation (m) between the robot and the imaging
         % plane, used for the convection phase shift. Entries line up
-        % with cur_types / new_flapper_downstream_types. NaN = unknown,
-        % no shift applied.
+        % with cur_types / new_flapper_downstream_types. Set an entry to
+        % NaN if unknown (no shift applied).
         downstream_dists = [0.9; 0.9 + 0.37; 0.9 + 2*0.37]; % flexible, UP_one, UP_two
-        new_flapper_downstream_dists = [0.9 - 2*0.37; 0.9 - 0.37; 0.9; 0.9 + 0.37; 0.9 + 2*0.37; NaN]; % x1-x5, MPS
+        new_flapper_downstream_dists = [0.9 - 2*0.37; 0.9 - 0.37; 0.9; 0.9 + 0.37; 0.9 + 2*0.37; 1.0]; % x1-x5, MPS
         conv_speed = 4; % m/s, convection speed of the wake
     end
 
@@ -1784,8 +1784,8 @@ methods (Access = private)
             % end
 
             % 10 amp flexible case accidentally started at mid-downstroke
-            % rather than mid-upstroke used for the rest
-            if amp == 10 && ~contains(type, "UP")
+            % rather than mid-upstroke used for the rest (old flapper only)
+            if amp == 10 && ~contains(type, "UP") && ~obj.is_new_flapper_type(type)
                 % var = circshift(var, round(0.44*length(var)));
                 var = circshift(var, round(0.5*length(var)));
                 disp("Shifted STB curve for " + cur_sel)
