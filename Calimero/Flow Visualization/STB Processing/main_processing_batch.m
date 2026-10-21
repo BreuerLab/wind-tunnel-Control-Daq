@@ -18,7 +18,7 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 
 % Alternatively, select cases by filter. Leave a filter empty to accept
 % any value. Uncomment the line below the filters to use them.
-positions = ["x2"];        % "x1"-"x5", "MPS", "UP_one", "UP_two", "" = old 0.9 m cases (no prefix)
+positions = ["x3"];        % "x1"-"x5", "MPS", "UP_one", "UP_two", "" = old 0.9 m cases (no prefix)
 amps = [20];               % flapping amplitude (deg)
 freqs = [2 4 6 8];         % wingbeat frequency (Hz), 0 = gliding
 sel_case_names = select_cases(get_PIV_paths(), positions, amps, freqs);

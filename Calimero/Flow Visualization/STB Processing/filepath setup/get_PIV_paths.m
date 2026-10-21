@@ -11,6 +11,7 @@ function file_path = get_PIV_paths(PIV_case_name)
     
     % Standard processing suffixes
     BIN = "\Binning_48x48x48_75%ov_ord=0";
+    BIN2 = "\Binning_48x48x48_75%ov_ord=1";
 
     % Define the Mapping (Case Name -> Subpath)
     % This is now much easier to read and edit.
@@ -90,7 +91,7 @@ function file_path = get_PIV_paths(PIV_case_name)
         'x3_wings_20deg_0Hz',         month_3 + "x3_wings_20deg_0Hz" + BIN
         'x3_wings_20deg_2Hz',         month_3 + "x3_wings_20deg_2Hz" + BIN
         'x3_wings_20deg_4Hz',         month_3 + "x3_wings_20deg_4Hz" + BIN
-        'x3_wings_20deg_6Hz',         month_3 + "x3_wings_20deg_6Hz" + BIN
+        'x3_wings_20deg_6Hz',         month_3 + "x3_wings_20deg_6Hz" + BIN2
         'x3_wings_20deg_8Hz',         month_3 + "x3_wings_20deg_8Hz" + BIN
         'x3_wings_30deg_6Hz',         month_3 + "x3_wings_30deg_6Hz" + BIN
     };
