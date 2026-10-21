@@ -125,6 +125,13 @@ print_dim_bool = true;
 
 fields = get_STB_processing_fields();
 
+% Optional outputs (default on if the caller didn't set them)
+calc_Q_inst = ~isfield(bools, 'Q_inst') || bools.Q_inst;
+calc_vort_uavg = ~isfield(bools, 'vort_uavg') || bools.vort_uavg;
+
+% time spent in each stage, printed at the end
+t_stage = struct('import', 0, 'forces', 0, 'stats', 0, 'Q_inst', 0, 'vort_uavg', 0, 'save', 0);
+
 % Compute array of x-positions associated with each frame
 % [~, ~, freq] = parse_name(PIV_case_name);
 % dt = 1 / (freq * num_bins);
@@ -140,15 +147,19 @@ for i = 1:num_bins
     bin_std(i) = std(norm_frame_pos(bin_indices))*100;
 
     % Import data (using a temporary struct or list)
+    t0 = tic;
     [x, y, z, data{1:length(fields)}] = ...
         import_STB_data(file_path, bools.nondim, U, L, bin_indices, bools.RPCA);
+    t_stage.import = t_stage.import + toc(t0);
 
+    t0 = tic;
     F = prepare_STB_wake_field(L, y, z, print_dim_bool, data, x_conv, bounds); % trimming fields
 
     if ~bools.turbine
     [lift_vals, drag_vals] = get_wake_lift(speed, L, F, true, S.rho_act);
     [lift_vel_vals, drag_vel_vals] = get_wake_lift(speed, L, F, false, S.rho_act);
     end
+    t_stage.forces = t_stage.forces + toc(t0);
         
     % Variable preallocation that is dependent on the data content 
     if i == 1
@@ -164,10 +175,12 @@ for i = 1:num_bins
         S.vw_stress = zeros(size(x,1), size(x,2), size(x,3), num_bins);
         % Q from each frame, averaged over the bin (vs Q of the
         % phase-averaged field, computed in calc_secondary_vals_phase)
+        if calc_Q_inst
         S.Qx_inst_avg = zeros(size(x,1), size(x,2), size(x,3), num_bins);
         S.Qy_inst_avg = zeros(size(x,1), size(x,2), size(x,3), num_bins);
         S.Qz_inst_avg = zeros(size(x,1), size(x,2), size(x,3), num_bins);
         S.Q_inst_avg = zeros(size(x,1), size(x,2), size(x,3), num_bins);
+        end
 
         if ~bools.turbine
         lift_fields = fieldnames(lift_vals);
@@ -187,6 +200,7 @@ for i = 1:num_bins
     end
 
     % Phase average computation
+    t0 = tic;
     for f = 1:length(fields)
         fname = [fields{f}, '_phase_avg'];
         % Compute mean along the 4th dimension
@@ -195,10 +209,6 @@ for i = 1:num_bins
         fname = [fields{f}, '_phase_std'];
         S.(fname)(:,:,:,i) = std(data{f}, 0, 4, "omitnan");
     end
-
-    % Q on each instantaneous field, then averaged over the bin
-    [S.Qx_inst_avg(:,:,:,i), S.Qy_inst_avg(:,:,:,i), S.Qz_inst_avg(:,:,:,i), S.Q_inst_avg(:,:,:,i)] = ...
-        inst_Q_avg(data{1}, data{2}, data{3}, x, y, z);
 
     % Velocity fluctuations for Reynolds stress calculation
     u_fluc = data{1} - S.u_phase_avg(:,:,:,i);
@@ -222,6 +232,15 @@ for i = 1:num_bins
     % Fluctuation terms related to force calculation
     S.u_wx_stress(:,:,:,i) = mean(u_fluc .* wx_fluc, 4, "omitnan");
     S.u_wy_stress(:,:,:,i) = mean(u_fluc .* wy_fluc, 4, "omitnan");
+    t_stage.stats = t_stage.stats + toc(t0);
+
+    % Q on each instantaneous field, then averaged over the bin
+    if calc_Q_inst
+    t0 = tic;
+    [S.Qx_inst_avg(:,:,:,i), S.Qy_inst_avg(:,:,:,i), S.Qz_inst_avg(:,:,:,i), S.Q_inst_avg(:,:,:,i)] = ...
+        inst_Q_avg(data{1}, data{2}, data{3}, x, y, z);
+    t_stage.Q_inst = t_stage.Q_inst + toc(t0);
+    end
 
     if ~bools.turbine
     % Compute phase averages from lift data in current bin
@@ -250,9 +269,13 @@ end
 
 % Vorticity of the phase-averaged velocity (in addition to the average of
 % the per-frame vorticity, vort*_phase_avg)
+if calc_vort_uavg
+t0 = tic;
 [S.vortX_uavg, S.vortY_uavg, S.vortZ_uavg] = vorticity_of_mean_velocity(x, y, z,...
     S.u_phase_avg, S.v_phase_avg, S.w_phase_avg,...
     S.uncU_phase_avg, S.uncV_phase_avg, S.uncW_phase_avg);
+t_stage.vort_uavg = toc(t0);
+end
 
 % Add metadata to the struct
 S.x = x; S.y = y; S.z = z; S.L = L; S.U = U; S.rho = density; S.cycle_freq = cycle_freq;
@@ -269,9 +292,16 @@ end
 
 % Save the entire structure
 disp("Saving data to: " + save_path)
+t0 = tic;
 save(save_path, '-struct', 'S');
+t_stage.save = toc(t0);
 
 fprintf('Processing and saving data took %.4f seconds.\n', toc);
+fprintf(['  load (import_STB_data): %.1f s\n  per-frame forces: %.1f s\n' ...
+    '  phase avg / std / stresses: %.1f s\n  Q_inst_avg: %.1f s\n' ...
+    '  vorticity of mean velocity: %.1f s\n  save: %.1f s\n'], ...
+    t_stage.import, t_stage.forces, t_stage.stats, t_stage.Q_inst, ...
+    t_stage.vort_uavg, t_stage.save);
 
 % Calculate secondary values (Q, power, integral values) and save in
 % separate file

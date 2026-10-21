@@ -31,6 +31,8 @@ save_filepath_local = "F:\Processed Results\";
 
 bools.nondim = true; % non-dimensionalize data
 bools.RPCA = false; % RPCA filtering of vector fields
+bools.Q_inst = false; % per-frame Q averaged over each bin (Q*_inst_avg), slow
+bools.vort_uavg = false; % vorticity of the averaged velocity (vort*_uavg)
 bools.proc_vel = true; % false if just calculating secondary values
 
 % If you want to make plots here, you can. However, it is NOT recommended.
