@@ -284,9 +284,21 @@ methods
         freq_vals = ["phase_avg_speed", "bin_count_speed", "bin_std_speed"];
         freq_labels = ["Wingbeat Frequency (Hz)", "Number of samples per bin", "Phase variability per bin (% cycle)"];
 
-        obj.force_vars = ["lift_vort", "lift_vel", "drag_vort", "drag_vel"];
-        force_vals = ["lift", "lift_vel", "drag", "drag_vel"];
-        force_labels = ["Lift (N)", "Lift (N)", "Drag (N)", "Drag (N)"];
+        % Vorticity-based estimates come back from get_wake_lift as a
+        % struct of terms, so each entry names the field to plot
+        % (get_PIV_force resolves the dotted path).
+        obj.force_vars = ["lift_vort", "lift_vort: ω_x term", "lift_vort: ω_y term", "lift_vort: vel diff term", ...
+            "lift_vel", ...
+            "drag_vort", "drag_vort: ω_y term", "drag_vort: ω_z term", "drag_vort: bernoulli term", ...
+            "drag_vel"];
+        force_vals = ["lift.tot", "lift.vortX", "lift.vortY", "lift.vel_diff", ...
+            "lift_vel", ...
+            "drag.tot", "drag.vortY", "drag.vortZ", "drag.bernoulli", ...
+            "drag_vel"];
+        force_labels = ["Lift (N)", "Lift, ω_x term (N)", "Lift, ω_y term (N)", "Lift, vel diff term (N)", ...
+            "Lift (N)", ...
+            "Drag (N)", "Drag, ω_y term (N)", "Drag, ω_z term (N)", "Drag, bernoulli term (N)", ...
+            "Drag (N)"];
 
         obj.var_name_list = obj.movie_3D_avg_vars;
         obj.mean_clims = [-1.1, -0.9;...
@@ -1462,9 +1474,8 @@ methods (Access = private)
                 cur_secondary_vars{end+1} = std_name;
             end
         elseif plot_idx == 8
+            % get_PIV_force loads its own data, so nothing is loaded here
             var_name = obj.force_var_name_dict(obj.variable_name);
-            vars = {"L","U","y","z","u_phase_avg","w_phase_avg",...
-                "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg"};
         end
 
         if strlength(obj.case_name) == 0
@@ -1477,7 +1488,9 @@ methods (Access = private)
 
         full_file_path = obj.get_current_file_base();
 
-        if ~isempty(cur_secondary_vars)
+        if plot_idx == 8
+            % wake forces: data is loaded by get_PIV_force below
+        elseif ~isempty(cur_secondary_vars)
             d1 = load(full_file_path + "_integral.mat", cur_secondary_vars{:});
             if ~isempty(vars)
             d2 = load(full_file_path + ".mat", vars{:});
