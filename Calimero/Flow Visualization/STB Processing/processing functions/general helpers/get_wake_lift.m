@@ -97,6 +97,15 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density, opts)
         % lift_du = 2 * density * trapz(z(1,:), lift_vec_du, 2);
         % lift_du = squeeze(lift_du);
 
+        % Smooth edge taper (see the omega_y block below). The omega_x
+        % estimate with the same taper is returned for a like-for-like
+        % comparison with lift.vortY; it differs from lift.vortX only by
+        % omega_x inside the edge band. Defined for time averages too, so
+        % body (0 Hz) subtraction works.
+        I2 = @(F) squeeze(trapz(z(1,:), trapz(y(:,1), F, 1), 2));
+        [phi, dphi_dy, dphi_dz] = edge_taper_weight(y, z, opts.edge_taper * L);
+        lift.vortX_taper = 2 * density * U * I2(y .* phi .* vortX);
+
         if ~(isscalar(x))
         % ---- omega_y (spanwise starting/stopping vorticity) estimate ----
         % div(omega) = 0 gives, for A = int int y*omega_x dA over the
@@ -122,9 +131,6 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density, opts)
         dt = abs(x(2) - x(1)) / U;          % x is the frozen-flow axis
         t  = (0:size(vortY,3)-1) * dt;
 
-        I2 = @(F) squeeze(trapz(z(1,:), trapz(y(:,1), F, 1), 2));
-        [phi, dphi_dy, dphi_dz] = edge_taper_weight(y, z, opts.edge_taper * L);
-
         wy_integrand = phi .* vortY + y .* vortY .* dphi_dy - y .* vortZ .* dphi_dz;
         rate_wy = U * I2(wy_integrand);                 % = dA/dt, A tapered
         rate_wy = rate_wy - mean(rate_wy);
@@ -134,11 +140,6 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density, opts)
         rate_raw = U * I2(vortY);
         rate_raw = rate_raw - mean(rate_raw);
         lift.vortY_no_edge = 2 * density * U * cumtrapz(t(:), rate_raw(:));
-
-        % omega_x estimate with the same taper, for a like-for-like
-        % comparison with lift.vortY (differs from lift.vortX only by
-        % omega_x inside the edge band)
-        lift.vortX_taper = 2 * density * U * I2(y .* phi .* vortX);
 
         total = lift_wx + lift_vel_diff;
         lift.vortY = lift_wy_F;
