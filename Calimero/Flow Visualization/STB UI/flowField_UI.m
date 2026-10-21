@@ -128,6 +128,8 @@ properties
     filter_bool;
     trim_bool;
     num_cycles;
+    % 3D plot x-axis in convective units (x/c = U t / c) instead of t/T
+    conv_units_bool;
     extrapolate_bool;
     floor_bool;
     thresh;
@@ -169,6 +171,7 @@ methods
         obj.mirror_bool = false;
         obj.filter_bool = false;
         obj.num_cycles = 1;
+        obj.conv_units_bool = false;
         obj.trim_bool = true;
         obj.extrapolate_bool = false;
         obj.floor_bool = false;
@@ -277,6 +280,10 @@ methods
         obj.movie_3D_avg_vars = [obj.movie_3D_avg_vars, "<Qx> inst", "<Qy> inst", "<Qz> inst", "<Q> inst"];
         movie_3D_avg_values = [movie_3D_avg_values, "Qx_inst_avg", "Qy_inst_avg", "Qz_inst_avg", "Q_inst_avg"];
         time_avg_values = [time_avg_values, "Qx_inst_avg", "Qy_inst_avg", "Qz_inst_avg", "Q_inst_avg"];
+        % frame-to-frame standard deviation of that Q within each bin
+        % (phase_avg_STB with bools.Q_inst = true)
+        obj.movie_3D_std_vars = [obj.movie_3D_std_vars, "<Qx> inst", "<Qy> inst", "<Qz> inst", "<Q> inst"];
+        movie_3D_std_values = [movie_3D_std_values, "Qx_inst_std", "Qy_inst_std", "Qz_inst_std", "Q_inst_std"];
         % ["u_phase_std","v_phase_std","w_phase_std","Utot_phase_std",...
         % "vortX_phase_std","vortY_phase_std","vortZ_phase_std","vortTot_phase_std",...
         % "uncU_phase_std","uncV_phase_std","uncW_phase_std","uncTot_phase_std","hel_phase_std", "numP_phase_std"];
@@ -380,7 +387,11 @@ methods
                       -1, 1;
                       -1, 1;
                       0, 0.1;
-                      0, 0.1];
+                      0, 0.1;
+                      0, 0.1;...  % σ(Qx) inst
+                      0, 0.1;...  % σ(Qy) inst
+                      0, 0.1;...  % σ(Qz) inst
+                      0, 0.1];    % σ(Q) inst
 
         obj.mean_clim_dict = obj.build_clim_dict(obj.movie_3D_avg_vars, obj.mean_clims);
         obj.std_clim_dict = obj.build_clim_dict(obj.movie_3D_std_vars, obj.std_clims);
@@ -413,6 +424,11 @@ methods
                             "\boldmath$\nabla \cdot u \frac{c}{U_{\infty}}$",...
                             "KE","power"];
         movie_3D_std_labels = [movie_3D_avg_labels(1:8) movie_3D_avg_labels(13:end)];
+        movie_3D_std_labels = [movie_3D_std_labels,...
+            "\boldmath$\sigma_{Q_x} \frac{c^2}{U_{\infty}^2}$",...
+            "\boldmath$\sigma_{Q_y} \frac{c^2}{U_{\infty}^2}$",...
+            "\boldmath$\sigma_{Q_z} \frac{c^2}{U_{\infty}^2}$",...
+            "\boldmath$\sigma_{Q} \frac{c^2}{U_{\infty}^2}$"];
         movie_3D_avg_labels(end+1) = "\boldmath$U_{\infty}\, y\, \omega_x \; (\mathrm{m^2/s^2})$";
         movie_3D_avg_labels = [movie_3D_avg_labels,...
             "\boldmath$\langle Q_x \rangle \frac{c^2}{U_{\infty}^2}$",...
@@ -631,9 +647,9 @@ methods
         obj.param_panel.Title = "3D Plot Parameters";
         obj.param_panel.TitlePosition = 'centertop';
 
-        param_grid = uigridlayout(obj.param_panel, [6, 1]);
+        param_grid = uigridlayout(obj.param_panel, [7, 1]);
         param_grid.ColumnWidth = {'1x'};
-        param_grid.RowHeight = {22, 55, 30, 22, 55, 85};
+        param_grid.RowHeight = {22, 55, 30, 22, 55, 30, 85};
         param_grid.Padding = [10 8 10 8];
         param_grid.RowSpacing = 6;
 
@@ -678,9 +694,20 @@ methods
         num_cycles_slider.MinorTicks = [];
         num_cycles_slider.ValueChangedFcn = @(src, event) num_cycles_change(src, event, plot_area_panel);
 
+        % x-axis as wingbeat time (t/T) or convective distance (x/c = U t / c)
+        conv_units_button = uibutton(param_grid, "state");
+        conv_units_button.Layout.Row = 6;
+        conv_units_button.Layout.Column = 1;
+        conv_units_button.Text = "x-axis: t/T";
+        conv_units_button.FontSize = 16;
+        conv_units_button.Value = obj.conv_units_bool;
+        conv_units_button.BackgroundColor = obj.INACTIVE_COLOR;
+        conv_units_button.Tooltip = "Toggle the 3D plot x-axis between wingbeat time t/T and convective units x/c = U t / c";
+        conv_units_button.ValueChangedFcn = @(src, event) conv_units_change(src, event, plot_area_panel);
+
         % View buttons rotate the current 3D axes without redrawing data.
         view_grid = uigridlayout(param_grid, [2, 3]);
-        view_grid.Layout.Row = 6;
+        view_grid.Layout.Row = 7;
         view_grid.Layout.Column = 1;
         view_grid.RowHeight = {'1x', '1x'};
         view_grid.ColumnWidth = {'1x', '1x', '1x'};
@@ -885,7 +912,7 @@ methods
             row_heights = sidebar_grid.RowHeight;
             if is_visible
                 obj.param_panel.Visible = "on";
-                row_heights{16} = 380;
+                row_heights{16} = 416;
             else
                 obj.param_panel.Visible = "off";
                 row_heights{16} = 0;
@@ -1079,6 +1106,19 @@ methods
             src.Value = round(src.Value);
 
             obj.num_cycles = src.Value;
+            obj.update_plot(plot_panel);
+        end
+
+        function conv_units_change(src, ~, plot_panel)
+            obj.conv_units_bool = src.Value;
+            if obj.conv_units_bool
+                src.Text = "x-axis: x/c = U t / c";
+                src.BackgroundColor = obj.ACTIVE_COLOR;
+            else
+                src.Text = "x-axis: t/T";
+                src.BackgroundColor = obj.INACTIVE_COLOR;
+            end
+            obj.plot_hold_bool = false; % redraw so the axis label updates
             obj.update_plot(plot_panel);
         end
 
@@ -1548,6 +1588,11 @@ methods (Access = private)
         end
 
         if plot_idx ~= 8
+            if ~isfield(d, var_name)
+                error("flowField_UI:missingVariable",...
+                    "%s is not in the processed file for %s. Reprocess the case (Q*_inst fields need bools.Q_inst = true).",...
+                    var_name, obj.case_name)
+            end
             val = d.(var_name);
             planeIdx = (size(val,1) + 1) / 2;
         end
@@ -1774,6 +1819,7 @@ methods (Access = private)
             params.shift = obj.frame_ind - 1;
             params.isoValue = obj.iso_val; % 0.05
             params.num_cycles = obj.num_cycles;
+            params.conv_units = obj.conv_units_bool;
 
             [xlims, surface_data, color_data] = stack_vortices_3D(y, z, val, Q, d.cycle_freq, params);
             setColorBar(ax, params)

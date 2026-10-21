@@ -6,7 +6,11 @@ patch(ax,'vertices', s.vertices, 'faces', s.faces, ...
 view(ax, 3);
 if ~params.movie
     % xlabel("x/c", FontSize=16)
-    xlabel(ax, "t/T", FontSize=16)
+    if isfield(params, 'conv_units') && params.conv_units
+        xlabel(ax, "x/c = U t / c", FontSize=16)
+    else
+        xlabel(ax, "t/T", FontSize=16)
+    end
     % ylabel(ax, "y/c", FontSize=16)
     % zlabel(ax, "z/c", FontSize=16)
     ylabel(ax, "y/c", FontSize=16)

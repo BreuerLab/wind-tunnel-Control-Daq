@@ -31,7 +31,7 @@ save_filepath_local = "F:\Processed Results\";
 
 bools.nondim = true; % non-dimensionalize data
 bools.RPCA = false; % RPCA filtering of vector fields
-bools.Q_inst = false; % per-frame Q averaged over each bin (Q*_inst_avg), slow
+bools.Q_inst = false; % per-frame Q averaged over each bin, plus its std (Q*_inst_avg, Q*_inst_std), slow
 bools.vort_uavg = false; % vorticity of the averaged velocity (vort*_uavg)
 bools.num_workers = 8; % parallel workers for phase bins (0 = serial); lower if out of memory
 bools.compress_save = false; % true = MATLAB's compressed .mat (smaller, much slower to save)

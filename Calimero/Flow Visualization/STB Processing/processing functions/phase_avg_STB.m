@@ -182,7 +182,8 @@ stress_names = fieldnames(R{1}.stress);
 for k = 1:length(stress_names)
     S.(stress_names{k}) = zeros(grid_size);
 end
-Q_names = {'Qx_inst_avg', 'Qy_inst_avg', 'Qz_inst_avg', 'Q_inst_avg'};
+Q_names = {'Qx_inst_avg', 'Qy_inst_avg', 'Qz_inst_avg', 'Q_inst_avg',...
+    'Qx_inst_std', 'Qy_inst_std', 'Qz_inst_std', 'Q_inst_std'};
 if calc_Q_inst
     for k = 1:length(Q_names)
         S.(Q_names{k}) = zeros(grid_size);
@@ -360,11 +361,12 @@ B.stress.u_wx_stress = mean(u_fluc .* wx_fluc, 4, "omitnan");
 B.stress.u_wy_stress = mean(u_fluc .* wy_fluc, 4, "omitnan");
 B.t.stats = toc(t0);
 
-% Q on each instantaneous field, then averaged over the bin
+% Q on each instantaneous field, then averaged over the bin, with its
+% frame-to-frame standard deviation
 if opts.calc_Q_inst
     t0 = tic;
-    B.Q = cell(1, 4);
-    [B.Q{1}, B.Q{2}, B.Q{3}, B.Q{4}] = inst_Q_avg(data{1}, data{2}, data{3}, x, y, z);
+    B.Q = cell(1, 8);
+    [B.Q{:}] = inst_Q_avg(data{1}, data{2}, data{3}, x, y, z);
     B.t.Q_inst = toc(t0);
 end
 end
