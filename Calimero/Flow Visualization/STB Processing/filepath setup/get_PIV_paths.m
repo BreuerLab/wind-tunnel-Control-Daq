@@ -1,4 +1,6 @@
 function file_path = get_PIV_paths(PIV_case_name)
+    % file_path = get_PIV_paths(PIV_case_name): path to the case's data
+    % case_names = get_PIV_paths(): list of all available case names
     % Setup Base Configuration
     % drive = "Y:\";
     drive = "F:\"; 
@@ -92,6 +94,12 @@ function file_path = get_PIV_paths(PIV_case_name)
         'x3_wings_20deg_8Hz',         month_3 + "x3_wings_20deg_8Hz" + BIN
         'x3_wings_30deg_6Hz',         month_3 + "x3_wings_30deg_6Hz" + BIN
     };
+
+    % Called with no input: return every available case name
+    if nargin == 0
+        file_path = string(map(:,1));
+        return
+    end
 
     % Convert to Map and Retrieve
     PIV_dict = containers.Map(map(:,1), map(:,2));

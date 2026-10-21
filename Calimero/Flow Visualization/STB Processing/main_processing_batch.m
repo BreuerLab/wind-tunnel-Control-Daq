@@ -11,14 +11,26 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 % ----------------------- Parameter Selection ------------------------
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-vc7_filepath = "Y:\VC7 Data\";
-% save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
-save_filepath_local = "Y:\Processed Results\";
+% Cases to process, using the names in get_PIV_paths.m
+% (call "  get_PIV_paths()  " with no input to list them all)
+sel_case_names = ["x3_wings_20deg_2Hz", "x3_wings_20deg_4Hz", ...
+                  "x3_wings_20deg_6Hz", "x3_wings_20deg_8Hz"];
 
-down_dist = [0, 1, 2]; % 0 - closest to FoV, 2 - furthest from FoV
-% down_dist = [0]; % 0 - closest to FoV, 2 - furthest from FoV
+% Alternatively, select cases by filter. Leave a filter empty to accept
+% any value. Uncomment the line below the filters to use them.
+positions = ["x3"];        % "x1"-"x5", "MPS", "UP_one", "UP_two", "" = old 0.9 m cases (no prefix)
+amps = [20];               % flapping amplitude (deg)
+freqs = [2 4 6 8];         % wingbeat frequency (Hz), 0 = gliding
+% sel_case_names = select_cases(get_PIV_paths(), positions, amps, freqs);
+
+% num_images = 1200;
+num_images = 3000;
+
+% save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
+save_filepath_local = "F:\Processed Results\";
+
 bools.nondim = true; % non-dimensionalize data
-bools.RPCA = true; % RPCA filtering of vector fields
+bools.RPCA = false; % RPCA filtering of vector fields
 bools.proc_vel = true; % false if just calculating secondary values
 
 % If you want to make plots here, you can. However, it is NOT recommended.
@@ -28,45 +40,82 @@ bools.PIV_plot = false;
 % Plot bin histograms, speed, current, voltage (small overhead, quick)
 bools.plot = false;
 
+% true: keep going if a case errors and report it at the end
+continue_on_error = true;
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-case_names = get_case_names(vc7_filepath);
-sel_case_names = [];
-for i = 1:length(case_names)
-    cur_name = case_names{i};
-    % for phase averaged cases
-    is_valid_base = ~contains(cur_name, "turbine") && ...
-                contains(cur_name, "flexible") && ...
-                ~contains(cur_name, "0Hz");
-
-    % for time averaged cases
-    % is_valid_base = ~contains(cur_name, "turbine") && ...
-    %                 (~contains(cur_name, "flexible") || ...
-    %                 contains(cur_name, "0Hz"));
-
-    if is_valid_base
-        is_match = false;
-        
-        if ismember(0, down_dist) && ~contains(cur_name, ["UP_one", "UP_two"])
-            is_match = true;
-        elseif ismember(1, down_dist) && contains(cur_name, "UP_one") && ~contains(cur_name, "UP_two")
-            is_match = true;
-        elseif ismember(2, down_dist) && ~contains(cur_name, "UP_one") && contains(cur_name, "UP_two")
-            is_match = true;
-        end
-    
-        % Append if any case matched
-        if is_match
-            sel_case_names = [sel_case_names, case_names(i)];
-        end
-    end
+sel_case_names = string(sel_case_names);
+num_cases = length(sel_case_names);
+if num_cases == 0
+    error("No cases selected")
 end
 
+% Check every name before starting, so a typo doesn't stop the batch
+% hours in
+all_case_names = get_PIV_paths();
+unknown = sel_case_names(~ismember(sel_case_names, all_case_names));
+if ~isempty(unknown)
+    error("Case(s) not in get_PIV_paths.m: %s", strjoin(unknown, ", "))
+end
+
+disp("Processing " + num_cases + " case(s): " + strjoin(sel_case_names, ", "))
+
+failed = strings(0);
 myFuncTimer = tic;
-for i = 1:length(sel_case_names)
+for i = 1:num_cases
     PIV_case_name = sel_case_names(i);
-    process_case(PIV_case_name, save_filepath_local, bools);
+    fprintf('\n===== [%d/%d] %s =====\n', i, num_cases, PIV_case_name);
+    caseTimer = tic;
+    if continue_on_error
+        try
+            process_case(PIV_case_name, save_filepath_local, num_images, bools);
+        catch err
+            failed(end+1) = PIV_case_name;
+            fprintf(2, 'FAILED %s:\n%s\n', PIV_case_name, getReport(err));
+        end
+    else
+        process_case(PIV_case_name, save_filepath_local, num_images, bools);
+    end
+    fprintf('%s took %.1f minutes\n', PIV_case_name, toc(caseTimer)/60);
+    close all
 end
 elapsed = toc(myFuncTimer);
-fprintf('Batch took: %.4f seconds\n', elapsed);
+
+fprintf('\nBatch took: %.1f minutes\n', elapsed/60);
+if isempty(failed)
+    disp("All " + num_cases + " case(s) processed")
+else
+    disp("Failed (" + length(failed) + "): " + strjoin(failed, ", "))
+end
 return
+
+% Select case names matching the given position(s), amplitude(s) and
+% frequency(ies). Names follow <position>_<model>_<amp>deg_<freq>Hz,
+% e.g. x3_wings_20deg_6Hz or UP_one_flexible_10deg_2Hz. Names without an
+% amplitude/frequency (e.g. x3_ring) only pass an empty amp/freq filter.
+function names = select_cases(case_names, positions, amps, freqs)
+    case_names = string(case_names);
+    keep = true(size(case_names));
+
+    for i = 1:length(case_names)
+        name = case_names(i);
+
+        if ~isempty(positions)
+            pos = get_downstream_prefix(name, true); % e.g. "x3_", "UP_one_", ""
+            keep(i) = keep(i) && ismember(erase(pos, "_"), erase(string(positions), "_"));
+        end
+
+        amp = str2double(regexp(name, '_(\d+)deg', 'tokens', 'once'));
+        if ~isempty(amps)
+            keep(i) = keep(i) && ~isnan(amp) && ismember(amp, amps);
+        end
+
+        freq = str2double(regexp(name, '_(\d+)Hz', 'tokens', 'once'));
+        if ~isempty(freqs)
+            keep(i) = keep(i) && ~isnan(freq) && ismember(freq, freqs);
+        end
+    end
+
+    names = case_names(keep);
+end
