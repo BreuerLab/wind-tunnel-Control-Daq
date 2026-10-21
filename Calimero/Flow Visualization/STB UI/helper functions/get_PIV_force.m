@@ -10,18 +10,29 @@ function [var, err] = get_PIV_force(file_name, case_name, force_var_name, avg_ty
             vort_bool = false;
         end
 
+        % lift_uavg / drag_uavg: use the vorticity of the averaged velocity
+        % (vort*_uavg) instead of the averaged per-frame vorticity
+        vort_suffix = "";
+        if contains(force_var_name, "_uavg")
+            force_var_name = erase(force_var_name, "_uavg");
+            vort_suffix = "_uavg";
+        end
+
         switch avg_type
             case 0
             vars = {"L","U","rho","y","z","mean_u","mean_v","mean_w"};
             if vort_bool
-                vars = [vars, "mean_vortX","mean_vortY","mean_vortZ"];
+                vars = [vars, {"mean_vortX" + vort_suffix, "mean_vortY" + vort_suffix, "mean_vortZ" + vort_suffix}];
             end
             vars = [vars, "mean_uncTot"];
             case 1
             vars = {"L","U","U_act","rho_act","cycle_freq","y","z","u_phase_avg","v_phase_avg","w_phase_avg"};
             if vort_bool
-                vars = [vars, "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg",...
-                    ]; % "dudy_phase_avg", "dudz_phase_avg"
+                if vort_suffix == ""
+                    vars = [vars, "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg"]; % "dudy_phase_avg", "dudz_phase_avg"
+                else
+                    vars = [vars, "vortX_uavg","vortY_uavg","vortZ_uavg"];
+                end
             end
             vars = [vars, "uncTot_phase_avg"];
         end
@@ -69,9 +80,9 @@ function [var, err] = get_PIV_force(file_name, case_name, force_var_name, avg_ty
         w_tr = d.mean_w;
         
         if vort_bool
-        vortX_tr = d.mean_vortX;
-        vortY_tr = d.mean_vortY;
-        vortZ_tr = d.mean_vortZ;
+        vortX_tr = d.("mean_vortX" + vort_suffix);
+        vortY_tr = d.("mean_vortY" + vort_suffix);
+        vortZ_tr = d.("mean_vortZ" + vort_suffix);
         end
         
         unc_tr = d.mean_uncTot;
@@ -81,9 +92,15 @@ function [var, err] = get_PIV_force(file_name, case_name, force_var_name, avg_ty
         w_tr = d.w_phase_avg;
         
         if vort_bool
-        vortX_tr = d.vortX_phase_avg;
-        vortY_tr = d.vortY_phase_avg;
-        vortZ_tr = d.vortZ_phase_avg;
+        if vort_suffix == ""
+            vortX_tr = d.vortX_phase_avg;
+            vortY_tr = d.vortY_phase_avg;
+            vortZ_tr = d.vortZ_phase_avg;
+        else
+            vortX_tr = d.vortX_uavg;
+            vortY_tr = d.vortY_uavg;
+            vortZ_tr = d.vortZ_uavg;
+        end
         end
     
         unc_tr = d.uncTot_phase_avg;

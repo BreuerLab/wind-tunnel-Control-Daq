@@ -39,6 +39,17 @@ trim_source.KE_diff = S.KE_diff_field;
 trim_source.power = S.power_field;
 trim_source.Q = Q; % trimmed like the other fields, for the Q centroid
 
+% vorticity of the averaged velocity (only in files processed after it
+% was added)
+has_uavg = isfield(config, 'vortXUavgField') && isfield(D, config.vortXUavgField);
+if has_uavg
+    trim_source.vortX_uavg = D.(config.vortXUavgField);
+    trim_source.vortY_uavg = D.(config.vortYUavgField);
+    trim_source.vortZ_uavg = D.(config.vortZUavgField);
+else
+    disp("No vorticity of the averaged velocity in this file; lift_uavg / drag_uavg skipped")
+end
+
 % TURNED OFF TEMPORARILY SINCE NOT SUPPORTED BY TIME AVERAGE
 % trim_source.uu = D.(config.uuField);
 % trim_source.vv = D.(config.vvField);
@@ -61,6 +72,16 @@ S.lift_vel = lift_vel; S.drag_vel = drag_vel;
 
 [lift, drag] = get_wake_lift(config.speed, config.length, F, true, config.density);
 S.lift = lift; S.drag = drag;
+
+% Same forces using the vorticity of the averaged velocity
+if has_uavg
+    F_uavg = F;
+    F_uavg.vortX = T.vortX_uavg;
+    F_uavg.vortY = T.vortY_uavg;
+    F_uavg.vortZ = T.vortZ_uavg;
+    [lift_uavg, drag_uavg] = get_wake_lift(config.speed, config.length, F_uavg, true, config.density);
+    S.lift_uavg = lift_uavg; S.drag_uavg = drag_uavg;
+end
 
 if config.includeHelmDecomp
     [y_B, z_B, velX_B, velY_B, velZ_B] = helm_decomp(config.xConv, y_arr, z_arr, config.length, F);
@@ -87,6 +108,11 @@ S.w_avg = squeeze(mean(T.w, [1, 2]));
 S.vortX_avg = squeeze(mean(T.vortX, [1, 2]));
 S.vortY_avg = squeeze(mean(T.vortY, [1, 2]));
 S.vortZ_avg = squeeze(mean(T.vortZ, [1, 2]));
+if has_uavg
+    S.vortX_uavg_avg = squeeze(mean(T.vortX_uavg, [1, 2]));
+    S.vortY_uavg_avg = squeeze(mean(T.vortY_uavg, [1, 2]));
+    S.vortZ_uavg_avg = squeeze(mean(T.vortZ_uavg, [1, 2]));
+end
 S.numP_avg = squeeze(mean(T.numP, [1, 2]));
 S.unc_avg = squeeze(mean(T.uncTot, [1, 2]));
 S.hel_avg = squeeze(mean(T.hel, [1, 2]));

@@ -10,6 +10,10 @@ config.UtotDiffField = 'mean_Utot_diff';
 config.vortXField = 'mean_vortX';
 config.vortYField = 'mean_vortY';
 config.vortZField = 'mean_vortZ';
+% vorticity of the time-averaged velocity
+config.vortXUavgField = 'mean_vortX_uavg';
+config.vortYUavgField = 'mean_vortY_uavg';
+config.vortZUavgField = 'mean_vortZ_uavg';
 config.vortTotField = 'mean_vortTot';
 
 config.uncField = 'mean_uncTot';

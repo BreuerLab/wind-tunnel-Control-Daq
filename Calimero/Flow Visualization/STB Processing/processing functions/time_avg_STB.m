@@ -100,6 +100,11 @@ function S = time_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, n
         S.(avg_fields{f}) = S.(avg_fields{f}) ./ n_valid.(avg_fields{f});
     end
 
+    % Vorticity of the time-averaged velocity (in addition to the average
+    % of the per-frame vorticity, mean_vort*)
+    [S.mean_vortX_uavg, S.mean_vortY_uavg, S.mean_vortZ_uavg] = vorticity_of_mean_velocity(x, y, z,...
+        S.mean_u, S.mean_v, S.mean_w, S.mean_uncU, S.mean_uncV, S.mean_uncW);
+
     % Add metadata to the struct
     S.x = x; S.y = y; S.z = z; S.L = L; S.U = U; S.rho = density;
     S.PIV_case_name = PIV_case_name;

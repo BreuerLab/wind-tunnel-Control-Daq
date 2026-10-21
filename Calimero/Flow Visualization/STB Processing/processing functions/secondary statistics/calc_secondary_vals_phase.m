@@ -10,6 +10,10 @@ config.UtotDiffField = 'Utot_diff_phase_avg';
 config.vortXField = 'vortX_phase_avg';
 config.vortYField = 'vortY_phase_avg';
 config.vortZField = 'vortZ_phase_avg';
+% vorticity of the phase-averaged velocity
+config.vortXUavgField = 'vortX_uavg';
+config.vortYUavgField = 'vortY_uavg';
+config.vortZUavgField = 'vortZ_uavg';
 config.vortTotField = 'vortTot_phase_avg';
 
 config.uncField = 'uncTot_phase_avg';

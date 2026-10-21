@@ -248,6 +248,12 @@ for i = 1:num_bins
     end
 end
 
+% Vorticity of the phase-averaged velocity (in addition to the average of
+% the per-frame vorticity, vort*_phase_avg)
+[S.vortX_uavg, S.vortY_uavg, S.vortZ_uavg] = vorticity_of_mean_velocity(x, y, z,...
+    S.u_phase_avg, S.v_phase_avg, S.w_phase_avg,...
+    S.uncU_phase_avg, S.uncV_phase_avg, S.uncW_phase_avg);
+
 % Add metadata to the struct
 S.x = x; S.y = y; S.z = z; S.L = L; S.U = U; S.rho = density; S.cycle_freq = cycle_freq;
 S.num_bins = num_bins; S.tick_frame_pos = tick_frame_pos; S.full_cycle = full_cycle;
