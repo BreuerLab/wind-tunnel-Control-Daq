@@ -398,7 +398,7 @@ methods
         conv_shift_button.FontSize = 18;
         conv_shift_button.Value = obj.conv_shift;
         conv_shift_button.BackgroundColor = obj.get_button_color(obj.conv_shift);
-        conv_shift_button.Tooltip = "Phase shift PIV force curves by the convection time from the robot to the imaging plane";
+        conv_shift_button.Tooltip = "Phase shift PIV force and flow curves by the convection time from the robot to the imaging plane";
         conv_shift_button.ValueChangedFcn = @(src, event) conv_shift_change(src, event, plot_panel);
 
         var_dropdown1.ValueChangedFcn = @(src, event) updateVariableSelection(src, event, plot_panel, var_dropdown1, var_dropdown2);
@@ -1380,6 +1380,17 @@ methods (Access = private)
         tf = index <= 2 * length(obj.force_var_types);
     end
 
+    function tf = is_flow_index(obj, index)
+        num_force = 2 * length(obj.force_var_types); % force + BA: force
+        tf = index > num_force && index <= num_force + length(obj.flow_var_types);
+    end
+
+    % Variables computed from the imaging plane data, which lag the
+    % motor phase by the wake's convection time
+    function tf = is_imaging_plane_index(obj, index)
+        tf = obj.is_force_index(index) || obj.is_flow_index(index);
+    end
+
     function relative_idx = get_force_relative_index(obj, index)
         if ~obj.is_force_index(index)
             relative_idx = [];
@@ -1760,8 +1771,9 @@ methods (Access = private)
             end
 
             % Shift data given convection time downstream to target
-            % for curves using imaging plane data only
-            if obj.is_force_index(index) && obj.conv_shift
+            % for curves using imaging plane data only (PIV forces and
+            % flow variables; kinematics are measured at the robot)
+            if obj.is_imaging_plane_index(index) && obj.conv_shift
                 dist = obj.get_downstream_dist(type);
                 if isnan(dist)
                     disp("No downstream distance defined for " + type + ", not shifted")
