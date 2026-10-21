@@ -16,6 +16,14 @@ classdef phaseAvg_UI < handle
         downstream_distance_labels = ["x = 0.9m"; "x = 1.3m"; "x = 1.7m"];
         new_flapper_downstream_types = ["x1";"x2";"x3";"x4";"x5";"MPS"];
         new_flapper_distance_labels = ["x1";"x2";"x3";"x4";"x5";"MPS"];
+
+        % Streamwise separation (m) between the robot and the imaging
+        % plane, used for the convection phase shift. Entries line up
+        % with cur_types / new_flapper_downstream_types. NaN = unknown,
+        % no shift applied.
+        downstream_dists = [0.9; 0.9 + 0.37; 0.9 + 2*0.37]; % flexible, UP_one, UP_two
+        new_flapper_downstream_dists = [0.9 - 2*0.37; 0.9 - 0.37; 0.9; 0.9 + 0.37; 0.9 + 2*0.37; NaN]; % x1-x5, MPS
+        conv_speed = 4; % m/s, convection speed of the wake
     end
 
 properties
@@ -118,6 +126,9 @@ properties
     saveFig;
 
     calc_bool;
+    % boolean, phase shift PIV force curves by the time the wake takes
+    % to convect from the robot to the imaging plane
+    conv_shift;
     align_bool;
     force_index;
     separate_y_axis_bool;
@@ -173,6 +184,7 @@ methods
 
         obj.force_index = [];
         obj.calc_bool = false;
+        obj.conv_shift = false;
         obj.align_bool = false;
         obj.separate_y_axis_bool = false;
         obj.mean_subtraction_bool = false;
@@ -217,7 +229,7 @@ methods
 
         sidebar_grid = uigridlayout(option_panel, [19, 1]);
         sidebar_grid.ColumnWidth = {'1x'};
-        sidebar_grid.RowHeight = {30, 30, 30, 30, 30, 30, 30, 110, 30, 260, 30, 0, 30, 30, 30, 24, 30, 30, 30};
+        sidebar_grid.RowHeight = {30, 30, 30, 30, 30, 30, 30, 110, 30, 294, 30, 0, 30, 30, 30, 24, 30, 30, 30};
         sidebar_grid.Padding = [10 10 10 10];
         sidebar_grid.RowSpacing = 6;
         if isprop(sidebar_grid, "Scrollable")
@@ -319,9 +331,9 @@ methods
         param_panel.Title = "Plot Parameters";
         param_panel.TitlePosition = 'centertop';
 
-        param_grid = uigridlayout(param_panel, [8, 1]);
+        param_grid = uigridlayout(param_panel, [9, 1]);
         param_grid.ColumnWidth = {'1x'};
-        param_grid.RowHeight = {22, 25, 22, 25, 22, 25, 30, 25};
+        param_grid.RowHeight = {22, 25, 22, 25, 22, 25, 30, 25, 30};
         param_grid.Padding = [10 8 10 8];
         param_grid.RowSpacing = 4;
 
@@ -378,6 +390,16 @@ methods
         PIV_sub_dropdown.Value = obj.PIV_sub_case;
         PIV_sub_dropdown.Tooltip = "Steady case subtracted (e.g. for x3_wings_20deg_4Hz: ring = x3_ring, body = x3_body_20deg_0Hz, gliding = x3_wings_20deg_0Hz)";
         PIV_sub_dropdown.ValueChangedFcn = @(src, event) PIV_sub_case_change(src, event, plot_panel);
+
+        conv_shift_button = uibutton(param_grid, "state");
+        conv_shift_button.Layout.Row = 9;
+        conv_shift_button.Layout.Column = 1;
+        conv_shift_button.Text = "Convection Shift";
+        conv_shift_button.FontSize = 18;
+        conv_shift_button.Value = obj.conv_shift;
+        conv_shift_button.BackgroundColor = obj.get_button_color(obj.conv_shift);
+        conv_shift_button.Tooltip = "Phase shift PIV force curves by the convection time from the robot to the imaging plane";
+        conv_shift_button.ValueChangedFcn = @(src, event) conv_shift_change(src, event, plot_panel);
 
         var_dropdown1.ValueChangedFcn = @(src, event) updateVariableSelection(src, event, plot_panel, var_dropdown1, var_dropdown2);
         var_dropdown2.ValueChangedFcn = @(src, event) updateVariableSelection(src, event, plot_panel, var_dropdown1, var_dropdown2);
@@ -598,6 +620,12 @@ methods
             if obj.PIV_sub
                 obj.update_plot(plot_panel);
             end
+        end
+
+        function conv_shift_change(src, ~, plot_panel)
+            obj.conv_shift = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.conv_shift);
+            obj.update_plot(plot_panel);
         end
 
         function RPCA_change(src, ~)
@@ -1081,6 +1109,34 @@ methods (Access = private)
 
         other_types = setdiff(available_types(:), selection_types, 'stable');
         selection_types = [selection_types; other_types(:)];
+    end
+
+    % Streamwise distance (m) from the robot to the imaging plane for a
+    % case type, NaN if unknown
+    function dist = get_downstream_dist(obj, type)
+        type = string(type);
+        dist = NaN;
+
+        type_index = find(obj.cur_types == type, 1);
+        if ~isempty(type_index)
+            dist = obj.downstream_dists(type_index);
+            return
+        end
+
+        downstream_index = obj.get_new_flapper_downstream_index(type);
+        if ~isempty(downstream_index)
+            dist = obj.new_flapper_downstream_dists(downstream_index);
+            return
+        end
+
+        % other old flapper types: position set by the UP_ prefix
+        if contains(type, "UP_two")
+            dist = obj.downstream_dists(3);
+        elseif contains(type, "UP_one")
+            dist = obj.downstream_dists(2);
+        else
+            dist = obj.downstream_dists(1);
+        end
     end
 
     function type_order = get_type_sort_order(obj, types)
@@ -1705,24 +1761,19 @@ methods (Access = private)
 
             % Shift data given convection time downstream to target
             % for curves using imaging plane data only
-            conv_shift = false;
-            if obj.is_force_index(index) && conv_shift
-            dist = 0.9;
-            sep_dist = 0.37;
-            if contains(type, "UP_two")
-                dist = dist + sep_dist*2;
-            elseif contains(type, "UP_one")
-                dist = dist + sep_dist;
-            end
-            speed = 4;
-            % speed = mean(-squeeze(u_avg)) * d.U;
-            conv_time = dist / speed; % 0.9 m downstream, 4 m/s
-            % shift = conv_time * freq;
-            shift = conv_time * freq_cor; % get shift as a portion of a cycle
-            var = circshift(var, round(shift*length(var)));
-            disp("Shifted by: " + round(shift*length(var)) + " / " + length(var))
-            % disp("Shifted by: " + mod(round(shift*length(var)), length(var)) + " / " + length(var))
-
+            if obj.is_force_index(index) && obj.conv_shift
+                dist = obj.get_downstream_dist(type);
+                if isnan(dist)
+                    disp("No downstream distance defined for " + type + ", not shifted")
+                else
+                    % speed = mean(-squeeze(u_avg)) * d.U;
+                    conv_time = dist / obj.conv_speed;
+                    shift = conv_time * freq_cor; % get shift as a portion of a cycle
+                    shift_bins = round(shift*length(var));
+                    var = circshift(var, shift_bins);
+                    disp("Shifted " + cur_sel + " by: " + shift_bins + " / " + length(var) + ...
+                        " (" + dist + " m downstream)")
+                end
             end
 
             % If first value less than mean value, shift array since we
