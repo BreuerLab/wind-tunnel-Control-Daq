@@ -1486,6 +1486,22 @@ methods (Access = private)
         time_F = time_F / length(force);
     end
 
+    % Load cell force for a case, or empty if that case's curve is
+    % already in plotted_keys (same type, amp and freq)
+    function [time_F, force, plotted_keys] = get_unplotted_load_cell_force(obj, type, amp, freq, plotted_keys)
+        time_F = [];
+        force = [];
+        key = string(type) + "_" + amp + "deg_" + freq + "Hz";
+        if ismember(key, plotted_keys)
+            return
+        end
+
+        [time_F, force] = obj.get_load_cell_force(type, amp, freq);
+        if ~isempty(force)
+            plotted_keys(end+1) = key;
+        end
+    end
+
     function dual_plot = should_use_separate_y_axes(obj)
         dual_plot = false;
         if obj.should_split_load_cell_axis()
@@ -1672,11 +1688,15 @@ methods (Access = private)
         hold(ax, 'on');
         hold(ax_target, 'on');
 
+        % Load cell curves depend only on the case (type, amp, freq), not
+        % on the PIV variable or data version, so each is drawn once
+        plotted_load_cell = strings(0);
+
         if isempty(obj.inds) && ~isempty(obj.force_index)
             for i = 1:length(obj.selection)
                 cur_sel = obj.selection(i);
                 [amp, type, freq] = parse_name(cur_sel);
-                [time_F, force] = obj.get_load_cell_force(type, amp, freq);
+                [time_F, force, plotted_load_cell] = obj.get_unplotted_load_cell_force(type, amp, freq, plotted_load_cell);
 
                 if ~isempty(force)
                     obj.plot_load_cell_force(ax, ax_target, time_F, force, cur_sel, color_params);
@@ -1826,7 +1846,7 @@ methods (Access = private)
                     'y_axis', "");
             end
 
-            [time_F, force] = obj.get_load_cell_force(type, amp, freq);
+            [time_F, force, plotted_load_cell] = obj.get_unplotted_load_cell_force(type, amp, freq, plotted_load_cell);
 
             if align_plot_bool && ~isempty(force)
                 aligned_curves(end+1) = struct(...
@@ -1835,7 +1855,7 @@ methods (Access = private)
                     'index', index,...
                     'plot_idx', j,...
                     'cur_sel', cur_sel,...
-                    'legend_entry', obj.get_aligned_legend_entry(cur_sel, index, true),...
+                    'legend_entry', obj.get_load_cell_legend_entry(cur_sel),...
                     'line_style', "-",...
                     'marker', "none",...
                     'y_axis', "right");
@@ -1916,8 +1936,11 @@ methods (Access = private)
       
     end
 
+    % Legend for a load cell curve: the case without the PIV version or
+    % RPCA tag (one load cell curve is shared by all of them)
     function legend_entry = get_load_cell_legend_entry(obj, cur_sel)
-        case_label = obj.get_case_label(cur_sel);
+        [amp, type, freq] = parse_name(cur_sel);
+        case_label = strrep(obj.get_type_label(type) + ", " + amp + " deg, " + freq + " Hz", "_", " ");
         legend_entry = case_label + " - " + obj.get_force_legend_label();
     end
 
@@ -2050,7 +2073,7 @@ methods (Access = private)
                 end
 
                 line = plot(ax, time_F, force);
-                F_legend = obj.get_aligned_legend_entry(cur_sel, index, true);
+                F_legend = obj.get_load_cell_legend_entry(cur_sel);
                 line.DisplayName = F_legend;
                 disp(F_legend + ": " + mean(force))
                 line.Color = original_color;

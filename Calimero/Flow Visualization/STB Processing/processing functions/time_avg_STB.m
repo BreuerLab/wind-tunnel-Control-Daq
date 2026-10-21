@@ -21,6 +21,10 @@ function S = time_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, n
 
     fields = get_STB_processing_fields();
 
+    % Optional outputs (default on if the caller didn't set them)
+    calc_Q_inst = ~isfield(bools, 'Q_inst') || bools.Q_inst;
+    calc_vort_uavg = ~isfield(bools, 'vort_uavg') || bools.vort_uavg;
+
     for i = 1:num_images
         % Import data (using a temporary struct or list)
         [x, y, z, data{1:length(fields)}] = import_STB_data(file_path, bools.nondim, U, L, i, bools.RPCA);
@@ -48,6 +52,7 @@ function S = time_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, n
         end
 
         % Q on this instantaneous field (accumulated, averaged below)
+        if calc_Q_inst
         [Qx_frame, Qy_frame, Qz_frame, Q_frame] = inst_Q_avg(data{1}, data{2}, data{3}, x, y, z);
         Q_ok = isfinite(Q_frame);
         Qx_frame(~Q_ok) = 0; Qy_frame(~Q_ok) = 0; Qz_frame(~Q_ok) = 0; Q_frame(~Q_ok) = 0;
@@ -56,6 +61,7 @@ function S = time_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, n
         Qz_sum = Qz_sum + Qz_frame;
         Q_sum = Q_sum + Q_frame;
         Q_n = Q_n + Q_ok;
+        end
 
         F = prepare_STB_wake_field(L, y, z, print_dim_bool, data, 0, bounds); % trimming
 
@@ -102,8 +108,10 @@ function S = time_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, n
 
     % Vorticity of the time-averaged velocity (in addition to the average
     % of the per-frame vorticity, mean_vort*)
+    if calc_vort_uavg
     [S.mean_vortX_uavg, S.mean_vortY_uavg, S.mean_vortZ_uavg] = vorticity_of_mean_velocity(x, y, z,...
         S.mean_u, S.mean_v, S.mean_w, S.mean_uncU, S.mean_uncV, S.mean_uncW);
+    end
 
     % Add metadata to the struct
     S.x = x; S.y = y; S.z = z; S.L = L; S.U = U; S.rho = density;
@@ -112,10 +120,12 @@ function S = time_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, n
 
     % Q of each frame averaged over all frames (vs Q of the mean field,
     % computed in calc_secondary_vals_time)
+    if calc_Q_inst
     S.Qx_inst_avg = Qx_sum ./ Q_n;
     S.Qy_inst_avg = Qy_sum ./ Q_n;
     S.Qz_inst_avg = Qz_sum ./ Q_n;
     S.Q_inst_avg = Q_sum ./ Q_n;
+    end
 
     % Before-averaging (BA) lift and drag: lift / drag computed for each
     % frame, then averaged over all frames. Same names as phase_avg_STB
