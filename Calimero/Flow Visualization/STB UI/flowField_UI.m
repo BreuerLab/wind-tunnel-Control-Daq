@@ -1448,6 +1448,7 @@ methods (Access = private)
             if (obj.variable_name == obj.hist_vars(3))
                 x_var_name = "full_cycle";
                 vars{end+1} = x_var_name;
+                vars{end+1} = "bin_ind_arr"; % which bin each frame went to
             end
         elseif plot_idx == 7
             var_name = obj.freq_var_name_dict(obj.variable_name);
@@ -1768,13 +1769,20 @@ methods (Access = private)
             end
         elseif plot_idx == 6
             if (obj.variable_name == obj.hist_vars(3))
-                histogram(ax, val, d.(x_var_name))
+                if isfield(d, "bin_ind_arr")
+                    obj.plot_tick_distribution(ax, val, d.(x_var_name), d.bin_ind_arr);
+                else
+                    histogram(ax, val, d.(x_var_name))
+                end
                 xlabel(ax, "Tick number", FontSize=16)
                 ylabel(ax, obj.hist_label_dict(obj.variable_name), FontSize=16)
             else
                 bar(ax, val)
                 xlabel(ax, "Bin number", FontSize=16)
                 ylabel(ax, obj.hist_label_dict(obj.variable_name), FontSize=16)
+                if obj.variable_name == obj.hist_vars(2) % bin SD
+                    obj.cap_outlier_bars(ax, val);
+                end
             end
         elseif plot_idx == 7
             if (obj.variable_name == obj.freq_vars(1))
@@ -1832,6 +1840,98 @@ methods (Access = private)
             xlabel(ax, "Time", FontSize=16)
             ylabel(ax, obj.label_dict(obj.variable_name), FontSize=16, Interpreter="latex")
         end
+    end
+
+    function plot_tick_distribution(~, ax, ticks, edges, bin_ind)
+        % Histogram of frame encoder ticks, coloured by the phase bin each
+        % frame was averaged into (alternating colours), with dotted lines
+        % at the boundaries between neighbouring bins. Bins are assigned on
+        % a time-based phase in frame_to_bin, so their extent in ticks is
+        % taken from the frames themselves; overlapping neighbours mean
+        % frames at the same tick ended up in different bins.
+        ticks = double(ticks(:));
+        bin_ind = double(bin_ind(:));
+        valid = isfinite(ticks) & isfinite(bin_ind) & bin_ind > 0;
+        edges = double(edges(:))';
+        centers = (edges(1:end-1) + edges(2:end)) / 2;
+        P = edges(end) - edges(1); % ticks per cycle
+
+        is_odd = mod(bin_ind, 2) == 1;
+        c_odd = histcounts(ticks(valid & is_odd), edges);
+        c_even = histcounts(ticks(valid & ~is_odd), edges);
+
+        hold(ax, 'on')
+        b = bar(ax, centers, [c_odd(:), c_even(:)], 1, 'stacked', 'EdgeColor', 'none');
+        b(1).FaceColor = [0 0.4470 0.7410];
+        b(2).FaceColor = [0.8500 0.3250 0.0980];
+        b(1).DisplayName = "odd bins";
+        b(2).DisplayName = "even bins";
+
+        % tick extent of each bin (unwrapped across the 0 / P seam)
+        num_bins = max(bin_ind(valid));
+        lo = NaN(1, num_bins);
+        hi = NaN(1, num_bins);
+        for k = 1:num_bins
+            t = ticks(valid & bin_ind == k);
+            if isempty(t)
+                continue
+            end
+            if max(t) - min(t) > P/2
+                t(t < P/2) = t(t < P/2) + P;
+            end
+            lo(k) = min(t);
+            hi(k) = max(t);
+        end
+
+        % boundary between bin k and the next bin: midway between the last
+        % tick of k and the first tick of k+1
+        boundaries = NaN(1, num_bins);
+        num_overlap = 0;
+        for k = 1:num_bins
+            k_next = mod(k, num_bins) + 1;
+            if isnan(hi(k)) || isnan(lo(k_next))
+                continue
+            end
+            next_lo = lo(k_next);
+            while next_lo < hi(k) - P/2
+                next_lo = next_lo + P; % next bin starts after the seam
+            end
+            if next_lo < hi(k)
+                num_overlap = num_overlap + 1;
+            end
+            boundaries(k) = mod((hi(k) + next_lo) / 2, P);
+        end
+        boundaries = boundaries(isfinite(boundaries));
+        xline(ax, boundaries, ':', 'Color', [0.25 0.25 0.25], 'HandleVisibility', 'off');
+
+        xlim(ax, [edges(1), edges(end)])
+        legend(ax, 'Location', 'best')
+        title(ax, sprintf("%d bins (dotted: bin boundaries), %d of %d neighbouring bins overlap in ticks",...
+            num_bins, num_overlap, num_bins), FontSize=12)
+    end
+
+    function cap_outlier_bars(~, ax, val)
+        % Limit the y-axis to 2x the mean so the spread of the typical bins
+        % is visible; bars above that are marked with their value.
+        val = double(val(:))';
+        cap = 2 * mean(val, "omitnan");
+        if ~(cap > 0) || max(val) <= cap
+            return
+        end
+
+        ylim(ax, [0, cap])
+        outliers = find(val > cap);
+        hold(ax, 'on')
+        plot(ax, outliers, 0.97 * cap * ones(size(outliers)), 'v',...
+            'MarkerFaceColor', [0.85 0.1 0.1], 'MarkerEdgeColor', [0.85 0.1 0.1],...
+            'HandleVisibility', 'off');
+        for k = outliers
+            text(ax, k, 0.92 * cap, sprintf('%.3g', val(k)),...
+                'HorizontalAlignment', 'center', 'VerticalAlignment', 'top',...
+                'FontSize', 10, 'Color', [0.85 0.1 0.1]);
+        end
+        title(ax, sprintf("y-axis limited to 2x mean; %d bin(s) above (value shown)", numel(outliers)),...
+            FontSize=12)
     end
 
     function inputs = get_lift_wx_inputs(~, using_time_avg_file)
