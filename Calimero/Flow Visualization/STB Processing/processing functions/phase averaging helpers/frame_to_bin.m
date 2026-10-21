@@ -6,8 +6,11 @@ function [norm_signal, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_
 % Get raw data from file
 load([daq_data_path daq_data_filename]);
 
-% 0 - binning according to encoder phase, 1 - binning according to time
-phase_type = 1;
+% 0 - binning according to encoder phase
+% 1 - binning according to time, phase = mod(time * frequency, 1)
+% 2 - binning according to time, re-anchored to the encoder at the start
+%     of every cycle (no drift build-up over the recording)
+phase_type = 2;
 
 if turbine_bool
 
@@ -65,7 +68,7 @@ switch phase_type
     case 0
         disp("Using motor position for phase")
         norm_signal = norm_frame_pos;
-    case 1
+    otherwise % 1 or 2 (turbine: time phase, no per-cycle re-anchoring)
         disp("Using time for phase")
         norm_signal = norm_time;
 end
