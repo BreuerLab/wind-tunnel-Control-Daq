@@ -128,6 +128,8 @@ properties
     filter_bool;
     trim_bool;
     num_cycles;
+    % 3D plot x-axis in convective units (x/c = U t / c) instead of t/T
+    conv_units_bool;
     extrapolate_bool;
     floor_bool;
     thresh;
@@ -169,6 +171,7 @@ methods
         obj.mirror_bool = false;
         obj.filter_bool = false;
         obj.num_cycles = 1;
+        obj.conv_units_bool = false;
         obj.trim_bool = true;
         obj.extrapolate_bool = false;
         obj.floor_bool = false;
@@ -644,9 +647,9 @@ methods
         obj.param_panel.Title = "3D Plot Parameters";
         obj.param_panel.TitlePosition = 'centertop';
 
-        param_grid = uigridlayout(obj.param_panel, [6, 1]);
+        param_grid = uigridlayout(obj.param_panel, [7, 1]);
         param_grid.ColumnWidth = {'1x'};
-        param_grid.RowHeight = {22, 55, 30, 22, 55, 85};
+        param_grid.RowHeight = {22, 55, 30, 22, 55, 30, 85};
         param_grid.Padding = [10 8 10 8];
         param_grid.RowSpacing = 6;
 
@@ -691,9 +694,20 @@ methods
         num_cycles_slider.MinorTicks = [];
         num_cycles_slider.ValueChangedFcn = @(src, event) num_cycles_change(src, event, plot_area_panel);
 
+        % x-axis as wingbeat time (t/T) or convective distance (x/c = U t / c)
+        conv_units_button = uibutton(param_grid, "state");
+        conv_units_button.Layout.Row = 6;
+        conv_units_button.Layout.Column = 1;
+        conv_units_button.Text = "x-axis: t/T";
+        conv_units_button.FontSize = 16;
+        conv_units_button.Value = obj.conv_units_bool;
+        conv_units_button.BackgroundColor = obj.INACTIVE_COLOR;
+        conv_units_button.Tooltip = "Toggle the 3D plot x-axis between wingbeat time t/T and convective units x/c = U t / c";
+        conv_units_button.ValueChangedFcn = @(src, event) conv_units_change(src, event, plot_area_panel);
+
         % View buttons rotate the current 3D axes without redrawing data.
         view_grid = uigridlayout(param_grid, [2, 3]);
-        view_grid.Layout.Row = 6;
+        view_grid.Layout.Row = 7;
         view_grid.Layout.Column = 1;
         view_grid.RowHeight = {'1x', '1x'};
         view_grid.ColumnWidth = {'1x', '1x', '1x'};
@@ -898,7 +912,7 @@ methods
             row_heights = sidebar_grid.RowHeight;
             if is_visible
                 obj.param_panel.Visible = "on";
-                row_heights{16} = 380;
+                row_heights{16} = 416;
             else
                 obj.param_panel.Visible = "off";
                 row_heights{16} = 0;
@@ -1092,6 +1106,19 @@ methods
             src.Value = round(src.Value);
 
             obj.num_cycles = src.Value;
+            obj.update_plot(plot_panel);
+        end
+
+        function conv_units_change(src, ~, plot_panel)
+            obj.conv_units_bool = src.Value;
+            if obj.conv_units_bool
+                src.Text = "x-axis: x/c = U t / c";
+                src.BackgroundColor = obj.ACTIVE_COLOR;
+            else
+                src.Text = "x-axis: t/T";
+                src.BackgroundColor = obj.INACTIVE_COLOR;
+            end
+            obj.plot_hold_bool = false; % redraw so the axis label updates
             obj.update_plot(plot_panel);
         end
 
@@ -1792,6 +1819,7 @@ methods (Access = private)
             params.shift = obj.frame_ind - 1;
             params.isoValue = obj.iso_val; % 0.05
             params.num_cycles = obj.num_cycles;
+            params.conv_units = obj.conv_units_bool;
 
             [xlims, surface_data, color_data] = stack_vortices_3D(y, z, val, Q, d.cycle_freq, params);
             setColorBar(ax, params)

@@ -8,8 +8,11 @@ for k = 1:params.num_bins
 end
 z = z / params.L; % non-dimensionalize z by characterisitic length
 
-% normalize by wingbeat period
-z = z / max(z);
+% normalize by wingbeat period, unless plotting in convective units
+% (x/c = U t / c)
+if ~(isfield(params, 'conv_units') && params.conv_units)
+    z = z / max(z);
+end
 
 [Ny, Nx] = size(x);
 Nz = length(z);
