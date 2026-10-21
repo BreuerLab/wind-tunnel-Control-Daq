@@ -121,8 +121,6 @@ drag_before_avg = struct();
 % velocity-only lift (u*w) and drag (get_wake_lift with vort_bool false)
 lift_vel_before_avg = zeros(1,num_bins);
 drag_vel_before_avg = zeros(1,num_bins);
-print_dim_bool = true;
-
 fields = get_STB_processing_fields();
 
 % Optional outputs (default on if the caller didn't set them)
@@ -141,131 +139,103 @@ t_stage = struct('import', 0, 'forces', 0, 'stats', 0, 'Q_inst', 0, 'vort_uavg',
 % end
 x_conv = 0;
 
-for i = 1:num_bins
+% Values the bin loop needs (turbine runs have no wind tunnel data)
+if bools.turbine
+    speed = U;
+    rho_act = density;
+else
+    rho_act = S.rho_act;
+end
+opts.calc_Q_inst = calc_Q_inst;
+opts.nondim = bools.nondim;
+opts.RPCA = bools.RPCA;
+opts.turbine = bools.turbine;
+
+% Bins are independent, so they can be processed in parallel. Each
+% worker holds one bin's frames for every field, so lower num_workers if
+% memory runs out. 0 runs the bins one after another on this client.
+num_workers = 0;
+if isfield(bools, 'num_workers')
+    num_workers = bools.num_workers;
+end
+num_workers = start_pool(num_workers);
+
+R = cell(1, num_bins);
+t_loop = tic;
+parfor (i = 1:num_bins, num_workers)
     bin_indices = find(bin_ind_arr == i);
-    bin_count(i) = length(bin_indices);
-    bin_std(i) = std(norm_frame_pos(bin_indices))*100;
+    R{i} = process_bin(file_path, U, L, bin_indices, norm_frame_pos(bin_indices),...
+        fields, x_conv, bounds, speed, rho_act, opts, i == 1);
+    fprintf('processed bin %d/%d\n', i, num_bins);
+end
+t_loop = toc(t_loop);
 
-    % Import data (using a temporary struct or list)
-    t0 = tic;
-    [x, y, z, data{1:length(fields)}] = ...
-        import_STB_data(file_path, bools.nondim, U, L, bin_indices, bools.RPCA);
-    t_stage.import = t_stage.import + toc(t0);
+% ----- Gather the per-bin results -----
+x = R{1}.x; y = R{1}.y; z = R{1}.z;
+grid_size = [size(x,1), size(x,2), size(x,3), num_bins];
 
-    t0 = tic;
-    F = prepare_STB_wake_field(L, y, z, print_dim_bool, data, x_conv, bounds); % trimming fields
-
-    if ~bools.turbine
-    [lift_vals, drag_vals] = get_wake_lift(speed, L, F, true, S.rho_act);
-    [lift_vel_vals, drag_vel_vals] = get_wake_lift(speed, L, F, false, S.rho_act);
-    end
-    t_stage.forces = t_stage.forces + toc(t0);
-        
-    % Variable preallocation that is dependent on the data content 
-    if i == 1
-        % Initialize structure with zeros based on first file size
-        for f = 1:length(fields)
-            S.([fields{f} '_phase_avg']) = zeros(size(x,1), size(x,2), size(x,3), num_bins);
-        end
-        S.uu_stress = zeros(size(x,1), size(x,2), size(x,3), num_bins);
-        S.vv_stress = zeros(size(x,1), size(x,2), size(x,3), num_bins);
-        S.ww_stress = zeros(size(x,1), size(x,2), size(x,3), num_bins);
-        S.uv_stress = zeros(size(x,1), size(x,2), size(x,3), num_bins);
-        S.uw_stress = zeros(size(x,1), size(x,2), size(x,3), num_bins);
-        S.vw_stress = zeros(size(x,1), size(x,2), size(x,3), num_bins);
-        % Q from each frame, averaged over the bin (vs Q of the
-        % phase-averaged field, computed in calc_secondary_vals_phase)
-        if calc_Q_inst
-        S.Qx_inst_avg = zeros(size(x,1), size(x,2), size(x,3), num_bins);
-        S.Qy_inst_avg = zeros(size(x,1), size(x,2), size(x,3), num_bins);
-        S.Qz_inst_avg = zeros(size(x,1), size(x,2), size(x,3), num_bins);
-        S.Q_inst_avg = zeros(size(x,1), size(x,2), size(x,3), num_bins);
-        end
-
-        if ~bools.turbine
-        lift_fields = fieldnames(lift_vals);
-        for f = 1:length(lift_fields)
-            lift_before_avg.(lift_fields{f}) = zeros(1,num_bins);
-        end
-
-        drag_fields = fieldnames(drag_vals);
-        for f = 1:length(drag_fields)
-            drag_before_avg.(drag_fields{f}) = zeros(1,num_bins);
-        end
-        end
-
-        % turn printing boolean off for printing of trimmed dimensions
-        print_dim_bool = false;
-        disp("Trimming for force calculation only")
-    end
-
-    % Phase average computation
-    t0 = tic;
-    for f = 1:length(fields)
-        fname = [fields{f}, '_phase_avg'];
-        % Compute mean along the 4th dimension
-        S.(fname)(:,:,:,i) = mean(data{f}, 4, "omitnan");
-
-        fname = [fields{f}, '_phase_std'];
-        S.(fname)(:,:,:,i) = std(data{f}, 0, 4, "omitnan");
-    end
-
-    % Velocity fluctuations for Reynolds stress calculation
-    u_fluc = data{1} - S.u_phase_avg(:,:,:,i);
-    v_fluc = data{2} - S.v_phase_avg(:,:,:,i);
-    w_fluc = data{3} - S.w_phase_avg(:,:,:,i);
-
-    wx_fluc = data{5} - S.vortX_phase_avg(:,:,:,i);
-    wy_fluc = data{6} - S.vortY_phase_avg(:,:,:,i);
-    % wz_fluc = data{7} - S.vortZ_phase_avg(:,:,:,i);
-
-    % Normal stresses
-    S.uu_stress(:,:,:,i) = mean(u_fluc .* u_fluc, 4, "omitnan");
-    S.vv_stress(:,:,:,i) = mean(v_fluc .* v_fluc, 4, "omitnan");
-    S.ww_stress(:,:,:,i) = mean(w_fluc .* w_fluc, 4, "omitnan");
-
-    % Shear stresses
-    S.uv_stress(:,:,:,i) = mean(u_fluc .* v_fluc, 4, "omitnan");
-    S.uw_stress(:,:,:,i) = mean(u_fluc .* w_fluc, 4, "omitnan");
-    S.vw_stress(:,:,:,i) = mean(v_fluc .* w_fluc, 4, "omitnan");
-
-    % Fluctuation terms related to force calculation
-    S.u_wx_stress(:,:,:,i) = mean(u_fluc .* wx_fluc, 4, "omitnan");
-    S.u_wy_stress(:,:,:,i) = mean(u_fluc .* wy_fluc, 4, "omitnan");
-    t_stage.stats = t_stage.stats + toc(t0);
-
-    % Q on each instantaneous field, then averaged over the bin
-    if calc_Q_inst
-    t0 = tic;
-    [S.Qx_inst_avg(:,:,:,i), S.Qy_inst_avg(:,:,:,i), S.Qz_inst_avg(:,:,:,i), S.Q_inst_avg(:,:,:,i)] = ...
-        inst_Q_avg(data{1}, data{2}, data{3}, x, y, z);
-    t_stage.Q_inst = t_stage.Q_inst + toc(t0);
-    end
-
-    if ~bools.turbine
-    % Compute phase averages from lift data in current bin
-    for f = 1:length(lift_fields)
-        field_name = lift_fields{f};
-        cur_vals = lift_vals.(field_name);
-        lift_before_avg.(field_name)(i) = mean(cur_vals(:), "omitnan");
-    end
-
-    % Compute phase averages from drag data in current bin
-    for f = 1:length(drag_fields)
-        field_name = drag_fields{f};
-        cur_vals = drag_vals.(field_name);
-        drag_before_avg.(field_name)(i) = mean(cur_vals(:), "omitnan");
-    end
-
-    % Velocity-only lift and drag in current bin
-    lift_vel_before_avg(i) = mean(lift_vel_vals(:), "omitnan");
-    drag_vel_before_avg(i) = mean(drag_vel_vals(:), "omitnan");
-    end
-
-    if mod(i,5) == 0
-        disp(['processed ',num2str(i),'/',num2str(num_bins)])
+for f = 1:length(fields)
+    S.([fields{f} '_phase_avg']) = zeros(grid_size);
+    S.([fields{f} '_phase_std']) = zeros(grid_size);
+end
+stress_names = fieldnames(R{1}.stress);
+for k = 1:length(stress_names)
+    S.(stress_names{k}) = zeros(grid_size);
+end
+Q_names = {'Qx_inst_avg', 'Qy_inst_avg', 'Qz_inst_avg', 'Q_inst_avg'};
+if calc_Q_inst
+    for k = 1:length(Q_names)
+        S.(Q_names{k}) = zeros(grid_size);
     end
 end
+
+if ~bools.turbine
+    lift_fields = fieldnames(R{1}.lift);
+    drag_fields = fieldnames(R{1}.drag);
+    for f = 1:length(lift_fields)
+        lift_before_avg.(lift_fields{f}) = zeros(1,num_bins);
+    end
+    for f = 1:length(drag_fields)
+        drag_before_avg.(drag_fields{f}) = zeros(1,num_bins);
+    end
+end
+
+for i = 1:num_bins
+    B = R{i};
+    R{i} = []; % free memory as we go
+    bin_count(i) = B.bin_count;
+    bin_std(i) = B.bin_std;
+
+    for f = 1:length(fields)
+        S.([fields{f} '_phase_avg'])(:,:,:,i) = B.avg{f};
+        S.([fields{f} '_phase_std'])(:,:,:,i) = B.std{f};
+    end
+    for k = 1:length(stress_names)
+        S.(stress_names{k})(:,:,:,i) = B.stress.(stress_names{k});
+    end
+    if calc_Q_inst
+        for k = 1:length(Q_names)
+            S.(Q_names{k})(:,:,:,i) = B.Q{k};
+        end
+    end
+
+    if ~bools.turbine
+        for f = 1:length(lift_fields)
+            lift_before_avg.(lift_fields{f})(i) = B.lift.(lift_fields{f});
+        end
+        for f = 1:length(drag_fields)
+            drag_before_avg.(drag_fields{f})(i) = B.drag.(drag_fields{f});
+        end
+        lift_vel_before_avg(i) = B.lift_vel;
+        drag_vel_before_avg(i) = B.drag_vel;
+    end
+
+    t_stage.import = t_stage.import + B.t.import;
+    t_stage.forces = t_stage.forces + B.t.forces;
+    t_stage.stats = t_stage.stats + B.t.stats;
+    t_stage.Q_inst = t_stage.Q_inst + B.t.Q_inst;
+end
+clear R B
 
 % Vorticity of the phase-averaged velocity (in addition to the average of
 % the per-frame vorticity, vort*_phase_avg)
@@ -293,10 +263,14 @@ end
 % Save the entire structure
 disp("Saving data to: " + save_path)
 t0 = tic;
-save(save_path, '-struct', 'S');
+save_STB_struct(save_path, S, bools);
 t_stage.save = toc(t0);
 
 fprintf('Processing and saving data took %.4f seconds.\n', toc);
+if num_workers > 0
+    fprintf('  bin loop (%d workers, wall clock): %.1f s; stage times below are summed over workers\n',...
+        num_workers, t_loop);
+end
 fprintf(['  load (import_STB_data): %.1f s\n  per-frame forces: %.1f s\n' ...
     '  phase avg / std / stresses: %.1f s\n  Q_inst_avg: %.1f s\n' ...
     '  vorticity of mean velocity: %.1f s\n  save: %.1f s\n'], ...
@@ -315,5 +289,107 @@ S = load(save_path);
 % Calculate secondary values (Q, power, integral values) and save in
 % separate file
 calc_secondary_vals_phase(S, D, bools, save_filepath_local, bounds);
+end
+end
+
+% Process one phase bin: load its frames, compute the phase average,
+% standard deviation, Reynolds stresses, per-frame forces and (optionally)
+% per-frame Q averaged over the bin. Runs on a parallel worker.
+function B = process_bin(file_path, U, L, bin_indices, bin_frame_pos, fields, x_conv, bounds,...
+    speed, rho_act, opts, print_dim_bool)
+
+B.bin_count = length(bin_indices);
+B.bin_std = std(bin_frame_pos)*100;
+B.t = struct('import', 0, 'forces', 0, 'stats', 0, 'Q_inst', 0);
+
+data = cell(1, length(fields));
+t0 = tic;
+[x, y, z, data{:}] = import_STB_data(file_path, opts.nondim, U, L, bin_indices, opts.RPCA);
+B.t.import = toc(t0);
+B.x = x; B.y = y; B.z = z;
+
+% Forces on each frame, then averaged over the bin
+t0 = tic;
+if ~opts.turbine
+    F = prepare_STB_wake_field(L, y, z, print_dim_bool, data, x_conv, bounds); % trimming fields
+    [lift_vals, drag_vals] = get_wake_lift(speed, L, F, true, rho_act);
+    [lift_vel_vals, drag_vel_vals] = get_wake_lift(speed, L, F, false, rho_act);
+    clear F
+
+    lift_fields = fieldnames(lift_vals);
+    for f = 1:length(lift_fields)
+        cur_vals = lift_vals.(lift_fields{f});
+        B.lift.(lift_fields{f}) = mean(cur_vals(:), "omitnan");
+    end
+    drag_fields = fieldnames(drag_vals);
+    for f = 1:length(drag_fields)
+        cur_vals = drag_vals.(drag_fields{f});
+        B.drag.(drag_fields{f}) = mean(cur_vals(:), "omitnan");
+    end
+    B.lift_vel = mean(lift_vel_vals(:), "omitnan");
+    B.drag_vel = mean(drag_vel_vals(:), "omitnan");
+end
+B.t.forces = toc(t0);
+
+% Phase average and standard deviation of every field
+t0 = tic;
+B.avg = cell(1, length(fields));
+B.std = cell(1, length(fields));
+for f = 1:length(fields)
+    B.avg{f} = mean(data{f}, 4, "omitnan");
+    B.std{f} = std(data{f}, 0, 4, "omitnan");
+end
+
+% Velocity fluctuations for Reynolds stress calculation
+u_fluc = data{1} - B.avg{1};
+v_fluc = data{2} - B.avg{2};
+w_fluc = data{3} - B.avg{3};
+wx_fluc = data{5} - B.avg{5};
+wy_fluc = data{6} - B.avg{6};
+
+% Normal stresses
+B.stress.uu_stress = mean(u_fluc .* u_fluc, 4, "omitnan");
+B.stress.vv_stress = mean(v_fluc .* v_fluc, 4, "omitnan");
+B.stress.ww_stress = mean(w_fluc .* w_fluc, 4, "omitnan");
+% Shear stresses
+B.stress.uv_stress = mean(u_fluc .* v_fluc, 4, "omitnan");
+B.stress.uw_stress = mean(u_fluc .* w_fluc, 4, "omitnan");
+B.stress.vw_stress = mean(v_fluc .* w_fluc, 4, "omitnan");
+% Fluctuation terms related to force calculation
+B.stress.u_wx_stress = mean(u_fluc .* wx_fluc, 4, "omitnan");
+B.stress.u_wy_stress = mean(u_fluc .* wy_fluc, 4, "omitnan");
+B.t.stats = toc(t0);
+
+% Q on each instantaneous field, then averaged over the bin
+if opts.calc_Q_inst
+    t0 = tic;
+    B.Q = cell(1, 4);
+    [B.Q{1}, B.Q{2}, B.Q{3}, B.Q{4}] = inst_Q_avg(data{1}, data{2}, data{3}, x, y, z);
+    B.t.Q_inst = toc(t0);
+end
+end
+
+% Start (or reuse) a parallel pool with num_workers workers. Returns 0,
+% i.e. run serially, if num_workers is 0 or parallel pools aren't
+% available (no Parallel Computing Toolbox).
+function num_workers = start_pool(num_workers)
+if num_workers <= 0
+    num_workers = 0;
+    return
+end
+if ~license('test', 'Distrib_Computing_Toolbox') || isempty(ver('parallel'))
+    warning("phase_avg_STB:noParallel",...
+        "Parallel Computing Toolbox not available, processing bins serially")
+    num_workers = 0;
+    return
+end
+
+pool = gcp('nocreate');
+if ~isempty(pool) && pool.NumWorkers ~= num_workers
+    delete(pool);
+    pool = [];
+end
+if isempty(pool)
+    parpool(num_workers);
 end
 end

@@ -143,7 +143,7 @@ function S = time_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, n
     S.drag_vel_before_avg = mean(drag_vel_frames, "omitnan");
 
     % Save the entire structure
-    save(save_path, '-struct', 'S');
+    save_STB_struct(save_path, S, bools);
     
     fprintf('Processing and saving took %.4f seconds.\n', toc);
 

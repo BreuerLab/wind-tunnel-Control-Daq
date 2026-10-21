@@ -76,7 +76,7 @@ end
 % Save the entire structure
 save_path = fullfile(save_filepath_local, save_filename);
 disp("Saving data to: " + save_path)
-save(save_path, '-struct', 'S');
+save_STB_struct(save_path, S, bools);
 
 fprintf('Secondary file: Processing and saving data took %.4f seconds.\n', toc);
 end
