@@ -106,16 +106,27 @@ function names = select_cases(case_names, positions, amps, freqs)
             keep(i) = keep(i) && ismember(erase(pos, "_"), erase(string(positions), "_"));
         end
 
-        amp = str2double(regexp(name, '_(\d+)deg', 'tokens', 'once'));
+        amp = parse_number(name, '_(\d+)deg');
         if ~isempty(amps)
             keep(i) = keep(i) && ~isnan(amp) && ismember(amp, amps);
         end
 
-        freq = str2double(regexp(name, '_(\d+)Hz', 'tokens', 'once'));
+        freq = parse_number(name, '_(\d+)Hz');
         if ~isempty(freqs)
             keep(i) = keep(i) && ~isnan(freq) && ismember(freq, freqs);
         end
     end
 
     names = case_names(keep);
+end
+
+% Number captured by the pattern's token, NaN if the name doesn't match
+% (e.g. no amplitude in "x3_ring")
+function val = parse_number(name, pattern)
+    tok = regexp(char(name), pattern, 'tokens', 'once');
+    if isempty(tok)
+        val = NaN;
+    else
+        val = str2double(tok{1});
+    end
 end
