@@ -8,6 +8,9 @@ if ~params.movie
     % xlabel("x/c", FontSize=16)
     if isfield(params, 'conv_units') && params.conv_units
         xlabel(ax, "x/c = U t / c", FontSize=16)
+        % all three axes are in chords, so draw them to the same scale
+        % (true vortex shapes); limits are left as set by the caller
+        daspect(ax, [1 1 1])
     else
         xlabel(ax, "t/T", FontSize=16)
     end
