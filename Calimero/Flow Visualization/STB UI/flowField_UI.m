@@ -277,6 +277,10 @@ methods
         obj.movie_3D_avg_vars = [obj.movie_3D_avg_vars, "<Qx> inst", "<Qy> inst", "<Qz> inst", "<Q> inst"];
         movie_3D_avg_values = [movie_3D_avg_values, "Qx_inst_avg", "Qy_inst_avg", "Qz_inst_avg", "Q_inst_avg"];
         time_avg_values = [time_avg_values, "Qx_inst_avg", "Qy_inst_avg", "Qz_inst_avg", "Q_inst_avg"];
+        % frame-to-frame standard deviation of that Q within each bin
+        % (phase_avg_STB with bools.Q_inst = true)
+        obj.movie_3D_std_vars = [obj.movie_3D_std_vars, "<Qx> inst", "<Qy> inst", "<Qz> inst", "<Q> inst"];
+        movie_3D_std_values = [movie_3D_std_values, "Qx_inst_std", "Qy_inst_std", "Qz_inst_std", "Q_inst_std"];
         % ["u_phase_std","v_phase_std","w_phase_std","Utot_phase_std",...
         % "vortX_phase_std","vortY_phase_std","vortZ_phase_std","vortTot_phase_std",...
         % "uncU_phase_std","uncV_phase_std","uncW_phase_std","uncTot_phase_std","hel_phase_std", "numP_phase_std"];
@@ -380,7 +384,11 @@ methods
                       -1, 1;
                       -1, 1;
                       0, 0.1;
-                      0, 0.1];
+                      0, 0.1;
+                      0, 0.1;...  % σ(Qx) inst
+                      0, 0.1;...  % σ(Qy) inst
+                      0, 0.1;...  % σ(Qz) inst
+                      0, 0.1];    % σ(Q) inst
 
         obj.mean_clim_dict = obj.build_clim_dict(obj.movie_3D_avg_vars, obj.mean_clims);
         obj.std_clim_dict = obj.build_clim_dict(obj.movie_3D_std_vars, obj.std_clims);
@@ -413,6 +421,11 @@ methods
                             "\boldmath$\nabla \cdot u \frac{c}{U_{\infty}}$",...
                             "KE","power"];
         movie_3D_std_labels = [movie_3D_avg_labels(1:8) movie_3D_avg_labels(13:end)];
+        movie_3D_std_labels = [movie_3D_std_labels,...
+            "\boldmath$\sigma_{Q_x} \frac{c^2}{U_{\infty}^2}$",...
+            "\boldmath$\sigma_{Q_y} \frac{c^2}{U_{\infty}^2}$",...
+            "\boldmath$\sigma_{Q_z} \frac{c^2}{U_{\infty}^2}$",...
+            "\boldmath$\sigma_{Q} \frac{c^2}{U_{\infty}^2}$"];
         movie_3D_avg_labels(end+1) = "\boldmath$U_{\infty}\, y\, \omega_x \; (\mathrm{m^2/s^2})$";
         movie_3D_avg_labels = [movie_3D_avg_labels,...
             "\boldmath$\langle Q_x \rangle \frac{c^2}{U_{\infty}^2}$",...
@@ -1548,6 +1561,11 @@ methods (Access = private)
         end
 
         if plot_idx ~= 8
+            if ~isfield(d, var_name)
+                error("flowField_UI:missingVariable",...
+                    "%s is not in the processed file for %s. Reprocess the case (Q*_inst fields need bools.Q_inst = true).",...
+                    var_name, obj.case_name)
+            end
             val = d.(var_name);
             planeIdx = (size(val,1) + 1) / 2;
         end
