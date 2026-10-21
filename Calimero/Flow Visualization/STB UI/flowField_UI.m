@@ -130,6 +130,9 @@ properties
     num_cycles;
     % 3D plot x-axis in convective units (x/c = U t / c) instead of t/T
     conv_units_bool;
+    % x/c per unit of t/T on the current 3D plot (U / (f L) * (N-1)/N),
+    % used to switch the x-axis units without redrawing
+    conv_scale;
     extrapolate_bool;
     floor_bool;
     thresh;
@@ -172,6 +175,7 @@ methods
         obj.filter_bool = false;
         obj.num_cycles = 1;
         obj.conv_units_bool = false;
+        obj.conv_scale = [];
         obj.trim_bool = true;
         obj.extrapolate_bool = false;
         obj.floor_bool = false;
@@ -1118,8 +1122,33 @@ methods
                 src.Text = "x-axis: t/T";
                 src.BackgroundColor = obj.INACTIVE_COLOR;
             end
-            obj.plot_hold_bool = false; % redraw so the axis label updates
-            obj.update_plot(plot_panel);
+
+            % The two axes differ only by a constant factor, so rescale the
+            % existing isosurface in place (keeps the current view and
+            % avoids reloading the data). Redraw only if there's no 3D plot.
+            ax = findobj(plot_panel.Children, 'Type', 'axes');
+            p = findobj(ax, 'Type', 'patch');
+            if obj.plot_type ~= obj.plot_types(5) || ~isscalar(ax) || ~isscalar(p) || isempty(obj.conv_scale)
+                obj.plot_hold_bool = false;
+                obj.update_plot(plot_panel);
+                return
+            end
+
+            if obj.conv_units_bool
+                scale = obj.conv_scale;
+            else
+                scale = 1 / obj.conv_scale;
+            end
+            p.Vertices(:,1) = p.Vertices(:,1) * scale;
+            ax.XLim = ax.XLim * scale;
+
+            if obj.conv_units_bool
+                xlabel(ax, "x/c = U t / c", FontSize=16)
+                daspect(ax, [1 1 1]) % true shapes: all axes in chords
+            else
+                xlabel(ax, "t/T", FontSize=16)
+                ax.DataAspectRatioMode = 'auto';
+            end
         end
 
         function frame_change(src, ~, plot_panel)
@@ -1820,6 +1849,9 @@ methods (Access = private)
             params.isoValue = obj.iso_val; % 0.05
             params.num_cycles = obj.num_cycles;
             params.conv_units = obj.conv_units_bool;
+            % stack_vortices_3D's t/T axis is the convective axis divided by
+            % its maximum, U * (N-1) / (f N) / L
+            obj.conv_scale = d.U * (d.num_bins - 1) / (d.cycle_freq * d.num_bins * d.L);
 
             [xlims, surface_data, color_data] = stack_vortices_3D(y, z, val, Q, d.cycle_freq, params);
             setColorBar(ax, params)
