@@ -1,4 +1,9 @@
-function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density)
+function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density, opts)
+    % opts.edge_taper : width (chords) of the smooth edge taper used for
+    %                   the omega_y lift estimate's window-edge terms
+    %                   (default 0.75; 0 = no edge terms, old estimate)
+    if nargin < 6 || isempty(opts), opts = struct(); end
+    if ~isfield(opts, 'edge_taper'), opts.edge_taper = 0.75; end
 
     % ---------------------------------------------
     % --------- Make values dimensional -----------
@@ -93,80 +98,47 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density)
         % lift_du = squeeze(lift_du);
 
         if ~(isscalar(x))
-        % x = flip(x);
+        % ---- omega_y (spanwise starting/stopping vorticity) estimate ----
+        % div(omega) = 0 gives, for A = int int y*omega_x dA over the
+        % half plane, with a weight phi(y,z) that is 1 inside and goes
+        % smoothly to 0 at the outer spanwise edge and the top/bottom edges:
+        %
+        %   d/dx int int y*phi*wx dA = int int [ phi*wy + y*wy*dphi/dy
+        %                                        + y*wz*dphi/dz ] dA
+        %
+        % The last two terms are the window-edge terms (vortex lines that
+        % leave the window: tether wakes, sheets cut by the edges), taken
+        % as averages over a band opts.edge_taper chords wide instead of
+        % on single noisy edge rows. edge_taper = 0 drops them (the old
+        % estimate, integral of omega_y only). The y = 0 (symmetry) side
+        % needs no taper: its edge term is weighted by y = 0.
+        % Frozen flow (x points upstream): dA/dt = U dA/dx, so
+        % lift(t) = 2*rho*U * U * int (...) dt, mean removed (the omega_y
+        % route carries no information about the mean).
+        % Code-frame signs: z decreases with array index (trapz over z is
+        % -int dz) and wx, wy are stored with the opposite sign of a
+        % right-handed curl, wz with the same sign; hence the minus on
+        % the wz term below. (Checked in wake_lift_budget.)
+        dt = abs(x(2) - x(1)) / U;          % x is the frozen-flow axis
+        t  = (0:size(vortY,3)-1) * dt;
 
-        dx = abs(x(2) - x(1));
-        dt = dx / U;
+        I2 = @(F) squeeze(trapz(z(1,:), trapz(y(:,1), F, 1), 2));
+        [phi, dphi_dy, dphi_dz] = edge_taper_weight(y, z, opts.edge_taper * L);
 
-        mult_fac = 1;
-        num_points = mult_fac * length(x);
+        wy_integrand = phi .* vortY + y .* vortY .* dphi_dy - y .* vortZ .* dphi_dz;
+        rate_wy = U * I2(wy_integrand);                 % = dA/dt, A tapered
+        rate_wy = rate_wy - mean(rate_wy);
+        lift_wy_F = 2 * density * U * cumtrapz(t(:), rate_wy(:));
 
-        % Generate the finer grid
-        % x = linspace(x(1), mult_fac*x(end), num_points);
+        % same estimate without the edge terms or taper (previous version)
+        rate_raw = U * I2(vortY);
+        rate_raw = rate_raw - mean(rate_raw);
+        lift.vortY_no_edge = 2 * density * U * cumtrapz(t(:), rate_raw(:));
 
-        % use normalized weighting 0 -> 1
-        x = linspace(mult_fac/num_points, mult_fac, num_points);
-
-        f = (1 / (dt*length(x)));
-        x = x/f;
-
-        % center x, x = 0 defined at center of pseudo-volume
-        % x = x - (dx * length(x)) / 2;
-
-        x_reshaped = reshape(x, 1, size(x,1), size(x,2));
-
-        lift_wy_F = zeros(1, length(x)/mult_fac);
-
-        vortY_shifted = repmat(vortY,1,1,mult_fac);
-
-        u_rep = repmat(u,1,1,mult_fac);
-
-        % term3 = vortY_shifted;
-        % term3 = -u_rep .* vortY_shifted;
-        term3 = U .* vortY_shifted;
-
-        lift_mat_wy = trapz(y(:,1), term3, 1);
-        lift_vec_wy = trapz(z(1,:), lift_mat_wy, 2);
-
-        lift_vec_wy = lift_vec_wy - mean(lift_vec_wy,"all");
-
-        for i = 1:length(x_reshaped)/mult_fac
-            % lift_vec_wy = lift_vec_wy .* x_reshaped;
-
-
-            % next_ind = i+1;
-            % if next_ind > length(x_reshaped)/mult_fac
-            %     next_ind = 1;
-            % end
-            % lift_wy = trapz(squeeze(x(1,i:next_ind)), lift_vec_wy(i:next_ind), 3);
-            lift_wy = trapz(squeeze(x(1,1:i)), lift_vec_wy(1,1,1:i), 3);
-
-            % original
-            % lift_wy = trapz(x, lift_vec_wy, 3);
-            % lift_wy = lift_wy + (lift_vec_wy(end) - lift_vec_wy(1));
-
-            lift_wy_F(i) = squeeze(lift_wy);
-
-            % original, shifting x
-            % x_reshaped = circshift(x_reshaped, 1, 3);
-
-            % testing shifting vorticity instead
-            % vortY_shifted = circshift(vortY_shifted, -1, 3);
-        end
-
-        % expression from June 10th 2026
-        % lift_wy_F = 2 * density * lift_wy_F' * U^2 / (1 / (dt*length(x)));
-
-        lift_wy_F = 2 * density * lift_wy_F' * U;
-        % lift_wy_F = squeeze(lift_vec_wy);
-
-        % lift_wy_F = gradient(lift_wy_F, dt);
-        % order = 3;
-        % framelen = 11;
-        % [~,lift_wy_F,~] = savitskyGolayDiff(lift_wy_F, order, framelen, dt);
-
-        % expression from June 10th 2026
-        % lift_wy_F = 2 * density * lift_wy_F' * (1 / (dt*length(x)));
+        % omega_x estimate with the same taper, for a like-for-like
+        % comparison with lift.vortY (differs from lift.vortX only by
+        % omega_x inside the edge band)
+        lift.vortX_taper = 2 * density * U * I2(y .* phi .* vortX);
 
         total = lift_wx + lift_vel_diff;
         lift.vortY = lift_wy_F;
@@ -232,4 +204,32 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density)
         drag = squeeze(drag);
     end
     
+end
+
+function [phi, dphi_dy, dphi_dz] = edge_taper_weight(y, z, ell)
+% Weight that is 1 in the interior and ramps to 0 (0.5 - 0.5cos) over a
+% band ell wide at the outer spanwise edge (max y) and both z edges, plus
+% its derivatives with respect to the coordinate values (array order does
+% not matter). ell = 0 gives phi = 1 and zero derivatives.
+yv = y(:,1);  zv = z(1,:);
+[Ty, dTy] = cos_ramp(yv, min(yv), max(yv), ell, false, true);
+[Tz, dTz] = cos_ramp(zv(:), min(zv), max(zv), ell, true, true);
+phi     = Ty  * Tz';
+dphi_dy = dTy * Tz';
+dphi_dz = Ty  * dTz';
+end
+
+function [t, dt] = cos_ramp(c, lo, hi, ell, do_lo, do_hi)
+tl = ones(size(c)); dtl = zeros(size(c));
+th = ones(size(c)); dth = zeros(size(c));
+if ell > 0 && do_lo
+    m = c < lo + ell; s = (c(m) - lo) / ell;
+    tl(m) = 0.5 - 0.5*cos(pi*s);  dtl(m) =  0.5*pi/ell*sin(pi*s);
+end
+if ell > 0 && do_hi
+    m = c > hi - ell; s = (hi - c(m)) / ell;
+    th(m) = 0.5 - 0.5*cos(pi*s);  dth(m) = -0.5*pi/ell*sin(pi*s);
+end
+t  = tl .* th;
+dt = dtl .* th + tl .* dth;
 end
