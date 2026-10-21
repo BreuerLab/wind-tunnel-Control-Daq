@@ -16,7 +16,7 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 % PIV_case_name = 'UP_two_flexible_20deg_6Hz';
 % PIV_case_name = 'x5_wings_20deg_0Hz';
 % PIV_case_name = 'MPS_wings_20deg_6Hz';
-PIV_case_name = 'x3_wings_20deg_6Hz';
+PIV_case_name = 'x3_wings_20deg_2Hz';
 % PIV_case_name = 'x3_ring';
 % PIV_case_name = 'turbine';
 
