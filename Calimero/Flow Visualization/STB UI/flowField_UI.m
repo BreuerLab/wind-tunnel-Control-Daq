@@ -675,7 +675,7 @@ methods
 
         param_grid = uigridlayout(obj.param_panel, [11, 1]);
         param_grid.ColumnWidth = {'1x'};
-        param_grid.RowHeight = {22, 55, 30, 22, 55, 30, 30, 30, 85, 18, 60};
+        param_grid.RowHeight = {22, 55, 30, 22, 55, 30, 30, 30, 50, 18, 24};
         param_grid.Padding = [10 8 10 8];
         param_grid.RowSpacing = 6;
 
@@ -779,26 +779,25 @@ methods
             end
         end
 
-        % Isometric views: camera along (+/-1, +/-1, +/-1); button text is
-        % the sign of the camera's x, y, z. Top row from above, bottom
-        % row from below.
+        % Isometric views from above: camera along (+/-1, +/-1, 1); button
+        % text is the sign of the camera's x, y, z.
         iso_label = uilabel(param_grid);
         iso_label.Layout.Row = 10;
         iso_label.Layout.Column = 1;
         iso_label.HorizontalAlignment = 'center';
-        iso_label.Text = 'Isometric (camera x, y, z signs)';
+        iso_label.Text = 'Iso views';
 
-        iso_grid = uigridlayout(param_grid, [2, 4]);
+        iso_grid = uigridlayout(param_grid, [1, 4]);
         iso_grid.Layout.Row = 11;
         iso_grid.Layout.Column = 1;
-        iso_grid.RowHeight = {'1x', '1x'};
+        iso_grid.RowHeight = {'1x'};
         iso_grid.ColumnWidth = {'1x', '1x', '1x', '1x'};
         iso_grid.Padding = [0 0 0 0];
         iso_grid.RowSpacing = 4;
         iso_grid.ColumnSpacing = 4;
 
-        iso_labels = ["+++", "-++", "--+", "+-+"; "++-", "-+-", "---", "+--"];
-        for iso_row = 1:2
+        iso_labels = ["+++", "-++", "--+", "+-+"];
+        for iso_row = 1
             for iso_col = 1:4
                 iso_button = uibutton(iso_grid);
                 iso_button.Layout.Row = iso_row;
@@ -995,7 +994,7 @@ methods
             row_heights = sidebar_grid.RowHeight;
             if is_visible
                 obj.param_panel.Visible = "on";
-                row_heights{16} = 584;
+                row_heights{16} = 523;
             else
                 obj.param_panel.Visible = "off";
                 row_heights{16} = 0;
