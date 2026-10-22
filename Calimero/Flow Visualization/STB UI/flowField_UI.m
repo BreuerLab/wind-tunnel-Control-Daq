@@ -1381,6 +1381,45 @@ methods (Access = private)
         end
     end
 
+    % Whether the 3D axes is in a view that shows the x-axis edge on:
+    % looking along y (+/-yz: az = 0 or 180, el = 0) or along z (+/-xz:
+    % el = +/-90)
+    function [along_y, along_z, az, el] = get_stroke_view(~, ax)
+        [az, el] = view(ax);
+        tol = 0.5; % deg
+        along_y = abs(el) < tol && abs(mod(az + tol, 180) - tol) < tol;
+        along_z = abs(abs(el) - 90) < tol;
+    end
+
+    % Remove the stroke labels as soon as the 3D view is rotated away from
+    % a supported view (mouse rotation, or any other view change). The
+    % listeners live as long as the axes. View and CameraPosition are
+    % both watched since which one interactive rotation sets depends on
+    % the MATLAB version; if a property can't be listened to, the labels
+    % are still cleared at the next plot refresh.
+    function add_stroke_view_listeners(obj, ax)
+        for prop = ["View", "CameraPosition"]
+            try
+                addlistener(ax, prop, 'PostSet', @(~, ~) obj.clear_stroke_labels_if_rotated(ax));
+            catch
+            end
+        end
+    end
+
+    function clear_stroke_labels_if_rotated(obj, ax)
+        if ~isvalid(ax)
+            return
+        end
+        labels = findall(ax, 'Tag', obj.STROKE_TAG);
+        if isempty(labels)
+            return
+        end
+        [along_y, along_z] = obj.get_stroke_view(ax);
+        if ~along_y && ~along_z
+            delete(labels);
+        end
+    end
+
     % Black lines at the stroke reversals, light gray shading over the
     % downstroke and "upstroke" / "downstroke" text, on the 3D plot. Only
     % drawn in the 2D views that show the x-axis (looking along y: +/-yz,
@@ -1399,10 +1438,7 @@ methods (Access = private)
             return
         end
 
-        [az, el] = view(ax);
-        tol = 0.5; % deg
-        along_y = abs(el) < tol && min(abs(mod(az + tol, 180) - tol)) < tol; % az = 0 or 180
-        along_z = abs(abs(el) - 90) < tol;
+        [along_y, along_z, az, el] = obj.get_stroke_view(ax);
         if ~along_y && ~along_z
             return
         end
@@ -2220,6 +2256,7 @@ methods (Access = private)
                 p.FaceVertexCData = color_data;
             else
                 plot_3D(ax, surface_data, color_data, params);
+                obj.add_stroke_view_listeners(ax);
                 obj.plot_hold_bool = true;
             end
             obj.set_stroke_frame_shift(params.shift - conv_shift_bins);
