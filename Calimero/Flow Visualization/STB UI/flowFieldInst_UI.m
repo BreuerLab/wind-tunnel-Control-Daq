@@ -17,7 +17,6 @@ end
 
 properties
     % Display and dataset selection
-    mon_num;
     phase_avg_file_path;
     source_mode;
     source_modes;
@@ -85,8 +84,7 @@ end
 methods
     % Constructor Function
     % Defines constants and default values for parameters
-    function obj = flowFieldInst_UI(mon_num, file_path)
-        obj.mon_num = mon_num;
+    function obj = flowFieldInst_UI(file_path)
         obj.case_name = "";
         obj.variable_name = "";
         obj.phase_avg_file_path = file_path + "Processed Results\phase_avg\";
@@ -226,7 +224,7 @@ methods
     % functions to be used when user clicks on UI elements
     function dynamic_plotting(obj)
         % Create a GUI figure with a grid layout
-        [option_panel, plot_panel, screen_size] = setupFig(obj.mon_num);
+        [option_panel, plot_panel, screen_size] = setupFig();
         pause(1.8) % wait until GUI opened
 
         screen_height = screen_size(4);

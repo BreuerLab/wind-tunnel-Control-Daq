@@ -27,7 +27,6 @@ classdef phaseAvg_UI < handle
     end
 
 properties
-    mon_num; % 1 or 2, monitor to display plot on
 
     root_path; % file path to data
     PIV_path;
@@ -164,8 +163,7 @@ end
 methods
     % Constructor Function
     % Defines constants and default values for parameters
-    function obj = phaseAvg_UI(mon_num, data_path)
-        obj.mon_num = mon_num;
+    function obj = phaseAvg_UI(data_path)
         obj.root_path = data_path;
         obj.PIV_path = obj.root_path + "Processed Results\";
         obj.force_path = obj.root_path + "Force Measurements\";
@@ -229,7 +227,7 @@ methods
         % Create a GUI figure with a grid layout.  The option sidebar uses
         % layout managers so controls stay accessible as the window changes
         % size instead of relying on monitor-dependent pixel positions.
-        [option_panel, plot_panel, ~] = setupFig(obj.mon_num);
+        [option_panel, plot_panel, ~] = setupFig();
         option_panel.AutoResizeChildren = true;
         if isprop(option_panel, "Scrollable")
             option_panel.Scrollable = "on";

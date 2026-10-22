@@ -39,7 +39,6 @@ end
 
 properties
     % Display and dataset selection
-    mon_num;
     file_path;
     phase_avg_file_path;
     time_avg_file_path;
@@ -162,8 +161,7 @@ end
 methods
     % Constructor Function
     % Defines constants and default values for parameters
-    function obj = flowField_UI(mon_num, file_path)
-        obj.mon_num = mon_num;
+    function obj = flowField_UI(file_path)
         obj.case_name = "";
         obj.variable_name = "";
         obj.phase_avg_file_path = file_path + "Processed Results\phase_avg\";
@@ -508,7 +506,7 @@ methods
         pause(1.8) % wait until GUI opened
         % Create a GUI figure with layout managers so controls stay
         % reachable as the window or monitor size changes.
-        [option_panel, plot_panel, ~] = setupFig(obj.mon_num);
+        [option_panel, plot_panel, ~] = setupFig();
         option_panel.AutoResizeChildren = true;
         if isprop(option_panel, "Scrollable")
             option_panel.Scrollable = "on";

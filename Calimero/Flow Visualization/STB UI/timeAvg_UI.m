@@ -31,7 +31,6 @@ classdef timeAvg_UI < handle
     end
 
     properties
-        mon_num; % 1 or 2, monitor to display plot on
 
         root_path; % file path to data
         PIV_path;
@@ -108,8 +107,7 @@ classdef timeAvg_UI < handle
     methods
         % Constructor Function
         % Defines constants and default values for parameters
-        function obj = timeAvg_UI(mon_num, data_path)
-            obj.mon_num = mon_num;
+        function obj = timeAvg_UI(data_path)
             obj.root_path = data_path;
             obj.PIV_path = obj.root_path + "Processed Results\phase_avg\";
             obj.time_avg_path = obj.root_path + "Processed Results\time_avg\";
@@ -267,7 +265,7 @@ classdef timeAvg_UI < handle
             % Create a GUI figure with a grid layout. The sidebar uses
             % layout managers so controls stay accessible as the window
             % changes size instead of relying on monitor-dependent pixels.
-            [option_panel, plot_panel, ~] = setupFig(obj.mon_num);
+            [option_panel, plot_panel, ~] = setupFig();
             option_panel.AutoResizeChildren = true;
             if isprop(option_panel, "Scrollable")
                 option_panel.Scrollable = "on";
