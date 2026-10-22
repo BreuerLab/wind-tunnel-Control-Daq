@@ -2063,6 +2063,20 @@ methods (Access = private)
         end
 
         y_text = yl(2) - 0.03 * diff(yl);
+
+        % match the legend's font, size and interpreter (latex); fall back
+        % to the legend defaults if there's no legend on this axes
+        lg = ax.Legend;
+        if ~isempty(lg) && isvalid(lg)
+            label_font = lg.FontName;
+            label_size = lg.FontSize;
+            label_interp = lg.Interpreter;
+        else
+            label_font = ax.FontName;
+            label_size = 0.9 * ax.FontSize; % MATLAB's default legend size
+            label_interp = "latex";
+        end
+
         add_labels(down, "downstroke");
         add_labels(up, "upstroke");
 
@@ -2074,7 +2088,8 @@ methods (Access = private)
                 end
                 text(ax, mean(intervals(m,:)), y_text, label, ...
                     HorizontalAlignment="center", VerticalAlignment="top", ...
-                    FontSize=14, Color="k", Clipping="on");
+                    FontName=label_font, FontSize=label_size, ...
+                    Interpreter=label_interp, Color="k", Clipping="on");
             end
         end
 
