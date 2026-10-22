@@ -132,6 +132,10 @@ properties
     % boolean, phase shift PIV force curves by the time the wake takes
     % to convect from the robot to the imaging plane
     conv_shift;
+    % boolean, mark stroke reversals and shade the downstroke (only
+    % available with conv_shift, since only then are all curves in the
+    % robot's wing phase)
+    label_stroke;
     align_bool;
     force_index;
     separate_y_axis_bool;
@@ -188,6 +192,7 @@ methods
         obj.force_index = [];
         obj.calc_bool = false;
         obj.conv_shift = false;
+        obj.label_stroke = false;
         obj.align_bool = false;
         obj.separate_y_axis_bool = false;
         obj.mean_subtraction_bool = false;
@@ -232,7 +237,7 @@ methods
 
         sidebar_grid = uigridlayout(option_panel, [19, 1]);
         sidebar_grid.ColumnWidth = {'1x'};
-        sidebar_grid.RowHeight = {30, 30, 30, 30, 30, 30, 30, 110, 30, 294, 30, 0, 30, 30, 30, 24, 30, 30, 30};
+        sidebar_grid.RowHeight = {30, 30, 30, 30, 30, 30, 30, 110, 30, 328, 30, 0, 30, 30, 30, 24, 30, 30, 30};
         sidebar_grid.Padding = [10 10 10 10];
         sidebar_grid.RowSpacing = 6;
         if isprop(sidebar_grid, "Scrollable")
@@ -334,9 +339,9 @@ methods
         param_panel.Title = "Plot Parameters";
         param_panel.TitlePosition = 'centertop';
 
-        param_grid = uigridlayout(param_panel, [9, 1]);
+        param_grid = uigridlayout(param_panel, [10, 1]);
         param_grid.ColumnWidth = {'1x'};
-        param_grid.RowHeight = {22, 25, 22, 25, 22, 25, 30, 25, 30};
+        param_grid.RowHeight = {22, 25, 22, 25, 22, 25, 30, 25, 30, 30};
         param_grid.Padding = [10 8 10 8];
         param_grid.RowSpacing = 4;
 
@@ -403,6 +408,19 @@ methods
         conv_shift_button.BackgroundColor = obj.get_button_color(obj.conv_shift);
         conv_shift_button.Tooltip = "Phase shift PIV force and flow curves by the convection time from the robot to the imaging plane";
         conv_shift_button.ValueChangedFcn = @(src, event) conv_shift_change(src, event, plot_panel);
+
+        % Stroke reversal lines, upstroke/downstroke labels and downstroke
+        % shading. Turned on with Convection Shift, unavailable without it.
+        label_stroke_button = uibutton(param_grid, "state");
+        label_stroke_button.Layout.Row = 10;
+        label_stroke_button.Layout.Column = 1;
+        label_stroke_button.Text = "Label Stroke";
+        label_stroke_button.FontSize = 18;
+        label_stroke_button.Value = obj.label_stroke;
+        label_stroke_button.Enable = obj.conv_shift;
+        label_stroke_button.BackgroundColor = obj.get_button_color(obj.label_stroke);
+        label_stroke_button.Tooltip = "Mark stroke reversals (from the phase-averaged wing position) and label upstroke / downstroke. Requires Convection Shift";
+        label_stroke_button.ValueChangedFcn = @(src, event) label_stroke_change(src, event, plot_panel);
 
         var_dropdown1.ValueChangedFcn = @(src, event) updateVariableSelection(src, event, plot_panel, var_dropdown1, var_dropdown2);
         var_dropdown2.ValueChangedFcn = @(src, event) updateVariableSelection(src, event, plot_panel, var_dropdown1, var_dropdown2);
@@ -628,6 +646,21 @@ methods
         function conv_shift_change(src, ~, plot_panel)
             obj.conv_shift = src.Value;
             src.BackgroundColor = obj.get_button_color(obj.conv_shift);
+
+            % Label Stroke follows Convection Shift: on by default when it
+            % is turned on, forced off and disabled when it is turned off
+            obj.label_stroke = obj.conv_shift;
+            label_stroke_button.Value = obj.label_stroke;
+            label_stroke_button.Enable = obj.conv_shift;
+            label_stroke_button.BackgroundColor = obj.get_button_color(obj.label_stroke);
+
+            obj.update_plot(plot_panel);
+        end
+
+        function label_stroke_change(src, ~, plot_panel)
+            obj.label_stroke = src.Value && obj.conv_shift;
+            src.Value = obj.label_stroke;
+            src.BackgroundColor = obj.get_button_color(obj.label_stroke);
             obj.update_plot(plot_panel);
         end
 
@@ -1918,6 +1951,14 @@ methods (Access = private)
         end
         end
 
+        if obj.conv_shift && obj.label_stroke && ~isempty(obj.selection)
+            [t_top, t_bottom] = obj.get_stroke_reversals();
+            if ~isempty(t_top)
+                obj.draw_stroke_labels(ax, t_top, t_bottom, dual_plot);
+                obj.draw_stroke_labels(ax_target, t_top, t_bottom, dual_plot);
+            end
+        end
+
         hold(ax, 'off');
         hold(ax_target, 'off');
         if (obj.saveFig)
@@ -1939,6 +1980,111 @@ methods (Access = private)
         end
 
       
+    end
+
+    % Stroke reversal times (t/T) from the phase-averaged wing position:
+    % t_top = top of the stroke (upstroke -> downstroke), t_bottom = bottom
+    % (downstroke -> upstroke). Uses the first selected case; others are
+    % checked and a note printed if their reversals differ noticeably.
+    % Kinematics are measured at the robot, so these are in the robot's
+    % wing phase, same as the convection-shifted flow curves.
+    function [t_top, t_bottom] = get_stroke_reversals(obj)
+        t_top = [];
+        t_bottom = [];
+        for i = 1:length(obj.selection)
+            cur_sel = obj.selection(i);
+            [amp, type, ~] = parse_name(cur_sel);
+            secondary_file_path = obj.PIV_path + "phase_avg\" + cur_sel + "_phase_avg_integral.mat";
+            try
+                d = load(secondary_file_path, "phase_avg_wing_pos");
+                wing_pos = d.phase_avg_wing_pos(:)';
+            catch
+                disp("No wing position for " + cur_sel + ", stroke not labeled from it")
+                continue
+            end
+
+            % same phase correction applied to the plotted curves
+            if amp == 10 && ~contains(type, "UP") && ~obj.is_new_flapper_type(type)
+                wing_pos = circshift(wing_pos, round(0.5*length(wing_pos)));
+            end
+
+            % time base matches the plotted curves: (1:N)/N
+            N = length(wing_pos);
+            [~, i_top] = max(wing_pos);
+            [~, i_bottom] = min(wing_pos);
+            cur_top = i_top / N;
+            cur_bottom = i_bottom / N;
+
+            if isempty(t_top)
+                t_top = cur_top;
+                t_bottom = cur_bottom;
+                disp("Stroke reversals from " + cur_sel + ": top at t/T = " + ...
+                    round(t_top, 3) + ", bottom at t/T = " + round(t_bottom, 3))
+            else
+                phase_diff = @(a, b) abs(mod(a - b + 0.5, 1) - 0.5);
+                if phase_diff(cur_top, t_top) > 0.02 || phase_diff(cur_bottom, t_bottom) > 0.02
+                    disp("Note: " + cur_sel + " stroke reversals (top " + round(cur_top, 3) + ...
+                        ", bottom " + round(cur_bottom, 3) + ") differ from the labeled case")
+                end
+            end
+        end
+    end
+
+    % Black lines at the stroke reversals, light gray shading over the
+    % downstroke, and "upstroke" / "downstroke" text near the top of the
+    % plot. All hidden from the legend.
+    function draw_stroke_labels(~, ax, t_top, t_bottom, dual_plot)
+        if dual_plot
+            yyaxis(ax, 'left')
+        end
+        xlim(ax, [0 1])
+        yl = ylim(ax);
+        ylim(ax, yl) % keep limits fixed while adding the shading
+
+        % [start end] of each region on [0, 1], splitting at the wrap
+        down = wrap_intervals(t_top, t_bottom);
+        up = wrap_intervals(t_bottom, t_top);
+
+        for k = 1:size(down, 1)
+            p = patch(ax, down(k,[1 2 2 1]), yl([1 1 2 2]), [0.8 0.8 0.8]);
+            p.FaceAlpha = 0.35;
+            p.EdgeColor = 'none';
+            p.HandleVisibility = 'off';
+            p.PickableParts = 'none';
+            try
+                uistack(p, 'bottom'); % behind the curves
+            catch
+            end
+        end
+
+        for t = [t_top, t_bottom]
+            xl = xline(ax, t, 'k', LineWidth=1.5);
+            xl.HandleVisibility = 'off';
+        end
+
+        y_text = yl(2) - 0.03 * diff(yl);
+        add_labels(down, "downstroke");
+        add_labels(up, "upstroke");
+
+        function add_labels(intervals, label)
+            for m = 1:size(intervals, 1)
+                width = diff(intervals(m,:));
+                if width < 0.06 % too narrow to fit the text
+                    continue
+                end
+                text(ax, mean(intervals(m,:)), y_text, label, ...
+                    HorizontalAlignment="center", VerticalAlignment="top", ...
+                    FontSize=14, Color="k", Clipping="on");
+            end
+        end
+
+        function intervals = wrap_intervals(t_start, t_end)
+            if t_start <= t_end
+                intervals = [t_start, t_end];
+            else
+                intervals = [t_start, 1; 0, t_end];
+            end
+        end
     end
 
     % Legend for a load cell curve: the case without the PIV version or
