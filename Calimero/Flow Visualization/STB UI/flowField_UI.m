@@ -2,6 +2,9 @@ classdef flowField_UI < handle
 properties (Constant, Access = private)
     ACTIVE_COLOR = [0.3010 0.7450 0.9330];
     INACTIVE_COLOR = [1 1 1];
+    % Tag on the 3D plot's stroke lines / shading / labels (Label Stroke),
+    % so they can be found and removed without touching the isosurface
+    STROKE_TAG = "stroke_label_3D";
     % Derived variable: lift integrand from the wake, computed on the fly
     % from stored fields (term1 in get_wake_lift: -U .* y .* -vortX, with y
     % measured from the mirror centerline)
@@ -143,6 +146,12 @@ properties
     % shift the 3D plot's phase by the wake's convection time from the
     % robot to the imaging plane, so all cases start at the same wing phase
     conv_shift;
+    % mark stroke reversals on the 3D plot (2D views showing the x-axis)
+    label_stroke;
+    % stroke reversals for the current 3D plot, [] if unavailable:
+    % top / bottom (bin, 1-based, conv-shifted frame), N (bins),
+    % frame_shift (bins the plot is shifted by on top of the conv shift)
+    stroke_3D;
     extrapolate_bool;
     floor_bool;
     thresh;
@@ -187,6 +196,8 @@ methods
         obj.conv_units_bool = false;
         obj.conv_scale = [];
         obj.conv_shift = false;
+        obj.label_stroke = false;
+        obj.stroke_3D = [];
         obj.trim_bool = true;
         obj.extrapolate_bool = false;
         obj.floor_bool = false;
@@ -662,9 +673,9 @@ methods
         obj.param_panel.Title = "3D Plot Parameters";
         obj.param_panel.TitlePosition = 'centertop';
 
-        param_grid = uigridlayout(obj.param_panel, [8, 1]);
+        param_grid = uigridlayout(obj.param_panel, [11, 1]);
         param_grid.ColumnWidth = {'1x'};
-        param_grid.RowHeight = {22, 55, 30, 22, 55, 30, 30, 85};
+        param_grid.RowHeight = {22, 55, 30, 22, 55, 30, 30, 30, 85, 18, 60};
         param_grid.Padding = [10 8 10 8];
         param_grid.RowSpacing = 6;
 
@@ -732,9 +743,23 @@ methods
         conv_shift_button.Tooltip = "Phase shift the 3D plot by the convection time from the robot to the imaging plane, so cases at different frequencies start at the same wing phase";
         conv_shift_button.ValueChangedFcn = @(src, event) conv_shift_change(src, event, plot_area_panel);
 
+        % Stroke reversal lines, downstroke shading and up/downstroke
+        % labels; drawn only in the 2D views that show the x-axis
+        % (+/-yz, +/-xz). Needs the convection shift, like phaseAvg_UI.
+        label_stroke_button = uibutton(param_grid, "state");
+        label_stroke_button.Layout.Row = 8;
+        label_stroke_button.Layout.Column = 1;
+        label_stroke_button.Text = "Label Stroke";
+        label_stroke_button.FontSize = 16;
+        label_stroke_button.Value = obj.label_stroke;
+        label_stroke_button.Enable = obj.conv_shift;
+        label_stroke_button.BackgroundColor = obj.get_button_color(obj.label_stroke);
+        label_stroke_button.Tooltip = "Mark stroke reversals (from the phase-averaged wing position) and label upstroke / downstroke in the +/-yz and +/-xz views. Requires Convection Shift";
+        label_stroke_button.ValueChangedFcn = @(src, event) label_stroke_change(src, event, plot_area_panel);
+
         % View buttons rotate the current 3D axes without redrawing data.
         view_grid = uigridlayout(param_grid, [2, 3]);
-        view_grid.Layout.Row = 8;
+        view_grid.Layout.Row = 9;
         view_grid.Layout.Column = 1;
         view_grid.RowHeight = {'1x', '1x'};
         view_grid.ColumnWidth = {'1x', '1x', '1x'};
@@ -751,6 +776,37 @@ methods
                 view_button.Text = view_labels(view_row, view_col);
                 view_button.BackgroundColor = obj.INACTIVE_COLOR;
                 view_button.ButtonPushedFcn = @(src, event) view_change_handler(src.Text, plot_area_panel);
+            end
+        end
+
+        % Isometric views: camera along (+/-1, +/-1, +/-1); button text is
+        % the sign of the camera's x, y, z. Top row from above, bottom
+        % row from below.
+        iso_label = uilabel(param_grid);
+        iso_label.Layout.Row = 10;
+        iso_label.Layout.Column = 1;
+        iso_label.HorizontalAlignment = 'center';
+        iso_label.Text = 'Isometric (camera x, y, z signs)';
+
+        iso_grid = uigridlayout(param_grid, [2, 4]);
+        iso_grid.Layout.Row = 11;
+        iso_grid.Layout.Column = 1;
+        iso_grid.RowHeight = {'1x', '1x'};
+        iso_grid.ColumnWidth = {'1x', '1x', '1x', '1x'};
+        iso_grid.Padding = [0 0 0 0];
+        iso_grid.RowSpacing = 4;
+        iso_grid.ColumnSpacing = 4;
+
+        iso_labels = ["+++", "-++", "--+", "+-+"; "++-", "-+-", "---", "+--"];
+        for iso_row = 1:2
+            for iso_col = 1:4
+                iso_button = uibutton(iso_grid);
+                iso_button.Layout.Row = iso_row;
+                iso_button.Layout.Column = iso_col;
+                iso_button.Text = iso_labels(iso_row, iso_col);
+                iso_button.BackgroundColor = obj.INACTIVE_COLOR;
+                iso_button.Tooltip = "Isometric view, camera at (x, y, z) signs " + iso_labels(iso_row, iso_col);
+                iso_button.ButtonPushedFcn = @(src, event) view_change_handler(src.Text, plot_area_panel);
             end
         end
 
@@ -939,7 +995,7 @@ methods
             row_heights = sidebar_grid.RowHeight;
             if is_visible
                 obj.param_panel.Visible = "on";
-                row_heights{16} = 452;
+                row_heights{16} = 584;
             else
                 obj.param_panel.Visible = "off";
                 row_heights{16} = 0;
@@ -1113,7 +1169,15 @@ methods
                     view(ax, [-1 0 0])
                 case "-yz"
                     view(ax, [0 -1 0])
+                otherwise
+                    % isometric: text is the sign of camera x, y, z
+                    if strlength(selected_text) == 3 && all(ismember(char(selected_text), '+-'))
+                        view(ax, 1 - 2 * (char(selected_text) == '-'))
+                    end
             end
+
+            % stroke labels only show in the views that show the x-axis
+            obj.draw_stroke_labels_3D(ax);
         end
 
         function save_figure(~, ~, plot_panel)
@@ -1150,7 +1214,7 @@ methods
             % existing isosurface in place (keeps the current view and
             % avoids reloading the data). Redraw only if there's no 3D plot.
             ax = findobj(plot_panel.Children, 'Type', 'axes');
-            p = findobj(ax, 'Type', 'patch');
+            p = obj.find_isosurface_patch(ax);
             if obj.plot_type ~= obj.plot_types(5) || ~isscalar(ax) || ~isscalar(p) || isempty(obj.conv_scale)
                 obj.plot_hold_bool = false;
                 obj.update_plot(plot_panel);
@@ -1172,14 +1236,33 @@ methods
                 xlabel(ax, "t/T", FontSize=16)
                 ax.DataAspectRatioMode = 'auto';
             end
+            obj.draw_stroke_labels_3D(ax); % redraw in the new units
         end
 
         function conv_shift_change(src, ~, plot_panel)
             obj.conv_shift = src.Value;
             src.BackgroundColor = obj.get_button_color(obj.conv_shift);
+
+            % Label Stroke follows Convection Shift (as in phaseAvg_UI): on
+            % when it is turned on, off and disabled when it is turned off
+            obj.label_stroke = obj.conv_shift;
+            label_stroke_button.Value = obj.label_stroke;
+            label_stroke_button.Enable = obj.conv_shift;
+            label_stroke_button.BackgroundColor = obj.get_button_color(obj.label_stroke);
+
             if obj.plot_type == obj.plot_types(5)
                 obj.update_plot(plot_panel);
             end
+        end
+
+        function label_stroke_change(src, ~, plot_panel)
+            obj.label_stroke = src.Value && obj.conv_shift;
+            src.Value = obj.label_stroke;
+            src.BackgroundColor = obj.get_button_color(obj.label_stroke);
+            % stroke reversals are already loaded with the 3D plot, so
+            % just add / remove the labels on the current axes
+            ax = findobj(plot_panel.Children, 'Type', 'axes');
+            obj.draw_stroke_labels_3D(ax);
         end
 
         function frame_change(src, ~, plot_panel)
@@ -1253,6 +1336,180 @@ methods (Access = private)
             obj.current_downstream_type = "";
         else
             obj.current_downstream_type = obj.downstream_types(1);
+        end
+    end
+
+    % The 3D plot's isosurface patch (not the Label Stroke shading)
+    function p = find_isosurface_patch(obj, ax)
+        p = findobj(ax, 'Type', 'patch', '-not', 'Tag', obj.STROKE_TAG);
+    end
+
+    % Stroke reversals for the 3D plot from the phase-averaged wing
+    % position (max = top of the stroke, upstroke -> downstroke; min =
+    % bottom, downstroke -> upstroke), in flow bins. [] if not saved.
+    function S = get_stroke_info_3D(obj, file_base, num_bins)
+        S = [];
+        integral_file = file_base + "_integral.mat";
+        wing_pos = [];
+        if isfile(integral_file)
+            vars = who("-file", integral_file);
+            if ismember("phase_avg_wing_pos", vars)
+                d = load(integral_file, "phase_avg_wing_pos");
+                wing_pos = d.phase_avg_wing_pos(:)';
+            end
+        end
+        if isempty(wing_pos)
+            if obj.label_stroke
+                disp("No wing position for " + obj.get_current_case_id() + ", stroke not labeled")
+            end
+            return
+        end
+
+        N_w = length(wing_pos);
+        [~, i_top] = max(wing_pos);
+        [~, i_bottom] = min(wing_pos);
+        % same bin <-> phase convention as phaseAvg_UI (bin i at i/N), so
+        % rescale if the wing position has a different number of bins
+        S.top = i_top * num_bins / N_w;
+        S.bottom = i_bottom * num_bins / N_w;
+        S.N = num_bins;
+        S.frame_shift = 0;
+    end
+
+    function set_stroke_frame_shift(obj, frame_shift)
+        if ~isempty(obj.stroke_3D)
+            obj.stroke_3D.frame_shift = frame_shift;
+        end
+    end
+
+    % Black lines at the stroke reversals, light gray shading over the
+    % downstroke and "upstroke" / "downstroke" text, on the 3D plot. Only
+    % drawn in the 2D views that show the x-axis (looking along y: +/-yz,
+    % or along z: +/-xz); removed in any other view. Lines and text go on
+    % the face of the plot box nearest the camera, the shading on the far
+    % face (behind the isosurface).
+    function draw_stroke_labels_3D(obj, ax)
+        if isempty(ax) || ~isscalar(ax) || ~isvalid(ax)
+            return
+        end
+        % findall: the labels have HandleVisibility off, so findobj misses them
+        delete(findall(ax, 'Tag', obj.STROKE_TAG));
+
+        S = obj.stroke_3D;
+        if ~obj.label_stroke || ~obj.conv_shift || isempty(S) || obj.plot_type ~= obj.plot_types(5)
+            return
+        end
+
+        [az, el] = view(ax);
+        tol = 0.5; % deg
+        along_y = abs(el) < tol && min(abs(mod(az + tol, 180) - tol)) < tol; % az = 0 or 180
+        along_z = abs(abs(el) - 90) < tol;
+        if ~along_y && ~along_z
+            return
+        end
+        % camera direction (from target) and screen-up for MATLAB's view
+        cam = [sind(az)*cosd(el), -cosd(az)*cosd(el), sind(el)];
+        up = [-sind(az)*sind(el), cosd(az)*sind(el), cosd(el)];
+
+        xl = ax.XLim; yl = ax.YLim; zl = ax.ZLim;
+
+        % reversal positions in wingbeat phase [0, 1) of the plotted data:
+        % bin k (1-based) is plotted at index mod(k - 1 + frame_shift, N)
+        N = S.N;
+        to_phase = @(k) mod(k - 1 + S.frame_shift, N) / N;
+        p_top = to_phase(S.top);
+        p_bottom = to_phase(S.bottom);
+
+        % one wingbeat on the x-axis (stack_vortices_3D: N bins span
+        % (N-1)/(N-1) = 1, so a full period is N/(N-1))
+        period = N / (N - 1);
+        if obj.conv_units_bool
+            period = period * obj.conv_scale;
+        end
+
+        cycles = -1:obj.num_cycles;
+        down = clip_intervals([p_top + cycles; p_bottom + cycles + (p_bottom < p_top)]' * period);
+        up_iv = clip_intervals([p_bottom + cycles; p_top + cycles + (p_top < p_bottom)]' * period);
+        rev_x = [p_top + cycles, p_bottom + cycles] * period;
+        rev_x = rev_x(rev_x >= xl(1) & rev_x <= xl(2));
+
+        if along_y
+            near = yl(1 + (cam(2) > 0)); far = yl(2 - (cam(2) > 0));
+        else
+            near = zl(1 + (cam(3) > 0)); far = zl(2 - (cam(3) > 0));
+        end
+
+        % downstroke shading on the far face
+        for k = 1:size(down, 1)
+            xs = down(k, [1 2 2 1]);
+            if along_y
+                h = patch(ax, xs, far * ones(1,4), zl([1 1 2 2]), [0.8 0.8 0.8]);
+            else
+                h = patch(ax, xs, yl([1 1 2 2]), far * ones(1,4), [0.8 0.8 0.8]);
+            end
+            h.FaceAlpha = 0.35;
+            h.EdgeColor = 'none';
+            style(h)
+        end
+
+        % reversal lines on the near face
+        for t = rev_x
+            if along_y
+                h = line(ax, [t t], [near near], zl);
+            else
+                h = line(ax, [t t], yl, [near near]);
+            end
+            h.Color = 'k';
+            h.LineWidth = 1.5;
+            style(h)
+        end
+
+        % labels near the top of the screen, same font as the axis labels
+        if along_y
+            v_lim = zl; v_up = up(3);
+        else
+            v_lim = yl; v_up = up(2);
+        end
+        if v_up >= 0
+            v_text = v_lim(2) - 0.03 * diff(v_lim);
+        else
+            v_text = v_lim(1) + 0.03 * diff(v_lim);
+        end
+        add_labels(down, "downstroke");
+        add_labels(up_iv, "upstroke");
+
+        function add_labels(intervals, label)
+            for m = 1:size(intervals, 1)
+                if diff(intervals(m,:)) < 0.06 * period % too narrow for text
+                    continue
+                end
+                x_mid = mean(intervals(m,:));
+                if along_y
+                    h_t = text(ax, x_mid, near, v_text, label);
+                else
+                    h_t = text(ax, x_mid, v_text, near, label);
+                end
+                h_t.HorizontalAlignment = "center";
+                h_t.VerticalAlignment = "top";
+                h_t.FontName = ax.XLabel.FontName;
+                h_t.FontSize = ax.XLabel.FontSize;
+                h_t.Interpreter = ax.XLabel.Interpreter;
+                h_t.Color = "k";
+                h_t.Clipping = "on";
+                style(h_t)
+            end
+        end
+
+        function iv = clip_intervals(iv)
+            iv(:,1) = max(iv(:,1), xl(1));
+            iv(:,2) = min(iv(:,2), xl(2));
+            iv = iv(iv(:,2) > iv(:,1), :);
+        end
+
+        function style(h)
+            h.Tag = obj.STROKE_TAG;
+            h.HandleVisibility = 'off';
+            h.PickableParts = 'none';
         end
     end
 
@@ -1553,7 +1810,7 @@ methods (Access = private)
 
         % Reuse the existing 3D patch when only its surface data changes.
         if obj.plot_hold_bool
-            p = findobj(ax, 'Type', 'patch');
+            p = obj.find_isosurface_patch(ax);
         else
             delete(ax);
         end
@@ -1927,6 +2184,14 @@ methods (Access = private)
             % its maximum, U * (N-1) / (f N) / L
             obj.conv_scale = d.U * (d.num_bins - 1) / (d.cycle_freq * d.num_bins * d.L);
 
+            % Stroke reversals for Label Stroke. The wing position is
+            % measured at the robot, so it only lines up with the flow
+            % once the convection shift is applied.
+            obj.stroke_3D = [];
+            if obj.conv_shift
+                obj.stroke_3D = obj.get_stroke_info_3D(full_file_path, d.num_bins);
+            end
+
             [xlims, surface_data, color_data] = stack_vortices_3D(y, z, val, Q, d.cycle_freq, params);
             setColorBar(ax, params)
             xlim(ax,xlims) % otherwise when plotting multiple wingbeats awkward extra space added
@@ -1940,6 +2205,8 @@ methods (Access = private)
                 p.Vertices = surface_data.vertices;
                 p.Faces = surface_data.faces;
                 p.FaceVertexCData = color_data;
+                obj.set_stroke_frame_shift(params.shift - conv_shift_bins);
+                obj.draw_stroke_labels_3D(ax);
         
                 pause(0.1);
 
@@ -1956,6 +2223,8 @@ methods (Access = private)
                 plot_3D(ax, surface_data, color_data, params);
                 obj.plot_hold_bool = true;
             end
+            obj.set_stroke_frame_shift(params.shift - conv_shift_bins);
+            obj.draw_stroke_labels_3D(ax);
         elseif plot_idx == 6
             if (obj.variable_name == obj.hist_vars(3))
                 if isfield(d, "bin_ind_arr")
