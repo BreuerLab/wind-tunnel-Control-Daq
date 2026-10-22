@@ -25,6 +25,13 @@ properties (Constant, Access = private)
     OLD_FLAPPER_DISTANCE_LABELS = ["x = 0.9m";"x = 1.3m";"x = 1.7m"];
     NEW_FLAPPER_DOWNSTREAM_TYPES = ["x1";"x2";"x3";"x4";"x5";"MPS"];
     NEW_FLAPPER_DISTANCE_LABELS = ["x1";"x2";"x3";"x4";"x5";"MPS"];
+    % Streamwise separation (m) between the robot and the imaging plane,
+    % used for the convection phase shift (same values as phaseAvg_UI).
+    % Entries line up with OLD_/NEW_FLAPPER_DOWNSTREAM_TYPES. Set an entry
+    % to NaN if unknown (no shift applied).
+    OLD_FLAPPER_DOWNSTREAM_DISTS = [0.9; 0.9 + 0.37; 0.9 + 2*0.37]; % flexible, UP_one, UP_two
+    NEW_FLAPPER_DOWNSTREAM_DISTS = [0.9 - 2*0.37; 0.9 - 0.37; 0.9; 0.9 + 0.37; 0.9 + 2*0.37; 1.0]; % x1-x5, MPS
+    CONV_SPEED = 4; % m/s, convection speed of the wake
 end
 
 properties
@@ -133,6 +140,9 @@ properties
     % x/c per unit of t/T on the current 3D plot (U / (f L) * (N-1)/N),
     % used to switch the x-axis units without redrawing
     conv_scale;
+    % shift the 3D plot's phase by the wake's convection time from the
+    % robot to the imaging plane, so all cases start at the same wing phase
+    conv_shift;
     extrapolate_bool;
     floor_bool;
     thresh;
@@ -176,6 +186,7 @@ methods
         obj.num_cycles = 1;
         obj.conv_units_bool = false;
         obj.conv_scale = [];
+        obj.conv_shift = false;
         obj.trim_bool = true;
         obj.extrapolate_bool = false;
         obj.floor_bool = false;
@@ -651,9 +662,9 @@ methods
         obj.param_panel.Title = "3D Plot Parameters";
         obj.param_panel.TitlePosition = 'centertop';
 
-        param_grid = uigridlayout(obj.param_panel, [7, 1]);
+        param_grid = uigridlayout(obj.param_panel, [8, 1]);
         param_grid.ColumnWidth = {'1x'};
-        param_grid.RowHeight = {22, 55, 30, 22, 55, 30, 85};
+        param_grid.RowHeight = {22, 55, 30, 22, 55, 30, 30, 85};
         param_grid.Padding = [10 8 10 8];
         param_grid.RowSpacing = 6;
 
@@ -709,9 +720,21 @@ methods
         conv_units_button.Tooltip = "Toggle the 3D plot x-axis between wingbeat time t/T and convective units x/c = U t / c";
         conv_units_button.ValueChangedFcn = @(src, event) conv_units_change(src, event, plot_area_panel);
 
+        % Phase shift by the convection time from the robot to the imaging
+        % plane (same as phaseAvg_UI's Convection Shift button)
+        conv_shift_button = uibutton(param_grid, "state");
+        conv_shift_button.Layout.Row = 7;
+        conv_shift_button.Layout.Column = 1;
+        conv_shift_button.Text = "Convection Shift";
+        conv_shift_button.FontSize = 16;
+        conv_shift_button.Value = obj.conv_shift;
+        conv_shift_button.BackgroundColor = obj.get_button_color(obj.conv_shift);
+        conv_shift_button.Tooltip = "Phase shift the 3D plot by the convection time from the robot to the imaging plane, so cases at different frequencies start at the same wing phase";
+        conv_shift_button.ValueChangedFcn = @(src, event) conv_shift_change(src, event, plot_area_panel);
+
         % View buttons rotate the current 3D axes without redrawing data.
         view_grid = uigridlayout(param_grid, [2, 3]);
-        view_grid.Layout.Row = 7;
+        view_grid.Layout.Row = 8;
         view_grid.Layout.Column = 1;
         view_grid.RowHeight = {'1x', '1x'};
         view_grid.ColumnWidth = {'1x', '1x', '1x'};
@@ -916,7 +939,7 @@ methods
             row_heights = sidebar_grid.RowHeight;
             if is_visible
                 obj.param_panel.Visible = "on";
-                row_heights{16} = 416;
+                row_heights{16} = 452;
             else
                 obj.param_panel.Visible = "off";
                 row_heights{16} = 0;
@@ -1151,6 +1174,14 @@ methods
             end
         end
 
+        function conv_shift_change(src, ~, plot_panel)
+            obj.conv_shift = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.conv_shift);
+            if obj.plot_type == obj.plot_types(5)
+                obj.update_plot(plot_panel);
+            end
+        end
+
         function frame_change(src, ~, plot_panel)
             % Force the slider value to the nearest integer immediately
             src.Value = round(src.Value);
@@ -1223,6 +1254,48 @@ methods (Access = private)
         else
             obj.current_downstream_type = obj.downstream_types(1);
         end
+    end
+
+    % Streamwise distance (m) from the robot to the imaging plane for the
+    % current case, NaN if unknown (e.g. turbine cases)
+    function dist = get_downstream_dist(obj)
+        dist = NaN;
+        downstream_type = string(obj.current_downstream_type);
+        if obj.source_mode == obj.OLD_FLAPPER_SOURCE_MODE
+            idx = find(obj.OLD_FLAPPER_DOWNSTREAM_TYPES == downstream_type, 1);
+            if ~isempty(idx)
+                dist = obj.OLD_FLAPPER_DOWNSTREAM_DISTS(idx);
+            end
+        elseif obj.source_mode == obj.NEW_FLAPPER_SOURCE_MODE
+            idx = find(obj.NEW_FLAPPER_DOWNSTREAM_TYPES == downstream_type, 1);
+            if ~isempty(idx)
+                dist = obj.NEW_FLAPPER_DOWNSTREAM_DISTS(idx);
+            end
+        end
+    end
+
+    % Number of phase bins to circshift phase-averaged data by so that it
+    % lines up with the wing phase at the robot (convection time from the
+    % robot to the imaging plane as a fraction of a wingbeat). Same shift
+    % as phaseAvg_UI applies to its flow curves. 0 if the shift is off or
+    % the distance is unknown.
+    function shift_bins = get_conv_shift_bins(obj, cycle_freq, num_bins)
+        shift_bins = 0;
+        if ~obj.conv_shift
+            return
+        end
+
+        dist = obj.get_downstream_dist();
+        if isnan(dist)
+            disp("No downstream distance defined for " + obj.get_current_case_id() + ", not shifted")
+            return
+        end
+
+        conv_time = dist / obj.CONV_SPEED;
+        shift = conv_time * cycle_freq; % shift as a portion of a cycle
+        shift_bins = round(shift * num_bins);
+        disp("Shifted " + obj.get_current_case_id() + " by: " + shift_bins + " / " + num_bins + ...
+            " (" + dist + " m downstream)")
     end
 
     function A = nan_safe_medfilt(~, A)
@@ -1845,7 +1918,8 @@ methods (Access = private)
             params.clims = var_clims;
             params.movie = false;
             params.L = d.L;
-            params.shift = obj.frame_ind - 1;
+            conv_shift_bins = obj.get_conv_shift_bins(d.cycle_freq, d.num_bins);
+            params.shift = obj.frame_ind - 1 + conv_shift_bins;
             params.isoValue = obj.iso_val; % 0.05
             params.num_cycles = obj.num_cycles;
             params.conv_units = obj.conv_units_bool;
@@ -1860,7 +1934,7 @@ methods (Access = private)
             while obj.play && (obj.frame_ind < obj.num_bins)
                 obj.frame_ind = obj.frame_ind + 1;
                 obj.slider.Value = obj.frame_ind;
-                params.shift = obj.frame_ind;
+                params.shift = obj.frame_ind + conv_shift_bins;
         
                 [~, surface_data, color_data] = stack_vortices_3D(y, z, val, Q, d.cycle_freq, params);
                 p.Vertices = surface_data.vertices;
