@@ -2199,7 +2199,7 @@ methods (Access = private)
             while obj.play && (obj.frame_ind < obj.num_bins)
                 obj.frame_ind = obj.frame_ind + 1;
                 obj.slider.Value = obj.frame_ind;
-                params.shift = obj.frame_ind + conv_shift_bins;
+                params.shift = obj.frame_ind - 1 + conv_shift_bins; % same as the slider (frame 1 = no shift)
         
                 [~, surface_data, color_data] = stack_vortices_3D(y, z, val, Q, d.cycle_freq, params);
                 p.Vertices = surface_data.vertices;
