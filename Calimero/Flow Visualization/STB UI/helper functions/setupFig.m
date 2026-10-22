@@ -12,20 +12,41 @@ function [option_panel, plot_panel, screen_size] = setupFig(mon_num)
         fprintf('Placing figure on monitor %d: [%g %g %g %g]\n', ...
             min(max(mon_num, 1), num_monitors), screen_size);
 
-        % Create the window hidden and move it onto the target monitor
-        % before showing and maximizing it. uifigure windows are positioned
-        % asynchronously, so maximizing straight away can maximize the
-        % window on the monitor it was created on (usually the primary).
-        % Use a box inside the monitor rather than its full area so the
-        % window manager doesn't clamp it back onto the primary monitor.
+        % Show the window, then move it onto the target monitor and only
+        % maximize once it has actually arrived there. uifigure windows
+        % are positioned asynchronously, and maximizing a window that
+        % hasn't moved yet maximizes it on the primary monitor. Use a box
+        % inside the monitor rather than its full area so the window
+        % manager doesn't clamp it back onto the primary monitor.
         inset = round(0.1 * screen_size(3:4));
-        fig = uifigure('Name', 'Dynamic Force Plotting', 'Visible', 'off');
-        fig.Position = [screen_size(1:2) + inset, screen_size(3:4) - 2*inset];
-        fig.Visible = 'on';
+        target = [screen_size(1:2) + inset, screen_size(3:4) - 2*inset];
+        fig = uifigure('Name', 'Dynamic Force Plotting');
         drawnow
-        fig.WindowState = 'maximized'; % or 'fullscreen'
-        drawnow
+        landed = false;
+        for attempt = 1:10
+            fig.Position = target;
+            drawnow
+            pause(0.1)
+            pos = fig.Position;
+            landed = on_monitor(pos, screen_size);
+            if landed
+                break
+            end
+        end
+        fprintf('  window at [%g %g %g %g] after %d attempt(s)\n', pos, attempt);
 
+        if landed
+            fig.WindowState = 'maximized'; % or 'fullscreen'
+            drawnow
+        else
+            % never reached the target monitor: fill it without maximizing
+            fprintf('  window did not move to the requested monitor; sizing it to the monitor instead of maximizing\n');
+            fig.Position = screen_size;
+            drawnow
+            pause(0.1)
+            fprintf('  window at [%g %g %g %g]\n', fig.Position);
+        end
+        
         % Create a grid layout
         plot_grid = uigridlayout(fig, [1, 2]);
         plot_grid.RowHeight = {'1x'};
@@ -100,4 +121,10 @@ function positions = get_monitor_positions()
         fprintf('Windows [x y width height]:\n');
         disp(positions)
     end
+end
+
+% Whether the centre of a window [x y w h] is inside a monitor [x y w h]
+function tf = on_monitor(pos, monitor)
+    c = pos(1:2) + pos(3:4) / 2;
+    tf = all(c >= monitor(1:2) & c <= monitor(1:2) + monitor(3:4));
 end
