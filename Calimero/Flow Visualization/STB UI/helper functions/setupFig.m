@@ -28,7 +28,9 @@ function [option_panel, plot_panel, screen_size] = setupFig(mon_num)
             drawnow
             pause(0.1)
             pos = fig.Position;
-            landed = on_monitor(pos, screen_size);
+            % the move itself has to have happened, not just the window
+            % already sitting on that monitor at its default position
+            landed = all(abs(pos - target) <= 2) && on_monitor(pos, screen_size);
             if landed
                 break
             end
@@ -38,6 +40,20 @@ function [option_panel, plot_panel, screen_size] = setupFig(mon_num)
         if landed
             fig.WindowState = 'maximized'; % or 'fullscreen'
             drawnow
+            pause(0.2)
+            pos = fig.Position;
+            fprintf('  after maximizing: [%g %g %g %g]\n', pos);
+            if ~on_monitor(pos, screen_size)
+                % maximizing moved it off the monitor (seen over Remote
+                % Desktop): fill the monitor without maximizing instead
+                fprintf('  maximizing moved the window off the requested monitor; sizing it to the monitor instead\n');
+                fig.WindowState = 'normal';
+                drawnow
+                fig.Position = screen_size;
+                drawnow
+                pause(0.1)
+                fprintf('  window at [%g %g %g %g]\n', fig.Position);
+            end
         else
             % never reached the target monitor: fill it without maximizing
             fprintf('  window did not move to the requested monitor; sizing it to the monitor instead of maximizing\n');
