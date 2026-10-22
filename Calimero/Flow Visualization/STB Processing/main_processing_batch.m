@@ -35,7 +35,7 @@ bools.Q_inst = false; % per-frame Q averaged over each bin, plus its std (Q*_ins
 bools.vort_uavg = false; % vorticity of the averaged velocity (vort*_uavg)
 bools.num_workers = 8; % parallel workers for phase bins (0 = serial); lower if out of memory
 bools.compress_save = false; % true = MATLAB's compressed .mat (smaller, much slower to save)
-bools.proc_vel = true; % false if just calculating secondary values
+bools.proc_vel = false; % false if just calculating secondary values
 
 % If you want to make plots here, you can. However, it is NOT recommended.
 % Intead, use main_analysis to produce plots easily in a GUI interface.
