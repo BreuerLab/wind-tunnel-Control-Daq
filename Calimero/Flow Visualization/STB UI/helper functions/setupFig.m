@@ -37,30 +37,31 @@ function [option_panel, plot_panel, screen_size] = setupFig(mon_num)
         end
         fprintf('  window at [%g %g %g %g] after %d attempt(s)\n', pos, attempt);
 
-        if landed
+        if landed && on_monitor(screen_size, monitor_positions(1, :))
+            % primary monitor: maximizing works
             fig.WindowState = 'maximized'; % or 'fullscreen'
             drawnow
-            pause(0.2)
-            pos = fig.Position;
-            fprintf('  after maximizing: [%g %g %g %g]\n', pos);
-            if ~on_monitor(pos, screen_size)
-                % maximizing moved it off the monitor (seen over Remote
-                % Desktop): fill the monitor without maximizing instead
-                fprintf('  maximizing moved the window off the requested monitor; sizing it to the monitor instead\n');
-                fig.WindowState = 'normal';
-                drawnow
-                fig.Position = screen_size;
-                drawnow
-                pause(0.1)
-                fprintf('  window at [%g %g %g %g]\n', fig.Position);
-            end
-        else
-            % never reached the target monitor: fill it without maximizing
-            fprintf('  window did not move to the requested monitor; sizing it to the monitor instead of maximizing\n');
-            fig.Position = screen_size;
+        elseif landed
+            % Other monitors: don't maximize. Over Remote Desktop, MATLAB
+            % maximizes the window onto the primary monitor, and resizing
+            % it while moving between monitors with different display
+            % scaling doubles its size and position. The window is already
+            % on the target monitor here, so resizing it now stays on that
+            % monitor's scaling. OuterPosition includes the title bar, so
+            % the whole window stays on screen.
+            fig.OuterPosition = screen_size;
             drawnow
-            pause(0.1)
+            pause(0.2)
+            outer = fig.OuterPosition;
+            if ~on_monitor(fig.Position, screen_size) || any(abs(outer(3:4) - screen_size(3:4)) > 0.1 * screen_size(3:4))
+                % resize went wrong: put it back where it was visible
+                fprintf('  could not fill the monitor, leaving the window at [%g %g %g %g]\n', target);
+                fig.Position = target;
+                drawnow
+            end
             fprintf('  window at [%g %g %g %g]\n', fig.Position);
+        else
+            fprintf('  window did not move to the requested monitor\n');
         end
         
         % Create a grid layout
