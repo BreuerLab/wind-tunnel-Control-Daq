@@ -8,9 +8,9 @@ classdef timeAvg_UI < handle
     properties (Constant)
         COLOR_ACTIVE = [0.3010 0.7450 0.9330];
         COLOR_INACTIVE = [1 1 1];
-        % rms: root mean square of the signal; rms (mean removed): rms of
-        % the signal minus its mean, i.e. the size of the fluctuation
-        operations = ["mean", "range", "rms", "rms (mean removed)", "shift"];
+        % rmse: rms of the signal minus its mean, i.e. the size of the
+        % fluctuation about the mean
+        operations = ["mean", "range", "rmse", "shift"];
         cur_types = ["flexible";"UP_one_flexible";"UP_two_flexible"];
         x_axis_types = ["wingbeat frequency", "wingbeat amplitude", "downstream distance"];
         x_axis_labels = ["Wingbeat Frequency", "Wingbeat Amplitude", "Downstream Distance"];
@@ -1591,7 +1591,7 @@ classdef timeAvg_UI < handle
                                 elseif strcmp(obj.operation, "mean")
                                     forces(2,j) = forces(2,j) - mean(body_force);
                                 else
-                                    % range / rms: subtract the body signal
+                                    % range / rmse: subtract the body signal
                                     % first, then reduce what's left
                                     forces(2,j) = obj.reduce_signal(...
                                         obj.subtract_alignment_body_signal(force_signal, body_force));
@@ -1981,9 +1981,7 @@ classdef timeAvg_UI < handle
                     val = mean(signal, "omitnan");
                 case "range"
                     val = range(signal);
-                case "rms"
-                    val = sqrt(mean(signal.^2, "omitnan"));
-                case "rms (mean removed)"
+                case "rmse"
                     val = sqrt(mean((signal - mean(signal, "omitnan")).^2, "omitnan"));
                 otherwise
                     error("timeAvg_UI:unknownOperation", "Unknown operation: %s", obj.operation)
