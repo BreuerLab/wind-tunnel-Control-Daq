@@ -8,7 +8,9 @@ classdef timeAvg_UI < handle
     properties (Constant)
         COLOR_ACTIVE = [0.3010 0.7450 0.9330];
         COLOR_INACTIVE = [1 1 1];
-        operations = ["mean", "range", "shift"];
+        % rms: root mean square of the signal; rms (mean removed): rms of
+        % the signal minus its mean, i.e. the size of the fluctuation
+        operations = ["mean", "range", "rms", "rms (mean removed)", "shift"];
         cur_types = ["flexible";"UP_one_flexible";"UP_two_flexible"];
         x_axis_types = ["wingbeat frequency", "wingbeat amplitude", "downstream distance"];
         x_axis_labels = ["Wingbeat Frequency", "Wingbeat Amplitude", "Downstream Distance"];
@@ -1516,10 +1518,8 @@ classdef timeAvg_UI < handle
                                 var = obj.apply_convection_shift(var, type, measured_freqs(j));
                             end
                             PIV_signals{j} = var;
-                        elseif strcmp(obj.operation, "mean")
-                            forces(1,j) = mean(var, "omitnan");
-                        elseif strcmp(obj.operation, "range")
-                            forces(1,j) = range(var);
+                        else
+                            forces(1,j) = obj.reduce_signal(var);
                         end
                     end
 
@@ -1568,10 +1568,8 @@ classdef timeAvg_UI < handle
 
                             if is_shift_operation
                                 force_signals{j} = force_signal;
-                            elseif strcmp(obj.operation, "mean")
-                                forces(2,j) = mean(force_signal);
-                            elseif strcmp(obj.operation, "range")
-                                forces(2,j) = range(force_signal);
+                            else
+                                forces(2,j) = obj.reduce_signal(force_signal);
                             end
 
                             if obj.force_sub && ~ismember(load_cell_quantity, ["lift", "drag"])
@@ -1590,8 +1588,13 @@ classdef timeAvg_UI < handle
                                 body_force = get_force(obj.force_path, body_type, body_amp, freq, idx, var_name_F);
                                 if is_shift_operation
                                     force_signals{j} = obj.subtract_alignment_body_signal(force_signal, body_force);
-                                else
+                                elseif strcmp(obj.operation, "mean")
                                     forces(2,j) = forces(2,j) - mean(body_force);
+                                else
+                                    % range / rms: subtract the body signal
+                                    % first, then reduce what's left
+                                    forces(2,j) = obj.reduce_signal(...
+                                        obj.subtract_alignment_body_signal(force_signal, body_force));
                                 end
                             end
                         end
@@ -1967,6 +1970,24 @@ classdef timeAvg_UI < handle
             error("timeAvg_UI:PIVSubNotFound",...
                 "No %s subtraction case found for %s at %s deg. Looked for:\n  %s",...
                 obj.PIV_sub_case, type, amp, strjoin(tried, "\n  "));
+        end
+
+        % Reduce a signal (PIV or load cell) to one value per point
+        % according to the selected operation
+        function val = reduce_signal(obj, signal)
+            signal = signal(:);
+            switch obj.operation
+                case "mean"
+                    val = mean(signal, "omitnan");
+                case "range"
+                    val = range(signal);
+                case "rms"
+                    val = sqrt(mean(signal.^2, "omitnan"));
+                case "rms (mean removed)"
+                    val = sqrt(mean((signal - mean(signal, "omitnan")).^2, "omitnan"));
+                otherwise
+                    error("timeAvg_UI:unknownOperation", "Unknown operation: %s", obj.operation)
+            end
         end
 
         function signal = subtract_alignment_body_signal(~, signal, body_signal)
