@@ -1,7 +1,9 @@
 function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density, opts)
     % opts.edge_taper : width (chords) of the smooth edge taper used for
-    %                   the omega_y lift estimate's window-edge terms
-    %                   (default 0.75; 0 = no edge terms, old estimate)
+    %                   the window-edge terms of lift.vortY_edge
+    %                   (default 0.75; 0 makes it equal lift.vortY)
+    % lift.vortY      : omega_y estimate, integral of omega_y only (default)
+    % lift.vortY_edge : same plus the tapered window-edge terms
     if nargin < 6 || isempty(opts), opts = struct(); end
     if ~isfield(opts, 'edge_taper'), opts.edge_taper = 0.75; end
 
@@ -114,8 +116,8 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density, opts)
         % The last two terms are the window-edge terms (vortex lines that
         % leave the window: tether wakes, sheets cut by the edges), taken
         % as averages over a band opts.edge_taper chords wide instead of
-        % on single noisy edge rows. edge_taper = 0 drops them (the old
-        % estimate, integral of omega_y only). The y = 0 (symmetry) side
+        % on single noisy edge rows (lift.vortY_edge). lift.vortY (the
+        % default) drops them: integral of omega_y only. The y = 0 (symmetry) side
         % needs no taper: its edge term is weighted by y = 0.
         % Frozen flow (x points upstream): dA/dt = U dA/dx, so
         % lift(t) = 2*rho*U * U * int (...) dt, mean removed (the omega_y
@@ -137,15 +139,14 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density, opts)
         wy_integrand = phi .* vortY + y .* vortY .* dphi_dy + y .* vortZ .* dphi_dz;
         rate_wy = U * I2(wy_integrand);                 % = dA/dt, A tapered
         rate_wy = rate_wy - periodic_mean(rate_wy(:), t, period);
-        lift_wy_F = 2 * density * U * cumtrapz(t(:), rate_wy(:));
+        lift.vortY_edge = 2 * density * U * cumtrapz(t(:), rate_wy(:));
 
-        % same estimate without the edge terms or taper (previous version)
+        % default: same estimate without the edge terms or taper
         rate_raw = U * I2(vortY);
         rate_raw = rate_raw - periodic_mean(rate_raw(:), t, period);
-        lift.vortY_no_edge = 2 * density * U * cumtrapz(t(:), rate_raw(:));
+        lift.vortY = 2 * density * U * cumtrapz(t(:), rate_raw(:));
 
         total = lift_wx + lift_vel_diff;
-        lift.vortY = lift_wy_F;
         else
             total = lift_wx + lift_vel_diff;
         end
