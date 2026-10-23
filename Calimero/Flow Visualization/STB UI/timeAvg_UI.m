@@ -1433,9 +1433,9 @@ classdef timeAvg_UI < handle
                     else
                         suffix = "_phase_avg";
                     end
-                    case_dir = obj.get_case_dir(name, suffix);
-                    filepath = case_dir + name + suffix + ".mat";
-                    secondary_filepath = case_dir + name + suffix + "_integral.mat";
+                    file_base = obj.get_case_file_base(name, suffix);
+                    filepath = file_base + ".mat";
+                    secondary_filepath = file_base + "_integral.mat";
 
                     if freq == 0
                         avg_type = 0;
@@ -1724,9 +1724,9 @@ classdef timeAvg_UI < handle
                 name = name + "_RPCA";
             end
             suffix = "_phase_avg";
-            case_dir = obj.get_case_dir(name, suffix);
-            filepath = case_dir + name + suffix + ".mat";
-            secondary_filepath = case_dir + name + suffix + "_integral.mat";
+            file_base = obj.get_case_file_base(name, suffix);
+            filepath = file_base + ".mat";
+            secondary_filepath = file_base + "_integral.mat";
 
             d = load(filepath, "U", "U_act");
             F = load(secondary_filepath, "freq_avg");
@@ -1835,7 +1835,7 @@ classdef timeAvg_UI < handle
                 else
                     suffix = "_phase_avg";
                 end
-                signal = signal / obj.get_nominal_speed(obj.get_case_dir(name, suffix) + name + suffix + ".mat");
+                signal = signal / obj.get_nominal_speed(obj.get_case_file_base(name, suffix) + ".mat");
             end
 
             if obj.force_sub && ismember(quantity, ["drag", "lift", "pitch"])
@@ -1986,6 +1986,25 @@ classdef timeAvg_UI < handle
             force_variable = ~isempty(force_index) &&...
                 (force_index <= 6 || startsWith(force_var, ["lift_uavg", "drag_uavg"]) ||...
                  ismember(force_var, ["lift.vortY_edge", "lift.vortX_taper"]));
+        end
+
+        % Path (without .mat) to a case's file. RPCA cases not found in
+        % phase_avg\ or time_avg\ are looked for in the phase_avg\RPCA\
+        % subfolder, named with or without the _RPCA suffix.
+        function file_base = get_case_file_base(obj, name, suffix)
+            name = string(name);
+            file_base = obj.get_case_dir(name, suffix) + name + suffix;
+            if isfile(file_base + ".mat") || isfile(file_base + "_integral.mat") || ~endsWith(name, "_RPCA")
+                return
+            end
+            rpca_dir = obj.PIV_path + "RPCA\";
+            candidates = rpca_dir + [name, string(regexprep(char(name), '_RPCA$', ''))] + suffix;
+            for k = 1:length(candidates)
+                if isfile(candidates(k) + ".mat") || isfile(candidates(k) + "_integral.mat")
+                    file_base = candidates(k);
+                    return
+                end
+            end
         end
 
         function case_dir = get_case_dir(obj, name, suffix)

@@ -1310,6 +1310,26 @@ methods (Access = private)
         end
     end
 
+    % Path (without .mat) to a case's phase averaged file. RPCA cases are
+    % looked for in phase_avg\ first, then in the phase_avg\RPCA\ subfolder,
+    % where the file may be named with or without the _RPCA suffix.
+    function file_base = get_phase_avg_file_base(obj, cur_sel)
+        cur_sel = string(cur_sel);
+        phase_dir = obj.PIV_path + "phase_avg\";
+        file_base = phase_dir + cur_sel + "_phase_avg";
+        if isfile(file_base + ".mat") || isfile(file_base + "_integral.mat") || ~endsWith(cur_sel, "_RPCA")
+            return
+        end
+        rpca_dir = phase_dir + "RPCA\";
+        candidates = rpca_dir + [cur_sel, string(regexprep(char(cur_sel), '_RPCA$', ''))] + "_phase_avg";
+        for k = 1:length(candidates)
+            if isfile(candidates(k) + ".mat") || isfile(candidates(k) + "_integral.mat")
+                file_base = candidates(k);
+                return
+            end
+        end
+    end
+
     function is_rpca = is_RPCA_selection(~, cur_sel)
         is_rpca = contains(string(cur_sel), "_RPCA");
     end
@@ -1738,9 +1758,9 @@ methods (Access = private)
                 continue
             end
 
-            filename = cur_sel + "_phase_avg";
-            file_path = obj.PIV_path  + "phase_avg\" + filename + ".mat";
-            secondary_file_path = obj.PIV_path  + "phase_avg\" + filename + "_integral.mat";
+            file_base = obj.get_phase_avg_file_base(cur_sel);
+            file_path = file_base + ".mat";
+            secondary_file_path = file_base + "_integral.mat";
 
             var_name = obj.active_names(index);
 
@@ -1982,7 +2002,7 @@ methods (Access = private)
         for i = 1:length(obj.selection)
             cur_sel = obj.selection(i);
             [amp, type, ~] = parse_name(cur_sel);
-            secondary_file_path = obj.PIV_path + "phase_avg\" + cur_sel + "_phase_avg_integral.mat";
+            secondary_file_path = obj.get_phase_avg_file_base(cur_sel) + "_integral.mat";
             try
                 d = load(secondary_file_path, "phase_avg_wing_pos");
                 wing_pos = d.phase_avg_wing_pos(:)';
