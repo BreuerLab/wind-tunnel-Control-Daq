@@ -76,6 +76,9 @@ classdef timeAvg_UI < handle
         RPCA;
         err_bool;
         calc_bool;
+        % shift mode: phase shift imaging-plane (STB) signals by the wake's
+        % convection time from the robot to the imaging plane
+        conv_shift;
 
         % trim limits and center point used by Live Calculate
         % (get_PIV_force -> trim_vel_field); starts from
@@ -194,6 +197,7 @@ classdef timeAvg_UI < handle
             obj.saveFig = false;
             obj.err_bool = false;
             obj.calc_bool = false;
+            obj.conv_shift = false;
             obj.trim_bounds = default_trim_bounds();
 
             % Search through files in path to get types and speeds.
@@ -271,9 +275,9 @@ classdef timeAvg_UI < handle
                 option_panel.Scrollable = "on";
             end
 
-            sidebar_grid = uigridlayout(option_panel, [25, 1]);
+            sidebar_grid = uigridlayout(option_panel, [26, 1]);
             sidebar_grid.ColumnWidth = {'1x'};
-            sidebar_grid.RowHeight = {30, 60, 30, 30, 30, 30, 110, 30, 30, 30, 30, 30,...
+            sidebar_grid.RowHeight = {30, 60, 30, 30, 30, 30, 110, 30, 30, 30, 30, 30, 30,...
                                       30, 30, 25, 30, 30, 30, 30, 30, 30, 30, 30, 130, 30};
             sidebar_grid.Padding = [10 10 10 10];
             sidebar_grid.RowSpacing = 6;
@@ -400,10 +404,25 @@ classdef timeAvg_UI < handle
             operation_dropdown.Layout.Row = 12;
             operation_dropdown.Layout.Column = 1;
             operation_dropdown.Items = obj.operations;
-            operation_dropdown.ValueChangedFcn = @(src, event) operation_change(src, event, plot_panel);
+            operation_dropdown.Tooltip = "shift: phase shift of variable 2 behind variable 1 for each case (cross-correlation of the phase-averaged signals); needs two variables";
+
+            % Convection shift for the shift operation (as in phaseAvg_UI
+            % and flowField_UI): STB signals are shifted by the convection
+            % time from the robot to the imaging plane, kinematics are not
+            conv_shift_button = uibutton(sidebar_grid, "state");
+            conv_shift_button.Layout.Row = 13;
+            conv_shift_button.Layout.Column = 1;
+            conv_shift_button.Text = "Convection Shift";
+            conv_shift_button.FontSize = 18;
+            conv_shift_button.Value = obj.conv_shift;
+            conv_shift_button.BackgroundColor = obj.get_button_color(obj.conv_shift);
+            conv_shift_button.Enable = strcmp(obj.operation, "shift");
+            conv_shift_button.Tooltip = "Shift operation only: shift STB (force / flow) signals by the convection time from the robot to the imaging plane before finding the phase shift. Kinematics are measured at the robot and aren't shifted";
+            conv_shift_button.ValueChangedFcn = @(src, event) conv_shift_change(src, event, plot_panel);
+            operation_dropdown.ValueChangedFcn = @(src, event) operation_change(src, event, plot_panel, conv_shift_button);
 
             piv_button = uibutton(sidebar_grid, "state");
-            piv_button.Layout.Row = 13;
+            piv_button.Layout.Row = 14;
             piv_button.Layout.Column = 1;
             piv_button.Text = "Show PIV";
             piv_button.Value = true;
@@ -412,7 +431,7 @@ classdef timeAvg_UI < handle
             piv_button.ValueChangedFcn = @(src, event) PIV_bool_change(src, event, plot_panel);
 
             piv_sub_button = uibutton(sidebar_grid, "state");
-            piv_sub_button.Layout.Row = 14;
+            piv_sub_button.Layout.Row = 15;
             piv_sub_button.Layout.Column = 1;
             piv_sub_button.Text = "PIV Body Sub";
             piv_sub_button.FontSize = 18;
@@ -422,7 +441,7 @@ classdef timeAvg_UI < handle
             % Steady case used for the subtraction, matched to each
             % selection's downstream position (and amplitude for body/gliding)
             piv_sub_dropdown = uidropdown(sidebar_grid);
-            piv_sub_dropdown.Layout.Row = 15;
+            piv_sub_dropdown.Layout.Row = 16;
             piv_sub_dropdown.Layout.Column = 1;
             piv_sub_dropdown.Items = ["ring", "body", "gliding"];
             piv_sub_dropdown.Value = obj.PIV_sub_case;
@@ -430,14 +449,14 @@ classdef timeAvg_UI < handle
             piv_sub_dropdown.ValueChangedFcn = @(src, event) PIV_sub_case_change(src, event, plot_panel);
 
             force_button = uibutton(sidebar_grid, "state");
-            force_button.Layout.Row = 16;
+            force_button.Layout.Row = 17;
             force_button.Layout.Column = 1;
             force_button.Text = "Show Force";
             force_button.FontSize = 18;
             force_button.BackgroundColor = obj.COLOR_INACTIVE;
 
             force_sub_button = uibutton(sidebar_grid, "state");
-            force_sub_button.Layout.Row = 17;
+            force_sub_button.Layout.Row = 18;
             force_sub_button.Layout.Column = 1;
             force_sub_button.Text = "Force Body Sub";
             force_sub_button.FontSize = 18;
@@ -447,7 +466,7 @@ classdef timeAvg_UI < handle
             % Which processed load cell data to read (forces, voltage,
             % current); only used with Show Force on
             load_cell_data_dropdown = uidropdown(sidebar_grid);
-            load_cell_data_dropdown.Layout.Row = 18;
+            load_cell_data_dropdown.Layout.Row = 19;
             load_cell_data_dropdown.Layout.Column = 1;
             load_cell_data_dropdown.Items = obj.load_cell_data_labels;
             load_cell_data_dropdown.Value = obj.load_cell_data_labels(obj.load_cell_data_vars == obj.load_cell_data_var);
@@ -457,7 +476,7 @@ classdef timeAvg_UI < handle
             force_button.ValueChangedFcn = @(src, event) force_bool_change(src, event, plot_panel, load_cell_data_dropdown);
 
             x_norm_button = uibutton(sidebar_grid, "state");
-            x_norm_button.Layout.Row = 19;
+            x_norm_button.Layout.Row = 20;
             x_norm_button.Layout.Column = 1;
             x_norm_button.Text = "Normalize X-axis";
             x_norm_button.FontSize = 18;
@@ -465,7 +484,7 @@ classdef timeAvg_UI < handle
             x_norm_button.ValueChangedFcn = @(src, event) x_norm_change(src, event, plot_panel);
 
             y_norm_button = uibutton(sidebar_grid, "state");
-            y_norm_button.Layout.Row = 20;
+            y_norm_button.Layout.Row = 21;
             y_norm_button.Layout.Column = 1;
             y_norm_button.Text = "Normalize Y-axis";
             y_norm_button.FontSize = 18;
@@ -474,7 +493,7 @@ classdef timeAvg_UI < handle
 
             % Put the two selected variables on separate left/right y-axes
             separate_y_button = uibutton(sidebar_grid, "state");
-            separate_y_button.Layout.Row = 21;
+            separate_y_button.Layout.Row = 22;
             separate_y_button.Layout.Column = 1;
             separate_y_button.Text = "Separate Y-Axis";
             separate_y_button.FontSize = 18;
@@ -482,7 +501,7 @@ classdef timeAvg_UI < handle
             separate_y_button.ValueChangedFcn = @(src, event) separate_y_axis_change(src, event, plot_panel);
 
             err_button = uibutton(sidebar_grid, "state");
-            err_button.Layout.Row = 22;
+            err_button.Layout.Row = 23;
             err_button.Layout.Column = 1;
             err_button.Text = "Error";
             err_button.FontSize = 18;
@@ -490,7 +509,7 @@ classdef timeAvg_UI < handle
             err_button.ValueChangedFcn = @(src, event) err_change(src, event, plot_panel);
 
             calc_button = uibutton(sidebar_grid, "state");
-            calc_button.Layout.Row = 23;
+            calc_button.Layout.Row = 24;
             calc_button.Layout.Column = 1;
             calc_button.Text = "Live Calculate";
             calc_button.FontSize = 18;
@@ -499,7 +518,7 @@ classdef timeAvg_UI < handle
             % Trim limits and center point for Live Calculate,
             % nondimensional (divided by L)
             bounds_panel = uipanel(sidebar_grid);
-            bounds_panel.Layout.Row = 24;
+            bounds_panel.Layout.Row = 25;
             bounds_panel.Layout.Column = 1;
             bounds_panel.Title = "Live Calc Bounds (y/L, z/L)";
             bounds_panel.TitlePosition = 'centertop';
@@ -536,7 +555,7 @@ classdef timeAvg_UI < handle
             calc_button.ValueChangedFcn = @(src, event) calc_change(src, event, plot_panel, bounds_fields);
 
             save_fig_button = uibutton(sidebar_grid);
-            save_fig_button.Layout.Row = 25;
+            save_fig_button.Layout.Row = 26;
             save_fig_button.Layout.Column = 1;
             save_fig_button.Text = "Save Fig";
             save_fig_button.FontSize = 18;
@@ -611,9 +630,19 @@ classdef timeAvg_UI < handle
                 obj.update_plot(plot_panel);
             end
 
-            function operation_change(src, ~, plot_panel)
+            function operation_change(src, ~, plot_panel, conv_shift_button)
                 obj.operation = src.Value;
+                % the convection shift only changes the shift operation
+                conv_shift_button.Enable = strcmp(obj.operation, "shift");
                 obj.update_plot(plot_panel);
+            end
+
+            function conv_shift_change(src, ~, plot_panel)
+                obj.conv_shift = src.Value;
+                src.BackgroundColor = obj.get_button_color(obj.conv_shift);
+                if strcmp(obj.operation, "shift")
+                    obj.update_plot(plot_panel);
+                end
             end
 
             function PIV_bool_change(src, ~, plot_panel)
@@ -1359,8 +1388,17 @@ classdef timeAvg_UI < handle
             l = legend(ax, Location="best");
             set(ax, FontSize=18)
 
-            is_shift_operation = strcmp(obj.operation, "shift");
             selected_force_vars = obj.get_active_force_vars();
+
+            % shift: phase shift between the two selected variables
+            if strcmp(obj.operation, "shift")
+                obj.plot_variable_phase_shift(ax, selected_force_vars);
+                if obj.saveFig
+                    obj.save_hidden_figure(fignew);
+                end
+                return
+            end
+
             num_vars = length(selected_force_vars);
             curve_colors = lines(max(1, length(obj.selection) * max(1, num_vars)));
 
@@ -1421,14 +1459,9 @@ classdef timeAvg_UI < handle
                 force_legend_label = obj.get_load_cell_legend_label(curve_label, load_cell_quantity);
 
                 forces = zeros(2, num_points);
-                if is_shift_operation
-                    forces(:) = NaN;
-                end
                 errors = zeros(1, num_points);
                 measured_freqs = points.freqs;
                 wind_speed_acts = NaN(1, num_points);
-                PIV_signals = cell(1, num_points);
-                force_signals = cell(1, num_points);
                 
                 for j = 1:num_points % Loop through all matching cases
                     type = points.types(j);
@@ -1470,9 +1503,7 @@ classdef timeAvg_UI < handle
                             % errors(j) = 0.2 / length(d.bin_std);
                         end
 
-                        if is_shift_operation && freq == 0
-                            disp("Skipping 0 Hz time-average case for phase shift")
-                        elseif obj.calc_bool && obj.is_piv_force_variable(force_var)
+                        if obj.calc_bool && obj.is_piv_force_variable(force_var)
                             [var, err] = get_PIV_force(filepath, name, force_var, avg_type, obj.y_norm, obj.trim_bounds);
 
                             if obj.PIV_sub
@@ -1480,7 +1511,7 @@ classdef timeAvg_UI < handle
                                 [bod_var, ~] = get_PIV_force(bod_filepath, "", force_var, 0, obj.y_norm, obj.trim_bounds);
                                 var = var - bod_var;
                             end
-                        elseif ~is_shift_operation || freq > 0
+                        else
                             % variables not defined for a case (e.g.
                             % lift.vortY for a 0 Hz mean flow field) are
                             % replaced with zero
@@ -1511,14 +1542,7 @@ classdef timeAvg_UI < handle
                         end
                         
                         % Calculate mean force and store in array for plotting
-                        if is_shift_operation && freq > 0
-                            if obj.is_piv_force_variable(force_var)
-                                var = obj.apply_convection_shift(var, type, measured_freqs(j));
-                            end
-                            PIV_signals{j} = var;
-                        else
-                            forces(1,j) = obj.reduce_signal(var);
-                        end
+                        forces(1,j) = obj.reduce_signal(var);
                     end
 
                     if obj.force_bool && ~contains(type, "UP") && ~isempty(load_cell_idx)
@@ -1534,86 +1558,65 @@ classdef timeAvg_UI < handle
 
                         idx = load_cell_idx;
 
-                        if is_shift_operation && (freq == 0 || is_tunnel_var)
-                            disp("Skipping " + type + " " + freq + " Hz load cell " + load_cell_quantity + " for phase shift")
-                        else
-                            try
-                                force_signal = get_force(obj.force_path, type, amp, freq, idx, var_name_F);
-                            catch ME
-                                if ~strcmp(ME.identifier, "get_force:varNotFound")
-                                    rethrow(ME)
-                                end
-                                % load cell file processed before U_act /
-                                % rho_act were saved: leave the point off
-                                disp(ME.message + " - point not plotted")
-                                force_signal = NaN;
+                        try
+                            force_signal = get_force(obj.force_path, type, amp, freq, idx, var_name_F);
+                        catch ME
+                            if ~strcmp(ME.identifier, "get_force:varNotFound")
+                                rethrow(ME)
                             end
+                            % load cell file processed before U_act /
+                            % rho_act were saved: leave the point off
+                            disp(ME.message + " - point not plotted")
+                            force_signal = NaN;
+                        end
 
-                            if load_cell_quantity == "electric power" && size(force_signal, 1) == 2
-                                % instantaneous power, then averaged below
-                                force_signal = force_signal(1,:) .* force_signal(2,:);
-                            end
+                        if load_cell_quantity == "electric power" && size(force_signal, 1) == 2
+                            % instantaneous power, then averaged below
+                            force_signal = force_signal(1,:) .* force_signal(2,:);
+                        end
 
-                            if var_name_F == "U_act"
-                                % load cell saves m/s; STB "pitot U" is
-                                % U_act / U, so put it on the same scale
-                                if obj.PIV_bool
-                                    force_signal = force_signal / obj.get_nominal_speed(filepath);
-                                else
-                                    force_signal = force_signal / obj.get_nominal_speed("");
-                                end
-                            end
-
-                            if is_shift_operation
-                                force_signals{j} = force_signal;
+                        if var_name_F == "U_act"
+                            % load cell saves m/s; STB "pitot U" is
+                            % U_act / U, so put it on the same scale
+                            if obj.PIV_bool
+                                force_signal = force_signal / obj.get_nominal_speed(filepath);
                             else
-                                forces(2,j) = obj.reduce_signal(force_signal);
+                                force_signal = force_signal / obj.get_nominal_speed("");
                             end
+                        end
 
-                            if obj.force_sub && ~ismember(load_cell_quantity, ["lift", "drag"])
-                                % wind speed, density, voltage, current:
-                                % body subtraction only applies to forces
-                            elseif obj.force_sub && obj.is_plain_steady_type(type)
-                                disp("Force Body Sub skipped for steady case " + type)
-                            elseif obj.force_sub
-                                body_amp = amp;
-                                if body_amp == 30
-                                    body_amp = 20;
-                                end
-                                % keep the downstream prefix (e.g. "x3_", "MPS_") so get_force uses the
-                                % new flapper body folder ("20 deg body") rather than the old one
-                                body_type = get_downstream_prefix(type) + "body";
-                                body_force = get_force(obj.force_path, body_type, body_amp, freq, idx, var_name_F);
-                                if is_shift_operation
-                                    force_signals{j} = obj.subtract_alignment_body_signal(force_signal, body_force);
-                                elseif strcmp(obj.operation, "mean")
-                                    forces(2,j) = forces(2,j) - mean(body_force);
-                                else
-                                    % range / rmse: subtract the body signal
-                                    % first, then reduce what's left
-                                    forces(2,j) = obj.reduce_signal(...
-                                        obj.subtract_alignment_body_signal(force_signal, body_force));
-                                end
+                        forces(2,j) = obj.reduce_signal(force_signal);
+
+                        if obj.force_sub && ~ismember(load_cell_quantity, ["lift", "drag"])
+                            % wind speed, density, voltage, current:
+                            % body subtraction only applies to forces
+                        elseif obj.force_sub && obj.is_plain_steady_type(type)
+                            disp("Force Body Sub skipped for steady case " + type)
+                        elseif obj.force_sub
+                            body_amp = amp;
+                            if body_amp == 30
+                                body_amp = 20;
+                            end
+                            % keep the downstream prefix (e.g. "x3_", "MPS_") so get_force uses the
+                            % new flapper body folder ("20 deg body") rather than the old one
+                            body_type = get_downstream_prefix(type) + "body";
+                            body_force = get_force(obj.force_path, body_type, body_amp, freq, idx, var_name_F);
+                            if strcmp(obj.operation, "mean")
+                                forces(2,j) = forces(2,j) - mean(body_force);
+                            else
+                                % range / rmse: subtract the body signal
+                                % first, then reduce what's left
+                                forces(2,j) = obj.reduce_signal(...
+                                    obj.subtract_alignment_body_signal(force_signal, body_force));
                             end
                         end
                     end
                     disp(j + " of " + num_points + " complete")
                 end
 
-                if is_shift_operation
-                    if obj.PIV_bool
-                        forces(1,:) = obj.calculate_phase_shifts(PIV_signals, measured_freqs);
-                    end
-                    if obj.force_bool && ~isempty(load_cell_idx)
-                        forces(2,:) = obj.calculate_phase_shifts(force_signals, measured_freqs);
-                    end
-                end
-
                 % Calculate gain based on range of values
-                if ~is_shift_operation
-                    gain = range(forces(1,:))/2;
-                    errors = gain * errors;
-                end
+                gain = range(forces(1,:))/2;
+                errors = gain * errors;
 
                 if info.x_axis_type == "wingbeat frequency" && obj.x_norm
                     missing_wind_indices = find(~isfinite(wind_speed_acts) & points.freqs > 0);
@@ -1630,25 +1633,7 @@ classdef timeAvg_UI < handle
                 [x_var, x_label] = obj.get_x_axis_values(info.x_axis_type, points, measured_freqs, wind_speed_acts);
                 xlabel(ax, x_label, Interpreter="latex")
 
-                if is_shift_operation
-                    ylabel(ax, "Phase shift magnitude (cycles)")
-
-                    if obj.PIV_bool
-                        s1 = scatter(ax, x_var, forces(1,:), 125, "filled");
-                        s1.Marker = char(variable_marker);
-                        s1.MarkerFaceColor = original_color;
-                        s1.MarkerEdgeColor = original_color;
-                        s1.DisplayName = legend_label;
-                    end
-
-                    if show_load_cell
-                        s2 = scatter(ax, x_var, forces(2,:), 125, "filled");
-                        s2.Marker = char(variable_marker);
-                        s2.MarkerFaceColor = force_color;
-                        s2.MarkerEdgeColor = original_color;
-                        s2.DisplayName = force_legend_label;
-                    end
-                elseif obj.err_bool && ~isempty(load_cell_idx)
+                if obj.err_bool && ~isempty(load_cell_idx)
                     ylabel(ax, "Error (N)")
 
                     error = (forces(1,:) - forces(2,:));
@@ -1683,84 +1668,16 @@ classdef timeAvg_UI < handle
             end
 
             if (obj.saveFig)
-                filename = "saved_figure.fig";
-                % set(fignew, 'Position', [200 200 800 600])
-                set(fignew,'CreateFcn','set(gcbf,''Visible'',''on'')'); % Make it visible upon loading
-                savefig(fignew,filename);
-                delete(fignew);
+                obj.save_hidden_figure(fignew);
             end
         end
 
-        function phase_shifts = calculate_phase_shifts(obj, signals, frequencies)
-            phase_shifts = NaN(1, length(signals));
-            if nargin < 3
-                frequencies = [];
-            end
-
-            valid_indices = find(cellfun(@(signal) obj.is_valid_alignment_signal(signal), signals));
-
-            if isempty(valid_indices)
-                return
-            end
-
-            lengths = cellfun(@(signal) length(signal), signals(valid_indices));
-            interp_length = min(lengths);
-            time_interp = (1:interp_length) / interp_length;
-            interp_signals = cell(1, length(signals));
-
-            for i = 1:length(valid_indices)
-                signal_idx = valid_indices(i);
-                signal = signals{signal_idx};
-                signal = signal(:)';
-                time = (1:length(signal)) / length(signal);
-                interp_signals{signal_idx} = interp1(time, signal, time_interp, 'pchip');
-            end
-
-            reference_idx = valid_indices(1);
-            reference_signal = interp_signals{reference_idx};
-            default_phase_shifts = phase_shifts;
-            reverse_phase_shifts = phase_shifts;
-            default_phase_shifts(reference_idx) = 0;
-            reverse_phase_shifts(reference_idx) = 0;
-
-            for i = 2:length(valid_indices)
-                signal_idx = valid_indices(i);
-                [~, lag_in_samples] = align_signals(reference_signal, interp_signals{signal_idx});
-                circular_lag_in_samples = mod(lag_in_samples, interp_length);
-                reverse_lag_in_samples = mod(-lag_in_samples, interp_length);
-                default_phase_shifts(signal_idx) = circular_lag_in_samples / interp_length;
-                reverse_phase_shifts(signal_idx) = reverse_lag_in_samples / interp_length;
-            end
-
-            phase_shifts = obj.select_monotonic_phase_direction(default_phase_shifts, reverse_phase_shifts, frequencies);
-        end
-
-        function phase_shifts = select_monotonic_phase_direction(obj, default_phase_shifts, reverse_phase_shifts, frequencies)
-            phase_shifts = default_phase_shifts;
-
-            if nargin < 4 || isempty(frequencies) || length(frequencies) ~= length(default_phase_shifts)
-                return
-            end
-
-            valid = isfinite(default_phase_shifts) & isfinite(reverse_phase_shifts) & isfinite(frequencies);
-            if nnz(valid) < 2 || length(unique(frequencies(valid))) < 2
-                return
-            end
-
-            default_is_monotonic = obj.is_monotonic_with_frequency(default_phase_shifts, frequencies);
-            reverse_is_monotonic = obj.is_monotonic_with_frequency(reverse_phase_shifts, frequencies);
-
-            if reverse_is_monotonic && ~default_is_monotonic
-                phase_shifts = reverse_phase_shifts;
-            end
-        end
-
-        function monotonic = is_monotonic_with_frequency(~, phase_shifts, frequencies)
-            valid = isfinite(phase_shifts) & isfinite(frequencies);
-            sorted_values = sortrows([frequencies(valid)' phase_shifts(valid)'], 1);
-            frequency_diffs = diff(sorted_values(:,1));
-            phase_diffs = diff(sorted_values(:,2));
-            monotonic = all(phase_diffs(frequency_diffs > 0) >= 0);
+        function save_hidden_figure(~, fignew)
+            filename = "saved_figure.fig";
+            % set(fignew, 'Position', [200 200 800 600])
+            set(fignew,'CreateFcn','set(gcbf,''Visible'',''on'')'); % Make it visible upon loading
+            savefig(fignew,filename);
+            delete(fignew);
         end
 
         function valid = is_valid_alignment_signal(~, signal)
@@ -1773,21 +1690,222 @@ classdef timeAvg_UI < handle
             valid = length(signal) > 1 && all(isfinite(signal)) && std(signal) > 0;
         end
 
-        function signal = apply_convection_shift(~, signal, type, freq_cor)
-            dist = 0.9;
-            sep_dist = 0.37;
-            if contains(type, "UP_two")
-                dist = dist + sep_dist*2;
-            elseif contains(type, "UP_one")
-                dist = dist + sep_dist;
+        % Phase shift between the two selected variables for each case
+        % (shift operation): how far variable 2 lags variable 1, in
+        % wingbeats, from the circular cross-correlation of their
+        % phase-averaged signals. 0 Hz (gliding) cases have no wingbeat
+        % and are skipped.
+        function plot_variable_phase_shift(obj, ax, force_vars)
+            if length(force_vars) < 2
+                title(ax, "Select two variables to plot the phase shift between them", ...
+                    FontSize=14, FontWeight="normal")
+                return
+            end
+            if ~obj.PIV_bool
+                title(ax, "Turn on Show PIV to plot the phase shift", FontSize=14, FontWeight="normal")
+                return
             end
 
-            speed = 4;
-            conv_time = dist / speed;
-            shift = conv_time * freq_cor;
-            shift_samples = round(shift*length(signal));
+            var_1 = force_vars(1);
+            var_2 = force_vars(2);
+            label_1 = obj.get_force_var_label(var_1);
+            label_2 = obj.get_force_var_label(var_2);
+            colors = lines(max(1, length(obj.selection)));
+
+            for i = 1:length(obj.selection)
+                info = obj.decode_selection(obj.selection(i));
+                points = obj.get_selection_points(info);
+                num_points = length(points.freqs);
+                if num_points == 0
+                    continue
+                end
+
+                shifts = NaN(1, num_points);
+                measured_freqs = points.freqs;
+                wind_speed_acts = NaN(1, num_points);
+                for j = 1:num_points
+                    type = points.types(j);
+                    amp = points.amps(j);
+                    freq = points.freqs(j);
+                    if freq == 0
+                        disp("Skipping 0 Hz case " + type + " for phase shift")
+                        continue
+                    end
+
+                    [sig_1, measured_freqs(j), wind_speed_acts(j)] = ...
+                        obj.get_phase_avg_signal(var_1, type, amp, freq, info.RPCA);
+                    sig_2 = obj.get_phase_avg_signal(var_2, type, amp, freq, info.RPCA);
+
+                    if obj.conv_shift
+                        sig_1 = obj.apply_convection_shift(sig_1, var_1, type, measured_freqs(j));
+                        sig_2 = obj.apply_convection_shift(sig_2, var_2, type, measured_freqs(j));
+                    end
+
+                    shifts(j) = obj.circular_phase_shift(sig_1, sig_2);
+                    fprintf('%s %g deg %g Hz: %s lags %s by %.3f wingbeats\n', ...
+                        type, amp, freq, label_2, label_1, shifts(j));
+                end
+
+                [x_var, x_label] = obj.get_x_axis_values(info.x_axis_type, points, measured_freqs, wind_speed_acts);
+                xlabel(ax, x_label, Interpreter="latex")
+
+                s1 = scatter(ax, x_var, shifts, 125, "filled");
+                s1.Marker = char(obj.get_variable_marker(1));
+                s1.MarkerFaceColor = colors(i,:);
+                s1.MarkerEdgeColor = colors(i,:);
+                s1.DisplayName = obj.get_curve_label(info);
+            end
+
+            yl = yline(ax, 0, "k");
+            yl.HandleVisibility = "off";
+            ylabel(ax, "Phase shift (wingbeats)")
+            title(ax, label_2 + " lag behind " + label_1, FontSize=14, FontWeight="normal")
+        end
+
+        % Phase-averaged signal of a variable for one flapping case, with
+        % the case's measured wingbeat frequency and wind speed
+        function [var, measured_freq, wind_speed_act] = get_phase_avg_signal(obj, force_var, type, amp, freq, RPCA)
+            name = obj.get_case_name(type, amp, freq);
+            if RPCA
+                name = name + "_RPCA";
+            end
+            suffix = "_phase_avg";
+            case_dir = obj.get_case_dir(name, suffix);
+            filepath = case_dir + name + suffix + ".mat";
+            secondary_filepath = case_dir + name + suffix + "_integral.mat";
+
+            d = load(filepath, "U", "U_act");
+            F = load(secondary_filepath, "freq_avg");
+            measured_freq = mean(F.freq_avg);
+            wind_speed_act = d.U_act * d.U;
+
+            if obj.calc_bool && obj.is_piv_force_variable(force_var)
+                var = get_PIV_force(filepath, name, force_var, 1, obj.y_norm, obj.trim_bounds);
+            else
+                if contains(force_var, ".")
+                    var_files = [secondary_filepath, filepath];
+                else
+                    var_file = obj.get_stored_var_file(force_var, filepath, secondary_filepath);
+                    var_files = [var_file, setdiff([filepath, secondary_filepath], var_file)];
+                end
+                var = obj.load_stored_var(var_files, force_var);
+                if ismember(force_var, ["wx_y", "wx_z"])
+                    vortX_avg = obj.load_stored_var(var_files, "vortX_avg");
+                    var = mask_vortex_centroid(var, vortX_avg, name);
+                end
+            end
+            var = double(var(:)');
+        end
+
+        % How far sig_2 lags sig_1, in wingbeats, in [-0.5, 0.5): the
+        % circular cross-correlation peak (both treated as one periodic
+        % wingbeat), refined to a fraction of a bin with a parabola through
+        % the peak. Signals are resampled to a common length first. NaN if
+        % either signal is constant, too short or has no data.
+        function shift = circular_phase_shift(obj, sig_1, sig_2)
+            shift = NaN;
+            sig_1 = obj.fill_periodic_gaps(sig_1);
+            sig_2 = obj.fill_periodic_gaps(sig_2);
+            if ~obj.is_valid_alignment_signal(sig_1) || ~obj.is_valid_alignment_signal(sig_2)
+                disp("Phase shift: a signal is constant or missing, skipped")
+                return
+            end
+
+            N = max(length(sig_1), length(sig_2));
+            sig_1 = obj.resample_periodic(sig_1, N);
+            sig_2 = obj.resample_periodic(sig_2, N);
+            sig_1 = (sig_1 - mean(sig_1)) / std(sig_1);
+            sig_2 = (sig_2 - mean(sig_2)) / std(sig_2);
+
+            % corr(k+1) = sum(sig_1 .* circshift(sig_2, k)); if sig_2 is
+            % sig_1 delayed by d bins, the peak is at k = -d
+            corr = zeros(1, N);
+            for k = 0:N-1
+                corr(k+1) = sum(sig_1 .* circshift(sig_2, k));
+            end
+            [~, k_max] = max(corr);
+            c_m = corr(mod(k_max - 2, N) + 1);
+            c_0 = corr(k_max);
+            c_p = corr(mod(k_max, N) + 1);
+            denom = c_m - 2*c_0 + c_p;
+            delta = 0;
+            if denom < 0
+                delta = 0.5 * (c_m - c_p) / denom;
+            end
+            lag = (k_max - 1) + delta;
+            shift = mod(-lag / N + 0.5, 1) - 0.5;
+        end
+
+        % Fill NaN bins (e.g. masked vortex centroid) by periodic linear
+        % interpolation; [] if fewer than half the bins have data
+        function signal = fill_periodic_gaps(~, signal)
+            signal = signal(:)';
+            valid = isfinite(signal);
+            if nnz(valid) < max(2, numel(signal) / 2)
+                signal = [];
+                return
+            end
+            if all(valid)
+                return
+            end
+            N = numel(signal);
+            idx = 1:N;
+            x = [idx(valid) - N, idx(valid), idx(valid) + N];
+            y = repmat(signal(valid), 1, 3);
+            signal(~valid) = interp1(x, y, idx(~valid), "linear");
+        end
+
+        % Resample one periodic wingbeat (bin k at (k-1)/n) to N bins
+        function signal = resample_periodic(~, signal, N)
+            n = numel(signal);
+            if n == N
+                return
+            end
+            t = (0:n) / n;
+            t_q = (0:N-1) / N;
+            signal = interp1(t, [signal, signal(1)], t_q, "pchip");
+        end
+
+        % Convection shift of an STB signal (force / flow variables): the
+        % time for the wake to convect from the robot to the imaging plane,
+        % as a fraction of a wingbeat. Kinematics are measured at the
+        % robot and are returned unchanged. Same distances and speed as
+        % phaseAvg_UI / flowField_UI.
+        function signal = apply_convection_shift(obj, signal, force_var, type, freq_cor)
+            if obj.get_var_category(force_var) == "kinematics"
+                return
+            end
+            dist = obj.get_robot_to_plane_dist(type);
+            if isnan(dist)
+                disp("No downstream distance defined for " + type + ", not shifted")
+                return
+            end
+            conv_speed = 4; % m/s
+            shift_samples = round(dist / conv_speed * freq_cor * length(signal));
             signal = circshift(signal, shift_samples);
-            disp("Shifted by: " + shift_samples + " / " + length(signal))
+            disp("Shifted " + obj.get_force_var_label(force_var) + " by: " + shift_samples + ...
+                " / " + length(signal) + " (" + dist + " m downstream)")
+        end
+
+        % Streamwise distance (m) from the robot to the imaging plane for a
+        % case type: x3 = 0.9 m with 0.37 m between positions, MPS = 1 m;
+        % old flapper 0.9 m, UP_one / UP_two one / two positions further
+        function dist = get_robot_to_plane_dist(~, type)
+            prefix = regexprep(get_downstream_prefix(type, true), "_$", ""); % e.g. "x3", "UP_one"
+            x_pos = regexp(char(prefix), '^x(\d+)$', 'tokens', 'once');
+            if ~isempty(x_pos)
+                dist = 0.9 + (str2double(x_pos{1}) - 3) * 0.37;
+            elseif prefix == "MPS"
+                dist = 1.0;
+            elseif prefix == "UP_one"
+                dist = 0.9 + 0.37;
+            elseif prefix == "UP_two"
+                dist = 0.9 + 2*0.37;
+            elseif contains(type, "turbine")
+                dist = NaN;
+            else
+                dist = 0.9; % old flapper
+            end
         end
 
         function force_variable = is_piv_force_variable(obj, force_var)
