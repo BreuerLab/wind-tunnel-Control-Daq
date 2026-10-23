@@ -62,19 +62,18 @@ classdef timeAvg_UI < handle
 
         filt_num;
 
-        force_bool;
         % variable read from the processed load cell file for forces,
         % voltage and current (one of load_cell_data_vars)
         load_cell_data_var;
         force_var;
         force_vars;
-        PIV_bool;
         PIV_sub;
         % which steady case to subtract: "ring", "body", or "gliding"
         PIV_sub_case;
         force_sub;
         RPCA;
-        err_bool;
+        % Difference: plot variable 1 minus variables 2 (and 3)
+        diff_bool;
         calc_bool;
         % shift mode: phase shift imaging-plane (STB) signals by the wake's
         % convection time from the robot to the imaging plane
@@ -196,11 +195,12 @@ classdef timeAvg_UI < handle
             % Load cell variables (phase-averaged when used for the
             % shift operation). Names start with "LC_".
             obj.box_labels = [obj.box_labels, "drag (LC)", "lift (LC)", "pitch (LC)",...
-                "voltage (LC)", "current (LC)", "electric power (LC)"];
+                "voltage (LC)", "current (LC)", "electric power (LC)",...
+                "pitot U (LC)", "density (LC)"];
             obj.var_names = [obj.var_names, "LC_drag", "LC_lift", "LC_pitch",...
-                "LC_volt", "LC_cur", "LC_power"];
+                "LC_volt", "LC_cur", "LC_power", "LC_U", "LC_rho"];
             obj.y_labels = [obj.y_labels, "Drag (N)", "Lift (N)", "Pitch Moment (N m)",...
-                "Voltage (V)", "Current (mA)", "Power (mW)"];
+                "Voltage (V)", "Current (mA)", "Power (mW)", "Freestream Speed", "Density"];
             obj.var_categories(end+1:length(obj.var_names)) = "";
             obj.var_categories(startsWith(obj.var_names, "LC_")) = "load cell";
             obj.var_categories(obj.var_categories == "") = "flow";
@@ -215,13 +215,11 @@ classdef timeAvg_UI < handle
             obj.x_norm = false;
             obj.y_norm = false;
             obj.separate_y_axis_bool = false;
-            obj.force_bool = false;
             obj.load_cell_data_var = "filtered_data";
-            obj.PIV_bool = true;
             obj.force_var = obj.var_names(1);
             obj.force_vars = obj.force_var;
             obj.saveFig = false;
-            obj.err_bool = false;
+            obj.diff_bool = false;
             obj.calc_bool = false;
             obj.conv_shift = false;
             obj.unwrap_shift = false;
@@ -302,10 +300,10 @@ classdef timeAvg_UI < handle
                 option_panel.Scrollable = "on";
             end
 
-            sidebar_grid = uigridlayout(option_panel, [27, 1]);
+            sidebar_grid = uigridlayout(option_panel, [25, 1]);
             sidebar_grid.ColumnWidth = {'1x'};
             sidebar_grid.RowHeight = {30, 60, 30, 30, 30, 30, 110, 30, 30, 30, 30, 30, 30, 30,...
-                                      30, 30, 25, 30, 30, 30, 30, 30, 30, 30, 30, 130, 30};
+                                      30, 25, 30, 30, 30, 30, 30, 30, 30, 130, 30};
             sidebar_grid.Padding = [10 10 10 10];
             sidebar_grid.RowSpacing = 6;
             if isprop(sidebar_grid, "Scrollable")
@@ -477,17 +475,8 @@ classdef timeAvg_UI < handle
 
             operation_dropdown.ValueChangedFcn = @(src, event) operation_change(src, event, plot_panel, [conv_shift_button, unwrap_button]);
 
-            piv_button = uibutton(sidebar_grid, "state");
-            piv_button.Layout.Row = 15;
-            piv_button.Layout.Column = 1;
-            piv_button.Text = "Show PIV";
-            piv_button.Value = true;
-            piv_button.FontSize = 18;
-            piv_button.BackgroundColor = obj.COLOR_ACTIVE;
-            piv_button.ValueChangedFcn = @(src, event) PIV_bool_change(src, event, plot_panel);
-
             piv_sub_button = uibutton(sidebar_grid, "state");
-            piv_sub_button.Layout.Row = 16;
+            piv_sub_button.Layout.Row = 15;
             piv_sub_button.Layout.Column = 1;
             piv_sub_button.Text = "PIV Body Sub";
             piv_sub_button.FontSize = 18;
@@ -497,42 +486,35 @@ classdef timeAvg_UI < handle
             % Steady case used for the subtraction, matched to each
             % selection's downstream position (and amplitude for body/gliding)
             piv_sub_dropdown = uidropdown(sidebar_grid);
-            piv_sub_dropdown.Layout.Row = 17;
+            piv_sub_dropdown.Layout.Row = 16;
             piv_sub_dropdown.Layout.Column = 1;
             piv_sub_dropdown.Items = ["ring", "body", "gliding"];
             piv_sub_dropdown.Value = obj.PIV_sub_case;
             piv_sub_dropdown.Tooltip = "Steady case subtracted (e.g. for x3_wings_20deg_4Hz: ring = x3_ring, body = x3_body_20deg_0Hz, gliding = x3_wings_20deg_0Hz)";
             piv_sub_dropdown.ValueChangedFcn = @(src, event) PIV_sub_case_change(src, event, plot_panel);
 
-            force_button = uibutton(sidebar_grid, "state");
-            force_button.Layout.Row = 18;
-            force_button.Layout.Column = 1;
-            force_button.Text = "Show Force";
-            force_button.FontSize = 18;
-            force_button.BackgroundColor = obj.COLOR_INACTIVE;
-
             force_sub_button = uibutton(sidebar_grid, "state");
-            force_sub_button.Layout.Row = 19;
+            force_sub_button.Layout.Row = 17;
             force_sub_button.Layout.Column = 1;
             force_sub_button.Text = "Force Body Sub";
             force_sub_button.FontSize = 18;
             force_sub_button.BackgroundColor = obj.COLOR_INACTIVE;
+            force_sub_button.Tooltip = "Subtract the body load cell signal from the load cell forces / moment (load cell variables)";
             force_sub_button.ValueChangedFcn = @(src, event) force_sub_change(src, event, plot_panel);
 
-            % Which processed load cell data to read (forces, voltage,
-            % current); only used with Show Force on
+            % Which processed load cell data the load cell variables read
+            % (forces, voltage, current)
             load_cell_data_dropdown = uidropdown(sidebar_grid);
-            load_cell_data_dropdown.Layout.Row = 20;
+            load_cell_data_dropdown.Layout.Row = 18;
             load_cell_data_dropdown.Layout.Column = 1;
             load_cell_data_dropdown.Items = obj.load_cell_data_labels;
             load_cell_data_dropdown.Value = obj.load_cell_data_labels(obj.load_cell_data_vars == obj.load_cell_data_var);
-            load_cell_data_dropdown.Tooltip = "Load cell data used with Show Force and for load cell variables (phase-averaged version of the chosen filter for the shift operation)";
+            load_cell_data_dropdown.Tooltip = "Load cell data used for the load cell variables (phase-averaged version of the chosen filter for the shift operation)";
             load_cell_data_dropdown.Enable = "off";
             load_cell_data_dropdown.ValueChangedFcn = @(src, event) load_cell_data_change(src, event, plot_panel);
-            force_button.ValueChangedFcn = @(src, event) force_bool_change(src, event, plot_panel, load_cell_data_dropdown);
 
             x_norm_button = uibutton(sidebar_grid, "state");
-            x_norm_button.Layout.Row = 21;
+            x_norm_button.Layout.Row = 19;
             x_norm_button.Layout.Column = 1;
             x_norm_button.Text = "Normalize X-axis";
             x_norm_button.FontSize = 18;
@@ -540,7 +522,7 @@ classdef timeAvg_UI < handle
             x_norm_button.ValueChangedFcn = @(src, event) x_norm_change(src, event, plot_panel);
 
             y_norm_button = uibutton(sidebar_grid, "state");
-            y_norm_button.Layout.Row = 22;
+            y_norm_button.Layout.Row = 20;
             y_norm_button.Layout.Column = 1;
             y_norm_button.Text = "Normalize Y-axis";
             y_norm_button.FontSize = 18;
@@ -549,23 +531,24 @@ classdef timeAvg_UI < handle
 
             % Put the two selected variables on separate left/right y-axes
             separate_y_button = uibutton(sidebar_grid, "state");
-            separate_y_button.Layout.Row = 23;
+            separate_y_button.Layout.Row = 21;
             separate_y_button.Layout.Column = 1;
             separate_y_button.Text = "Separate Y-Axis";
             separate_y_button.FontSize = 18;
             separate_y_button.BackgroundColor = obj.COLOR_INACTIVE;
             separate_y_button.ValueChangedFcn = @(src, event) separate_y_axis_change(src, event, plot_panel);
 
-            err_button = uibutton(sidebar_grid, "state");
-            err_button.Layout.Row = 24;
-            err_button.Layout.Column = 1;
-            err_button.Text = "Error";
-            err_button.FontSize = 18;
-            err_button.BackgroundColor = obj.COLOR_INACTIVE;
-            err_button.ValueChangedFcn = @(src, event) err_change(src, event, plot_panel);
+            diff_button = uibutton(sidebar_grid, "state");
+            diff_button.Layout.Row = 22;
+            diff_button.Layout.Column = 1;
+            diff_button.Text = "Difference";
+            diff_button.FontSize = 18;
+            diff_button.BackgroundColor = obj.COLOR_INACTIVE;
+            diff_button.Tooltip = "Plot variable 1 minus variable 2 (and minus variable 3), e.g. lift vortX - lift (LC). Mean / range / rmse operations";
+            diff_button.ValueChangedFcn = @(src, event) diff_change(src, event, plot_panel);
 
             calc_button = uibutton(sidebar_grid, "state");
-            calc_button.Layout.Row = 25;
+            calc_button.Layout.Row = 23;
             calc_button.Layout.Column = 1;
             calc_button.Text = "Live Calculate";
             calc_button.FontSize = 18;
@@ -574,7 +557,7 @@ classdef timeAvg_UI < handle
             % Trim limits and center point for Live Calculate,
             % nondimensional (divided by L)
             bounds_panel = uipanel(sidebar_grid);
-            bounds_panel.Layout.Row = 26;
+            bounds_panel.Layout.Row = 24;
             bounds_panel.Layout.Column = 1;
             bounds_panel.Title = "Live Calc Bounds (y/L, z/L)";
             bounds_panel.TitlePosition = 'centertop';
@@ -611,7 +594,7 @@ classdef timeAvg_UI < handle
             calc_button.ValueChangedFcn = @(src, event) calc_change(src, event, plot_panel, bounds_fields);
 
             save_fig_button = uibutton(sidebar_grid);
-            save_fig_button.Layout.Row = 27;
+            save_fig_button.Layout.Row = 25;
             save_fig_button.Layout.Column = 1;
             save_fig_button.Text = "Save Fig";
             save_fig_button.FontSize = 18;
@@ -714,13 +697,6 @@ classdef timeAvg_UI < handle
                 end
             end
 
-            function PIV_bool_change(src, ~, plot_panel)
-                obj.PIV_bool = src.Value;
-                src.BackgroundColor = obj.get_button_color(obj.PIV_bool);
-                src.Text = obj.get_button_text(obj.PIV_bool, "PIV");
-                obj.update_plot(plot_panel);
-            end
-
             function PIV_sub_change(src, ~, plot_panel)
                 obj.PIV_sub = src.Value;
                 src.BackgroundColor = obj.get_button_color(obj.PIV_sub);
@@ -745,17 +721,9 @@ classdef timeAvg_UI < handle
                 obj.update_plot(plot_panel);
             end
 
-            function force_bool_change(src, ~, plot_panel, load_cell_data_dropdown)
-                obj.force_bool = src.Value;
-                src.BackgroundColor = obj.get_button_color(obj.force_bool);
-                src.Text = obj.get_button_text(obj.force_bool, "Force");
-                set_load_cell_data_enable();
-                obj.update_plot(plot_panel);
-            end
-
             function set_load_cell_data_enable()
-                % used by Show Force and by load cell variables
-                if obj.force_bool || any(obj.is_load_cell_var(obj.get_active_force_vars()))
+                % only the load cell variables use it
+                if any(obj.is_load_cell_var(obj.get_active_force_vars()))
                     load_cell_data_dropdown.Enable = "on";
                 else
                     load_cell_data_dropdown.Enable = "off";
@@ -764,7 +732,7 @@ classdef timeAvg_UI < handle
 
             function load_cell_data_change(src, ~, plot_panel)
                 obj.load_cell_data_var = obj.load_cell_data_vars(obj.load_cell_data_labels == string(src.Value));
-                if obj.force_bool
+                if any(obj.is_load_cell_var(obj.get_active_force_vars()))
                     obj.update_plot(plot_panel);
                 end
             end
@@ -787,9 +755,9 @@ classdef timeAvg_UI < handle
                 obj.update_plot(plot_panel);
             end
 
-            function err_change(src, ~, plot_panel)
-                obj.err_bool = src.Value;
-                src.BackgroundColor = obj.get_button_color(obj.err_bool);
+            function diff_change(src, ~, plot_panel)
+                obj.diff_bool = src.Value;
+                src.BackgroundColor = obj.get_button_color(obj.diff_bool);
                 obj.update_plot(plot_panel);
             end
             
@@ -1367,74 +1335,9 @@ classdef timeAvg_UI < handle
             end
         end
 
-        function label = get_load_cell_legend_label(obj, curve_label, quantity)
-            % The load cell gives total lift or drag (no breakdown into the
-            % STB terms), plus the wind speed, density, voltage and current
-            % recorded with it. Variables with no load cell equivalent
-            % have quantity "".
-            label = "";
-            if quantity == ""
-                return
-            end
-
-            label = "Load cell: " + quantity;
-            if length(obj.selection) > 1
-                label = label + " - " + curve_label;
-            end
-        end
-
         function marker = get_variable_marker(~, var_idx)
             markers = ["o", "s", "^", "d", "v", ">", "<", "p", "h", "x", "+", "*"];
             marker = markers(mod(var_idx - 1, length(markers)) + 1);
-        end
-
-        function [var_name_F, idx, quantity] = get_load_cell_source(~, force_var)
-            % What to read from the processed load cell file for a plot
-            % variable: the saved variable, the row within it, and what
-            % it measures. Empty idx means no load cell equivalent.
-            var_name_F = "";
-            idx = [];
-            quantity = "";
-            if startsWith(string(force_var), "LC_")
-                return % already a load cell variable
-            end
-            switch string(force_var)
-                case "U_act" % pitot U
-                    var_name_F = "U_act";
-                    idx = 1;
-                    quantity = "wind speed";
-                case "rho_act" % density
-                    var_name_F = "rho_act";
-                    idx = 1;
-                    quantity = "density";
-                % voltage (V) and current (mA): rows 8 and 9 of the
-                % processed load cell data ([6 forces/moments; home
-                % signal; voltage; current], see process_trial.m)
-                case "phase_avg_volt"
-                    var_name_F = "filtered_data";
-                    idx = 8;
-                    quantity = "voltage";
-                case "phase_avg_cur"
-                    var_name_F = "filtered_data";
-                    idx = 9;
-                    quantity = "current";
-                case "phase_avg_power"
-                    % voltage (V) x current (mA) = mW, multiplied sample
-                    % by sample in update_plot
-                    var_name_F = "filtered_data";
-                    idx = [8 9];
-                    quantity = "electric power";
-                otherwise
-                    if contains(force_var, "drag")
-                        var_name_F = "filtered_data";
-                        idx = 1;
-                        quantity = "drag";
-                    elseif contains(force_var, "lift")
-                        var_name_F = "filtered_data";
-                        idx = 3;
-                        quantity = "lift";
-                    end
-            end
         end
 
         function U = get_nominal_speed(~, filepath)
@@ -1477,19 +1380,182 @@ classdef timeAvg_UI < handle
             end
 
             num_vars = length(selected_force_vars);
-            curve_colors = lines(max(1, length(obj.selection) * max(1, num_vars)));
+            num_sel = length(obj.selection);
+            curve_colors = lines(max(1, num_sel * max(1, num_vars)));
 
-            % The load cell only measures total lift or drag, so several STB
-            % terms (e.g. lift.vortX and lift.vortY) share one load cell
-            % series. Track which ones are already on the plot so each is
-            % drawn once per selection.
-            plotted_load_cell_keys = strings(0);
+            % Difference: variable 1 minus variable 2 (and minus variable
+            % 3), e.g. lift vortX - lift (LC) for the STB error
+            diff_plot = obj.diff_bool && num_vars >= 2;
+            if obj.diff_bool && num_vars < 2
+                title(ax, "Select two or more variables to plot their difference", ...
+                    FontSize=14, FontWeight="normal")
+            end
 
             % With "Separate Y-Axis" on and two variables selected, the
             % first goes on the left y-axis and the second on the right
-            split_y_axes = obj.separate_y_axis_bool && num_vars == 2;
+            split_y_axes = obj.separate_y_axis_bool && num_vars == 2 && ~diff_plot;
+
+            % One value per point for each variable and selection, then
+            % plotted below (directly, or as differences)
+            values = cell(num_vars, num_sel);
+            errors = cell(num_vars, num_sel);
+            x_vals = cell(num_vars, num_sel);
 
             for var_idx = 1:num_vars % Loop through each selected variable
+                force_var = selected_force_vars(var_idx);
+
+            for i = 1:num_sel % Loop through each selection
+                info = obj.decode_selection(obj.selection(i));
+                points = obj.get_selection_points(info);
+                num_points = length(points.freqs);
+
+                if num_points == 0
+                    continue
+                end
+
+                vals = NaN(1, num_points);
+                errs = zeros(1, num_points);
+                measured_freqs = points.freqs;
+                wind_speed_acts = NaN(1, num_points);
+                
+                for j = 1:num_points % Loop through all matching cases
+                    type = points.types(j);
+                    amp = points.amps(j);
+                    freq = points.freqs(j);
+
+                    name = obj.get_case_name(type, amp, freq);
+                    % RPCA only applies to phase averaged cases
+                    if info.RPCA && freq ~= 0
+                        name = name + "_RPCA";
+                    end
+                    if freq == 0
+                        suffix = "_time_avg";
+                    else
+                        suffix = "_phase_avg";
+                    end
+                    case_dir = obj.get_case_dir(name, suffix);
+                    filepath = case_dir + name + suffix + ".mat";
+                    secondary_filepath = case_dir + name + suffix + "_integral.mat";
+
+                    if freq == 0
+                        avg_type = 0;
+                        measured_freqs(j) = 0;
+                        errs(j) = 0;
+                    else
+                        avg_type = 1;
+                        d = load(filepath, "U", "L", "U_act", "rho_act", "bin_std");
+                        F = load(secondary_filepath, "freq_avg");
+                        measured_freqs(j) = mean(F.freq_avg);
+                        % gain = 0.01;
+                        % gain = 0.001;
+                        errs(j) = mean(d.bin_std);
+                        % errs(j) = 0;
+                        wind_speed = d.U;
+                        density = d.rho_act;
+                        area = d.L * d.L * 3 * 2;
+                        wind_speed_acts(j) = d.U_act * d.U;
+                        % errs(j) = 0.2 / length(d.bin_std);
+                    end
+
+                    if obj.is_load_cell_var(force_var)
+                        var = obj.get_load_cell_signal(force_var, type, amp, freq, false);
+                    elseif obj.calc_bool && obj.is_piv_force_variable(force_var)
+                        [var, err] = get_PIV_force(filepath, name, force_var, avg_type, obj.y_norm, obj.trim_bounds);
+
+                        if obj.PIV_sub
+                            [bod_filepath, ~] = obj.get_PIV_sub_file_paths(type, amp);
+                            [bod_var, ~] = get_PIV_force(bod_filepath, "", force_var, 0, obj.y_norm, obj.trim_bounds);
+                            var = var - bod_var;
+                        end
+                    else
+                        % variables not defined for a case (e.g.
+                        % lift.vortY for a 0 Hz mean flow field) are
+                        % replaced with zero
+                        % look in the expected file first, then the other
+                        if contains(force_var, ".")
+                            var_files = [secondary_filepath, filepath];
+                        else
+                            var_file = obj.get_stored_var_file(force_var, filepath, secondary_filepath);
+                            var_files = [var_file, setdiff([filepath, secondary_filepath], var_file)];
+                        end
+                        var = obj.load_stored_var(var_files, force_var);
+
+                        % omega_x centroid: drop bins where the net
+                        % omega_x is near zero (ratio blows up there)
+                        if ismember(force_var, ["wx_y", "wx_z"])
+                            vortX_avg = obj.load_stored_var(var_files, "vortX_avg");
+                            var = mask_vortex_centroid(var, vortX_avg, name);
+                        end
+
+                        % TEMPORARY for dimensionalization of power
+                        % var = var * (1/2) * density * wind_speed^3 * area;
+
+                        if obj.PIV_sub
+                            [bod_filepath, bod_secondary_filepath] = obj.get_PIV_sub_file_paths(type, amp);
+                            bod_var = obj.load_stored_var([bod_secondary_filepath, bod_filepath], force_var);
+                            var = var - bod_var;
+                        end
+                    end
+
+                    % Calculate mean force and store in array for plotting
+                    vals(j) = obj.reduce_signal(var);
+                    disp(j + " of " + num_points + " complete")
+                end
+
+                % Calculate gain based on range of values
+                finite_vals = vals(isfinite(vals));
+                if isempty(finite_vals)
+                    gain = 0;
+                else
+                    gain = range(finite_vals)/2;
+                end
+                errs = gain * errs;
+                if obj.is_load_cell_var(force_var)
+                    errs(:) = 0; % the bin spread is an STB quantity
+                end
+
+                if info.x_axis_type == "wingbeat frequency" && obj.x_norm
+                    missing_wind_indices = find(~isfinite(wind_speed_acts) & points.freqs > 0);
+                    for k = missing_wind_indices
+                        type = points.types(k);
+                        amp = points.amps(k);
+                        freq = points.freqs(k);
+                        name = obj.get_case_name(type, amp, freq);
+                        d = load(obj.PIV_path + name + "_phase_avg.mat", "U", "U_act");
+                        wind_speed_acts(k) = d.U_act * d.U;
+                    end
+                end
+
+                [x_vals{var_idx, i}, x_label] = obj.get_x_axis_values(info.x_axis_type, points, measured_freqs, wind_speed_acts);
+                xlabel(ax, x_label, Interpreter="latex")
+                values{var_idx, i} = vals;
+                errors{var_idx, i} = errs;
+            end
+            end
+
+            if diff_plot
+                labels = arrayfun(@(v) obj.get_force_var_label(v), selected_force_vars);
+                for i = 1:num_sel
+                    if isempty(values{1, i})
+                        continue
+                    end
+                    curve_label = obj.get_curve_label(obj.decode_selection(obj.selection(i)));
+                    for k = 2:num_vars
+                        color = curve_colors((i - 1) * num_vars + k, :);
+                        s1 = plot(ax, x_vals{1, i}, values{1, i} - values{k, i}, ...
+                            char(obj.get_variable_marker(k)), LineStyle="none", MarkerSize=10, ...
+                            Color=color, MarkerFaceColor=color);
+                        s1.DisplayName = labels(1) + " - " + labels(k);
+                        if num_sel > 1
+                            s1.DisplayName = curve_label + ": " + s1.DisplayName;
+                        end
+                    end
+                end
+                yl = yline(ax, 0, "k");
+                yl.HandleVisibility = "off";
+                ylabel(ax, "Difference: " + obj.get_force_vars_y_label(selected_force_vars), Interpreter="latex")
+            else
+            for var_idx = 1:num_vars
                 force_var = selected_force_vars(var_idx);
                 if split_y_axes
                     if var_idx == 1
@@ -1504,244 +1570,22 @@ classdef timeAvg_UI < handle
                 else
                     y_label_vars = selected_force_vars;
                 end
-                [load_cell_var, load_cell_idx, load_cell_quantity] = obj.get_load_cell_source(force_var);
+                ylabel(ax, obj.get_force_vars_y_label(y_label_vars), Interpreter="latex")
                 variable_marker = obj.get_variable_marker(var_idx);
 
-            for i = 1:length(obj.selection) % Loop through each selection
-                info = obj.decode_selection(obj.selection(i));
-                points = obj.get_selection_points(info);
-                num_points = length(points.freqs);
-
-                if num_points == 0
-                    continue
-                end
-
-                color_idx = (i - 1) * num_vars + var_idx;
-                original_color = curve_colors(color_idx,:);
-                % load cell points use a lighter shade of the STB color
-                % (getLightColor takes a hex color)
-                force_color = getLightColor(rgb2hex(original_color));
-                curve_label = obj.get_curve_label(info);
-                legend_label = obj.get_plot_legend_label(curve_label, force_var, num_vars);
-
-                % plot this load cell series only the first time it comes up
-                show_load_cell = false;
-                if obj.force_bool && ~isempty(load_cell_idx)
-                    load_cell_key = string(i) + "|" + load_cell_quantity;
-                    if ~ismember(load_cell_key, plotted_load_cell_keys)
-                        show_load_cell = true;
-                        plotted_load_cell_keys(end+1) = load_cell_key;
+                for i = 1:num_sel
+                    if isempty(values{var_idx, i})
+                        continue
                     end
-                end
-                force_legend_label = obj.get_load_cell_legend_label(curve_label, load_cell_quantity);
+                    original_color = curve_colors((i - 1) * num_vars + var_idx, :);
+                    curve_label = obj.get_curve_label(obj.decode_selection(obj.selection(i)));
 
-                forces = zeros(2, num_points);
-                errors = zeros(1, num_points);
-                measured_freqs = points.freqs;
-                wind_speed_acts = NaN(1, num_points);
-                
-                for j = 1:num_points % Loop through all matching cases
-                    type = points.types(j);
-                    amp = points.amps(j);
-                    freq = points.freqs(j);
-
-                    if obj.PIV_bool
-                        name = obj.get_case_name(type, amp, freq);
-                        % RPCA only applies to phase averaged cases
-                        if info.RPCA && freq ~= 0
-                            name = name + "_RPCA";
-                        end
-                        if freq == 0
-                            suffix = "_time_avg";
-                        else
-                            suffix = "_phase_avg";
-                        end
-                        case_dir = obj.get_case_dir(name, suffix);
-                        filepath = case_dir + name + suffix + ".mat";
-                        secondary_filepath = case_dir + name + suffix + "_integral.mat";
-
-                        if freq == 0
-                            avg_type = 0;
-                            measured_freqs(j) = 0;
-                            errors(j) = 0;
-                        else
-                            avg_type = 1;
-                            d = load(filepath, "U", "L", "U_act", "rho_act", "bin_std");
-                            F = load(secondary_filepath, "freq_avg");
-                            measured_freqs(j) = mean(F.freq_avg);
-                            % gain = 0.01;
-                            % gain = 0.001;
-                            errors(j) = mean(d.bin_std);
-                            % errors(j) = 0;
-                            wind_speed = d.U;
-                            density = d.rho_act;
-                            area = d.L * d.L * 3 * 2;
-                            wind_speed_acts(j) = d.U_act * d.U;
-                            % errors(j) = 0.2 / length(d.bin_std);
-                        end
-
-                        if obj.is_load_cell_var(force_var)
-                            var = obj.get_load_cell_signal(force_var, type, amp, freq, false);
-                        elseif obj.calc_bool && obj.is_piv_force_variable(force_var)
-                            [var, err] = get_PIV_force(filepath, name, force_var, avg_type, obj.y_norm, obj.trim_bounds);
-
-                            if obj.PIV_sub
-                                [bod_filepath, ~] = obj.get_PIV_sub_file_paths(type, amp);
-                                [bod_var, ~] = get_PIV_force(bod_filepath, "", force_var, 0, obj.y_norm, obj.trim_bounds);
-                                var = var - bod_var;
-                            end
-                        else
-                            % variables not defined for a case (e.g.
-                            % lift.vortY for a 0 Hz mean flow field) are
-                            % replaced with zero
-                            % look in the expected file first, then the other
-                            if contains(force_var, ".")
-                                var_files = [secondary_filepath, filepath];
-                            else
-                                var_file = obj.get_stored_var_file(force_var, filepath, secondary_filepath);
-                                var_files = [var_file, setdiff([filepath, secondary_filepath], var_file)];
-                            end
-                            var = obj.load_stored_var(var_files, force_var);
-
-                            % omega_x centroid: drop bins where the net
-                            % omega_x is near zero (ratio blows up there)
-                            if ismember(force_var, ["wx_y", "wx_z"])
-                                vortX_avg = obj.load_stored_var(var_files, "vortX_avg");
-                                var = mask_vortex_centroid(var, vortX_avg, name);
-                            end
-
-                            % TEMPORARY for dimensionalization of power
-                            % var = var * (1/2) * density * wind_speed^3 * area;
-
-                            if obj.PIV_sub
-                                [bod_filepath, bod_secondary_filepath] = obj.get_PIV_sub_file_paths(type, amp);
-                                bod_var = obj.load_stored_var([bod_secondary_filepath, bod_filepath], force_var);
-                                var = var - bod_var;
-                            end  
-                        end
-                        
-                        % Calculate mean force and store in array for plotting
-                        forces(1,j) = obj.reduce_signal(var);
-                    end
-
-                    if obj.force_bool && ~contains(type, "UP") && ~isempty(load_cell_idx)
-                        % var_name_F = "results_lab";
-                        % var_name_F = "wingbeat_avg_forces_smoothest";
-                        var_name_F = load_cell_var; % filtered_data, U_act or rho_act
-                        if var_name_F == "filtered_data"
-                            % forces, voltage, current: use the selected
-                            % load cell data (same rows in every option)
-                            var_name_F = obj.load_cell_data_var;
-                        end
-                        is_tunnel_var = ismember(var_name_F, ["U_act", "rho_act"]);
-
-                        idx = load_cell_idx;
-
-                        try
-                            force_signal = get_force(obj.force_path, type, amp, freq, idx, var_name_F);
-                        catch ME
-                            if ~strcmp(ME.identifier, "get_force:varNotFound")
-                                rethrow(ME)
-                            end
-                            % load cell file processed before U_act /
-                            % rho_act were saved: leave the point off
-                            disp(ME.message + " - point not plotted")
-                            force_signal = NaN;
-                        end
-
-                        if load_cell_quantity == "electric power" && size(force_signal, 1) == 2
-                            % instantaneous power, then averaged below
-                            force_signal = force_signal(1,:) .* force_signal(2,:);
-                        end
-
-                        if var_name_F == "U_act"
-                            % load cell saves m/s; STB "pitot U" is
-                            % U_act / U, so put it on the same scale
-                            if obj.PIV_bool
-                                force_signal = force_signal / obj.get_nominal_speed(filepath);
-                            else
-                                force_signal = force_signal / obj.get_nominal_speed("");
-                            end
-                        end
-
-                        forces(2,j) = obj.reduce_signal(force_signal);
-
-                        if obj.force_sub && ~ismember(load_cell_quantity, ["lift", "drag"])
-                            % wind speed, density, voltage, current:
-                            % body subtraction only applies to forces
-                        elseif obj.force_sub && obj.is_plain_steady_type(type)
-                            disp("Force Body Sub skipped for steady case " + type)
-                        elseif obj.force_sub
-                            body_amp = amp;
-                            if body_amp == 30
-                                body_amp = 20;
-                            end
-                            % keep the downstream prefix (e.g. "x3_", "MPS_") so get_force uses the
-                            % new flapper body folder ("20 deg body") rather than the old one
-                            body_type = get_downstream_prefix(type) + "body";
-                            body_force = get_force(obj.force_path, body_type, body_amp, freq, idx, var_name_F);
-                            if strcmp(obj.operation, "mean")
-                                forces(2,j) = forces(2,j) - mean(body_force);
-                            else
-                                % range / rmse: subtract the body signal
-                                % first, then reduce what's left
-                                forces(2,j) = obj.reduce_signal(...
-                                    obj.subtract_alignment_body_signal(force_signal, body_force));
-                            end
-                        end
-                    end
-                    disp(j + " of " + num_points + " complete")
-                end
-
-                % Calculate gain based on range of values
-                gain = range(forces(1,:))/2;
-                errors = gain * errors;
-
-                if info.x_axis_type == "wingbeat frequency" && obj.x_norm
-                    missing_wind_indices = find(~isfinite(wind_speed_acts) & points.freqs > 0);
-                    for k = missing_wind_indices
-                        type = points.types(k);
-                        amp = points.amps(k);
-                        freq = points.freqs(k);
-                        name = obj.get_case_name(type, amp, freq);
-                        d = load(obj.PIV_path + name + "_phase_avg.mat", "U", "U_act");
-                        wind_speed_acts(k) = d.U_act * d.U;
-                    end
-                end
-
-                [x_var, x_label] = obj.get_x_axis_values(info.x_axis_type, points, measured_freqs, wind_speed_acts);
-                xlabel(ax, x_label, Interpreter="latex")
-
-                if obj.err_bool && ~isempty(load_cell_idx)
-                    ylabel(ax, "Error (N)")
-
-                    error = (forces(1,:) - forces(2,:));
-                    % error = abs((forces(1,:) - forces(2,:)) ./ forces(2,:)) * 100;
-                    s1 = errorbar(ax, x_var, error, errors*0.1, char(variable_marker));
+                    s1 = errorbar(ax, x_vals{var_idx, i}, values{var_idx, i}, errors{var_idx, i}, char(variable_marker));
                     s1.MarkerSize = 10;
                     s1.Color = original_color;
                     s1.MarkerEdgeColor = original_color;
                     s1.MarkerFaceColor = original_color;
-                    s1.DisplayName = legend_label;
-                else
-                    ylabel(ax, obj.get_force_vars_y_label(y_label_vars), Interpreter="latex")
-
-                    if obj.PIV_bool
-                        s1 = errorbar(ax, x_var, forces(1,:), errors, char(variable_marker));
-                        s1.MarkerSize = 10;
-                        s1.Color = original_color;
-                        s1.MarkerEdgeColor = original_color;
-                        s1.MarkerFaceColor = original_color;
-                        s1.DisplayName = legend_label;
-                    end
-
-                    if show_load_cell
-                        s2 = scatter(ax, x_var, forces(2,:), 125,"filled");
-                        s2.Marker = char(variable_marker);
-                        s2.MarkerFaceColor = force_color;
-                        s2.MarkerEdgeColor = original_color;
-                        s2.DisplayName = force_legend_label;
-                    end
+                    s1.DisplayName = obj.get_plot_legend_label(curve_label, force_var, num_vars);
                 end
             end
             end
@@ -1939,6 +1783,10 @@ classdef timeAvg_UI < handle
                     idx = 9; quantity = "current";
                 case "LC_power"
                     idx = [8 9]; quantity = "electric power";
+                case "LC_U" % tunnel speed saved in the load cell file
+                    idx = 1; quantity = "wind speed";
+                case "LC_rho" % density saved in the load cell file
+                    idx = 1; quantity = "density";
                 otherwise
                     error("timeAvg_UI:unknownLoadCellVar", "Unknown load cell variable %s", force_var)
             end
@@ -1955,7 +1803,11 @@ classdef timeAvg_UI < handle
                 disp("No load cell data for upstream case " + type)
                 return
             end
-            if phase_avg
+            if quantity == "wind speed"
+                var_name_F = "U_act";
+            elseif quantity == "density"
+                var_name_F = "rho_act";
+            elseif phase_avg
                 var_name_F = obj.get_wingbeat_avg_load_cell_var();
             else
                 var_name_F = obj.load_cell_data_var;
@@ -1973,6 +1825,17 @@ classdef timeAvg_UI < handle
             end
             if quantity == "electric power" && size(signal, 1) == 2
                 signal = signal(1,:) .* signal(2,:); % V x mA = mW
+            end
+            if quantity == "wind speed"
+                % load cell saves m/s; STB "pitot U" is U_act / U, so put
+                % it on the same scale (nominal U from the STB file, else 4)
+                name = obj.get_case_name(type, amp, freq);
+                if freq == 0
+                    suffix = "_time_avg";
+                else
+                    suffix = "_phase_avg";
+                end
+                signal = signal / obj.get_nominal_speed(obj.get_case_dir(name, suffix) + name + suffix + ".mat");
             end
 
             if obj.force_sub && ismember(quantity, ["drag", "lift", "pitch"])
