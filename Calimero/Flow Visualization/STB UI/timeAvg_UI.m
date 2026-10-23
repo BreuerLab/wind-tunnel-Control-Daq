@@ -177,6 +177,16 @@ classdef timeAvg_UI < handle
             obj.var_categories(ismember(obj.var_names, ["phase_avg_speed", "phase_avg_speed_error",...
                 "phase_avg_volt", "phase_avg_cur", "phase_avg_power",...
                 "num_bins", "num_clusters", "phase_spread_ratio"])) = "kinematics";
+            % Load cell variables (phase-averaged when used for the
+            % shift operation). Names start with "LC_".
+            obj.box_labels = [obj.box_labels, "load cell drag", "load cell lift", "load cell pitch",...
+                "load cell voltage", "load cell current", "load cell electric power"];
+            obj.var_names = [obj.var_names, "LC_drag", "LC_lift", "LC_pitch",...
+                "LC_volt", "LC_cur", "LC_power"];
+            obj.y_labels = [obj.y_labels, "Drag (N)", "Lift (N)", "Pitch Moment (N m)",...
+                "Voltage (V)", "Current (mA)", "Power (mW)"];
+            obj.var_categories(end+1:length(obj.var_names)) = "";
+            obj.var_categories(startsWith(obj.var_names, "LC_")) = "load cell";
             obj.var_categories(obj.var_categories == "") = "flow";
             obj.var_type = obj.get_var_category(obj.var_names(1));
             obj.PIV_sub = false;
@@ -275,9 +285,9 @@ classdef timeAvg_UI < handle
                 option_panel.Scrollable = "on";
             end
 
-            sidebar_grid = uigridlayout(option_panel, [26, 1]);
+            sidebar_grid = uigridlayout(option_panel, [27, 1]);
             sidebar_grid.ColumnWidth = {'1x'};
-            sidebar_grid.RowHeight = {30, 60, 30, 30, 30, 30, 110, 30, 30, 30, 30, 30, 30,...
+            sidebar_grid.RowHeight = {30, 60, 30, 30, 30, 30, 110, 30, 30, 30, 30, 30, 30, 30,...
                                       30, 30, 25, 30, 30, 30, 30, 30, 30, 30, 30, 130, 30};
             sidebar_grid.Padding = [10 10 10 10];
             sidebar_grid.RowSpacing = 6;
@@ -381,7 +391,7 @@ classdef timeAvg_UI < handle
             var_type_dropdown = uidropdown(sidebar_grid);
             var_type_dropdown.Layout.Row = 9;
             var_type_dropdown.Layout.Column = 1;
-            var_type_dropdown.Items = ["kinematics", "flow", "force", "BA: force"];
+            var_type_dropdown.Items = ["kinematics", "flow", "force", "BA: force", "load cell"];
             var_type_dropdown.Value = obj.var_type;
 
             % Dropdown boxes for variable selection
@@ -396,33 +406,41 @@ classdef timeAvg_UI < handle
             force_var_dropdown_2.Layout.Column = 1;
             force_var_dropdown_2.Items = obj.get_var_dropdown_items("none");
             force_var_dropdown_2.Value = "none";
-            var_type_dropdown.ValueChangedFcn = @(src, event) var_type_change(src, event, force_var_dropdown_1, force_var_dropdown_2);
-            force_var_dropdown_1.ValueChangedFcn = @(src, event) force_var_change(src, event, plot_panel, force_var_dropdown_1, force_var_dropdown_2);
-            force_var_dropdown_2.ValueChangedFcn = @(src, event) force_var_change(src, event, plot_panel, force_var_dropdown_1, force_var_dropdown_2);
+
+            force_var_dropdown_3 = uidropdown(sidebar_grid);
+            force_var_dropdown_3.Layout.Row = 12;
+            force_var_dropdown_3.Layout.Column = 1;
+            force_var_dropdown_3.Items = obj.get_var_dropdown_items("none");
+            force_var_dropdown_3.Value = "none";
+            var_dropdowns = [force_var_dropdown_1, force_var_dropdown_2, force_var_dropdown_3];
+            var_type_dropdown.ValueChangedFcn = @(src, event) var_type_change(src, event, var_dropdowns);
+            for var_dropdown = var_dropdowns
+                var_dropdown.ValueChangedFcn = @(src, event) force_var_change(src, event, plot_panel, var_dropdowns);
+            end
 
             operation_dropdown = uidropdown(sidebar_grid);
-            operation_dropdown.Layout.Row = 12;
+            operation_dropdown.Layout.Row = 13;
             operation_dropdown.Layout.Column = 1;
             operation_dropdown.Items = obj.operations;
-            operation_dropdown.Tooltip = "shift: phase shift of variable 2 behind variable 1 for each case (cross-correlation of the phase-averaged signals); needs two variables";
+            operation_dropdown.Tooltip = "shift: phase shift of variables 2 and 3 behind variable 1 for each case (cross-correlation of the phase-averaged signals); needs two or more variables";
 
             % Convection shift for the shift operation (as in phaseAvg_UI
             % and flowField_UI): STB signals are shifted by the convection
             % time from the robot to the imaging plane, kinematics are not
             conv_shift_button = uibutton(sidebar_grid, "state");
-            conv_shift_button.Layout.Row = 13;
+            conv_shift_button.Layout.Row = 14;
             conv_shift_button.Layout.Column = 1;
             conv_shift_button.Text = "Convection Shift";
             conv_shift_button.FontSize = 18;
             conv_shift_button.Value = obj.conv_shift;
             conv_shift_button.BackgroundColor = obj.get_button_color(obj.conv_shift);
             conv_shift_button.Enable = strcmp(obj.operation, "shift");
-            conv_shift_button.Tooltip = "Shift operation only: shift STB (force / flow) signals by the convection time from the robot to the imaging plane before finding the phase shift. Kinematics are measured at the robot and aren't shifted";
+            conv_shift_button.Tooltip = "Shift operation only: shift STB (force / flow) signals by the convection time from the robot to the imaging plane before finding the phase shift. Kinematics and load cell signals are measured at the robot and aren't shifted";
             conv_shift_button.ValueChangedFcn = @(src, event) conv_shift_change(src, event, plot_panel);
             operation_dropdown.ValueChangedFcn = @(src, event) operation_change(src, event, plot_panel, conv_shift_button);
 
             piv_button = uibutton(sidebar_grid, "state");
-            piv_button.Layout.Row = 14;
+            piv_button.Layout.Row = 15;
             piv_button.Layout.Column = 1;
             piv_button.Text = "Show PIV";
             piv_button.Value = true;
@@ -431,7 +449,7 @@ classdef timeAvg_UI < handle
             piv_button.ValueChangedFcn = @(src, event) PIV_bool_change(src, event, plot_panel);
 
             piv_sub_button = uibutton(sidebar_grid, "state");
-            piv_sub_button.Layout.Row = 15;
+            piv_sub_button.Layout.Row = 16;
             piv_sub_button.Layout.Column = 1;
             piv_sub_button.Text = "PIV Body Sub";
             piv_sub_button.FontSize = 18;
@@ -441,7 +459,7 @@ classdef timeAvg_UI < handle
             % Steady case used for the subtraction, matched to each
             % selection's downstream position (and amplitude for body/gliding)
             piv_sub_dropdown = uidropdown(sidebar_grid);
-            piv_sub_dropdown.Layout.Row = 16;
+            piv_sub_dropdown.Layout.Row = 17;
             piv_sub_dropdown.Layout.Column = 1;
             piv_sub_dropdown.Items = ["ring", "body", "gliding"];
             piv_sub_dropdown.Value = obj.PIV_sub_case;
@@ -449,14 +467,14 @@ classdef timeAvg_UI < handle
             piv_sub_dropdown.ValueChangedFcn = @(src, event) PIV_sub_case_change(src, event, plot_panel);
 
             force_button = uibutton(sidebar_grid, "state");
-            force_button.Layout.Row = 17;
+            force_button.Layout.Row = 18;
             force_button.Layout.Column = 1;
             force_button.Text = "Show Force";
             force_button.FontSize = 18;
             force_button.BackgroundColor = obj.COLOR_INACTIVE;
 
             force_sub_button = uibutton(sidebar_grid, "state");
-            force_sub_button.Layout.Row = 18;
+            force_sub_button.Layout.Row = 19;
             force_sub_button.Layout.Column = 1;
             force_sub_button.Text = "Force Body Sub";
             force_sub_button.FontSize = 18;
@@ -466,17 +484,17 @@ classdef timeAvg_UI < handle
             % Which processed load cell data to read (forces, voltage,
             % current); only used with Show Force on
             load_cell_data_dropdown = uidropdown(sidebar_grid);
-            load_cell_data_dropdown.Layout.Row = 19;
+            load_cell_data_dropdown.Layout.Row = 20;
             load_cell_data_dropdown.Layout.Column = 1;
             load_cell_data_dropdown.Items = obj.load_cell_data_labels;
             load_cell_data_dropdown.Value = obj.load_cell_data_labels(obj.load_cell_data_vars == obj.load_cell_data_var);
-            load_cell_data_dropdown.Tooltip = "Load cell data used with Show Force";
+            load_cell_data_dropdown.Tooltip = "Load cell data used with Show Force and for load cell variables (phase-averaged version of the chosen filter for the shift operation)";
             load_cell_data_dropdown.Enable = "off";
             load_cell_data_dropdown.ValueChangedFcn = @(src, event) load_cell_data_change(src, event, plot_panel);
             force_button.ValueChangedFcn = @(src, event) force_bool_change(src, event, plot_panel, load_cell_data_dropdown);
 
             x_norm_button = uibutton(sidebar_grid, "state");
-            x_norm_button.Layout.Row = 20;
+            x_norm_button.Layout.Row = 21;
             x_norm_button.Layout.Column = 1;
             x_norm_button.Text = "Normalize X-axis";
             x_norm_button.FontSize = 18;
@@ -484,7 +502,7 @@ classdef timeAvg_UI < handle
             x_norm_button.ValueChangedFcn = @(src, event) x_norm_change(src, event, plot_panel);
 
             y_norm_button = uibutton(sidebar_grid, "state");
-            y_norm_button.Layout.Row = 21;
+            y_norm_button.Layout.Row = 22;
             y_norm_button.Layout.Column = 1;
             y_norm_button.Text = "Normalize Y-axis";
             y_norm_button.FontSize = 18;
@@ -493,7 +511,7 @@ classdef timeAvg_UI < handle
 
             % Put the two selected variables on separate left/right y-axes
             separate_y_button = uibutton(sidebar_grid, "state");
-            separate_y_button.Layout.Row = 22;
+            separate_y_button.Layout.Row = 23;
             separate_y_button.Layout.Column = 1;
             separate_y_button.Text = "Separate Y-Axis";
             separate_y_button.FontSize = 18;
@@ -501,7 +519,7 @@ classdef timeAvg_UI < handle
             separate_y_button.ValueChangedFcn = @(src, event) separate_y_axis_change(src, event, plot_panel);
 
             err_button = uibutton(sidebar_grid, "state");
-            err_button.Layout.Row = 23;
+            err_button.Layout.Row = 24;
             err_button.Layout.Column = 1;
             err_button.Text = "Error";
             err_button.FontSize = 18;
@@ -509,7 +527,7 @@ classdef timeAvg_UI < handle
             err_button.ValueChangedFcn = @(src, event) err_change(src, event, plot_panel);
 
             calc_button = uibutton(sidebar_grid, "state");
-            calc_button.Layout.Row = 24;
+            calc_button.Layout.Row = 25;
             calc_button.Layout.Column = 1;
             calc_button.Text = "Live Calculate";
             calc_button.FontSize = 18;
@@ -518,7 +536,7 @@ classdef timeAvg_UI < handle
             % Trim limits and center point for Live Calculate,
             % nondimensional (divided by L)
             bounds_panel = uipanel(sidebar_grid);
-            bounds_panel.Layout.Row = 25;
+            bounds_panel.Layout.Row = 26;
             bounds_panel.Layout.Column = 1;
             bounds_panel.Title = "Live Calc Bounds (y/L, z/L)";
             bounds_panel.TitlePosition = 'centertop';
@@ -555,7 +573,7 @@ classdef timeAvg_UI < handle
             calc_button.ValueChangedFcn = @(src, event) calc_change(src, event, plot_panel, bounds_fields);
 
             save_fig_button = uibutton(sidebar_grid);
-            save_fig_button.Layout.Row = 26;
+            save_fig_button.Layout.Row = 27;
             save_fig_button.Layout.Column = 1;
             save_fig_button.Text = "Save Fig";
             save_fig_button.FontSize = 18;
@@ -598,16 +616,17 @@ classdef timeAvg_UI < handle
                 obj.set_selected_value_from_item(fixed_vars(2), src.Value);
             end
 
-            function var_type_change(src, ~, dropdown_1, dropdown_2)
+            function var_type_change(src, ~, var_dropdowns)
                 % show the chosen type's variables; a variable already
                 % selected from another type stays selected
                 obj.var_type = string(src.Value);
-                dropdown_1.Items = obj.get_var_dropdown_items(string(dropdown_1.Value));
-                dropdown_2.Items = obj.get_var_dropdown_items(string(dropdown_2.Value));
+                for k = 1:length(var_dropdowns)
+                    var_dropdowns(k).Items = obj.get_var_dropdown_items(string(var_dropdowns(k).Value));
+                end
             end
 
-            function force_var_change(~, ~, plot_panel, dropdown_1, dropdown_2)
-                selected_values = [string(dropdown_1.Value), string(dropdown_2.Value)];
+            function force_var_change(~, ~, plot_panel, var_dropdowns)
+                selected_values = string({var_dropdowns.Value});
                 obj.force_vars = strings(0);
 
                 for n = 1:length(selected_values)
@@ -627,6 +646,8 @@ classdef timeAvg_UI < handle
                     obj.force_var = obj.force_vars(1);
                 end
 
+                % the load cell data choice also applies to load cell variables
+                set_load_cell_data_enable();
                 obj.update_plot(plot_panel);
             end
 
@@ -680,12 +701,17 @@ classdef timeAvg_UI < handle
                 obj.force_bool = src.Value;
                 src.BackgroundColor = obj.get_button_color(obj.force_bool);
                 src.Text = obj.get_button_text(obj.force_bool, "Force");
-                if obj.force_bool
+                set_load_cell_data_enable();
+                obj.update_plot(plot_panel);
+            end
+
+            function set_load_cell_data_enable()
+                % used by Show Force and by load cell variables
+                if obj.force_bool || any(obj.is_load_cell_var(obj.get_active_force_vars()))
                     load_cell_data_dropdown.Enable = "on";
                 else
                     load_cell_data_dropdown.Enable = "off";
                 end
-                obj.update_plot(plot_panel);
             end
 
             function load_cell_data_change(src, ~, plot_panel)
@@ -1321,6 +1347,9 @@ classdef timeAvg_UI < handle
             var_name_F = "";
             idx = [];
             quantity = "";
+            if startsWith(string(force_var), "LC_")
+                return % already a load cell variable
+            end
             switch string(force_var)
                 case "U_act" % pitot U
                     var_name_F = "U_act";
@@ -1503,7 +1532,9 @@ classdef timeAvg_UI < handle
                             % errors(j) = 0.2 / length(d.bin_std);
                         end
 
-                        if obj.calc_bool && obj.is_piv_force_variable(force_var)
+                        if obj.is_load_cell_var(force_var)
+                            var = obj.get_load_cell_signal(force_var, type, amp, freq, false);
+                        elseif obj.calc_bool && obj.is_piv_force_variable(force_var)
                             [var, err] = get_PIV_force(filepath, name, force_var, avg_type, obj.y_norm, obj.trim_bounds);
 
                             if obj.PIV_sub
@@ -1690,27 +1721,22 @@ classdef timeAvg_UI < handle
             valid = length(signal) > 1 && all(isfinite(signal)) && std(signal) > 0;
         end
 
-        % Phase shift between the two selected variables for each case
-        % (shift operation): how far variable 2 lags variable 1, in
-        % wingbeats, from the circular cross-correlation of their
+        % Phase shift of each selected variable relative to the first, for
+        % each case (shift operation): how far variable k lags variable 1,
+        % in wingbeats, from the circular cross-correlation of their
         % phase-averaged signals. 0 Hz (gliding) cases have no wingbeat
         % and are skipped.
         function plot_variable_phase_shift(obj, ax, force_vars)
             if length(force_vars) < 2
-                title(ax, "Select two variables to plot the phase shift between them", ...
+                title(ax, "Select two or more variables to plot the phase shift between them", ...
                     FontSize=14, FontWeight="normal")
                 return
             end
-            if ~obj.PIV_bool
-                title(ax, "Turn on Show PIV to plot the phase shift", FontSize=14, FontWeight="normal")
-                return
-            end
 
-            var_1 = force_vars(1);
-            var_2 = force_vars(2);
-            label_1 = obj.get_force_var_label(var_1);
-            label_2 = obj.get_force_var_label(var_2);
-            colors = lines(max(1, length(obj.selection)));
+            num_vars = length(force_vars);
+            labels = arrayfun(@(v) obj.get_force_var_label(v), force_vars);
+            num_series = length(obj.selection) * (num_vars - 1);
+            colors = lines(max(1, num_series));
 
             for i = 1:length(obj.selection)
                 info = obj.decode_selection(obj.selection(i));
@@ -1720,7 +1746,7 @@ classdef timeAvg_UI < handle
                     continue
                 end
 
-                shifts = NaN(1, num_points);
+                shifts = NaN(num_vars, num_points);
                 measured_freqs = points.freqs;
                 wind_speed_acts = NaN(1, num_points);
                 for j = 1:num_points
@@ -1732,34 +1758,43 @@ classdef timeAvg_UI < handle
                         continue
                     end
 
-                    [sig_1, measured_freqs(j), wind_speed_acts(j)] = ...
-                        obj.get_phase_avg_signal(var_1, type, amp, freq, info.RPCA);
-                    sig_2 = obj.get_phase_avg_signal(var_2, type, amp, freq, info.RPCA);
-
-                    if obj.conv_shift
-                        sig_1 = obj.apply_convection_shift(sig_1, var_1, type, measured_freqs(j));
-                        sig_2 = obj.apply_convection_shift(sig_2, var_2, type, measured_freqs(j));
+                    sigs = cell(1, num_vars);
+                    for k = 1:num_vars
+                        [sigs{k}, measured_freqs(j), wind_speed_acts(j)] = ...
+                            obj.get_phase_avg_signal(force_vars(k), type, amp, freq, info.RPCA);
+                        if obj.conv_shift
+                            sigs{k} = obj.apply_convection_shift(sigs{k}, force_vars(k), type, measured_freqs(j));
+                        end
                     end
 
-                    shifts(j) = obj.circular_phase_shift(sig_1, sig_2);
-                    fprintf('%s %g deg %g Hz: %s lags %s by %.3f wingbeats\n', ...
-                        type, amp, freq, label_2, label_1, shifts(j));
+                    for k = 2:num_vars
+                        shifts(k, j) = obj.circular_phase_shift(sigs{1}, sigs{k});
+                        fprintf('%s %g deg %g Hz: %s lags %s by %.3f wingbeats\n', ...
+                            type, amp, freq, labels(k), labels(1), shifts(k, j));
+                    end
                 end
 
                 [x_var, x_label] = obj.get_x_axis_values(info.x_axis_type, points, measured_freqs, wind_speed_acts);
                 xlabel(ax, x_label, Interpreter="latex")
 
-                s1 = scatter(ax, x_var, shifts, 125, "filled");
-                s1.Marker = char(obj.get_variable_marker(1));
-                s1.MarkerFaceColor = colors(i,:);
-                s1.MarkerEdgeColor = colors(i,:);
-                s1.DisplayName = obj.get_curve_label(info);
+                for k = 2:num_vars
+                    color = colors((i - 1) * (num_vars - 1) + k - 1, :);
+                    s1 = scatter(ax, x_var, shifts(k,:), 125, "filled");
+                    s1.Marker = char(obj.get_variable_marker(k));
+                    s1.MarkerFaceColor = color;
+                    s1.MarkerEdgeColor = color;
+                    if length(obj.selection) > 1
+                        s1.DisplayName = obj.get_curve_label(info) + " - " + labels(k);
+                    else
+                        s1.DisplayName = labels(k);
+                    end
+                end
             end
 
             yl = yline(ax, 0, "k");
             yl.HandleVisibility = "off";
             ylabel(ax, "Phase shift (wingbeats)")
-            title(ax, label_2 + " lag behind " + label_1, FontSize=14, FontWeight="normal")
+            title(ax, "Lag behind " + labels(1), FontSize=14, FontWeight="normal")
         end
 
         % Phase-averaged signal of a variable for one flapping case, with
@@ -1779,7 +1814,12 @@ classdef timeAvg_UI < handle
             measured_freq = mean(F.freq_avg);
             wind_speed_act = d.U_act * d.U;
 
-            if obj.calc_bool && obj.is_piv_force_variable(force_var)
+            if obj.is_load_cell_var(force_var)
+                % phase-averaged load cell signal, measured at the robot
+                var = obj.get_load_cell_signal(force_var, type, amp, freq, true);
+                var = double(var(:)');
+                return
+            elseif obj.calc_bool && obj.is_piv_force_variable(force_var)
                 var = get_PIV_force(filepath, name, force_var, 1, obj.y_norm, obj.trim_bounds);
             else
                 if contains(force_var, ".")
@@ -1795,6 +1835,99 @@ classdef timeAvg_UI < handle
                 end
             end
             var = double(var(:)');
+
+            % old flapper 10 deg flexible case started at mid-downstroke
+            % rather than mid-upstroke: same half-cycle correction as
+            % phaseAvg_UI applies to its STB curves (not the load cell)
+            if amp == 10 && ~contains(type, "UP") && strlength(get_downstream_prefix(type)) == 0
+                var = circshift(var, round(0.5*length(var)));
+            end
+        end
+
+        function tf = is_load_cell_var(~, force_var)
+            tf = startsWith(string(force_var), "LC_");
+        end
+
+        % Load cell row(s) and quantity for a load cell variable: rows of
+        % the processed data are [Fx Fy Fz Mx My Mz; home; voltage; current]
+        function [idx, quantity] = get_load_cell_var_row(~, force_var)
+            switch string(force_var)
+                case "LC_drag"
+                    idx = 1; quantity = "drag";
+                case "LC_lift"
+                    idx = 3; quantity = "lift";
+                case "LC_pitch"
+                    idx = 5; quantity = "pitch";
+                case "LC_volt"
+                    idx = 8; quantity = "voltage";
+                case "LC_cur"
+                    idx = 9; quantity = "current";
+                case "LC_power"
+                    idx = [8 9]; quantity = "electric power";
+                otherwise
+                    error("timeAvg_UI:unknownLoadCellVar", "Unknown load cell variable %s", force_var)
+            end
+        end
+
+        % Load cell signal for a load cell variable and case: the selected
+        % load cell data, or its wingbeat-averaged version (phase_avg).
+        % Force Body Sub subtracts the body signal from forces / moments.
+        % NaN if there is no load cell data for the case.
+        function signal = get_load_cell_signal(obj, force_var, type, amp, freq, phase_avg)
+            signal = NaN;
+            [idx, quantity] = obj.get_load_cell_var_row(force_var);
+            if contains(type, "UP")
+                disp("No load cell data for upstream case " + type)
+                return
+            end
+            if phase_avg
+                var_name_F = obj.get_wingbeat_avg_load_cell_var();
+            else
+                var_name_F = obj.load_cell_data_var;
+            end
+
+            try
+                signal = get_force(obj.force_path, type, amp, freq, idx, var_name_F);
+            catch ME
+                if ~startsWith(ME.identifier, "get_force:")
+                    rethrow(ME)
+                end
+                disp(ME.message + " - point not plotted")
+                signal = NaN;
+                return
+            end
+            if quantity == "electric power" && size(signal, 1) == 2
+                signal = signal(1,:) .* signal(2,:); % V x mA = mW
+            end
+
+            if obj.force_sub && ismember(quantity, ["drag", "lift", "pitch"])
+                if obj.is_plain_steady_type(type)
+                    disp("Force Body Sub skipped for steady case " + type)
+                else
+                    body_amp = amp;
+                    if body_amp == 30
+                        body_amp = 20;
+                    end
+                    body_type = get_downstream_prefix(type) + "body";
+                    body_signal = get_force(obj.force_path, body_type, body_amp, freq, idx, var_name_F);
+                    signal = obj.subtract_alignment_body_signal(signal, body_signal);
+                end
+            end
+        end
+
+        % Wingbeat-averaged load cell variable matching the selected load
+        % cell data filter (as used by phaseAvg_UI)
+        function var_name = get_wingbeat_avg_load_cell_var(obj)
+            switch obj.load_cell_data_var
+                case {"mod_results", "wingbeat_forces_raw"}
+                    var_name = "wingbeat_avg_forces_raw";
+                case {"filtered_data", "wingbeat_forces"}
+                    var_name = "wingbeat_avg_forces";
+                case {"filtered_data_smoother", "wingbeat_forces_smoother"}
+                    var_name = "wingbeat_avg_forces_smoother";
+                otherwise
+                    var_name = "wingbeat_avg_forces_smoothest";
+            end
         end
 
         % How far sig_2 lags sig_1, in wingbeats, in [-0.5, 0.5): the
@@ -1872,8 +2005,8 @@ classdef timeAvg_UI < handle
         % robot and are returned unchanged. Same distances and speed as
         % phaseAvg_UI / flowField_UI.
         function signal = apply_convection_shift(obj, signal, force_var, type, freq_cor)
-            if obj.get_var_category(force_var) == "kinematics"
-                return
+            if ismember(obj.get_var_category(force_var), ["kinematics", "load cell"])
+                return % measured at the robot
             end
             dist = obj.get_robot_to_plane_dist(type);
             if isnan(dist)
