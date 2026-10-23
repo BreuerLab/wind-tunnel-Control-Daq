@@ -93,6 +93,15 @@ properties
         "Position (rad)", "Speed (rad/s)", "Acceleration (rad/s^2)",...
         "Voltage (V)", "Voltage (V)", "Current (mA)", "Power (mW)"];
 
+    % Load cell variables: wingbeat-averaged load cell data (the Force Data
+    % filter in the Load Cell panel), measured at the robot. Names start
+    % with "LC_" (same as timeAvg_UI).
+    lc_var_types = ["drag (LC)", "lift (LC)", "pitch (LC)",...
+        "voltage (LC)", "current (LC)", "electric power (LC)"];
+    lc_var_names = ["LC_drag", "LC_lift", "LC_pitch", "LC_volt", "LC_cur", "LC_power"];
+    lc_y_labels = ["Drag (N)", "Lift (N)", "Pitch Moment (N m)",...
+        "Voltage (V)", "Current (mA)", "Power (mW)"];
+
     load_cell_types = ["no filter", "fc = 10*fw", "fc = 5*fw", "fc = 2*fw"];
     load_cell_names = ["wingbeat_avg_forces_raw",...
                      "wingbeat_avg_forces",...
@@ -235,7 +244,7 @@ methods
 
         sidebar_grid = uigridlayout(option_panel, [19, 1]);
         sidebar_grid.ColumnWidth = {'1x'};
-        sidebar_grid.RowHeight = {30, 30, 30, 30, 30, 30, 30, 110, 30, 328, 30, 0, 30, 30, 30, 24, 30, 30, 30};
+        sidebar_grid.RowHeight = {30, 30, 30, 30, 30, 30, 30, 110, 30, 383, 30, 0, 30, 30, 30, 24, 30, 30, 30};
         sidebar_grid.Padding = [10 10 10 10];
         sidebar_grid.RowSpacing = 6;
         if isprop(sidebar_grid, "Scrollable")
@@ -337,9 +346,9 @@ methods
         param_panel.Title = "Plot Parameters";
         param_panel.TitlePosition = 'centertop';
 
-        param_grid = uigridlayout(param_panel, [10, 1]);
+        param_grid = uigridlayout(param_panel, [12, 1]);
         param_grid.ColumnWidth = {'1x'};
-        param_grid.RowHeight = {22, 25, 22, 25, 22, 25, 30, 25, 30, 30};
+        param_grid.RowHeight = {22, 25, 22, 25, 22, 25, 22, 25, 30, 25, 30, 30};
         param_grid.Padding = [10 8 10 8];
         param_grid.RowSpacing = 4;
 
@@ -351,7 +360,7 @@ methods
         var_type_dropdown = uidropdown(param_grid);
         var_type_dropdown.Layout.Row = 2;
         var_type_dropdown.Layout.Column = 1;
-        var_type_dropdown.Items = ["kinematics", "flow", "force", "BA: force"];
+        var_type_dropdown.Items = ["kinematics", "flow", "force", "BA: force", "load cell"];
         var_type_dropdown.Value = "kinematics";
 
         [init_types, ~, ~] = obj.get_variable_options(var_type_dropdown.Value);
@@ -379,8 +388,19 @@ methods
         var_dropdown2.Items = init_options;
         var_dropdown2.Value = "none";
 
+        var_label3 = uilabel(param_grid);
+        var_label3.Layout.Row = 7;
+        var_label3.Layout.Column = 1;
+        var_label3.Text = "Variable 3";
+
+        var_dropdown3 = uidropdown(param_grid);
+        var_dropdown3.Layout.Row = 8;
+        var_dropdown3.Layout.Column = 1;
+        var_dropdown3.Items = init_options;
+        var_dropdown3.Value = "none";
+
         b6 = uibutton(param_grid, "state");
-        b6.Layout.Row = 7;
+        b6.Layout.Row = 9;
         b6.Layout.Column = 1;
         b6.Text = "PIV Body Sub";
         b6.FontSize = 18;
@@ -390,7 +410,7 @@ methods
         % Steady case used for the subtraction, matched to each
         % selection's downstream position (and amplitude for body/gliding)
         PIV_sub_dropdown = uidropdown(param_grid);
-        PIV_sub_dropdown.Layout.Row = 8;
+        PIV_sub_dropdown.Layout.Row = 10;
         PIV_sub_dropdown.Layout.Column = 1;
         PIV_sub_dropdown.Items = ["ring", "body", "gliding"];
         PIV_sub_dropdown.Value = obj.PIV_sub_case;
@@ -398,19 +418,19 @@ methods
         PIV_sub_dropdown.ValueChangedFcn = @(src, event) PIV_sub_case_change(src, event, plot_panel);
 
         conv_shift_button = uibutton(param_grid, "state");
-        conv_shift_button.Layout.Row = 9;
+        conv_shift_button.Layout.Row = 11;
         conv_shift_button.Layout.Column = 1;
         conv_shift_button.Text = "Convection Shift";
         conv_shift_button.FontSize = 18;
         conv_shift_button.Value = obj.conv_shift;
         conv_shift_button.BackgroundColor = obj.get_button_color(obj.conv_shift);
-        conv_shift_button.Tooltip = "Phase shift PIV force and flow curves by the convection time from the robot to the imaging plane";
+        conv_shift_button.Tooltip = "Phase shift PIV force and flow curves by the convection time from the robot to the imaging plane (kinematics and load cell variables are measured at the robot and aren't shifted)";
         conv_shift_button.ValueChangedFcn = @(src, event) conv_shift_change(src, event, plot_panel);
 
         % Stroke reversal lines, upstroke/downstroke labels and downstroke
         % shading. Turned on with Convection Shift, unavailable without it.
         label_stroke_button = uibutton(param_grid, "state");
-        label_stroke_button.Layout.Row = 10;
+        label_stroke_button.Layout.Row = 12;
         label_stroke_button.Layout.Column = 1;
         label_stroke_button.Text = "Label Stroke";
         label_stroke_button.FontSize = 18;
@@ -420,9 +440,11 @@ methods
         label_stroke_button.Tooltip = "Mark stroke reversals (from the phase-averaged wing position) and label upstroke / downstroke. Requires Convection Shift";
         label_stroke_button.ValueChangedFcn = @(src, event) label_stroke_change(src, event, plot_panel);
 
-        var_dropdown1.ValueChangedFcn = @(src, event) updateVariableSelection(src, event, plot_panel, var_dropdown1, var_dropdown2);
-        var_dropdown2.ValueChangedFcn = @(src, event) updateVariableSelection(src, event, plot_panel, var_dropdown1, var_dropdown2);
-        var_type_dropdown.ValueChangedFcn = @(src, event) updateVariableType(src, event, plot_panel, var_dropdown1, var_dropdown2);
+        var_dropdowns = [var_dropdown1, var_dropdown2, var_dropdown3];
+        for var_dropdown = var_dropdowns
+            var_dropdown.ValueChangedFcn = @(src, event) updateVariableSelection(src, event, plot_panel, var_dropdowns);
+        end
+        var_type_dropdown.ValueChangedFcn = @(src, event) updateVariableType(src, event, plot_panel, var_dropdowns);
 
         load_cell_toggle = uibutton(sidebar_grid, "state");
         load_cell_toggle.Layout.Row = 11;
@@ -783,8 +805,8 @@ methods
             obj.update_plot(plot_panel);
         end
 
-        function updateVariableSelection(~, ~, plot_panel, dropdown1, dropdown2)
-            selected_values = [string(dropdown1.Value), string(dropdown2.Value)];
+        function updateVariableSelection(~, ~, plot_panel, var_dropdowns)
+            selected_values = string({var_dropdowns.Value});
             obj.inds = [];
 
             for n = 1:length(selected_values)
@@ -801,10 +823,11 @@ methods
             obj.update_plot(plot_panel);
         end
 
-        function updateVariableType(src, ~, plot_panel, dropdown1, dropdown2)
-            updateDropdownItems(src.Value, dropdown1);
-            updateDropdownItems(src.Value, dropdown2);
-            updateVariableSelection([], [], plot_panel, dropdown1, dropdown2);
+        function updateVariableType(src, ~, plot_panel, var_dropdowns)
+            for k = 1:length(var_dropdowns)
+                updateDropdownItems(src.Value, var_dropdowns(k));
+            end
+            updateVariableSelection([], [], plot_panel, var_dropdowns);
         end
 
         function updateDropdownItems(var_type, dropdown)
@@ -1246,9 +1269,11 @@ methods (Access = private)
         ba_force_types = "BA: " + obj.force_var_types;
         ba_force_names = obj.get_ba_force_names();
 
-        types = [obj.force_var_types, ba_force_types, obj.flow_var_types, obj.kin_var_types];
-        names = [obj.force_var_names, ba_force_names, obj.flow_var_names, obj.kin_var_names];
-        labels = [obj.force_y_labels, obj.force_y_labels, obj.flow_y_labels, obj.kin_y_labels];
+        % load cell variables last, so the force / flow index ranges
+        % (is_force_index, is_flow_index) are unchanged
+        types = [obj.force_var_types, ba_force_types, obj.flow_var_types, obj.kin_var_types, obj.lc_var_types];
+        names = [obj.force_var_names, ba_force_names, obj.flow_var_names, obj.kin_var_names, obj.lc_var_names];
+        labels = [obj.force_y_labels, obj.force_y_labels, obj.flow_y_labels, obj.kin_y_labels, obj.lc_y_labels];
     end
 
     function names = get_ba_force_names(obj)
@@ -1284,6 +1309,10 @@ methods (Access = private)
             keep = ~contains(obj.force_var_names, "_uavg") & ...
                 ~ismember(obj.force_var_names, ["lift.vortY_edge", "lift.vortX_taper"]);
             types = types(keep); names = names(keep); labels = labels(keep);
+        elseif strcmp(var_type, "load cell")
+            types = obj.lc_var_types;
+            names = obj.lc_var_names;
+            labels = obj.lc_y_labels;
         else
             error("invalid var type")
         end
@@ -1421,6 +1450,17 @@ methods (Access = private)
         tf = index > num_force && index <= num_force + length(obj.flow_var_types);
     end
 
+    function tf = is_load_cell_index(obj, index)
+        tf = startsWith(obj.active_names(index), "LC_");
+    end
+
+    % Forces in N that can share one y-axis: PIV forces and load cell
+    % lift / drag (not pitch, voltage, ...)
+    function tf = is_force_like_index(obj, index)
+        tf = obj.is_force_index(index) || ...
+            ismember(obj.active_names(index), ["LC_drag", "LC_lift"]);
+    end
+
     % Variables computed from the imaging plane data, which lag the
     % motor phase by the wake's convection time
     function tf = is_imaging_plane_index(obj, index)
@@ -1538,6 +1578,66 @@ methods (Access = private)
         end
     end
 
+    % Load cell row(s) and quantity for a load cell variable: rows of the
+    % processed data are [Fx Fy Fz Mx My Mz; home; voltage; current]
+    function [idx, quantity] = get_load_cell_var_row(~, var_name)
+        switch string(var_name)
+            case "LC_drag"
+                idx = 1; quantity = "drag";
+            case "LC_lift"
+                idx = 3; quantity = "lift";
+            case "LC_pitch"
+                idx = 5; quantity = "pitch";
+            case "LC_volt"
+                idx = 8; quantity = "voltage";
+            case "LC_cur"
+                idx = 9; quantity = "current";
+            case "LC_power"
+                idx = [8 9]; quantity = "electric power";
+            otherwise
+                error("phaseAvg_UI:unknownLoadCellVar", "Unknown load cell variable %s", var_name)
+        end
+    end
+
+    % Wingbeat-averaged load cell signal for a load cell variable and case,
+    % using the Force Data filter. Force Body Sub subtracts the body
+    % signal from the forces / moment. Empty if there is no load cell data
+    % (e.g. upstream cases).
+    function signal = get_load_cell_var_signal(obj, var_name, type, amp, freq)
+        signal = [];
+        if contains(type, "UP")
+            disp("No load cell data for upstream case " + type)
+            return
+        end
+        [idx, quantity] = obj.get_load_cell_var_row(var_name);
+        var_name_F = obj.load_cell_force_var;
+
+        try
+            signal = get_force(obj.force_path, type, amp, freq, idx, var_name_F);
+        catch ME
+            if ~startsWith(ME.identifier, "get_force:")
+                rethrow(ME)
+            end
+            disp(ME.message + " - not plotted")
+            signal = [];
+            return
+        end
+        if quantity == "electric power" && size(signal, 1) == 2
+            signal = signal(1,:) .* signal(2,:); % V x mA = mW
+        end
+
+        if obj.force_sub && ismember(quantity, ["drag", "lift", "pitch"])
+            body_amp = amp;
+            if body_amp == 30
+                body_amp = 20;
+            end
+            body_type = get_downstream_prefix(type) + "body";
+            body_signal = get_force(obj.force_path, body_type, body_amp, freq, idx, var_name_F);
+            signal = signal - body_signal;
+        end
+        signal = double(signal(:)');
+    end
+
     function dual_plot = should_use_separate_y_axes(obj)
         dual_plot = false;
         if obj.should_split_load_cell_axis()
@@ -1549,7 +1649,7 @@ methods (Access = private)
             return
         end
 
-        force_indices = arrayfun(@(index) obj.is_force_index(index), obj.inds);
+        force_indices = arrayfun(@(index) obj.is_force_like_index(index), obj.inds);
         dual_plot = obj.separate_y_axis_bool || ~all(force_indices);
     end
 
@@ -1565,7 +1665,7 @@ methods (Access = private)
             return
         end
 
-        if all(arrayfun(@(index) obj.is_force_index(index), obj.inds))
+        if all(arrayfun(@(index) obj.is_force_like_index(index), obj.inds))
             y_label = "Plot Parameter Force (N)";
             return
         end
@@ -1588,13 +1688,19 @@ methods (Access = private)
             ylabs(1) = obj.get_plot_parameter_axis_label();
             ylabs(2) = "Load Cell Force (N)";
         else
+            % variable 1 on the left, variables 2 (and 3) on the right
             ylabs(1) = obj.active_labels(obj.inds(1));
-            ylabs(2) = obj.active_labels(obj.inds(2));
+            right_labels = obj.active_labels(obj.inds(2:end));
+            if all(right_labels == right_labels(1))
+                ylabs(2) = right_labels(1);
+            else
+                ylabs(2) = "Plot Parameter Values";
+            end
         end
     end
 
     function y_label = get_single_axis_label(obj)
-        if ~isempty(obj.inds) && all(arrayfun(@(index) obj.is_force_index(index), obj.inds))
+        if ~isempty(obj.inds) && all(arrayfun(@(index) obj.is_force_like_index(index), obj.inds))
             y_label = "Force (N)";
         else
             y_label = obj.active_labels(obj.inds(1));
@@ -1727,6 +1833,7 @@ methods (Access = private)
         % Load cell curves depend only on the case (type, amp, freq), not
         % on the PIV variable or data version, so each is drawn once
         plotted_load_cell = strings(0);
+        plotted_lc_vars = strings(0); % same for load cell variables
 
         if isempty(obj.inds) && ~isempty(obj.force_index)
             for i = 1:length(obj.selection)
@@ -1746,6 +1853,53 @@ methods (Access = private)
             cur_sel = obj.selection(i);
 
             [amp, type, freq] = parse_name(cur_sel);
+
+            % Load cell variable: measured at the robot, so no convection
+            % or bin-phase correction; one curve per case
+            if obj.is_load_cell_index(index)
+                lc_key = string(index) + "|" + type + "_" + amp + "deg_" + freq + "Hz";
+                if ismember(lc_key, plotted_lc_vars)
+                    continue
+                end
+                var = obj.get_load_cell_var_signal(obj.active_names(index), type, amp, freq);
+                if isempty(var)
+                    continue
+                end
+                plotted_lc_vars(end+1) = lc_key;
+                var = obj.subtract_signal_mean(var);
+                time = (1:length(var)) / length(var);
+
+                if align_plot_bool
+                    aligned_curves(end+1) = struct(...
+                        'val', var,...
+                        'time', time,...
+                        'index', index,...
+                        'plot_idx', j,...
+                        'cur_sel', cur_sel,...
+                        'legend_entry', obj.get_aligned_legend_entry(cur_sel, index, false),...
+                        'line_style', "",...
+                        'marker', "",...
+                        'y_axis', "");
+                end
+
+                [time_F, force, plotted_load_cell] = obj.get_unplotted_load_cell_force(type, amp, freq, plotted_load_cell);
+                if align_plot_bool && ~isempty(force)
+                    aligned_curves(end+1) = struct(...
+                        'val', force,...
+                        'time', time_F,...
+                        'index', index,...
+                        'plot_idx', j,...
+                        'cur_sel', cur_sel,...
+                        'legend_entry', obj.get_load_cell_legend_entry(cur_sel),...
+                        'line_style', "-",...
+                        'marker', "none",...
+                        'y_axis', "right");
+                end
+                if ~align_plot_bool
+                    obj.plot_data(ax, ax_target, time, var, time_F, force, index, dual_plot, j, cur_sel, color_params, ylabs);
+                end
+                continue
+            end
 
             filename = cur_sel + "_phase_avg";
             file_path = obj.PIV_path  + "phase_avg\" + filename + ".mat";
