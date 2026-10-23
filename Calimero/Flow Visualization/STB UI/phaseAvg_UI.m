@@ -1959,6 +1959,14 @@ methods (Access = private)
 
             time = 1:length(var);
             time = (time + placement_pct(:)' / 100) / length(var); % actual bin phases
+            % a late last bin can sit just past t/T = 1: that is the start
+            % of the next wingbeat, so wrap it to the start of this one
+            wrapped = time > 1;
+            if any(wrapped)
+                time(wrapped) = time(wrapped) - 1;
+                [time, order] = sort(time);
+                var = var(order);
+            end
 
             if align_plot_bool
                 aligned_curves(end+1) = struct(...
@@ -2294,6 +2302,9 @@ methods (Access = private)
             legend(ax_target, Location="best", Interpreter="latex");
             xlabel(ax, "Time over Wingbeat Period (t/T)", Interpreter="latex")
             xlabel(ax_target, "Time over Wingbeat Period (t/T)", Interpreter="latex")
+            % always one wingbeat (auto limits would round up to 1.2)
+            xlim(ax, [0 1])
+            xlim(ax_target, [0 1])
 
             % if ~isempty(obj.inds)
             %     if length(obj.inds) > 1
