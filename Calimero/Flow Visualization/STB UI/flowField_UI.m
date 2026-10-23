@@ -148,8 +148,9 @@ properties
     % shift the 3D plot's phase by the wake's convection time from the
     % robot to the imaging plane, so all cases start at the same wing phase
     conv_shift;
-    % with conv_shift, shift the 3D plot by a further half wingbeat so the
-    % upstroke is centred instead of the downstroke ("+/-" button)
+    % with conv_shift, shift the 3D plot further so the upstroke is
+    % centred instead of the downstroke ("+/-" button, see
+    % get_stroke_flip_bins)
     stroke_flip;
     % mark stroke reversals on the 3D plot (2D views showing the x-axis)
     label_stroke;
@@ -779,7 +780,7 @@ methods
         stroke_flip_button.Value = obj.stroke_flip;
         stroke_flip_button.Enable = obj.conv_shift;
         stroke_flip_button.BackgroundColor = obj.get_button_color(obj.stroke_flip);
-        stroke_flip_button.Tooltip = "Off: downstroke centred. On: shift a further half wingbeat so the upstroke is centred. Requires Convection Shift";
+        stroke_flip_button.Tooltip = "Off: downstroke centred. On: shifted so the upstroke is centred instead (shift from the stroke reversals in the wing position, since the strokes differ in length). Requires Convection Shift";
         stroke_flip_button.ValueChangedFcn = @(src, event) stroke_flip_change(src, event, plot_area_panel);
 
         % Stroke reversal lines, downstroke shading and up/downstroke
@@ -1430,6 +1431,28 @@ methods (Access = private)
         S.bottom = i_bottom * num_bins / N_w;
         S.N = num_bins;
         S.frame_shift = 0;
+    end
+
+    % Bins to shift the 3D plot by so the middle of the upstroke lands
+    % where the middle of the downstroke is without the shift. The strokes
+    % differ in length, so this comes from the stroke reversals in the
+    % wing position (downstroke: top -> bottom, upstroke: bottom -> top);
+    % half a wingbeat if the wing position isn't saved.
+    function flip_bins = get_stroke_flip_bins(obj, num_bins)
+        S = obj.stroke_3D;
+        if isempty(S)
+            flip_bins = round(num_bins / 2);
+            disp("No wing position for " + obj.get_current_case_id() + ", upstroke centred assuming equal strokes")
+            return
+        end
+        N = S.N;
+        down_len = mod(S.bottom - S.top, N);
+        up_len = N - down_len;
+        down_mid = S.top + down_len / 2;
+        up_mid = S.bottom + up_len / 2;
+        flip_bins = round(mod(down_mid - up_mid, N));
+        disp(sprintf("Downstroke %.0f%% / upstroke %.0f%% of the wingbeat: upstroke centred with a %d / %d bin shift", ...
+            100 * down_len / N, 100 * up_len / N, flip_bins, N))
     end
 
     function set_stroke_frame_shift(obj, frame_shift)
@@ -2275,12 +2298,22 @@ methods (Access = private)
             params.movie = false;
             params.L = d.L;
             conv_shift_bins = obj.get_conv_shift_bins(d.cycle_freq, d.num_bins);
-            % "+/-": half a wingbeat more, so the upstroke is centred. It
-            % moves the flow and the wing phase together, so unlike the
-            % convection shift it is part of the stroke labels' shift too.
+
+            % Stroke reversals (Label Stroke and "+/-"). The wing position
+            % is measured at the robot, so it only lines up with the flow
+            % once the convection shift is applied.
+            obj.stroke_3D = [];
+            if obj.conv_shift
+                obj.stroke_3D = obj.get_stroke_info_3D(full_file_path, d.num_bins);
+            end
+
+            % "+/-": shift so the upstroke is centred where the downstroke
+            % is otherwise. It moves the flow and the wing phase together,
+            % so unlike the convection shift it is part of the stroke
+            % labels' shift too.
             stroke_flip_bins = 0;
             if obj.conv_shift && obj.stroke_flip
-                stroke_flip_bins = round(d.num_bins / 2);
+                stroke_flip_bins = obj.get_stroke_flip_bins(d.num_bins);
             end
             params.shift = obj.frame_ind - 1 + conv_shift_bins + stroke_flip_bins;
             params.isoValue = obj.iso_val; % 0.05
@@ -2289,14 +2322,6 @@ methods (Access = private)
             % stack_vortices_3D's t/T axis is the convective axis divided by
             % its maximum, U * (N-1) / (f N) / L
             obj.conv_scale = d.U * (d.num_bins - 1) / (d.cycle_freq * d.num_bins * d.L);
-
-            % Stroke reversals for Label Stroke. The wing position is
-            % measured at the robot, so it only lines up with the flow
-            % once the convection shift is applied.
-            obj.stroke_3D = [];
-            if obj.conv_shift
-                obj.stroke_3D = obj.get_stroke_info_3D(full_file_path, d.num_bins);
-            end
 
             [xlims, surface_data, color_data] = stack_vortices_3D(y, z, val, Q, d.cycle_freq, params);
             setColorBar(ax, params)
