@@ -955,14 +955,28 @@ methods (Access = private)
         available_selections(all(cellfun(@isempty, available_selections), 2), :) = [];
     end
 
+    % File version: whatever follows the "<freq>Hz" part of the name, e.g.
+    % x3_wings_20deg_6Hz_coarse -> "coarse", x3_wings_20deg_6Hz_v2 -> "v2"
+    % (a trailing _RPCA is not part of it). No suffix = default version.
+    % Version names shouldn't contain "deg" or "Hz" (parse_name reads those).
     function [base_name, version] = extract_file_version(obj, name)
-        base_name = string(name);
-        version = obj.DEFAULT_VERSION_LABEL;
-        version_match = regexp(char(base_name), '_v\d+$', 'match', 'once');
+        name = string(name);
+        is_rpca = endsWith(name, "_RPCA");
+        if is_rpca
+            name = extractBefore(name, strlength(name) - strlength("_RPCA") + 1);
+        end
 
-        if ~isempty(version_match)
-            version = erase(string(version_match), "_");
-            base_name = string(regexprep(char(base_name), '_v\d+$', ''));
+        base_name = name;
+        version = obj.DEFAULT_VERSION_LABEL;
+        parts = split(name, "_");
+        hz_idx = find(~cellfun(@isempty, regexp(cellstr(parts), '^\d+(\.\d+)?Hz$', 'once')), 1);
+        if ~isempty(hz_idx) && hz_idx < numel(parts)
+            version = strjoin(parts(hz_idx+1:end), "_");
+            base_name = strjoin(parts(1:hz_idx), "_");
+        end
+
+        if is_rpca
+            base_name = base_name + "_RPCA";
         end
     end
 
@@ -1150,8 +1164,13 @@ methods (Access = private)
             end
         end
 
-        [~, sort_order] = sort(version_numbers);
-        versions = [default_versions(:); numbered_versions(sort_order(:))];
+        % v1, v2, ... in order, then named versions (e.g. "coarse") A-Z
+        [~, sort_order] = sortrows([version_numbers, (1:numel(version_numbers))']);
+        is_named = isinf(version_numbers);
+        named = sort(numbered_versions(is_named));
+        numbered_versions = numbered_versions(sort_order(:));
+        numbered_versions = numbered_versions(~ismember(numbered_versions, named));
+        versions = [default_versions(:); numbered_versions(:); named(:)];
     end
 
     function version_order = get_version_sort_order(obj, versions)
@@ -1387,15 +1406,7 @@ methods (Access = private)
     end
 
     function version = get_selection_version(obj, selection)
-        selection = string(selection);
-        selection = regexprep(char(selection), '_RPCA$', '');
-        version_match = regexp(selection, '_v\d+$', 'match', 'once');
-
-        if isempty(version_match)
-            version = obj.DEFAULT_VERSION_LABEL;
-        else
-            version = erase(string(version_match), "_");
-        end
+        [~, version] = obj.extract_file_version(selection);
     end
 
     function legend_entry = get_aligned_legend_entry(obj, cur_sel, index)

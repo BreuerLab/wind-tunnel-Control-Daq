@@ -40,6 +40,12 @@ bools.proc_vel = true; % false if just calculating secondary values
 % (less noise) but coarser phase resolution. [n n] forces n bins.
 bools.bin_range = [80 120]; % [180 210]
 
+% Version name added to the saved file names, e.g. "coarse" saves
+% x3_wings_20deg_6Hz_coarse_phase_avg.mat (and _integral.mat); phaseAvg_UI
+% lists it under that name in its version dropdown. "" = default (no
+% suffix). Phase averages only; avoid "deg" and "Hz" in the name.
+bools.version = "coarse";
+
 % If you want to make plots here, you can. However, it is NOT recommended.
 % Intead, use main_analysis to produce plots easily in a GUI interface.
 bools.PIV_plot = false;
