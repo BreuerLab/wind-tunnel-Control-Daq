@@ -102,7 +102,6 @@ properties
 
     hist_var_name_dict;
     hist_label_dict;
-    phase_var_cache; % per-file [bin_phase_var, phase_res] rebuilt from the DAQ file
 
     freq_var_name_dict;
     freq_label_dict;
@@ -315,10 +314,12 @@ methods
 
         % "phase variability": range of phase within each bin as % of the
         % bin width (bin_std from findBestNumBins2, see frame_to_bin)
-        obj.hist_vars = ["bin counts","phase variability","distribution"];
-        hist_vals = ["bin_count", "bin_phase_var","tick_frame_pos"];
-        hist_labels = ["Number of frames per bin", "Phase variability per bin (% bin width)","Number of frames per tick"];
-        obj.phase_var_cache = containers.Map();
+        % "bin placement": centroid of the frames in each bin minus the bin
+        % centre, % of bin width (+ = late in bin)
+        obj.hist_vars = ["bin counts","phase variability","distribution","bin placement"];
+        hist_vals = ["bin_count", "bin_phase_var","tick_frame_pos","bin_placement"];
+        hist_labels = ["Number of frames per bin", "Phase variability per bin (% bin width)",...
+            "Number of frames per tick", "Centroid offset from bin centre (% bin width)"];
 
         obj.freq_vars = ["frequency","bin counts", "bin SD"];
         freq_vals = ["phase_avg_speed", "bin_count_speed", "bin_std_speed"];
@@ -1918,8 +1919,7 @@ methods (Access = private)
 
             vars = {var_name};
             if (obj.variable_name == obj.hist_vars(2))
-                % may not be in older files; get_phase_variability fills it
-                vars = {"num_bins"};
+                vars{end+1} = "phase_res";
             elseif (obj.variable_name == obj.hist_vars(3))
                 x_var_name = "full_cycle";
                 vars{end+1} = x_var_name;
@@ -1984,10 +1984,6 @@ methods (Access = private)
 
         if ismember(plot_idx, [1, 2, 5, 9]) && strcmp(var_name, obj.LIFT_WX_FIELD)
             d.(var_name) = obj.compute_lift_wx_field(d, using_time_avg_file);
-        end
-
-        if plot_idx == 6 && obj.variable_name == obj.hist_vars(2)
-            [d.bin_phase_var, d.phase_res] = obj.get_phase_variability(full_file_path);
         end
 
         if plot_idx ~= 8
@@ -2296,6 +2292,11 @@ methods (Access = private)
                         title_str = [title_str; cap_note];
                     end
                     title(ax, title_str, FontSize=14)
+                elseif obj.variable_name == obj.hist_vars(4) % bin placement
+                    hold(ax, 'on')
+                    yline(ax, 0, '-k', 'HandleVisibility', 'off');
+                    title(ax, sprintf("Bin placement: mean %+.2f%%, mean |offset| %.2f%% of bin (+ = late in bin)", ...
+                        mean(val, "omitnan"), mean(abs(val), "omitnan")), FontSize=14)
                 end
             end
         elseif plot_idx == 7
@@ -2548,40 +2549,6 @@ methods (Access = private)
                 'FontSize', 10, 'Color', [0.85 0.1 0.1]);
         end
         note = sprintf("y-axis limited to 2x mean; %d bin(s) above (value shown)", numel(outliers));
-    end
-
-    function [phase_var, phase_res] = get_phase_variability(obj, file_base)
-        % Range of phase within each bin and the phase resolution, both as
-        % % of the bin width (see frame_to_bin). Newer files store these;
-        % for files processed before that, they are rebuilt from the DAQ
-        % file using the bins actually saved in the file, and cached.
-        file = char(file_base + ".mat");
-        if isKey(obj.phase_var_cache, file)
-            r = obj.phase_var_cache(file);
-            phase_var = r{1}; phase_res = r{2};
-            return
-        end
-
-        have = who('-file', file);
-        if all(ismember({'bin_phase_var', 'phase_res'}, have))
-            s = load(file, 'bin_phase_var', 'phase_res');
-            phase_var = s.bin_phase_var;
-            phase_res = s.phase_res;
-        else
-            s = load(file, 'PIV_case_name', 'bin_ind_arr', 'num_bins', 'cycle_freq');
-            turbine_bool = obj.source_mode == obj.TURBINE_SOURCE_MODE;
-            try
-                [norm_signal, ~, ~, ftb_num_bins, ~, ~, ~, ~, ~, ftb_res] = frame_to_bin(...
-                    s.PIV_case_name, numel(s.bin_ind_arr), s.cycle_freq, turbine_bool, false);
-            catch err
-                error("flowField_UI:phaseVariability",...
-                    "%s has no saved phase variability and it could not be rebuilt from the DAQ file (%s). Reprocess the case or check the DAQ path.",...
-                    obj.case_name, err.message)
-            end
-            phase_var = bin_phase_variability(norm_signal, s.bin_ind_arr, s.num_bins);
-            phase_res = ftb_res / ftb_num_bins * s.num_bins; % rescale to the saved bin width
-        end
-        obj.phase_var_cache(file) = {phase_var, phase_res};
     end
 
     function inputs = get_lift_wx_inputs(~, using_time_avg_file)

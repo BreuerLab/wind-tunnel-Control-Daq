@@ -1,11 +1,15 @@
 function [norm_signal, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_freq, num_clusters, phase_spread_ratio, ...
-    bin_phase_var, phase_res] ...
+    bin_phase_var, phase_res, bin_placement] ...
     = frame_to_bin(PIV_case_name, num_images, freq_cor, turbine_bool, plot_bool)
 % bin_phase_var - range of phase values within each bin (% of bin width)
 % phase_res     - phase resolution: smallest phase step the DAQ can
 %                 resolve, i.e. one DAQ sample for a time-based phase or
 %                 one encoder pulse for the encoder phase (% of bin width).
 %                 Best case for bin_phase_var is about phase_res.
+% bin_placement - centroid (mean phase) of the frames in each bin minus the
+%                 bin centre (% of bin width). Positive = frames sit late in
+%                 the bin, negative = early; 0 = centred, which is what
+%                 phase averaging assumes.
 
 [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name);
 
@@ -109,6 +113,7 @@ for i = 1:num_bins
     bin_std(i) = std(adj_norm_frame_pos); % removed for turbine case
 end
 
+bin_offset = 0; % fixed bins starting at phase 0
 bin_phase_var = bin_phase_variability(norm_signal, bin_ind_arr, num_bins);
 if phase_type == 0
     phase_step = 1 / ticksPerRev; % one encoder tick
@@ -213,6 +218,8 @@ disp("Expected number of cycles: " + num_images / (200 / cycle_freq))
 
 end
 
+bin_placement = get_bin_placement(norm_signal, bin_ind_arr, num_bins, bin_offset);
+
 if plot_bool
 figure
 histogram(tick_frame_pos, full_cycle)
@@ -230,5 +237,42 @@ xlabel("Bin number", FontSize=16)
 ylabel("Phase variability per bin (% bin width)", FontSize=16)
 title(sprintf("Phase variability: mean %.2f%% of bin, resolution %.2f%% of bin", ...
     mean(bin_phase_var, "omitnan"), phase_res), FontSize=14)
+
+figure
+bar(bin_placement)
+yline(0, '-k', 'HandleVisibility', 'off')
+xlabel("Bin number", FontSize=16)
+ylabel("Centroid offset from bin centre (% bin width)", FontSize=16)
+title(sprintf("Bin placement: mean %+.2f%%, mean |offset| %.2f%% of bin (+ = late in bin)", ...
+    mean(bin_placement, "omitnan"), mean(abs(bin_placement), "omitnan")), FontSize=14)
+end
+end
+
+function bin_var = bin_phase_variability(norm_signal, bin_ind_arr, num_bins)
+% Range of phase within each bin (% of bin width), taken around the circle
+% (1 minus the largest gap between sorted phases, including 1 -> 0) so a bin
+% straddling the 0/1 seam isn't inflated. Empty bins give NaN.
+bin_var = NaN(1, num_bins);
+for j = 1:num_bins
+    p = sort(mod(norm_signal(bin_ind_arr == j), 1));
+    if isempty(p), continue, end
+    gaps = [diff(p(:)); p(1) + 1 - p(end)];
+    bin_var(j) = (1 - max(gaps)) * num_bins * 100;
+end
+end
+
+function placement = get_bin_placement(norm_signal, bin_ind_arr, num_bins, bin_offset)
+% Mean phase of the frames in each bin minus the bin centre (% of bin
+% width). Bin j spans [(j-1)/num_bins, j/num_bins) of the signal shifted by
+% bin_offset (see findBestNumBins2), so its centre in the original phase is
+% bin_offset + (j - 0.5)/num_bins. Differences are wrapped to [-0.5, 0.5)
+% so a bin at the 0/1 seam is handled. Empty bins give NaN.
+placement = NaN(1, num_bins);
+for j = 1:num_bins
+    p = norm_signal(bin_ind_arr == j);
+    if isempty(p), continue, end
+    centre = bin_offset + (j - 0.5) / num_bins;
+    delta = mod(p - centre + 0.5, 1) - 0.5;
+    placement(j) = mean(delta) * num_bins * 100;
 end
 end
