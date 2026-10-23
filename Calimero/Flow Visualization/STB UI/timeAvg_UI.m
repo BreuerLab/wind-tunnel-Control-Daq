@@ -1403,9 +1403,21 @@ classdef timeAvg_UI < handle
 
             for var_idx = 1:num_vars % Loop through each selected variable
                 force_var = selected_force_vars(var_idx);
+                % The load cell is measured at one position, so selections
+                % that differ only in downstream position (or RPCA) share
+                % one load cell series: plot it once. Difference mode still
+                % needs it for every selection.
+                plotted_lc_keys = strings(0);
 
             for i = 1:num_sel % Loop through each selection
                 info = obj.decode_selection(obj.selection(i));
+                if obj.is_load_cell_var(force_var) && ~diff_plot
+                    lc_key = obj.get_load_cell_selection_key(info);
+                    if ismember(lc_key, plotted_lc_keys)
+                        continue
+                    end
+                    plotted_lc_keys(end+1) = lc_key;
+                end
                 points = obj.get_selection_points(info);
                 num_points = length(points.freqs);
 
@@ -1578,7 +1590,12 @@ classdef timeAvg_UI < handle
                         continue
                     end
                     original_color = curve_colors((i - 1) * num_vars + var_idx, :);
-                    curve_label = obj.get_curve_label(obj.decode_selection(obj.selection(i)));
+                    info = obj.decode_selection(obj.selection(i));
+                    if obj.is_load_cell_var(force_var)
+                        curve_label = obj.get_curve_label(obj.strip_load_cell_position(info));
+                    else
+                        curve_label = obj.get_curve_label(info);
+                    end
 
                     s1 = errorbar(ax, x_vals{var_idx, i}, values{var_idx, i}, errors{var_idx, i}, char(variable_marker));
                     s1.MarkerSize = 10;
@@ -1765,6 +1782,23 @@ classdef timeAvg_UI < handle
 
         function tf = is_load_cell_var(~, force_var)
             tf = startsWith(string(force_var), "LC_");
+        end
+
+        % Selection without what the load cell doesn't depend on: the
+        % downstream position prefix (x1_, MPS_, ...; get_force strips it
+        % too) and RPCA
+        function info = strip_load_cell_position(~, info)
+            prefix = get_downstream_prefix(info.type);
+            if strlength(prefix) > 0
+                info.type = extractAfter(info.type, strlength(prefix));
+            end
+            info.RPCA = false;
+        end
+
+        % Selections with the same key have the same load cell series
+        function key = get_load_cell_selection_key(obj, info)
+            info = obj.strip_load_cell_position(info);
+            key = info.x_axis_type + "|" + info.type + "|" + info.amp + "|" + info.freq;
         end
 
         % Load cell row(s) and quantity for a load cell variable: rows of
