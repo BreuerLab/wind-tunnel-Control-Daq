@@ -148,6 +148,9 @@ properties
     % shift the 3D plot's phase by the wake's convection time from the
     % robot to the imaging plane, so all cases start at the same wing phase
     conv_shift;
+    % with conv_shift, shift the 3D plot by a further half wingbeat so the
+    % upstroke is centred instead of the downstroke ("+/-" button)
+    stroke_flip;
     % mark stroke reversals on the 3D plot (2D views showing the x-axis)
     label_stroke;
     % stroke reversals for the current 3D plot, [] if unavailable:
@@ -198,6 +201,7 @@ methods
         obj.conv_units_bool = false;
         obj.conv_scale = [];
         obj.conv_shift = false;
+        obj.stroke_flip = false;
         obj.label_stroke = false;
         obj.stroke_3D = [];
         obj.trim_bool = true;
@@ -746,9 +750,19 @@ methods
         conv_units_button.ValueChangedFcn = @(src, event) conv_units_change(src, event, plot_area_panel);
 
         % Phase shift by the convection time from the robot to the imaging
-        % plane (same as phaseAvg_UI's Convection Shift button)
-        conv_shift_button = uibutton(param_grid, "state");
-        conv_shift_button.Layout.Row = 7;
+        % plane (same as phaseAvg_UI's Convection Shift button), and next
+        % to it "+/-": a further half wingbeat, so the upstroke is centred
+        % instead of the downstroke
+        conv_shift_grid = uigridlayout(param_grid, [1, 2]);
+        conv_shift_grid.Layout.Row = 7;
+        conv_shift_grid.Layout.Column = 1;
+        conv_shift_grid.ColumnWidth = {'1x', 50};
+        conv_shift_grid.RowHeight = {'1x'};
+        conv_shift_grid.Padding = [0 0 0 0];
+        conv_shift_grid.ColumnSpacing = 4;
+
+        conv_shift_button = uibutton(conv_shift_grid, "state");
+        conv_shift_button.Layout.Row = 1;
         conv_shift_button.Layout.Column = 1;
         conv_shift_button.Text = "Convection Shift";
         conv_shift_button.FontSize = 16;
@@ -756,6 +770,17 @@ methods
         conv_shift_button.BackgroundColor = obj.get_button_color(obj.conv_shift);
         conv_shift_button.Tooltip = "Phase shift the 3D plot by the convection time from the robot to the imaging plane, so cases at different frequencies start at the same wing phase";
         conv_shift_button.ValueChangedFcn = @(src, event) conv_shift_change(src, event, plot_area_panel);
+
+        stroke_flip_button = uibutton(conv_shift_grid, "state");
+        stroke_flip_button.Layout.Row = 1;
+        stroke_flip_button.Layout.Column = 2;
+        stroke_flip_button.Text = "+/-";
+        stroke_flip_button.FontSize = 16;
+        stroke_flip_button.Value = obj.stroke_flip;
+        stroke_flip_button.Enable = obj.conv_shift;
+        stroke_flip_button.BackgroundColor = obj.get_button_color(obj.stroke_flip);
+        stroke_flip_button.Tooltip = "Off: downstroke centred. On: shift a further half wingbeat so the upstroke is centred. Requires Convection Shift";
+        stroke_flip_button.ValueChangedFcn = @(src, event) stroke_flip_change(src, event, plot_area_panel);
 
         % Stroke reversal lines, downstroke shading and up/downstroke
         % labels; drawn only in the 2D views that show the x-axis
@@ -1263,6 +1288,24 @@ methods
             label_stroke_button.Enable = obj.conv_shift;
             label_stroke_button.BackgroundColor = obj.get_button_color(obj.label_stroke);
 
+            % +/- (centred stroke) only means something in the wing phase,
+            % so it needs the convection shift too; reset when it goes off
+            if ~obj.conv_shift
+                obj.stroke_flip = false;
+                stroke_flip_button.Value = false;
+            end
+            stroke_flip_button.Enable = obj.conv_shift;
+            stroke_flip_button.BackgroundColor = obj.get_button_color(obj.stroke_flip);
+
+            if obj.plot_type == obj.plot_types(5)
+                obj.update_plot(plot_panel);
+            end
+        end
+
+        function stroke_flip_change(src, ~, plot_panel)
+            obj.stroke_flip = src.Value && obj.conv_shift;
+            src.Value = obj.stroke_flip;
+            src.BackgroundColor = obj.get_button_color(obj.stroke_flip);
             if obj.plot_type == obj.plot_types(5)
                 obj.update_plot(plot_panel);
             end
@@ -2232,7 +2275,14 @@ methods (Access = private)
             params.movie = false;
             params.L = d.L;
             conv_shift_bins = obj.get_conv_shift_bins(d.cycle_freq, d.num_bins);
-            params.shift = obj.frame_ind - 1 + conv_shift_bins;
+            % "+/-": half a wingbeat more, so the upstroke is centred. It
+            % moves the flow and the wing phase together, so unlike the
+            % convection shift it is part of the stroke labels' shift too.
+            stroke_flip_bins = 0;
+            if obj.conv_shift && obj.stroke_flip
+                stroke_flip_bins = round(d.num_bins / 2);
+            end
+            params.shift = obj.frame_ind - 1 + conv_shift_bins + stroke_flip_bins;
             params.isoValue = obj.iso_val; % 0.05
             params.num_cycles = obj.num_cycles;
             params.conv_units = obj.conv_units_bool;
@@ -2255,7 +2305,7 @@ methods (Access = private)
             while obj.play && (obj.frame_ind < obj.num_bins)
                 obj.frame_ind = obj.frame_ind + 1;
                 obj.slider.Value = obj.frame_ind;
-                params.shift = obj.frame_ind - 1 + conv_shift_bins; % same as the slider (frame 1 = no shift)
+                params.shift = obj.frame_ind - 1 + conv_shift_bins + stroke_flip_bins; % same as the slider (frame 1 = no shift)
         
                 [~, surface_data, color_data] = stack_vortices_3D(y, z, val, Q, d.cycle_freq, params);
                 p.Vertices = surface_data.vertices;
