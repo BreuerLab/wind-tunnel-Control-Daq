@@ -1414,19 +1414,20 @@ classdef timeAvg_UI < handle
                 force_var = selected_force_vars(var_idx);
                 % The load cell is measured at one position, so selections
                 % that differ only in downstream position (or RPCA) share
-                % one load cell series: plot it once. Difference mode still
+                % one load cell series: their points are merged into the
+                % first such selection's series, each case once (positions
+                % may cover different frequencies). Difference mode still
                 % needs it for every selection.
-                plotted_lc_keys = strings(0);
+                merge_lc = obj.is_load_cell_var(force_var) && ~diff_plot;
+                lc_group_keys = strings(0); % group key per series
+                lc_group_sel = [];          % selection holding that series
+                lc_point_keys = strings(0); % cases already in a series
 
             for i = 1:num_sel % Loop through each selection
                 info = obj.decode_selection(obj.selection(i));
-                if obj.is_load_cell_var(force_var) && ~diff_plot
-                    lc_key = obj.get_load_cell_selection_key(info);
-                    if ismember(lc_key, plotted_lc_keys)
-                        continue
-                    end
-                    plotted_lc_keys(end+1) = lc_key;
-                end
+                % with downstream distance on the x-axis each point is a
+                % position, so there the series is left as is
+                merge_this = merge_lc && info.x_axis_type ~= "downstream distance";
                 points = obj.get_selection_points(info);
                 num_points = length(points.freqs);
 
@@ -1438,11 +1439,21 @@ classdef timeAvg_UI < handle
                 errs = zeros(1, num_points);
                 measured_freqs = points.freqs;
                 wind_speed_acts = NaN(1, num_points);
+                keep = true(1, num_points);
                 
                 for j = 1:num_points % Loop through all matching cases
                     type = points.types(j);
                     amp = points.amps(j);
                     freq = points.freqs(j);
+
+                    if merge_this
+                        point_key = obj.get_load_cell_point_key(type, amp, freq);
+                        if ismember(point_key, lc_point_keys)
+                            keep(j) = false; % already plotted from another position
+                            continue
+                        end
+                        lc_point_keys(end+1) = point_key;
+                    end
 
                     name = obj.get_case_name(type, amp, freq);
                     % RPCA only applies to phase averaged cases
@@ -1547,10 +1558,32 @@ classdef timeAvg_UI < handle
                     end
                 end
 
-                [x_vals{var_idx, i}, x_label] = obj.get_x_axis_values(info.x_axis_type, points, measured_freqs, wind_speed_acts);
+                [x_var, x_label] = obj.get_x_axis_values(info.x_axis_type, points, measured_freqs, wind_speed_acts);
                 xlabel(ax, x_label, Interpreter="latex")
-                values{var_idx, i} = vals;
-                errors{var_idx, i} = errs;
+                x_var = x_var(keep);
+                vals = vals(keep);
+                errs = errs(keep);
+
+                target = i;
+                if merge_this
+                    group_key = obj.get_load_cell_selection_key(info);
+                    g = find(lc_group_keys == group_key, 1);
+                    if isempty(g)
+                        lc_group_keys(end+1) = group_key;
+                        lc_group_sel(end+1) = i;
+                    else
+                        target = lc_group_sel(g); % add to that series
+                    end
+                end
+                if isempty(vals) && target ~= i
+                    continue
+                end
+                x_all = [x_vals{var_idx, target}, x_var(:)'];
+                v_all = [values{var_idx, target}, vals(:)'];
+                e_all = [errors{var_idx, target}, errs(:)'];
+                [x_vals{var_idx, target}, order] = sort(x_all);
+                values{var_idx, target} = v_all(order);
+                errors{var_idx, target} = e_all(order);
             end
             end
 
@@ -1805,9 +1838,21 @@ classdef timeAvg_UI < handle
         end
 
         % Selections with the same key have the same load cell series
+        % (sprintf, not "+": a NaN amp / freq would make a <missing>
+        % string, which never matches)
         function key = get_load_cell_selection_key(obj, info)
             info = obj.strip_load_cell_position(info);
-            key = info.x_axis_type + "|" + info.type + "|" + info.amp + "|" + info.freq;
+            key = string(sprintf("%s|%s|%g|%g", info.x_axis_type, info.type, info.amp, info.freq));
+        end
+
+        % One load cell case: wing type without the position prefix,
+        % amplitude and frequency
+        function key = get_load_cell_point_key(~, type, amp, freq)
+            prefix = get_downstream_prefix(type);
+            if strlength(prefix) > 0
+                type = extractAfter(type, strlength(prefix));
+            end
+            key = string(sprintf("%s|%g|%g", type, amp, freq));
         end
 
         % Load cell row(s) and quantity for a load cell variable: rows of
