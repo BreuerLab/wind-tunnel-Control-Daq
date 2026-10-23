@@ -62,6 +62,10 @@ properties
     time_turbine_case_name_list;
     phase_avg_case_ids;
     time_avg_case_ids;
+    phase_avg_RPCA_file_path;   % optional subfolder phase_avg\RPCA\
+    phase_avg_main_case_ids;    % case ids found directly in phase_avg\
+    phase_avg_RPCA_case_ids;    % case ids found in phase_avg\RPCA\ (always end in _RPCA)
+    phase_avg_RPCA_disk_stems;  % matching file stems as named on disk
     current_downstream_type;
     downstream_types;
     distance_labels;
@@ -166,6 +170,7 @@ methods
         obj.variable_name = "";
         obj.phase_avg_file_path = file_path + "Processed Results\phase_avg\";
         obj.time_avg_file_path = file_path + "Processed Results\time_avg\";
+        obj.phase_avg_RPCA_file_path = obj.phase_avg_file_path + "RPCA\";
         obj.file_path = obj.phase_avg_file_path;
         obj.source_modes = strings(0);
         obj.source_mode = "";
@@ -210,6 +215,15 @@ methods
 
         phase_avg_stems = obj.get_file_stems(phase_avg_files, "_phase_avg");
         time_avg_stems = obj.get_file_stems(time_avg_files, "_time_avg");
+
+        % RPCA phase averages may also live in a phase_avg\RPCA\ subfolder.
+        % Files there are treated as RPCA cases whether or not their names
+        % already carry the _RPCA suffix.
+        obj.phase_avg_main_case_ids = phase_avg_stems;
+        rpca_files = dir(obj.phase_avg_RPCA_file_path + "*.mat");
+        obj.phase_avg_RPCA_disk_stems = obj.get_file_stems(rpca_files, "_phase_avg");
+        obj.phase_avg_RPCA_case_ids = obj.strip_RPCA_suffix(obj.phase_avg_RPCA_disk_stems) + "_RPCA";
+        phase_avg_stems = unique([phase_avg_stems, obj.phase_avg_RPCA_case_ids], 'stable');
         obj.phase_avg_case_ids = phase_avg_stems;
         obj.time_avg_case_ids = time_avg_stems;
 
@@ -1818,7 +1832,13 @@ methods (Access = private)
         if obj.is_time_avg_file_selected()
             file_base = obj.time_avg_file_path + obj.get_current_case_id() + "_time_avg";
         else
-            file_base = obj.phase_avg_file_path + obj.get_current_case_id() + "_phase_avg";
+            case_id = obj.get_current_case_id();
+            rpca_idx = find(obj.phase_avg_RPCA_case_ids == case_id, 1);
+            if ~any(obj.phase_avg_main_case_ids == case_id) && ~isempty(rpca_idx)
+                file_base = obj.phase_avg_RPCA_file_path + obj.phase_avg_RPCA_disk_stems(rpca_idx) + "_phase_avg";
+            else
+                file_base = obj.phase_avg_file_path + case_id + "_phase_avg";
+            end
         end
     end
 
