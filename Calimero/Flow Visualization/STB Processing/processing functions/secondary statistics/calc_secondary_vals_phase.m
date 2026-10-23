@@ -73,10 +73,15 @@ for i = 1:numel(fnames)
     S.(fnames{i}) = F.(fnames{i});
 end
 
+% same version name as the main file (bools.version, e.g. _coarse)
+save_stem = string(D.PIV_case_name);
+if isfield(bools, 'version') && strlength(string(bools.version)) > 0
+    save_stem = save_stem + "_" + string(bools.version);
+end
 if bools.RPCA
-    save_filename = D.PIV_case_name + "_RPCA_phase_avg_integral.mat";
+    save_filename = save_stem + "_RPCA_phase_avg_integral.mat";
 else
-    save_filename = D.PIV_case_name + "_phase_avg_integral.mat";
+    save_filename = save_stem + "_phase_avg_integral.mat";
 end
 
 % Save the entire structure

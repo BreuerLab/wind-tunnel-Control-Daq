@@ -1,11 +1,13 @@
 function S = phase_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, num_images, bools, bounds)
 tic
 
-% Prepare path and name for file to be saved
+% Prepare path and name for file to be saved (bools.version adds a
+% version name after the case name, e.g. _coarse)
+save_stem = string(PIV_case_name) + get_version_suffix(bools);
 if bools.RPCA
-    save_filename = PIV_case_name + "_RPCA_phase_avg.mat";
+    save_filename = save_stem + "_RPCA_phase_avg.mat";
 else
-    save_filename = PIV_case_name + "_phase_avg.mat";
+    save_filename = save_stem + "_phase_avg.mat";
 end
 if bools.proc_vel
     save_path = fullfile(save_filepath_local, save_filename);
@@ -291,6 +293,14 @@ S = load(save_path);
 % Calculate secondary values (Q, power, integral values) and save in
 % separate file
 calc_secondary_vals_phase(S, D, bools, save_filepath_local, bounds);
+end
+end
+
+% "_<version>" from bools.version, "" for the default version
+function suffix = get_version_suffix(bools)
+suffix = "";
+if isfield(bools, 'version') && strlength(string(bools.version)) > 0
+    suffix = "_" + string(bools.version);
 end
 end
 
