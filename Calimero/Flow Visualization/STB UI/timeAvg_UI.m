@@ -1990,20 +1990,16 @@ classdef timeAvg_UI < handle
 
         % Path (without .mat) to a case's file. RPCA cases not found in
         % phase_avg\ or time_avg\ are looked for in the phase_avg\RPCA\
-        % subfolder, named with or without the _RPCA suffix.
+        % subfolder. Either way the file name must contain _RPCA.
         function file_base = get_case_file_base(obj, name, suffix)
             name = string(name);
             file_base = obj.get_case_dir(name, suffix) + name + suffix;
             if isfile(file_base + ".mat") || isfile(file_base + "_integral.mat") || ~endsWith(name, "_RPCA")
                 return
             end
-            rpca_dir = obj.PIV_path + "RPCA\";
-            candidates = rpca_dir + [name, string(regexprep(char(name), '_RPCA$', ''))] + suffix;
-            for k = 1:length(candidates)
-                if isfile(candidates(k) + ".mat") || isfile(candidates(k) + "_integral.mat")
-                    file_base = candidates(k);
-                    return
-                end
+            rpca_base = obj.PIV_path + "RPCA\" + name + suffix;
+            if isfile(rpca_base + ".mat") || isfile(rpca_base + "_integral.mat")
+                file_base = rpca_base;
             end
         end
 
