@@ -767,7 +767,7 @@ methods
         conv_shift_grid = uigridlayout(param_grid, [1, 2]);
         conv_shift_grid.Layout.Row = 7;
         conv_shift_grid.Layout.Column = 1;
-        conv_shift_grid.ColumnWidth = {'1x', 38};
+        conv_shift_grid.ColumnWidth = {'1x', 32};
         conv_shift_grid.RowHeight = {'1x'};
         conv_shift_grid.Padding = [0 0 0 0];
         conv_shift_grid.ColumnSpacing = 4;
@@ -776,7 +776,7 @@ methods
         conv_shift_button.Layout.Row = 1;
         conv_shift_button.Layout.Column = 1;
         conv_shift_button.Text = "Convection Shift";
-        conv_shift_button.FontSize = 14;
+        conv_shift_button.FontSize = 12;
         conv_shift_button.Value = obj.conv_shift;
         conv_shift_button.BackgroundColor = obj.get_button_color(obj.conv_shift);
         conv_shift_button.Tooltip = "Phase shift the 3D plot by the convection time from the robot to the imaging plane, so cases at different frequencies start at the same wing phase";
@@ -786,7 +786,7 @@ methods
         stroke_flip_button.Layout.Row = 1;
         stroke_flip_button.Layout.Column = 2;
         stroke_flip_button.Text = "+/-";
-        stroke_flip_button.FontSize = 14;
+        stroke_flip_button.FontSize = 12;
         stroke_flip_button.Value = obj.stroke_flip;
         stroke_flip_button.Enable = obj.conv_shift;
         stroke_flip_button.BackgroundColor = obj.get_button_color(obj.stroke_flip);
