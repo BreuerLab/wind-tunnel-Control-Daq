@@ -1315,10 +1315,19 @@ classdef timeAvg_UI < handle
                 y_labels(i) = obj.y_labels(obj.var_names == force_vars(i));
             end
 
+            % some labels carry the formula after a colon, e.g.
+            % "Drag (N): $...$"; if the full labels differ, compare just the
+            % quantity before it (drag (LC) + drag vel -> "Drag (N)")
+            base_labels = y_labels;
+            has_formula = contains(base_labels, ":");
+            base_labels(has_formula) = strtrim(extractBefore(base_labels(has_formula), ":"));
+
             if isempty(y_labels)
                 y_label = "";
             elseif all(y_labels == y_labels(1))
                 y_label = y_labels(1);
+            elseif all(base_labels == base_labels(1))
+                y_label = base_labels(1);
             else
                 y_label = "Selected Variable Values";
             end
