@@ -85,8 +85,8 @@ disp("-----------------------------------")
 disp("Assuming num images = " + num_images)
 disp("-----------------------------------")
 % get bin number associated with each frame from DAQ measurements
-[norm_frame_pos, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_freq, num_clusters, phase_spread_ratio]...
-    = frame_to_bin(PIV_case_name, num_images, D.freq_avg, bools.turbine, bools.plot);
+[norm_frame_pos, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_freq, num_clusters, phase_spread_ratio,...
+    bin_phase_var, phase_res] = frame_to_bin(PIV_case_name, num_images, D.freq_avg, bools.turbine, bools.plot);
 
 % Find matching DAQ file
 [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name);
@@ -252,6 +252,7 @@ end
 S.x = x; S.y = y; S.z = z; S.L = L; S.U = U; S.rho = density; S.cycle_freq = cycle_freq;
 S.num_bins = num_bins; S.tick_frame_pos = tick_frame_pos; S.full_cycle = full_cycle;
 S.bin_ind_arr = bin_ind_arr; S.bin_count = bin_count; S.bin_std = bin_std;
+S.bin_phase_var = bin_phase_var; S.phase_res = phase_res; % % of bin width
 S.num_clusters = num_clusters; S.phase_spread_ratio = phase_spread_ratio;
 S.PIV_case_name = PIV_case_name;
 

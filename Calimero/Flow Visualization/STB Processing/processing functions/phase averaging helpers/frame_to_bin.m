@@ -1,5 +1,11 @@
-function [norm_signal, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_freq, num_clusters, phase_spread_ratio] ...
+function [norm_signal, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_freq, num_clusters, phase_spread_ratio, ...
+    bin_phase_var, phase_res] ...
     = frame_to_bin(PIV_case_name, num_images, freq_cor, turbine_bool, plot_bool)
+% bin_phase_var - range of phase values within each bin (% of bin width)
+% phase_res     - phase resolution: smallest phase step the DAQ can
+%                 resolve, i.e. one DAQ sample for a time-based phase or
+%                 one encoder pulse for the encoder phase (% of bin width).
+%                 Best case for bin_phase_var is about phase_res.
 
 [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name);
 
@@ -13,6 +19,9 @@ load([daq_data_path daq_data_filename]);
 phase_type = 2;
 
 if turbine_bool
+% not computed for the turbine (needed so later outputs can be requested)
+num_clusters = NaN;
+phase_spread_ratio = NaN;
 
 % trim beginning and end of recording session
 mid_indices = find(las_count_orig ~= 0 & las_count_orig ~= las_count_orig(end));
@@ -100,6 +109,14 @@ for i = 1:num_bins
     bin_std(i) = std(adj_norm_frame_pos); % removed for turbine case
 end
 
+bin_phase_var = bin_phase_variability(norm_signal, bin_ind_arr, num_bins);
+if phase_type == 0
+    phase_step = 1 / ticksPerRev; % one encoder tick
+else
+    phase_step = cycle_freq * dt; % one DAQ sample
+end
+phase_res = phase_step * num_bins * 100;
+
 % ------------------------------------------------------------------------
 % ------------------ Phase Averaging Code from Taylor --------------------
 % ------------------------------------------------------------------------
@@ -179,6 +196,15 @@ disp("Using " + num_bins + " bins")
 if num_bins == 0
     error("Zero bins identified")
 end
+bin_phase_var = bin_std; % range within each bin, % of bin width
+
+% phase resolution: median phase step between consecutive DAQ samples
+% (one sample for a time-based phase, one OC pulse for the encoder phase)
+full_phase = get_norm_signal(results, phase_type, pulsesPerRev, freq_cor);
+dphi = diff(full_phase);
+phase_step = median(dphi(dphi > 0 & dphi < 0.5));
+phase_res = phase_step * num_bins * 100;
+disp("Phase resolution: " + sprintf("%.2f%% of a bin", phase_res))
 
 % rough estimate of number of cycles based on value resetting to zero
 num_cycles = length(find(diff(bin_ind_arr) < 0));
@@ -199,8 +225,10 @@ xlabel("Bin number", FontSize=16)
 ylabel("Number of frames per bin", FontSize=16)
 
 figure
-bar(bin_std)
+bar(bin_phase_var)
 xlabel("Bin number", FontSize=16)
-ylabel("Phase variability per bin (% cycle)", FontSize=16)
+ylabel("Phase variability per bin (% bin width)", FontSize=16)
+title(sprintf("Phase variability: mean %.2f%% of bin, resolution %.2f%% of bin", ...
+    mean(bin_phase_var, "omitnan"), phase_res), FontSize=14)
 end
 end
