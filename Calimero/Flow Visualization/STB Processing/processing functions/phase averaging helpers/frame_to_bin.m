@@ -232,14 +232,16 @@ xlabel("Bin number", FontSize=16)
 ylabel("Number of frames per bin", FontSize=16)
 
 figure
-plot(bin_phase_var, '-o', 'MarkerSize', 4, 'MarkerFaceColor', 'auto')
+h = plot(bin_phase_var, '-o', 'MarkerSize', 4);
+h.MarkerFaceColor = h.Color; % filled markers
 xlabel("Bin number", FontSize=16)
 ylabel("Phase variability per bin (% bin width)", FontSize=16)
 title(sprintf("Phase variability: mean %.2f%% of bin, resolution %.2f%% of bin", ...
     mean(bin_phase_var, "omitnan"), phase_res), FontSize=14)
 
 figure
-plot(bin_placement, '-o', 'MarkerSize', 4, 'MarkerFaceColor', 'auto')
+h = plot(bin_placement, '-o', 'MarkerSize', 4);
+h.MarkerFaceColor = h.Color; % filled markers
 yline(0, '-k', 'HandleVisibility', 'off')
 xlabel("Bin number", FontSize=16)
 ylabel("Centroid offset from bin centre (% bin width)", FontSize=16)
