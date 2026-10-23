@@ -1,6 +1,9 @@
 function [norm_signal, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_freq, num_clusters, phase_spread_ratio, ...
     bin_phase_var, phase_res, bin_placement] ...
-    = frame_to_bin(PIV_case_name, num_images, freq_cor, turbine_bool, plot_bool)
+    = frame_to_bin(PIV_case_name, num_images, freq_cor, turbine_bool, plot_bool, bins_list)
+% bins_list     - (optional) bin counts findBestNumBins2 searches, e.g.
+%                 100:120 (set with bools.bin_range in main_processing);
+%                 default 180:210
 % bin_phase_var - range of phase values within each bin (% of bin width)
 % phase_res     - phase resolution: smallest phase step the DAQ can
 %                 resolve, i.e. one DAQ sample for a time-based phase or
@@ -192,14 +195,20 @@ num_clusters = sum(diff(unique(tick_frame_pos)) > gap_thresh);
 
 phase_spread_ratio = length(unique(tick_frame_pos)) / length(tick_frame_pos);
 
-bins_list = 180:1:210;
+if nargin < 6 || isempty(bins_list)
+    bins_list = 180:1:210;
+end
 minFrames = 5;
 % [num_bins, bin_ind_arr, bin_count, bin_std] = findBestNumBins(norm_signal, bins_list, minFrames);
 num_shifts = 10;
 [num_bins, bin_offset, bin_ind_arr, bin_count,bin_std] = findBestNumBins2(norm_signal, bins_list, minFrames, num_shifts);
-disp("Using " + num_bins + " bins")
+disp("Using " + num_bins + " bins (searched " + min(bins_list) + "-" + max(bins_list) + ")")
 if num_bins == 0
-    error("Zero bins identified")
+    error("Zero bins identified (no bin count in %d-%d gives at least %d frames in every bin)", ...
+        min(bins_list), max(bins_list), minFrames)
+end
+if numel(bins_list) > 1 && ismember(num_bins, [min(bins_list), max(bins_list)])
+    disp("Note: best bin count is at the edge of the searched range; the best overall may lie outside it")
 end
 bin_phase_var = bin_std; % range within each bin, % of bin width
 

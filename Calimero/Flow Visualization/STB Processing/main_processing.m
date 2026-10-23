@@ -34,6 +34,12 @@ bools.num_workers = 8; % parallel workers for phase bins (0 = serial); lower if 
 bools.compress_save = false; % true = MATLAB's compressed .mat (smaller, much slower to save)
 bools.proc_vel = true; % false if just calculating secondary values
 
+% Range of phase-bin counts to search. findBestNumBins2 picks the count
+% in this range (and the bin offset) with the smallest phase spread per
+% bin; it was choosing ~193 in 180-210. Fewer bins = more frames per bin
+% (less noise) but coarser phase resolution. [n n] forces n bins.
+bools.bin_range = [100 120];
+
 % If you want to make plots here, you can. However, it is NOT recommended.
 % Intead, use main_analysis to produce plots easily in a GUI interface.
 bools.PIV_plot = false;

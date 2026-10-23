@@ -86,7 +86,7 @@ disp("Assuming num images = " + num_images)
 disp("-----------------------------------")
 % get bin number associated with each frame from DAQ measurements
 [norm_frame_pos, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_freq, num_clusters, phase_spread_ratio,...
-    bin_phase_var, phase_res, bin_placement] = frame_to_bin(PIV_case_name, num_images, D.freq_avg, bools.turbine, bools.plot);
+    bin_phase_var, phase_res, bin_placement] = frame_to_bin(PIV_case_name, num_images, D.freq_avg, bools.turbine, bools.plot, get_bins_list(bools));
 
 % Find matching DAQ file
 [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name);
@@ -291,6 +291,19 @@ S = load(save_path);
 % Calculate secondary values (Q, power, integral values) and save in
 % separate file
 calc_secondary_vals_phase(S, D, bools, save_filepath_local, bounds);
+end
+end
+
+% Bin counts for findBestNumBins2 to search, from bools.bin_range
+% ([min max]); [] = frame_to_bin's default
+function bins_list = get_bins_list(bools)
+bins_list = [];
+if isfield(bools, 'bin_range') && ~isempty(bools.bin_range)
+    r = round(bools.bin_range);
+    if any(r < 1) || r(1) > r(end)
+        error("bools.bin_range must be [min max] with 1 <= min <= max, got %s", mat2str(bools.bin_range))
+    end
+    bins_list = r(1):r(end);
 end
 end
 
