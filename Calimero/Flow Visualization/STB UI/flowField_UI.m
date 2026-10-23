@@ -152,6 +152,10 @@ properties
     % centred instead of the downstroke ("+/-" button, see
     % get_stroke_flip_bins)
     stroke_flip;
+    % inputs of the last 3D plot, so "+/-" can shift the surface without a
+    % full redraw (see shift_3D_surface); ext = cached surface over one
+    % extra wingbeat, built on the first "+/-" press
+    surf_3D;
     % mark stroke reversals on the 3D plot (2D views showing the x-axis)
     label_stroke;
     % stroke reversals for the current 3D plot, [] if unavailable:
@@ -203,6 +207,7 @@ methods
         obj.conv_scale = [];
         obj.conv_shift = false;
         obj.stroke_flip = false;
+        obj.surf_3D = [];
         obj.label_stroke = false;
         obj.stroke_3D = [];
         obj.trim_bool = true;
@@ -1307,7 +1312,14 @@ methods
             obj.stroke_flip = src.Value && obj.conv_shift;
             src.Value = obj.stroke_flip;
             src.BackgroundColor = obj.get_button_color(obj.stroke_flip);
-            if obj.plot_type == obj.plot_types(5)
+            if obj.plot_type ~= obj.plot_types(5)
+                return
+            end
+            % only the phase changes, so move the existing surface instead
+            % of reloading and recomputing it; full redraw if that can't
+            % be done (e.g. while playing)
+            ax = findobj(plot_panel.Children, 'Type', 'axes');
+            if ~obj.shift_3D_surface(ax)
                 obj.update_plot(plot_panel);
             end
         end
@@ -1431,6 +1443,66 @@ methods (Access = private)
         S.bottom = i_bottom * num_bins / N_w;
         S.N = num_bins;
         S.frame_shift = 0;
+    end
+
+    % Re-phase the current 3D plot for a new "+/-" setting without
+    % reloading or recomputing it for the shift. A circular shift of the
+    % periodic wake is the same as sliding the plotted window along it, so
+    % the isosurface is computed once over one extra wingbeat (unshifted,
+    % cached) and then just translated along x, with the axes limits
+    % clipping it to the plotted wingbeats. Returns false if the plot
+    % can't be updated this way (caller does a full redraw).
+    function ok = shift_3D_surface(obj, ax)
+        ok = false;
+        S3 = obj.surf_3D;
+        if obj.play || isempty(S3) || isempty(ax) || ~isscalar(ax) || ~isvalid(ax)
+            return
+        end
+        p = obj.find_isosurface_patch(ax);
+        if ~isscalar(p)
+            return
+        end
+
+        params = S3.params;
+        N = params.num_bins;
+        n = params.num_cycles;
+
+        if isempty(S3.ext)
+            params_ext = params;
+            params_ext.num_cycles = n + 1;
+            params_ext.shift = 0;
+            [xl_ext, s_ext, c_ext] = stack_vortices_3D(S3.y, S3.z, S3.val, S3.Q, S3.cycle_freq, params_ext);
+            S3.ext = struct('vertices', s_ext.vertices, 'faces', s_ext.faces, 'cdata', c_ext, ...
+                'dz', xl_ext(2) / ((n + 1) * N - 1)); % bin spacing on the x-axis
+            obj.surf_3D = S3;
+        end
+
+        flip_bins = 0;
+        if obj.conv_shift && obj.stroke_flip
+            flip_bins = obj.get_stroke_flip_bins(N);
+        end
+        shift = mod(S3.base_shift + flip_bins, N);
+
+        % plotted bin k holds original bin k - shift (circshift), which is
+        % bin k - shift + N of the unshifted extended surface
+        verts = S3.ext.vertices;
+        verts(:,1) = verts(:,1) + (shift - N) * S3.ext.dz;
+
+        % drop faces entirely outside the plotted window (the axes clip
+        % the ones crossing its ends)
+        xl = S3.xlims;
+        fx = reshape(verts(S3.ext.faces, 1), size(S3.ext.faces));
+        keep = any(fx >= xl(1), 2) & any(fx <= xl(2), 2);
+
+        p.Vertices = verts;
+        p.Faces = S3.ext.faces(keep, :);
+        p.FaceVertexCData = S3.ext.cdata;
+        p.Clipping = 'on';
+        xlim(ax, xl)
+
+        obj.set_stroke_frame_shift(S3.base_shift - S3.conv_shift_bins + flip_bins);
+        obj.draw_stroke_labels_3D(ax);
+        ok = true;
     end
 
     % Bins to shift the 3D plot by so the middle of the upstroke lands
@@ -2326,6 +2398,12 @@ methods (Access = private)
             [xlims, surface_data, color_data] = stack_vortices_3D(y, z, val, Q, d.cycle_freq, params);
             setColorBar(ax, params)
             xlim(ax,xlims) % otherwise when plotting multiple wingbeats awkward extra space added
+
+            % kept so "+/-" can shift this plot without a full redraw
+            obj.surf_3D = struct('y', y, 'z', z, 'val', val, 'Q', Q, ...
+                'cycle_freq', d.cycle_freq, 'params', params, 'xlims', xlims, ...
+                'base_shift', obj.frame_ind - 1 + conv_shift_bins, ...
+                'conv_shift_bins', conv_shift_bins, 'ext', []);
 
             while obj.play && (obj.frame_ind < obj.num_bins)
                 obj.frame_ind = obj.frame_ind + 1;
