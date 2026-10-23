@@ -79,6 +79,9 @@ classdef timeAvg_UI < handle
         % shift mode: phase shift imaging-plane (STB) signals by the wake's
         % convection time from the robot to the imaging plane
         conv_shift;
+        % shift mode: unwrap the phase shifts along the x-axis (remove
+        % jumps of a whole wingbeat between neighbouring points)
+        unwrap_shift;
 
         % trim limits and center point used by Live Calculate
         % (get_PIV_force -> trim_vel_field); starts from
@@ -208,6 +211,7 @@ classdef timeAvg_UI < handle
             obj.err_bool = false;
             obj.calc_bool = false;
             obj.conv_shift = false;
+            obj.unwrap_shift = false;
             obj.trim_bounds = default_trim_bounds();
 
             % Search through files in path to get types and speeds.
@@ -427,17 +431,38 @@ classdef timeAvg_UI < handle
             % Convection shift for the shift operation (as in phaseAvg_UI
             % and flowField_UI): STB signals are shifted by the convection
             % time from the robot to the imaging plane, kinematics are not
-            conv_shift_button = uibutton(sidebar_grid, "state");
-            conv_shift_button.Layout.Row = 14;
+            shift_grid = uigridlayout(sidebar_grid, [1, 2]);
+            shift_grid.Layout.Row = 14;
+            shift_grid.Layout.Column = 1;
+            shift_grid.ColumnWidth = {'1x', '1x'};
+            shift_grid.Padding = [0 0 0 0];
+            shift_grid.ColumnSpacing = 4;
+
+            conv_shift_button = uibutton(shift_grid, "state");
+            conv_shift_button.Layout.Row = 1;
             conv_shift_button.Layout.Column = 1;
-            conv_shift_button.Text = "Convection Shift";
-            conv_shift_button.FontSize = 18;
+            conv_shift_button.Text = "Conv. Shift";
+            conv_shift_button.FontSize = 14;
             conv_shift_button.Value = obj.conv_shift;
             conv_shift_button.BackgroundColor = obj.get_button_color(obj.conv_shift);
             conv_shift_button.Enable = strcmp(obj.operation, "shift");
             conv_shift_button.Tooltip = "Shift operation only: shift STB (force / flow) signals by the convection time from the robot to the imaging plane before finding the phase shift. Kinematics and load cell signals are measured at the robot and aren't shifted";
             conv_shift_button.ValueChangedFcn = @(src, event) conv_shift_change(src, event, plot_panel);
-            operation_dropdown.ValueChangedFcn = @(src, event) operation_change(src, event, plot_panel, conv_shift_button);
+
+            % unwrap: phase shifts are only known modulo one wingbeat, so
+            % a smooth trend can jump by 1 between neighbouring points
+            unwrap_button = uibutton(shift_grid, "state");
+            unwrap_button.Layout.Row = 1;
+            unwrap_button.Layout.Column = 2;
+            unwrap_button.Text = "Unwrap";
+            unwrap_button.FontSize = 14;
+            unwrap_button.Value = obj.unwrap_shift;
+            unwrap_button.BackgroundColor = obj.get_button_color(obj.unwrap_shift);
+            unwrap_button.Enable = strcmp(obj.operation, "shift");
+            unwrap_button.Tooltip = "Shift operation only: add or subtract whole wingbeats so neighbouring points along the x-axis differ by less than half a wingbeat. Assumes the true shift changes by less than half a wingbeat between neighbouring points";
+            unwrap_button.ValueChangedFcn = @(src, event) unwrap_shift_change(src, event, plot_panel);
+
+            operation_dropdown.ValueChangedFcn = @(src, event) operation_change(src, event, plot_panel, [conv_shift_button, unwrap_button]);
 
             piv_button = uibutton(sidebar_grid, "state");
             piv_button.Layout.Row = 15;
@@ -651,11 +676,21 @@ classdef timeAvg_UI < handle
                 obj.update_plot(plot_panel);
             end
 
-            function operation_change(src, ~, plot_panel, conv_shift_button)
+            function operation_change(src, ~, plot_panel, shift_buttons)
                 obj.operation = src.Value;
-                % the convection shift only changes the shift operation
-                conv_shift_button.Enable = strcmp(obj.operation, "shift");
+                % convection shift and unwrap only apply to the shift operation
+                for b = shift_buttons
+                    b.Enable = strcmp(obj.operation, "shift");
+                end
                 obj.update_plot(plot_panel);
+            end
+
+            function unwrap_shift_change(src, ~, plot_panel)
+                obj.unwrap_shift = src.Value;
+                src.BackgroundColor = obj.get_button_color(obj.unwrap_shift);
+                if strcmp(obj.operation, "shift")
+                    obj.update_plot(plot_panel);
+                end
             end
 
             function conv_shift_change(src, ~, plot_panel)
@@ -1777,6 +1812,12 @@ classdef timeAvg_UI < handle
                 [x_var, x_label] = obj.get_x_axis_values(info.x_axis_type, points, measured_freqs, wind_speed_acts);
                 xlabel(ax, x_label, Interpreter="latex")
 
+                if obj.unwrap_shift
+                    for k = 2:num_vars
+                        shifts(k,:) = obj.unwrap_phase_shifts(x_var, shifts(k,:));
+                    end
+                end
+
                 for k = 2:num_vars
                     color = colors((i - 1) * (num_vars - 1) + k - 1, :);
                     s1 = scatter(ax, x_var, shifts(k,:), 125, "filled");
@@ -1795,6 +1836,27 @@ classdef timeAvg_UI < handle
             yl.HandleVisibility = "off";
             ylabel(ax, "Phase shift (wingbeats)")
             title(ax, "Lag behind " + labels(1), FontSize=14, FontWeight="normal")
+        end
+
+        % Unwrap phase shifts (in wingbeats) along x: going through the
+        % points in order of x, add or subtract whole wingbeats so each
+        % differs from the previous by less than half a wingbeat. The
+        % series is then moved by a whole number of wingbeats so its mean
+        % is as close to zero as possible. Points with equal x keep their
+        % order; NaNs are left out.
+        function shifts = unwrap_phase_shifts(~, x, shifts)
+            valid = find(isfinite(x) & isfinite(shifts));
+            if numel(valid) < 2
+                return
+            end
+            [~, order] = sort(x(valid));
+            idx = valid(order);
+            y = shifts(idx);
+            for n = 2:numel(y)
+                y(n) = y(n) - round(y(n) - y(n-1));
+            end
+            y = y - round(mean(y));
+            shifts(idx) = y;
         end
 
         % Phase-averaged signal of a variable for one flapping case, with
