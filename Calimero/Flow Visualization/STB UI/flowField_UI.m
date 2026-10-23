@@ -2276,7 +2276,13 @@ methods (Access = private)
                 xlabel(ax, "Tick number", FontSize=16)
                 ylabel(ax, obj.hist_label_dict(obj.variable_name), FontSize=16)
             else
-                bar(ax, val)
+                if obj.variable_name == obj.hist_vars(1) % bin counts
+                    bar(ax, val)
+                else % per-bin values, not counts: points joined by a line
+                    h = plot(ax, val, '-o', 'MarkerSize', 4);
+                    h.MarkerFaceColor = h.Color; % filled markers
+                    xlim(ax, [0.5, numel(val) + 0.5])
+                end
                 xlabel(ax, "Bin number", FontSize=16)
                 ylabel(ax, obj.hist_label_dict(obj.variable_name), FontSize=16)
                 if obj.variable_name == obj.hist_vars(2) % phase variability
