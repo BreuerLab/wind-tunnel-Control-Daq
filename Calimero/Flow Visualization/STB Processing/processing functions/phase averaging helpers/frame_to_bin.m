@@ -1,15 +1,34 @@
-function [norm_signal, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_freq] ...
-    = frame_to_bin(PIV_case_name, num_images, turbine_bool, plot_bool)
+function [norm_signal, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_freq, num_clusters, phase_spread_ratio, ...
+    bin_phase_var, phase_res, bin_placement] ...
+    = frame_to_bin(PIV_case_name, num_images, freq_cor, turbine_bool, plot_bool, bins_list)
+% bins_list     - (optional) bin counts findBestNumBins2 searches, e.g.
+%                 100:120 (set with bools.bin_range in main_processing);
+%                 default 180:210
+% bin_phase_var - range of phase values within each bin (% of bin width)
+% phase_res     - phase resolution: smallest phase step the DAQ can
+%                 resolve, i.e. one DAQ sample for a time-based phase or
+%                 one encoder pulse for the encoder phase (% of bin width).
+%                 Best case for bin_phase_var is about phase_res.
+% bin_placement - centroid (mean phase) of the frames in each bin minus the
+%                 bin centre (% of bin width). Positive = frames sit late in
+%                 the bin, negative = early; 0 = centred, which is what
+%                 phase averaging assumes.
 
 [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name);
 
 % Get raw data from file
 load([daq_data_path daq_data_filename]);
 
-% 0 - binning according to encoder phase, 1 - binning according to time
-phase_type = 1;
+% 0 - binning according to encoder phase
+% 1 - binning according to time, phase = mod(time * frequency, 1)
+% 2 - binning according to time, re-anchored to the encoder at the start
+%     of every cycle (no drift build-up over the recording)
+phase_type = 2;
 
 if turbine_bool
+% not computed for the turbine (needed so later outputs can be requested)
+num_clusters = NaN;
+phase_spread_ratio = NaN;
 
 % trim beginning and end of recording session
 mid_indices = find(las_count_orig ~= 0 & las_count_orig ~= las_count_orig(end));
@@ -65,7 +84,7 @@ switch phase_type
     case 0
         disp("Using motor position for phase")
         norm_signal = norm_frame_pos;
-    case 1
+    otherwise % 1 or 2 (turbine: time phase, no per-cycle re-anchoring)
         disp("Using time for phase")
         norm_signal = norm_time;
 end
@@ -96,6 +115,15 @@ for i = 1:num_bins
 
     bin_std(i) = std(adj_norm_frame_pos); % removed for turbine case
 end
+
+bin_offset = 0; % fixed bins starting at phase 0
+bin_phase_var = bin_phase_variability(norm_signal, bin_ind_arr, num_bins);
+if phase_type == 0
+    phase_step = 1 / ticksPerRev; % one encoder tick
+else
+    phase_step = cycle_freq * dt; % one DAQ sample
+end
+phase_res = phase_step * num_bins * 100;
 
 % ------------------------------------------------------------------------
 % ------------------ Phase Averaging Code from Taylor --------------------
@@ -147,26 +175,50 @@ cam_fire_idx = find(results(:,13) == 2, 1, "first");
 laser_count_at_cam_fire = las_count(cam_fire_idx);
 disp("Laser pulses by camera fire: " + laser_count_at_cam_fire)
 
-norm_signal = get_norm_signal(results, phase_type, pulsesPerRev, cycle_freq, laser_ind, num_images);
+% could use cycle_freq or freq_cor here, but using the measured average
+% wingbeat frequency freq_cor seems more accurate
+norm_signal = get_norm_signal(results, phase_type, pulsesPerRev, freq_cor, laser_ind, num_images);
 norm_pos = get_norm_signal(results, 0, pulsesPerRev, cycle_freq, laser_ind, num_images);
 
-[M,I] = min(norm_pos);
+% associate t = 0 with theta = 0
+[~,I] = min(norm_pos);
 t_phase_zero = norm_signal(I);
 norm_signal(norm_signal < t_phase_zero) = norm_signal(norm_signal < t_phase_zero) + 1;
 norm_signal = norm_signal - t_phase_zero;
 
-if phase_type == 0
-    tick_frame_pos = round(norm_signal * pulsesPerRev,3);
-    full_cycle = 0.5:1:pulsesPerRev + 0.5;
-else
-    tick_frame_pos = zeros(size(norm_signal));
-    full_cycle = zeros(size(norm_signal));
-end
+tick_frame_pos = round(norm_pos * pulsesPerRev,3);
+full_cycle = 0.5:1:pulsesPerRev + 0.5;
 
-bins_list = 10:5:150;
-minFrames = 10;
-[num_bins, bin_ind_arr, bin_count, bin_std] = findBestNumBins(norm_signal, bins_list, minFrames);
-disp("Using " + num_bins + " bins")
+gap_thresh = 2;
+
+num_clusters = sum(diff(unique(tick_frame_pos)) > gap_thresh);
+
+phase_spread_ratio = length(unique(tick_frame_pos)) / length(tick_frame_pos);
+
+if nargin < 6 || isempty(bins_list)
+    bins_list = 180:1:210;
+end
+minFrames = 5;
+% [num_bins, bin_ind_arr, bin_count, bin_std] = findBestNumBins(norm_signal, bins_list, minFrames);
+num_shifts = 10;
+[num_bins, bin_offset, bin_ind_arr, bin_count,bin_std] = findBestNumBins2(norm_signal, bins_list, minFrames, num_shifts);
+disp("Using " + num_bins + " bins (searched " + min(bins_list) + "-" + max(bins_list) + ")")
+if num_bins == 0
+    error("Zero bins identified (no bin count in %d-%d gives at least %d frames in every bin)", ...
+        min(bins_list), max(bins_list), minFrames)
+end
+if numel(bins_list) > 1 && ismember(num_bins, [min(bins_list), max(bins_list)])
+    disp("Note: best bin count is at the edge of the searched range; the best overall may lie outside it")
+end
+bin_phase_var = bin_std; % range within each bin, % of bin width
+
+% phase resolution: median phase step between consecutive DAQ samples
+% (one sample for a time-based phase, one OC pulse for the encoder phase)
+full_phase = get_norm_signal(results, phase_type, pulsesPerRev, freq_cor);
+dphi = diff(full_phase);
+phase_step = median(dphi(dphi > 0 & dphi < 0.5));
+phase_res = phase_step * num_bins * 100;
+disp("Phase resolution: " + sprintf("%.2f%% of a bin", phase_res))
 
 % rough estimate of number of cycles based on value resetting to zero
 num_cycles = length(find(diff(bin_ind_arr) < 0));
@@ -174,6 +226,8 @@ disp("Number of cycles: " + num_cycles)
 disp("Expected number of cycles: " + num_images / (200 / cycle_freq))
 
 end
+
+bin_placement = get_bin_placement(norm_signal, bin_ind_arr, num_bins, bin_offset);
 
 if plot_bool
 figure
@@ -187,8 +241,49 @@ xlabel("Bin number", FontSize=16)
 ylabel("Number of frames per bin", FontSize=16)
 
 figure
-bar(bin_std)
+h = plot(bin_phase_var, '-o', 'MarkerSize', 4);
+h.MarkerFaceColor = h.Color; % filled markers
 xlabel("Bin number", FontSize=16)
-ylabel("Phase variability per bin (% cycle)", FontSize=16)
+ylabel("Phase variability per bin (% bin width)", FontSize=16)
+title(sprintf("Phase variability: mean %.2f%% of bin, resolution %.2f%% of bin", ...
+    mean(bin_phase_var, "omitnan"), phase_res), FontSize=14)
+
+figure
+h = plot(bin_placement, '-o', 'MarkerSize', 4);
+h.MarkerFaceColor = h.Color; % filled markers
+yline(0, '-k', 'HandleVisibility', 'off')
+xlabel("Bin number", FontSize=16)
+ylabel("Centroid offset from bin centre (% bin width)", FontSize=16)
+title(sprintf("Bin placement: mean %+.2f%%, mean |offset| %.2f%% of bin (+ = late in bin)", ...
+    mean(bin_placement, "omitnan"), mean(abs(bin_placement), "omitnan")), FontSize=14)
+end
+end
+
+function bin_var = bin_phase_variability(norm_signal, bin_ind_arr, num_bins)
+% Range of phase within each bin (% of bin width), taken around the circle
+% (1 minus the largest gap between sorted phases, including 1 -> 0) so a bin
+% straddling the 0/1 seam isn't inflated. Empty bins give NaN.
+bin_var = NaN(1, num_bins);
+for j = 1:num_bins
+    p = sort(mod(norm_signal(bin_ind_arr == j), 1));
+    if isempty(p), continue, end
+    gaps = [diff(p(:)); p(1) + 1 - p(end)];
+    bin_var(j) = (1 - max(gaps)) * num_bins * 100;
+end
+end
+
+function placement = get_bin_placement(norm_signal, bin_ind_arr, num_bins, bin_offset)
+% Mean phase of the frames in each bin minus the bin centre (% of bin
+% width). Bin j spans [(j-1)/num_bins, j/num_bins) of the signal shifted by
+% bin_offset (see findBestNumBins2), so its centre in the original phase is
+% bin_offset + (j - 0.5)/num_bins. Differences are wrapped to [-0.5, 0.5)
+% so a bin at the 0/1 seam is handled. Empty bins give NaN.
+placement = NaN(1, num_bins);
+for j = 1:num_bins
+    p = norm_signal(bin_ind_arr == j);
+    if isempty(p), continue, end
+    centre = bin_offset + (j - 0.5) / num_bins;
+    delta = mod(p - centre + 0.5, 1) - 0.5;
+    placement(j) = mean(delta) * num_bins * 100;
 end
 end

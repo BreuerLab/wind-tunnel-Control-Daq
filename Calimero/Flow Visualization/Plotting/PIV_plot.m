@@ -9,7 +9,7 @@ function h = PIV_plot(x, y, val_tr, params, ax)
     % imagesc(ax, x(:,1), y(1,:), val_tr')
     % set(ax, 'YDir', 'normal'); % This is the crucial line
 
-    % axis(ax, 'equal');
+    axis(ax, 'equal');
     % shading(ax, 'interp');
     % xlim(params.xlims)
     % ylim(params.ylims)
@@ -35,4 +35,5 @@ function h = PIV_plot(x, y, val_tr, params, ax)
         cb = colorbarpzn(ax, params.clims(1), params.clims(2),'level', nlevels); % , 'level', 21
     end
     ylabel(cb, params.cb_lab,'Interpreter','Latex','FontSize',18,'Rotation',0)
+    
 end

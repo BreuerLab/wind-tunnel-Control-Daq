@@ -42,7 +42,7 @@ frames_per_beat_actual = mean(diff(nextRev_idx));
 % only 180 since no long pulse included at end
 
 if length(nextRev_idx) ~= num_wingbeats
-    disp("hey")
+    warning("Mismatch in expected and actual # of wingbeats")
 end
 
 wingbeat_forces = zeros(numAxes, num_wingbeats, frames_per_beat);
@@ -53,7 +53,23 @@ cur_idx = 1;
 for j = 1:num_wingbeats
     end_idx = nextRev_idx(j);
     cur_wingbeat = mod_results(:, cur_idx:end_idx);
-    cur_wingbeat_resampled = resample(cur_wingbeat.', frames_per_beat, length(cur_wingbeat)).';
+
+    % ------ New resampling procedure -------
+    N = length(cur_wingbeat);
+    xq = 1:frames_per_beat; 
+    
+    % Wrap query points back into the 1..N index domain
+    xq_wrapped = mod(xq - 1, N) + 1;
+    
+    % Interpolate within bounds using wrapped coordinates
+    cur_wingbeat_resampled = interp1(1:N, cur_wingbeat.', xq_wrapped, 'pchip').';
+
+    % ------- Old resampling procedure, sometimes failed for certain combos
+    % of frames_per_beat and length(cur_wingbeat) when they didn't have
+    % good common denominators --------
+    % cur_wingbeat_resampled = resample(cur_wingbeat.', frames_per_beat, length(cur_wingbeat)).';
+
+
     wingbeat_forces(:,j,:) = cur_wingbeat_resampled;
 
     cycle_avg_forces(:,j) = mean(wingbeat_forces(:,j,:), 3);

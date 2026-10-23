@@ -12,37 +12,35 @@
 % A .mat file is produced in the directory described by processed_data_path
 % containing a number of variables whose contents describe the results of
 % the experiment in more ways than simply the raw data does.
-function process_trial(file, raw_data_path, offsets_path, processed_data_path, wind_tunnel_path, type)
+function process_trial(file, raw_data_path, offsets_path, processed_data_path, wind_tunnel_path, params)
 
 % I don't want to use wing_type_from_name, I want type from eval_params.m
 [case_name, time_stamp, wing_type_from_name, wing_freq, AoA, wind_speed, amp, ~] = parse_filename(file);
 
-% NUM_WINGBEATS IS CURRENTLY NOT 180 EXACTLY SINCE JUST USING PWM
 [frame_rate, num_wingbeats, rec_wingbeats, ticksPerRev, OC_pulse_step] = get_sampling_info(wing_freq);
 
 % Get force calibration file
 calibration_filepath = "../../DAQ/Calibration Files/Mini40/FT52907.cal"; 
 cal_matrix = obtain_cal(calibration_filepath);
 
-% UNCOMMENT !!!!!!!!!!!!!!!!!!!!!!!
 % find matching offsets file
 offsets_file = findInitialOffsetsFile(offsets_path, case_name);
 load(offsets_path + offsets_file); % load in results var
 offsets = offsets(1,:);
 disp("Matching offsets: " + offsets_file)
 
-% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-% filePattern = fullfile(offsets_path, '*.mat'); % Change to whatever pattern you need.
-% offsets_files = [];
-% for i = 1:length(filePattern)
-%     offsets_files = [offsets_files; dir(filePattern(i))];
-% end
-% 
+filePattern = fullfile(offsets_path, '*.mat'); % Change to whatever pattern you need.
+offsets_files = [];
+for i = 1:length(filePattern)
+    offsets_files = [offsets_files; dir(filePattern(i))];
+end
+
+[drift, offsets_before, offsets_after] = get_drift(file, offsets_files, params.freq_vals);
+
 % offsets_string = "before_offsets";
 % [offsets_cur, offsets_cur_filename] = findMatchingOffset...
 % (offsets_files, offsets_string, wing_freq, AoA, wind_speed, type, time_stamp);
 % disp("Current offsets: " + offsets_cur_filename)
-% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 % Get raw data from file
 load(raw_data_path + file); % load in results var
@@ -55,31 +53,18 @@ else
 trimmed_results = trim_data(results, rec_wingbeats, num_wingbeats);
 end
 
-% REPLACE WITH PROPER TRIMMING!!!!!!!!!!!!!!!!!!!!!!!
-% trimmed_results = results;
-% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
 async = true; % We are doing async method of collecting data
 
-[time_data, force_data, voltAdj, curAdj, speed, OC_pulse_count] = ...
-    process_data(trimmed_results, offsets, cal_matrix, ticksPerRev, OC_pulse_step, async);
-
-dt = time_data(2) - time_data(1);
-% speed = gradient(results(:,11), dt)
-
-order = 3;
-framelen = 21;
-speed = savitskyGolayDiff(OC_pulse_count, order, framelen, dt);
-speed = speed / (ticksPerRev / OC_pulse_step);
+[time_data, force_data, voltAdj, curAdj, home_signal, pos, speed, acc, wing_pos, wing_speed, wing_acc] = ...
+    process_data(trimmed_results, offsets, cal_matrix, ticksPerRev, OC_pulse_step, amp, async);
+OC_pulse_count = trimmed_results(:,11);
 
 % Rotate the data from the force transducer reference frame to the wind
 % tunnel reference frame (body frame to global frame)
 results_lab = coordinate_transformation(force_data, AoA);
 
 % enc_pulse not added because this is the only data that is filtered
-mod_results = [results_lab; voltAdj'; curAdj'];
+mod_results = [results_lab; home_signal'; voltAdj'; curAdj'];
 
 % motor model check
 % if wing_freq ~= 0
@@ -88,7 +73,8 @@ mod_results = [results_lab; voltAdj'; curAdj'];
 
 % Non-dimensionalize the data. Newtons to Force Coefficients and
 % Newton*meters to Moment Coefficients
-[norm_data, norm_factors, St, Re] = non_dimensionalize_data(wind_tunnel_path, results_lab, file, type);
+[norm_data, norm_factors, St, Re, U_act, rho_act] =...
+    non_dimensionalize_data(wind_tunnel_path, results_lab, file, params.freq_vals);
 
 % Smooth the data with a butterworth filter
 % fc = 100; % cutoff frequency
@@ -107,6 +93,14 @@ if (wing_freq > 1)
 else
     fc = 10;
 end
+filtered_data_smoother = filter_data(mod_results, frame_rate, fc);
+
+if (wing_freq > 1)
+    % fc = 10*wing_freq; % cutoff frequency
+    fc = 2*wing_freq; % cutoff frequency
+else
+    fc = 4;
+end
 filtered_data_smoothest = filter_data(mod_results, frame_rate, fc);
 
 % if (wing_freq > 1)
@@ -124,9 +118,9 @@ filtered_data_smoothest = filter_data(mod_results, frame_rate, fc);
 
 filename = case_name + " " + time_stamp + ".mat"; % file name for processed data
 
-saved_vars = {'time_data', 'force_data', 'results_lab',...
-    'filtered_data','filtered_data_smoothest',...
-    'norm_factors', 'St', 'Re'};
+saved_vars = {'time_data', 'force_data', 'results_lab', 'mod_results',...
+    'filtered_data','filtered_data_smoother','filtered_data_smoothest','norm_factors',...
+    'St', 'Re', 'U_act', 'rho_act'};
 
 % If this is a flapping trial, analyze data over each wingbeat rather than
 % just in time
@@ -141,10 +135,10 @@ if (wing_freq > 0)
     cycle_avg_forces]...
     = wingbeat_transformation(num_wingbeats, filtered_data, OC_pulse_count, speed, AoA);
 
-% [wingbeat_forces_smoother, frames_smoother, wingbeat_avg_forces_smoother, wingbeat_std_forces_smoother, ...
-%     wingbeat_rmse_forces_smoother, wingbeat_max_forces_smoother, wingbeat_min_forces_smoother, ...
-%     wingbeat_COP_smoother, cycle_avg_forces_smoother]...
-%     = wingbeat_transformation(num_wingbeats, filtered_data_smooth, AoA);
+[wingbeat_forces_smoother, frames_smoother, wingbeat_avg_forces_smoother, wingbeat_std_forces_smoother, ...
+    wingbeat_rmse_forces_smoother, wingbeat_max_forces_smoother, wingbeat_min_forces_smoother, ...
+    wingbeat_COP_smoother, cycle_avg_forces_smoother]...
+    = wingbeat_transformation(num_wingbeats, filtered_data_smoother, OC_pulse_count, speed, AoA);
 
 [wingbeat_forces_smoothest, frames_smoothest, wingbeat_avg_forces_smoothest, wingbeat_std_forces_smoothest,...
     wingbeat_rmse_forces_smoothest, wingbeat_max_forces_smoothest, wingbeat_min_forces_smoothest, wingbeat_COP_smoothest,...
@@ -163,10 +157,10 @@ filt_wing_vars = {'wingbeat_forces','frames',...
     'wingbeat_min_forces', 'wingbeat_COP', ...
     'cycle_avg_forces'}; % 'upstroke_avg_forces', 'downstroke_avg_forces'
 
-% filt_smooth_wing_vars = {'wingbeat_forces_smoother', 'frames_smoother',...
-%     'wingbeat_avg_forces_smoother', 'wingbeat_std_forces_smoother',...
-%     'wingbeat_rmse_forces_smoother', 'wingbeat_max_forces_smoother',...
-%     'wingbeat_min_forces_smoother', 'wingbeat_COP_smoother', 'cycle_avg_forces_smoother'};
+filt_smoother_wing_vars = {'wingbeat_forces_smoother', 'frames_smoother',...
+    'wingbeat_avg_forces_smoother', 'wingbeat_std_forces_smoother',...
+    'wingbeat_rmse_forces_smoother', 'wingbeat_max_forces_smoother',...
+    'wingbeat_min_forces_smoother', 'wingbeat_COP_smoother', 'cycle_avg_forces_smoother'};
 
 filt_smoothest_wing_vars = {'wingbeat_forces_smoothest', 'frames_smoothest',...
     'wingbeat_avg_forces_smoothest', 'wingbeat_std_forces_smoothest',...
@@ -174,7 +168,7 @@ filt_smoothest_wing_vars = {'wingbeat_forces_smoothest', 'frames_smoothest',...
     'wingbeat_min_forces_smoothest', 'wingbeat_COP_smoothest', ...
     'cycle_avg_forces_smoothest'}; % 'upstroke_avg_forces_smoothest', 'downstroke_avg_forces_smoothest'
 
-vars = [saved_vars, raw_wing_vars, filt_wing_vars, filt_smoothest_wing_vars];
+vars = [saved_vars, raw_wing_vars, filt_wing_vars, filt_smoother_wing_vars, filt_smoothest_wing_vars];
 
 else
     vars = saved_vars;

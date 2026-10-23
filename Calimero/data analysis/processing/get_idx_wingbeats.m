@@ -19,4 +19,13 @@ function [nextRev_idx] = get_idx_wingbeats(OC_pulse_count)
     nextRev_whole_idx = find(diff_idx ~= 1 & diff_idx > 1000) + 1; % add 1 because diff shortens size of array
     % "& diff_idx > 1000" added since noise in encoder signal resulted in jump
     nextRev_idx = whole_idx(nextRev_whole_idx);
+
+    % ---- Actually, I think I need to keep the final one since I'm using
+    %  this signal to get the end of each wingbeat -------
+    % If there is a final increment don't count as this is just the end of
+    % the wingbeat, not the start of another in this grouping
+    % if nextRev_idx(end) == length(wingbeat_rem)
+    %     nextRev_idx(end) = [];
+    % end
+
 end

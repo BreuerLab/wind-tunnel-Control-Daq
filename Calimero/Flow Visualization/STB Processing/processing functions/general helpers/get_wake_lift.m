@@ -1,4 +1,11 @@
-function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density)
+function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density, opts)
+    % opts.edge_taper : width (chords) of the smooth edge taper used for
+    %                   the window-edge terms of lift.vortY_edge
+    %                   (default 0.75; 0 makes it equal lift.vortY)
+    % lift.vortY      : omega_y estimate, integral of omega_y only (default)
+    % lift.vortY_edge : same plus the tapered window-edge terms
+    if nargin < 6 || isempty(opts), opts = struct(); end
+    if ~isfield(opts, 'edge_taper'), opts.edge_taper = 0.75; end
 
     % ---------------------------------------------
     % --------- Make values dimensional -----------
@@ -15,71 +22,28 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density)
     vortZ = D.vortZ / (L/U);
     end
 
-    unc = D.unc;
-
-    % mask regions where missing STB information
-    % u(isnan(unc)) = NaN;
-    % w(isnan(unc)) = NaN;
-    if vort_bool
-        default_value = 0;
-
-    % if avg_type
-    vortX(isnan(unc)) = default_value; %  & unc > 0.03
-    vortY(isnan(unc)) = default_value;
-    vortZ(isnan(unc)) = default_value;
-
-    % dudy(isnan(unc)) = default_value;
-    % dudz(isnan(unc)) = default_value;
-    % end
-
-    % vortX = medfilt3(vortX);
-    % vortY = medfilt3(vortY);
-    % vortZ = medfilt3(vortZ);
-
-    % median filter for each image, rather than 3D wake
-    filter_dim = [3 3];
-    if ndims(vortX) == 3
-        for k = 1:size(vortX,3)
-        vortX(:,:,k) = medfilt2(vortX(:,:,k), filter_dim);
-        vortY(:,:,k) = medfilt2(vortY(:,:,k), filter_dim);
-        vortZ(:,:,k) = medfilt2(vortZ(:,:,k), filter_dim);
-    
-        % dudy(:,:,k) = medfilt2(dudy(:,:,k), filter_dim);
-        % dudz(:,:,k) = medfilt2(dudz(:,:,k), filter_dim);
-        end
-    else
-        vortX = medfilt2(vortX, filter_dim);
-        vortY = medfilt2(vortY, filter_dim);
-        vortZ = medfilt2(vortZ, filter_dim);
+    % Vorticity is used as computed from the hole-filled velocity field
+    % (holes are marked NaN in loadpiv and interpolated before any
+    % derivative is taken). It is deliberately NOT zeroed where data is
+    % missing and NOT median filtered: zeroing removes circulation from
+    % poorly seeded vortex cores, and a median filter is nonlinear and
+    % clips concentrated cores, so neither preserves the integral of
+    % y*omega_x that the lift estimate depends on.
+    % NOTE: .mat files processed before this change contain vorticity
+    % computed with holes treated as zero velocity - reprocess them.
+    if vort_bool && (any(isnan(vortX), 'all') || any(isnan(vortY), 'all'))
+        warning("get_wake_lift:nanVorticity", ...
+            "Vorticity contains NaNs; lift/drag integrals will be NaN. " + ...
+            "Fill holes in the velocity field before computing vorticity.")
     end
 
-    % Q_mask_bool = true;
-    % if Q_mask_bool
-    %     vortX(Q < 0) = 0;
-    %     % disp("Q mask active")
-    % end
-
-    % Flooring the noise below some threshold makes the trends with
-    % wingbeat frequency appear smoother, but appears to worsen agreement
-    % for phase averaged data (b/w load cell and STB)
-    if ndims(vortX) == 3
-    % thresh = 0.1 * (U/L);
-    % vortX(vortX < thresh & vortX > -thresh) = default_value;
-    % vortY(vortY < thresh & vortY > -thresh) = default_value;
-    end
-    end
-
-    % in my reference frame right wing produces positive vorticity, but
-    % in their reference frame, it produces negative vorticity
-
-    % spanwise coordinate (x here) increasing outboards agrees with
-    % their ref. frame
-
-    % vertical velocity is positive in the downwards direction,
-    % opposite my reference frame
-
-    % streamwise velocity is positive in the forward direction, same as
-    % mine
+    % Frame (checked on phase-averaged data): x is streamwise and points
+    % upstream (u ~ -U, so u + U is the perturbation), y is spanwise
+    % (half plane y >= 0, increasing with array index), z is vertical
+    % (increasing with array index), and w is positive along +z. The
+    % frame is right-handed and the stored vortX, vortY, vortZ are the
+    % ordinary right-handed curl, so trapz over y and z are +int dy,
+    % +int dz and no sign corrections are needed.
 
     % THESE CALCULATIONS ONLY WORK FOR AVERAGE LIFT, time varying lift
     % should account for contribution from d/dt term in N-S
@@ -106,8 +70,8 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density)
         % term2 = (w + U) .* -v .* dA; % effectively zero
         % term1 = -U * y .* -vortX;
         % term1 = mean_u * y .* -vortX;
-        term1 = u .* y .* -vortX;
-        term2 = (u + U) .* -w; % effectively zero
+        term1 = -U .* y .* -vortX; % u or -U, doesn't seem to make a big diff
+        term2 = -(u + U) .* -w; % effectively zero
         % term3 = y .* (w .* dudy - v .* dudz);
     
         lift_vec_wx = trapz(y(:,1), term1, 1);
@@ -120,94 +84,74 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density)
         % L_z = abs(z(1,end) - z(1,1));
         % lift_wx2 = 2 * density * squeeze(mean(term1, [1,2])) * (L_y*L_z);
 
-        lift_vec_vel = trapz(y(:,1), -term2, 1);
-        lift_vel = 2 * density * trapz(z(1,:), lift_vec_vel, 2);
-        lift_vel = squeeze(lift_vel);
+        % velocity term that goes with the omega_x term, (u+U)*w. Named
+        % lift_vel_diff so it isn't confused with the velocity-only lift
+        % (u*w) returned when vort_bool is false (saved as lift_vel).
+        lift_vec_vel_diff = trapz(y(:,1), term2, 1);
+        lift_vel_diff = 2 * density * trapz(z(1,:), lift_vec_vel_diff, 2);
+        lift_vel_diff = squeeze(lift_vel_diff);
 
         % lift_vec_du = trapz(y(:,1), term3, 1);
         % lift_du = 2 * density * trapz(z(1,:), lift_vec_du, 2);
         % lift_du = squeeze(lift_du);
 
+        % Smooth edge taper (see the omega_y block below). The omega_x
+        % estimate with the same taper is returned for a like-for-like
+        % comparison with lift.vortY; it differs from lift.vortX only by
+        % omega_x inside the edge band. Defined for time averages too, so
+        % body (0 Hz) subtraction works.
+        I2 = @(F) squeeze(trapz(z(1,:), trapz(y(:,1), F, 1), 2));
+        [phi, dphi_dy, dphi_dz] = edge_taper_weight(y, z, opts.edge_taper * L);
+        lift.vortX_taper = 2 * density * U * I2(y .* phi .* vortX);
+
         if ~(isscalar(x))
-        x = flip(x);
-
-        dx = abs(x(2) - x(1));
-        dt = dx / U;
-
-        x = x - (dx * length(x)) / 2;
-
-        x_reshaped = reshape(x, 1, size(x,1), size(x,2));
-
-        % x_reshaped = x_reshaped - (dx * length(x)) / 2;
-        lift_wy_F = zeros(size(x));
-        lift_wx_F_T = zeros(size(x));
-
-        vortY_shifted = vortY;
-        for i = 1:length(x_reshaped)
-            % x_cur = x - x(i);
-            % x_reshape_cur = reshape(x_cur, 1, size(x,1), size(x,2));
-
-            term3 = vortY_shifted;
-            % term3 = vortY_shifted .* x_reshape_cur;
-
-            % x_tr = x(x < 0.7);
-            % term3 = term3(:,:,x_reshaped < 0.7);
-
-            lift_mat_wy = trapz(y(:,1), term3, 1);
-            lift_vec_wy = trapz(z(1,:), lift_mat_wy, 2);
-            lift_vec_wy = lift_vec_wy .* x_reshaped;
-
-            lift_wy = trapz(x, lift_vec_wy, 3);
-            % lift_wy = trapz(x_cur, lift_vec_wy, 3);
-            % lift_wy = trapz(x_tr, lift_vec_wy, 3);
-
-            % lift_wy = lift_vec_wy(1) - lift_vec_wy(end);
-            % lift_wy = -mean(lift_wy, 3);
-
-            lift_wy_F(i) = squeeze(lift_wy);
-
-            % vortY_shifted = circshift(vortY_shifted, 1, 3);
-
-            % Testing same procedure for vortX term
-            % lift_mat_wx_T = trapz(y(:,1), term1 / U, 1);
-            % lift_vec_wx_T = trapz(z(1,:), lift_mat_wx_T, 2);
-            % lift_vec_wx_T = lift_vec_wx_T .* x_reshaped;
-            % 
-            % lift_wx_T = trapz(x, lift_vec_wx_T, 3);
-            % lift_wx_F_T(i) = squeeze(lift_wx_T);
-
-            x_reshaped = circshift(x_reshaped, 1, 3);
-        end
-        % lift_wy_F = 2 * density * lift_wy_F'; 
-
-        lift_wy_F = 2 * density * lift_wy_F' * (1 / (dt*length(x)));
-        % lift_wx_F_T = 2 * density * lift_wx_F_T' * (1 / (dt*length(x)));
-
-        % lift_wy_Fin = gradient(lift_wy_F, dt);
-
-        % order = 3;
-        % framelen = 11;
-        % lift_wy_Fin = savitskyGolayDiff(lift_wy_F, order, framelen, dt);
-
-        % lift_wy_F = lift_wy_F / (dt*length(x)*U);
-
-
-        
-        % term3 = U * vortY;
-        % 
-        % lift_vec_wy = trapz(y(:,1), term3, 1);
-        % lift_wy = trapz(z(1,:), lift_vec_wy, 2);
-        % 
-        % lift_wy = squeeze(lift_wy);
-        % lift_wy_F = 2 * density * lift_wy';
-
-        total = lift_wx + lift_vel + lift_wy_F;
-        lift.vortY = lift_wy_F;
+        % ---- omega_y (spanwise starting/stopping vorticity) estimate ----
+        % div(omega) = 0 gives, for A = int int y*omega_x dA over the
+        % half plane, with a weight phi(y,z) that is 1 inside and goes
+        % smoothly to 0 at the outer spanwise edge and the top/bottom edges:
+        %
+        %   d/dx int int y*phi*wx dA = int int [ phi*wy + y*wy*dphi/dy
+        %                                        + y*wz*dphi/dz ] dA
+        %
+        % The last two terms are the window-edge terms (vortex lines that
+        % leave the window: tether wakes, sheets cut by the edges), taken
+        % as averages over a band opts.edge_taper chords wide instead of
+        % on single noisy edge rows (lift.vortY_edge). lift.vortY (the
+        % default) drops them: integral of omega_y only. The y = 0 (symmetry) side
+        % needs no taper: its edge term is weighted by y = 0.
+        % Frozen flow (x points upstream): dA/dt = U dA/dx, so
+        % lift(t) = 2*rho*U * U * int (...) dt, mean removed (the omega_y
+        % route carries no information about the mean).
+        % Signs: y and z increase with array index and the stored
+        % vorticity is the right-handed curl, so the identity above is
+        % used as written (all terms +). Closure can be checked with
+        % wake_lift_budget.
+        % bin times from the frozen-flow axis (x = U t). These are the
+        % actual mean phases of the bins (see bin_times), so they may be
+        % unevenly spaced; means and integrals use the actual times.
+        t  = x(:) / U;
+        if isfield(D, 'period') && isfinite(D.period)
+            period = D.period;
         else
-            total = lift_wx + lift_vel;
+            period = numel(t) * median(diff(t));
+        end
+
+        wy_integrand = phi .* vortY + y .* vortY .* dphi_dy + y .* vortZ .* dphi_dz;
+        rate_wy = U * I2(wy_integrand);                 % = dA/dt, A tapered
+        rate_wy = rate_wy - periodic_mean(rate_wy(:), t, period);
+        lift.vortY_edge = 2 * density * U * cumtrapz(t(:), rate_wy(:));
+
+        % default: same estimate without the edge terms or taper
+        rate_raw = U * I2(vortY);
+        rate_raw = rate_raw - periodic_mean(rate_raw(:), t, period);
+        lift.vortY = 2 * density * U * cumtrapz(t(:), rate_raw(:));
+
+        total = lift_wx + lift_vel_diff;
+        else
+            total = lift_wx + lift_vel_diff;
         end
         lift.vortX = lift_wx;
-        lift.vel = lift_vel;
+        lift.vel_diff = lift_vel_diff;
         lift.tot = total;
     else
         lift_mat_full = -(u .* -w);
@@ -219,36 +163,31 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density)
 
     %% Calculate drag
     if vort_bool
-        % is y = 0 properly centered at body axis?
-        term1 = U^2;
-        % term2 = U * -z .* vortY * dA; % z flipped from paper, vortY also flipped
-        term2 = -U * -z .* vortY; % z flipped from paper, vortY also flipped
-        term3 = U * y .* vortZ;
-        term4 = (u + U).^2;
-        drag_mat = term2 + term3; % -term1
+        % Vortex-impulse drag, positive downstream (on the body):
+        %   D = rho*U * int int_half (y*Wz - z*Wy) dA
+        % with W the right-handed vorticity. y and z both increase with
+        % array index (checked on phase-averaged data: z runs -2.5 to
+        % 3.4 c) and u ~ -U (x points upstream), so the stored vorticity
+        % is the right-handed vorticity and I2 = +int int dA. This is the
+        % convention under which drag_vel (momentum deficit) comes out
+        % drag-positive, matching the load cell. Each term here carries
+        % rho*U (not 2*rho*U) so drag.vortY + drag.vortZ = drag.tot.
+        % For a closed wake (cycle mean) the two terms are equal, so
+        % 2*drag.vortY or 2*drag.vortZ alone is also an estimate of D.
+        % y = 0 must lie on the symmetry plane (y*Wz term); the z origin
+        % only drops out when int int Wy dA = 0 (cycle mean).
+        I2 = @(F) squeeze(trapz(z(1,:), trapz(y(:,1), F, 1), 2));
 
-        drag_wy_mat = trapz(y(:,1), term2, 1);
-        drag_wy_vec = trapz(z(1,:), drag_wy_mat, 2);
-        drag_wy = 2 * density * squeeze(drag_wy_vec);
+        bernoulli_term = v.^2 + w.^2 + (u + U).^2;
+        bernoulli = density * I2(bernoulli_term);
 
-        % L_y = abs(y(end,1) - y(1,1));
-        % L_z = abs(z(1,end) - z(1,1));
-        % drag_wy = 2 * density * squeeze(mean(term2, [1,2])) * (L_y*L_z);
-
-        drag_wz_mat = trapz(y(:,1), term3, 1);
-        drag_wz_vec = trapz(z(1,:), drag_wz_mat, 2);
-        drag_wz = 2 * density * squeeze(drag_wz_vec);
-        % drag_mat = term2 + term3 + term4; % -term1
-        % terms 2 and 3 end up being much smaller, perhaps the other terms
-        % dropped in this analysis can't be dropped as before with lift
-
-        % drag_vec = trapz(y(:,1), drag_mat, 1);
-        % drag = 2 * density * trapz(z(1,:), drag_vec, 2);
-        % drag = squeeze(drag);
+        drag_wy = -density * U * I2(z .* vortY);   % -z*Wy term
+        drag_wz =  density * U * I2(y .* vortZ);   %  y*Wz term
 
         total = drag_wy + drag_wz;
         drag.vortY = drag_wy;
         drag.vortZ = drag_wz;
+        drag.bernoulli = bernoulli;
         drag.tot = total;
     else
         drag_mat_full = -u .* (u + U); % If w > U in magnitude, should be -
@@ -258,4 +197,32 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density)
         drag = squeeze(drag);
     end
     
+end
+
+function [phi, dphi_dy, dphi_dz] = edge_taper_weight(y, z, ell)
+% Weight that is 1 in the interior and ramps to 0 (0.5 - 0.5cos) over a
+% band ell wide at the outer spanwise edge (max y) and both z edges, plus
+% its derivatives with respect to the coordinate values (array order does
+% not matter). ell = 0 gives phi = 1 and zero derivatives.
+yv = y(:,1);  zv = z(1,:);
+[Ty, dTy] = cos_ramp(yv, min(yv), max(yv), ell, false, true);
+[Tz, dTz] = cos_ramp(zv(:), min(zv), max(zv), ell, true, true);
+phi     = Ty  * Tz';
+dphi_dy = dTy * Tz';
+dphi_dz = Ty  * dTz';
+end
+
+function [t, dt] = cos_ramp(c, lo, hi, ell, do_lo, do_hi)
+tl = ones(size(c)); dtl = zeros(size(c));
+th = ones(size(c)); dth = zeros(size(c));
+if ell > 0 && do_lo
+    m = c < lo + ell; s = (c(m) - lo) / ell;
+    tl(m) = 0.5 - 0.5*cos(pi*s);  dtl(m) =  0.5*pi/ell*sin(pi*s);
+end
+if ell > 0 && do_hi
+    m = c > hi - ell; s = (hi - c(m)) / ell;
+    th(m) = 0.5 - 0.5*cos(pi*s);  dth(m) = -0.5*pi/ell*sin(pi*s);
+end
+t  = tl .* th;
+dt = dtl .* th + tl .* dth;
 end

@@ -9,7 +9,7 @@ addpath(genpath('../data processing'))
 addpath UI_functions/
 
 clear
-% close all force
+close all force
 
 % Local data path on Ronan's PC
 data_path = "F:\Final Force Data";

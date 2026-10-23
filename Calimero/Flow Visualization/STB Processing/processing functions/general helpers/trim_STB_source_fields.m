@@ -1,13 +1,13 @@
-function T = trim_STB_source_fields(L, y, z, source, print_dim_bool)
+function T = trim_STB_source_fields(L, y, z, source, print_dim_bool, bounds)
 if iscell(source)
     source = import_data_to_struct(source);
 end
 
 names = fieldnames(source);
-[T.y, T.z, T.(names{1})] = trim_vel_field(y, z, source.(names{1}));
+[T.y, T.z, T.(names{1})] = trim_vel_field(y, z, source.(names{1}), bounds);
 
 for i = 2:numel(names)
-    [~, ~, T.(names{i})] = trim_vel_field(y, z, source.(names{i}));
+    [~, ~, T.(names{i})] = trim_vel_field(y, z, source.(names{i}), bounds);
 end
 
 if print_dim_bool

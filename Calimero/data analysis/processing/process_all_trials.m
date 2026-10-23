@@ -71,7 +71,12 @@ end
 if addFolders
 params_path = data_path + "experiment parameters" + DELIM;
 
-[wind_speed, type, freq_vals, AoA_vals, amp, time_stamp] = eval_params(params_path);
+% On July 7th removed freq_vals and AoA_vals here since not relevant for
+% benchtop processing and seemingly not used for normal processing routine
+[d, time_stamp] = eval_params(params_path);
+wind_speed = d.speed;
+type = d.wing_type;
+amp = d.amp;
 
 oldFolder = data_path;
 raw_appendage = DELIM + "raw data";
@@ -150,11 +155,13 @@ raw_data_path = [];
 offsets_path = [];
 processed_data_path = [];
 wind_tunnel_path = [];
+params_path = [];
 
 raw_data_path = [raw_data_path filepath + DELIM + "raw data" + DELIM + "experiment data" + DELIM];
 offsets_path = [offsets_path filepath + DELIM + "raw data" + DELIM + "offsets data" + DELIM];
 processed_data_path = [processed_data_path filepath + DELIM + "processed data" + DELIM];
 wind_tunnel_path = [wind_tunnel_path filepath + DELIM + "raw data" + DELIM + "wind tunnel data" + DELIM];
+params_path = [params_path filepath + DELIM + "raw data" + DELIM + "experiment parameters" + DELIM];
 
 if isempty(raw_data_path)
     error("Oops, no data paths made")
@@ -195,6 +202,10 @@ end
 disp("---------------------------------------------------------------")
 disp("---------------------------------------------------------------")
 
+% Get some general parameters from the params file
+[d, latest_timestamp] = eval_params(params_path);
+params.freq_vals = d.freq_vals;
+
 % Grab each file and process the data from that file, storing the results
 for k = 1 : length(exp_files)
     baseFileName = convertCharsToStrings(exp_files(k).name);
@@ -203,7 +214,7 @@ for k = 1 : length(exp_files)
     disp("Reading from: ")
     disp(baseFileName)
 
-    process_trial(baseFileName, raw_data_path, offsets_path, processed_data_path, wind_tunnel_path, type);
+    process_trial(baseFileName, raw_data_path, offsets_path, processed_data_path, wind_tunnel_path, params);
     end
 
     percent_complete = round((k / length(exp_files)) * 100, 2);
