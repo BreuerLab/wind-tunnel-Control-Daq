@@ -35,17 +35,13 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density, opts)
             "Fill holes in the velocity field before computing vorticity.")
     end
 
-    % in my reference frame right wing produces positive vorticity, but
-    % in their reference frame, it produces negative vorticity
-
-    % spanwise coordinate (x here) increasing outboards agrees with
-    % their ref. frame
-
-    % vertical velocity is positive in the downwards direction,
-    % opposite my reference frame
-
-    % streamwise velocity is positive in the forward direction, same as
-    % mine
+    % Frame (checked on phase-averaged data): x is streamwise and points
+    % upstream (u ~ -U, so u + U is the perturbation), y is spanwise
+    % (half plane y >= 0, increasing with array index), z is vertical
+    % (increasing with array index), and w is positive along +z. The
+    % frame is right-handed and the stored vortX, vortY, vortZ are the
+    % ordinary right-handed curl, so trapz over y and z are +int dy,
+    % +int dz and no sign corrections are needed.
 
     % THESE CALCULATIONS ONLY WORK FOR AVERAGE LIFT, time varying lift
     % should account for contribution from d/dt term in N-S
@@ -124,14 +120,14 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density, opts)
         % Frozen flow (x points upstream): dA/dt = U dA/dx, so
         % lift(t) = 2*rho*U * U * int (...) dt, mean removed (the omega_y
         % route carries no information about the mean).
-        % Code-frame signs: z decreases with array index (trapz over z is
-        % -int dz) and wx, wy are stored with the opposite sign of a
-        % right-handed curl, wz with the same sign; hence the minus on
-        % the wz term below. (Checked in wake_lift_budget.)
+        % Signs: y and z increase with array index and the stored
+        % vorticity is the right-handed curl, so the identity above is
+        % used as written (all terms +). Closure can be checked with
+        % wake_lift_budget.
         dt = abs(x(2) - x(1)) / U;          % x is the frozen-flow axis
         t  = (0:size(vortY,3)-1) * dt;
 
-        wy_integrand = phi .* vortY + y .* vortY .* dphi_dy - y .* vortZ .* dphi_dz;
+        wy_integrand = phi .* vortY + y .* vortY .* dphi_dy + y .* vortZ .* dphi_dz;
         rate_wy = U * I2(wy_integrand);                 % = dA/dt, A tapered
         rate_wy = rate_wy - mean(rate_wy);
         lift_wy_F = 2 * density * U * cumtrapz(t(:), rate_wy(:));
@@ -159,38 +155,26 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density, opts)
 
     %% Calculate drag
     if vort_bool
-        % is y = 0 properly centered at body axis?
-        term1 = U^2;
-        % term2 = U * -z .* vortY * dA; % z flipped from paper, vortY also flipped
-        term2 = -U * -z .* vortY; % z flipped from paper, vortY also flipped
-        term3 = U * y .* vortZ;
-        term4 = (u + U).^2;
-        drag_mat = term2 + term3; % -term1
+        % Vortex-impulse drag, positive downstream (on the body):
+        %   D = rho*U * int int_half (y*Wz - z*Wy) dA
+        % with W the right-handed vorticity. y and z both increase with
+        % array index (checked on phase-averaged data: z runs -2.5 to
+        % 3.4 c) and u ~ -U (x points upstream), so the stored vorticity
+        % is the right-handed vorticity and I2 = +int int dA. This is the
+        % convention under which drag_vel (momentum deficit) comes out
+        % drag-positive, matching the load cell. Each term here carries
+        % rho*U (not 2*rho*U) so drag.vortY + drag.vortZ = drag.tot.
+        % For a closed wake (cycle mean) the two terms are equal, so
+        % 2*drag.vortY or 2*drag.vortZ alone is also an estimate of D.
+        % y = 0 must lie on the symmetry plane (y*Wz term); the z origin
+        % only drops out when int int Wy dA = 0 (cycle mean).
+        I2 = @(F) squeeze(trapz(z(1,:), trapz(y(:,1), F, 1), 2));
 
         bernoulli_term = v.^2 + w.^2 + (u + U).^2;
+        bernoulli = density * I2(bernoulli_term);
 
-        bernoulli_mat = trapz(y(:,1), bernoulli_term, 1);
-        bernoulli_vec = trapz(z(1,:), bernoulli_mat, 2);
-        bernoulli = density * squeeze(bernoulli_vec);
-
-        drag_wy_mat = trapz(y(:,1), term2, 1);
-        drag_wy_vec = trapz(z(1,:), drag_wy_mat, 2);
-        drag_wy = 2 * density * squeeze(drag_wy_vec);
-
-        % L_y = abs(y(end,1) - y(1,1));
-        % L_z = abs(z(1,end) - z(1,1));
-        % drag_wy = 2 * density * squeeze(mean(term2, [1,2])) * (L_y*L_z);
-
-        drag_wz_mat = trapz(y(:,1), term3, 1);
-        drag_wz_vec = trapz(z(1,:), drag_wz_mat, 2);
-        drag_wz = 2 * density * squeeze(drag_wz_vec);
-        % drag_mat = term2 + term3 + term4; % -term1
-        % terms 2 and 3 end up being much smaller, perhaps the other terms
-        % dropped in this analysis can't be dropped as before with lift
-
-        % drag_vec = trapz(y(:,1), drag_mat, 1);
-        % drag = 2 * density * trapz(z(1,:), drag_vec, 2);
-        % drag = squeeze(drag);
+        drag_wy = -density * U * I2(z .* vortY);   % -z*Wy term
+        drag_wz =  density * U * I2(y .* vortZ);   %  y*Wz term
 
         total = drag_wy + drag_wz;
         drag.vortY = drag_wy;

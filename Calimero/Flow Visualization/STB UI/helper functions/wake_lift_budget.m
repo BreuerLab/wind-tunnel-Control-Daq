@@ -42,11 +42,11 @@ function B = wake_lift_budget(file_path, case_name, bounds, opts)
 %               weighted by phi so the two estimates stay comparable.
 %               Try 0.5-1 (c); the result should not depend on it.
 %
-%   Sign checks: the code-frame analysis says omega_x, omega_y are stored
-%   with the opposite sign to a right-handed curl and z decreases with
-%   array index, which cancel in A and Gamma_y. omega_z is stored with the
-%   right-handed sign. If E_z comes out anti-correlated with the residual,
-%   flip its sign (opts.signEz = -1) and re-check closure.
+%   Signs: y and z increase with array index, x points upstream, w is
+%   positive along +z, and the stored vorticity is the right-handed curl,
+%   so I2 = +int int dA and every identity above is used as written.
+%   opts.signEz (default 1) is kept as a diagnostic: if E_z comes out
+%   anti-correlated with the residual, try -1 and re-check closure.
 
 if nargin < 3 || isempty(bounds), bounds = default_trim_bounds(); end
 if nargin < 4, opts = struct(); end
@@ -118,11 +118,10 @@ if opts.taper > 0
     phi = Ty * Tz';  py = dTy * Tz';  pz = Ty * dTz';   % [ny, nz]
     A     = I2(y .* phi .* wx);
     Gam   = I2(phi .* wy);
-    % code frame: I2 integrates z in decreasing order (-), wy stored with
-    % the opposite sign of a right-handed curl, wz with the same sign
+    % rate_E = -K*U*E, so E = -(edge integral of the identity)
     E_y   = -I2(y .* wy .* py);
-    E_z   = opts.signEz * I2(y .* wz .* pz);
-    Uedge = I2(u .* pz);                 % = int int phi du/dz dA
+    E_z   = -opts.signEz * I2(y .* wz .* pz);
+    Uedge = -I2(u .* pz);                % = int int phi du/dz dA (by parts)
     Wint  = I2(phi .* w);
     if has_dwdx, Idwdx = I2(phi .* dwdx); end
     Tz0 = Tz';
