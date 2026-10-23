@@ -124,17 +124,24 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density, opts)
         % vorticity is the right-handed curl, so the identity above is
         % used as written (all terms +). Closure can be checked with
         % wake_lift_budget.
-        dt = abs(x(2) - x(1)) / U;          % x is the frozen-flow axis
-        t  = (0:size(vortY,3)-1) * dt;
+        % bin times from the frozen-flow axis (x = U t). These are the
+        % actual mean phases of the bins (see bin_times), so they may be
+        % unevenly spaced; means and integrals use the actual times.
+        t  = x(:) / U;
+        if isfield(D, 'period') && isfinite(D.period)
+            period = D.period;
+        else
+            period = numel(t) * median(diff(t));
+        end
 
         wy_integrand = phi .* vortY + y .* vortY .* dphi_dy + y .* vortZ .* dphi_dz;
         rate_wy = U * I2(wy_integrand);                 % = dA/dt, A tapered
-        rate_wy = rate_wy - mean(rate_wy);
+        rate_wy = rate_wy - periodic_mean(rate_wy(:), t, period);
         lift_wy_F = 2 * density * U * cumtrapz(t(:), rate_wy(:));
 
         % same estimate without the edge terms or taper (previous version)
         rate_raw = U * I2(vortY);
-        rate_raw = rate_raw - mean(rate_raw);
+        rate_raw = rate_raw - periodic_mean(rate_raw(:), t, period);
         lift.vortY_no_edge = 2 * density * U * cumtrapz(t(:), rate_raw(:));
 
         total = lift_wx + lift_vel_diff;

@@ -60,6 +60,7 @@ vars = {"L","U","U_act","rho_act","cycle_freq","y","z", ...
         "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg"};
 has_dwdx = ismember('dwdx_phase_avg', who('-file', file_path));
 if has_dwdx, vars{end+1} = "dwdx_phase_avg"; end
+if ismember('bin_placement', who('-file', file_path)), vars{end+1} = "bin_placement"; end
 d = load(file_path, vars{:});
 
 U   = d.U_act * d.U;
@@ -72,7 +73,10 @@ if nargin >= 2 && strlength(string(case_name)) > 0
 end
 if freq <= 0, freq = d.cycle_freq; end
 nb = size(d.u_phase_avg, 4);
-dt = 1 / (freq * nb);
+period = 1 / freq;
+placement = [];
+if isfield(d, 'bin_placement'), placement = d.bin_placement; end
+tb = bin_times(nb, period, placement);   % actual (mean-phase) bin times
 
 % Trim exactly as get_PIV_force does, then dimensionalise as get_wake_lift
 [y, z, wx] = trim_vel_field(d.y, d.z, d.vortX_phase_avg, bounds);
@@ -132,10 +136,11 @@ end
 [~, iy0] = min(yv);
 S0 = squeeze(trapz(zv, Tz0 .* wy(iy0,:,:), 2));
 
-ddt = @(f) (circshift(f, -1) - circshift(f, 1)) / (2*dt);  % periodic
+ddt = @(f) periodic_ddt(f(:), tb, period);                % periodic, uneven t
+pmean = @(f) periodic_mean(f(:), tb, period);
 K = 2 * rho * U;                                            % lift factor
 
-B.t_over_T  = ((1:nb)' - 1) / nb;
+B.t_over_T  = tb / period;
 B.dLdt_wx   = K * ddt(A);            % what lift.vortX says
 B.rate_Gam  = K * U * Gam;           % what lift.vortY uses
 B.rate_Ey   = -K * U * E_y;          % dropped: outer y edge
@@ -152,12 +157,12 @@ if has_dwdx
 end
 
 % Integrated lift curves (mean removed), as in the UI comparison
-cum = @(r) cumtrapz(r) * dt;
-B.L_wx      = K * (A - mean(A));
-B.L_wy      = cum(B.rate_Gam - mean(B.rate_Gam));
-B.L_wy_corr = cum((B.rate_Gam + B.rate_Ey + B.rate_Ez) - mean(B.rate_Gam + B.rate_Ey + B.rate_Ez));
-B.L_wy      = B.L_wy - mean(B.L_wy);
-B.L_wy_corr = B.L_wy_corr - mean(B.L_wy_corr);
+cum = @(r) cumtrapz(tb, r(:));
+B.L_wx      = K * (A - pmean(A));
+B.L_wy      = cum(B.rate_Gam - pmean(B.rate_Gam));
+B.L_wy_corr = cum((B.rate_Gam + B.rate_Ey + B.rate_Ez) - pmean(B.rate_Gam + B.rate_Ey + B.rate_Ez));
+B.L_wy      = B.L_wy - pmean(B.L_wy);
+B.L_wy_corr = B.L_wy_corr - pmean(B.L_wy_corr);
 
 % Summary
 r = @(f) std(f);

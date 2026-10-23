@@ -62,7 +62,8 @@ end
 
 print_dim_bool = false;
 fill_velocity_nans = true;
-[F, y_tr, z_tr, T] = prepare_STB_wake_field(D.L, D.y, D.z, print_dim_bool, trim_source, config.xConv, bounds, fill_velocity_nans);
+[F, y_tr, z_tr, T] = prepare_STB_wake_field(D.L, D.y, D.z, print_dim_bool, trim_source, config.xConvBins, bounds, fill_velocity_nans);
+F.period = config.period;
 
 y_arr = squeeze(y_tr(:,1));
 z_arr = squeeze(z_tr(1,:));
@@ -152,6 +153,12 @@ end
 function config = set_defaults(config)
 if ~isfield(config, 'xConv')
     config.xConv = 0;
+end
+if ~isfield(config, 'xConvBins')
+    config.xConvBins = config.xConv;
+end
+if ~isfield(config, 'period')
+    config.period = NaN;
 end
 
 if ~isfield(config, 'includeHelmDecomp')

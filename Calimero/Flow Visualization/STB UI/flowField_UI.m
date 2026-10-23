@@ -2380,12 +2380,16 @@ methods (Access = private)
 
         vars = {"L", "U", "num_bins", "cycle_freq", "y", "z", "dwdx_phase_avg", "w_phase_avg"};
         if ismember('U_act', have), vars{end+1} = "U_act"; end
+        if ismember('bin_placement', have), vars{end+1} = "bin_placement"; end
         d = load(file, vars{:});
         U_conv = d.U;
         if isfield(d, 'U_act'), U_conv = d.U_act * d.U; end
 
         nb = size(d.w_phase_avg, 4);
-        dt = 1 / (d.cycle_freq * nb);
+        placement = [];
+        if isfield(d, 'bin_placement'), placement = d.bin_placement; end
+        period = 1 / d.cycle_freq;
+        tb = bin_times(nb, period, placement);   % actual (mean-phase) bin times
         planeIdx = (size(d.w_phase_avg, 1) + 1) / 2;
         y = squeeze(d.y(planeIdx,:,:));
         z = squeeze(d.z(planeIdx,:,:));
@@ -2395,7 +2399,7 @@ methods (Access = private)
             dwdx(:,:,k) = fill3D(dwdx(:,:,k));
             w(:,:,k)    = fill3D(w(:,:,k));
         end
-        dwdt_U = (circshift(w, -1, 3) - circshift(w, 1, 3)) / (2*dt) * (d.L / U_conv);
+        dwdt_U = periodic_ddt(w, tb, period, 3) * (d.L / U_conv);
 
         if obj.trim_bool
             y_idx = find(y(:,1) > obj.trim_y_bounds(1) & y(:,1) < obj.trim_y_bounds(2));

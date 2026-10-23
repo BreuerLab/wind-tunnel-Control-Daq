@@ -47,7 +47,13 @@ if ~bools.turbine
         x_conv(k) =  speed * dt * (k - 1);
     end
     
-    config.xConv = x_conv;
+    config.xConv = x_conv;   % nominal, uniform (used by helm_decomp)
+    % actual bin times (mean phase of each bin's frames) for the lift
+    % integrals in get_wake_lift; nominal if bin_placement not saved
+    placement = [];
+    if isfield(D, 'bin_placement'), placement = D.bin_placement; end
+    config.xConvBins = speed * bin_times(num_bins, 1/freq, placement)';
+    config.period = 1 / freq;
     config.includeHelmDecomp = true;
     
     config.speed = speed;

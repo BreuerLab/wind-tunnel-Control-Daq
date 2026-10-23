@@ -1826,6 +1826,18 @@ methods (Access = private)
                 end
             end
 
+            % Actual phase of each bin (mean phase of its frames, saved as
+            % bin_placement in % of a bin width) for imaging-plane curves;
+            % zeros = nominal, evenly spaced bins. Shifted with var below.
+            placement_pct = zeros(size(var));
+            if obj.is_imaging_plane_index(index) && ismember('bin_placement', who('-file', file_path))
+                pp = load(file_path, 'bin_placement');
+                if numel(pp.bin_placement) == numel(var)
+                    placement_pct = reshape(double(pp.bin_placement), size(var));
+                    placement_pct(~isfinite(placement_pct)) = 0;
+                end
+            end
+
             % Shift data given convection time downstream to target
             % for curves using imaging plane data only (PIV forces and
             % flow variables; kinematics are measured at the robot)
@@ -1839,6 +1851,7 @@ methods (Access = private)
                     shift = conv_time * freq_cor; % get shift as a portion of a cycle
                     shift_bins = round(shift*length(var));
                     var = circshift(var, shift_bins);
+                    placement_pct = circshift(placement_pct, shift_bins);
                     disp("Shifted " + cur_sel + " by: " + shift_bins + " / " + length(var) + ...
                         " (" + dist + " m downstream)")
                 end
@@ -1856,6 +1869,7 @@ methods (Access = private)
             if amp == 10 && ~contains(type, "UP") && ~obj.is_new_flapper_type(type)
                 % var = circshift(var, round(0.44*length(var)));
                 var = circshift(var, round(0.5*length(var)));
+                placement_pct = circshift(placement_pct, round(0.5*length(var)));
                 disp("Shifted STB curve for " + cur_sel)
             end
 
@@ -1867,7 +1881,7 @@ methods (Access = private)
             var = obj.subtract_signal_mean(var);
 
             time = 1:length(var);
-            time = time / length(var);
+            time = (time + placement_pct(:)' / 100) / length(var); % actual bin phases
 
             if align_plot_bool
                 aligned_curves(end+1) = struct(...

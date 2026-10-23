@@ -18,16 +18,21 @@ if nargin < 2 || isempty(bounds), bounds = default_trim_bounds(); end
 
 d  = load(file_path, 'dwdx_phase_avg', 'w_phase_avg', 'U', 'U_act', 'L', ...
           'cycle_freq', 'y', 'z');
+placement = [];
+if ismember('bin_placement', who('-file', file_path))
+    p = load(file_path, 'bin_placement'); placement = p.bin_placement;
+end
 U  = d.U_act * d.U;
 nb = size(d.w_phase_avg, 4);
-dt = 1 / (d.cycle_freq * nb);
+period = 1 / d.cycle_freq;
+tb = bin_times(nb, period, placement);   % actual (mean-phase) bin times
 
 [y, z, dwdx] = trim_vel_field(d.y, d.z, d.dwdx_phase_avg, bounds);   % [ny nz nb]
 [~, ~, w]    = trim_vel_field(d.y, d.z, d.w_phase_avg, bounds);
 
 % w and dw/dx are stored nondimensional (w/U, dw/dx * L/U), so the
 % frozen-flow estimate in the same units is (L/U) * dw/dt / U.
-dwdt_U = (circshift(w, -1, 3) - circshift(w, 1, 3)) / (2*dt) * (d.L / U);
+dwdt_U = periodic_ddt(w, tb, period, 3) * (d.L / U);
 
 a = dwdx   - mean(dwdx, 3, 'omitnan');
 b = dwdt_U - mean(dwdt_U, 3, 'omitnan');

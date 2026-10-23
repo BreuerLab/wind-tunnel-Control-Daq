@@ -58,13 +58,19 @@ function [var, err] = get_PIV_force(file_name, case_name, force_var_name, avg_ty
                 error("Unable to determine cycle frequency for " + string(case_name))
             end
             num_bins = size(d.u_phase_avg,4);
-            dt = 1 / (freq * num_bins);
-            x_conv = zeros(1, num_bins);
-            for k = 1:num_bins
-                x_conv(k) =  speed * dt * (k - 1);
+            period = 1 / freq;
+            % actual time of each bin: the mean phase of its frames
+            % (bin_placement), not the bin centre; nominal if not saved
+            placement = [];
+            if ismember('bin_placement', who('-file', file_name))
+                p = load(file_name, 'bin_placement');
+                placement = p.bin_placement;
             end
+            t_bins = bin_times(num_bins, period, placement);
+            x_conv = speed * t_bins(:)';
         else
             x_conv = 0;
+            period = NaN;
         end
         
     % ------------------------------------------------------------
@@ -125,6 +131,7 @@ function [var, err] = get_PIV_force(file_name, case_name, force_var_name, avg_ty
     w_tr = nanRegionFill(w_tr);
     
     D.x = x_conv; D.y = y_tr; D.z = z_tr;
+    D.period = period; % wingbeat period, for the periodic time integrals
     D.u = u_tr; D.v = v_tr; D.w = w_tr;
     if vort_bool
     D.vortX = vortX_tr; D.vortY = vortY_tr; D.vortZ = vortZ_tr;
