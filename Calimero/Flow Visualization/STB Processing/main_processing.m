@@ -16,7 +16,7 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 % PIV_case_name = 'UP_two_flexible_20deg_6Hz';
 % PIV_case_name = 'x5_wings_20deg_0Hz';
 % PIV_case_name = 'MPS_wings_20deg_6Hz';
-PIV_case_name = 'x2_wings_20deg_4Hz';
+PIV_case_name = 'x3_wings_20deg_6Hz';
 % PIV_case_name = 'x3_ring';
 % PIV_case_name = 'turbine';
 
@@ -38,7 +38,7 @@ bools.proc_vel = true; % false if just calculating secondary values
 % in this range (and the bin offset) with the smallest phase spread per
 % bin; it was choosing ~193 in 180-210. Fewer bins = more frames per bin
 % (less noise) but coarser phase resolution. [n n] forces n bins.
-bools.bin_range = [100 120];
+bools.bin_range = [80 120]; % [180 210]
 
 % If you want to make plots here, you can. However, it is NOT recommended.
 % Intead, use main_analysis to produce plots easily in a GUI interface.
