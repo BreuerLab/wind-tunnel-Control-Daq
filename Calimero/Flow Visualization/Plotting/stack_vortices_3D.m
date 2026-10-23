@@ -116,7 +116,13 @@ if params.movie
     cData = interp3(X_fin, Y_fin, Z_fin, C_fin, ...
                 s.vertices(:,1), s.vertices(:,2), s.vertices(:,3));
 else
-    s = isosurface(Z_fin, X_fin, Y_fin, Q_fin, params.isoValue);
+    if isfield(params, 'surface') && ~isempty(params.surface)
+        % same isosurface as before (iso variable, isovalue and shift
+        % unchanged, e.g. only the colour variable changed): just recolour
+        s = params.surface;
+    else
+        s = isosurface(Z_fin, X_fin, Y_fin, Q_fin, params.isoValue);
+    end
     cData = interp3(Z_fin, X_fin, Y_fin, C_fin, ...
                  s.vertices(:,1), s.vertices(:,2), s.vertices(:,3));
     % s = isosurface(X_fin, Y_fin, Z_fin, Q_fin, params.isoValue);

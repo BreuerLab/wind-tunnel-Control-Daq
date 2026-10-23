@@ -156,6 +156,10 @@ properties
     % full redraw (see shift_3D_surface); ext = cached surface over one
     % extra wingbeat, built on the first "+/-" press
     surf_3D;
+    % processed iso variable (Q) and isosurface of the last 3D plot, with
+    % the settings they depend on (key), so changing only the colour
+    % variable doesn't reload Q or recompute the isosurface
+    geom_3D;
     % mark stroke reversals on the 3D plot (2D views showing the x-axis)
     label_stroke;
     % stroke reversals for the current 3D plot, [] if unavailable:
@@ -208,6 +212,7 @@ methods
         obj.conv_shift = false;
         obj.stroke_flip = false;
         obj.surf_3D = [];
+        obj.geom_3D = [];
         obj.label_stroke = false;
         obj.stroke_3D = [];
         obj.trim_bool = true;
@@ -1445,6 +1450,30 @@ methods (Access = private)
         S.frame_shift = 0;
     end
 
+    % Everything the 3D plot's iso variable (after trim / mirror / filter)
+    % and isosurface depend on, i.e. all plot settings except the colour
+    % variable and colour limits
+    function key = get_3D_geometry_key(obj, use_extrapolated_data)
+        % file modification times too, so a reprocessed case isn't reused
+        file_base = string(obj.get_current_file_base());
+        stamps = strings(1, 2);
+        files = file_base + [".mat", "_integral.mat"];
+        for k = 1:2
+            info = dir(files(k));
+            if ~isempty(info)
+                stamps(k) = sprintf("%.10f", info(1).datenum);
+            end
+        end
+        parts = [file_base, stamps, string(obj.iso_var), ...
+            sprintf("%.10g", obj.iso_val), string(obj.num_cycles), ...
+            string(obj.conv_units_bool), string(obj.trim_bool), ...
+            mat2str(obj.trim_y_bounds), mat2str(obj.trim_z_bounds), ...
+            string(obj.mirror_bool), mat2str(obj.mirror_center_y), ...
+            string(obj.filter_bool), string(use_extrapolated_data), ...
+            string(obj.frame_ind), string(obj.conv_shift), string(obj.stroke_flip)];
+        key = strjoin(parts, "|");
+    end
+
     % Re-phase the current 3D plot for a new "+/-" setting without
     % reloading or recomputing it for the shift. A circular shift of the
     % periodic wake is the same as sliding the plotted window along it, so
@@ -2055,10 +2084,21 @@ methods (Access = private)
             vars = {"L","U","num_bins","cycle_freq","z","y",var_name};
         end
         
+        geom_hit = false;
         if plot_idx == 5 || plot_idx == 9 % 3D plot or planar average
             iso_var_name = obj.variable_name_dict(obj.iso_var);
 
-            if contains(obj.iso_var, obj.secondary_vars)
+            % 3D plot: the iso variable and isosurface don't depend on the
+            % colour variable, so reuse them if nothing they depend on
+            % changed
+            if plot_idx == 5
+                geom_key = obj.get_3D_geometry_key(use_extrapolated_data);
+                geom_hit = ~isempty(obj.geom_3D) && obj.geom_3D.key == geom_key;
+            end
+
+            if geom_hit
+                % already processed, not loaded again
+            elseif contains(obj.iso_var, obj.secondary_vars)
                 cur_secondary_vars{end+1} = iso_var_name;
             else
                 vars{end+1} = iso_var_name;
@@ -2281,7 +2321,9 @@ methods (Access = private)
             end
         end
 
-        if plot_idx == 5 || plot_idx == 9
+        if geom_hit
+            Q = obj.geom_3D.Q;
+        elseif plot_idx == 5 || plot_idx == 9
             Q = d.(iso_var_name);
             Q = squeeze(Q(planeIdx,:,:,:));
 
@@ -2395,7 +2437,12 @@ methods (Access = private)
             % its maximum, U * (N-1) / (f N) / L
             obj.conv_scale = d.U * (d.num_bins - 1) / (d.cycle_freq * d.num_bins * d.L);
 
+            if geom_hit
+                params.surface = obj.geom_3D.surface; % only recolour it
+            end
             [xlims, surface_data, color_data] = stack_vortices_3D(y, z, val, Q, d.cycle_freq, params);
+            params.surface = []; % frames while playing need their own surface
+            obj.geom_3D = struct('key', geom_key, 'surface', surface_data, 'Q', Q);
             setColorBar(ax, params)
             xlim(ax,xlims) % otherwise when plotting multiple wingbeats awkward extra space added
 
