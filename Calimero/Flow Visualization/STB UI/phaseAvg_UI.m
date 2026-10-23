@@ -145,7 +145,6 @@ properties
     % robot's wing phase)
     label_stroke;
     align_bool;
-    force_index;
     separate_y_axis_bool;
     mean_subtraction_bool;
     % used to calculate forces from vector field data
@@ -196,7 +195,6 @@ methods
         obj.filt_num = 3;
         obj.saveFig = false;
 
-        obj.force_index = [];
         obj.calc_bool = false;
         obj.conv_shift = false;
         obj.label_stroke = false;
@@ -460,38 +458,28 @@ methods
         load_cell_panel.TitlePosition = 'centertop';
         load_cell_panel.Visible = "off";
 
-        load_cell_grid = uigridlayout(load_cell_panel, [5, 1]);
+        load_cell_grid = uigridlayout(load_cell_panel, [3, 1]);
         load_cell_grid.ColumnWidth = {'1x'};
-        load_cell_grid.RowHeight = {22, 25, 22, 25, 30};
+        load_cell_grid.RowHeight = {22, 25, 30};
         load_cell_grid.Padding = [10 8 10 8];
         load_cell_grid.RowSpacing = 4;
 
-        force_label = uilabel(load_cell_grid);
-        force_label.Layout.Row = 1;
-        force_label.Layout.Column = 1;
-        force_label.Text = "Force Component";
-
-        force_dropdown = uidropdown(load_cell_grid);
-        force_dropdown.Layout.Row = 2;
-        force_dropdown.Layout.Column = 1;
-        force_dropdown.Items = ["none", "drag", "lift", "pitch"];
-        force_dropdown.Value = "none";
-        force_dropdown.ValueChangedFcn = @(src, event) force_selection_change(src, event, plot_panel);
-
+        % Load cell data used by the load cell variables (Variable Type
+        % "load cell")
         force_data_label = uilabel(load_cell_grid);
-        force_data_label.Layout.Row = 3;
+        force_data_label.Layout.Row = 1;
         force_data_label.Layout.Column = 1;
         force_data_label.Text = "Force Data";
 
         force_data_dropdown = uidropdown(load_cell_grid);
-        force_data_dropdown.Layout.Row = 4;
+        force_data_dropdown.Layout.Row = 2;
         force_data_dropdown.Layout.Column = 1;
         force_data_dropdown.Items = obj.load_cell_types;
         force_data_dropdown.Value = obj.load_cell_types(end);
         force_data_dropdown.ValueChangedFcn = @(src, event) load_cell_force_var_change(src, event, plot_panel);
 
         b7 = uibutton(load_cell_grid, "state");
-        b7.Layout.Row = 5;
+        b7.Layout.Row = 3;
         b7.Layout.Column = 1;
         b7.Text = "Force Body Sub";
         b7.FontSize = 18;
@@ -725,7 +713,7 @@ methods
             row_heights = sidebar_grid.RowHeight;
             if src.Value
                 load_cell_panel.Visible = "on";
-                row_heights{12} = 180;
+                row_heights{12} = 125;
             else
                 load_cell_panel.Visible = "off";
                 row_heights{12} = 0;
@@ -834,11 +822,6 @@ methods
             current_value = string(dropdown.Value);
             dropdown.Items = obj.get_dropdown_items(var_type, current_value);
             dropdown.Value = current_value;
-        end
-
-        function force_selection_change(src, ~, plot_panel)
-            obj.force_index = obj.get_force_dropdown_index(src.Value);
-            obj.update_plot(plot_panel);
         end
 
         function load_cell_force_var_change(src, ~, plot_panel)
@@ -1358,23 +1341,9 @@ methods (Access = private)
         end
     end
 
-    function legend_entry = get_aligned_legend_entry(obj, cur_sel, index, is_force)
+    function legend_entry = get_aligned_legend_entry(obj, cur_sel, index)
         case_label = obj.get_case_label(cur_sel);
         index_label = obj.active_types(index);
-
-        if is_force
-            force_label = obj.get_force_legend_label();
-            if length(obj.selection) > 1 && length(obj.inds) > 1
-                legend_entry = case_label + " - " + index_label + " - " + force_label;
-            elseif length(obj.selection) > 1
-                legend_entry = case_label + " - " + force_label;
-            elseif length(obj.inds) > 1
-                legend_entry = index_label + " - " + force_label;
-            else
-                legend_entry = case_label + " - " + force_label;
-            end
-            return
-        end
 
         if length(obj.selection) > 1 && length(obj.inds) > 1
             legend_entry = case_label + " - " + index_label;
@@ -1382,20 +1351,6 @@ methods (Access = private)
             legend_entry = index_label;
         else
             legend_entry = case_label;
-        end
-    end
-
-    function force_label = get_force_legend_label(obj)
-        if isempty(obj.force_index)
-            force_label = "Force";
-        elseif obj.force_index == 1
-            force_label = "Drag force";
-        elseif obj.force_index == 3
-            force_label = "Lift force";
-        elseif obj.force_index == 5
-            force_label = "Pitch force";
-        else
-            force_label = "Force " + string(obj.force_index);
         end
     end
 
@@ -1476,25 +1431,6 @@ methods (Access = private)
         relative_idx = mod(index - 1, length(obj.force_var_types)) + 1;
     end
 
-    function force_idx = get_force_dropdown_index(~, force_selection)
-        switch string(force_selection)
-            case "drag"
-                force_idx = 1;
-            case "lift"
-                force_idx = 3;
-            case "pitch"
-                force_idx = 5;
-            otherwise
-                force_idx = [];
-        end
-    end
-
-    function split_axis = should_split_load_cell_axis(obj)
-        split_axis = obj.separate_y_axis_bool &&...
-                     ~isempty(obj.force_index) &&...
-                     ~isempty(obj.inds);
-    end
-
     function [file_path, secondary_file_path] = get_PIV_sub_file_paths(obj, type, amp)
         % Steady (time averaged) case subtracted from a selection when
         % "PIV Body Sub" is on. For x3_wings_20deg_4Hz:
@@ -1532,50 +1468,6 @@ methods (Access = private)
             "No %s subtraction case found for %s at %s deg. Looked for:\n  %s",...
             obj.PIV_sub_case, type, amp,...
             strjoin(time_avg_dir + case_names + "_time_avg.mat", "\n  "));
-    end
-
-    function [time_F, force] = get_load_cell_force(obj, type, amp, freq)
-        time_F = [];
-        force = [];
-        if isempty(obj.force_index) || contains(type, "UP")
-            return
-        end
-
-        var_name_F = obj.load_cell_force_var;
-        force = get_force(obj.force_path, type, amp, freq, obj.force_index, var_name_F);
-
-        if obj.force_sub
-            body_amp = amp;
-            if body_amp == 30
-                body_amp = 20;
-            end
-            % keep the downstream prefix (e.g. "x3_", "MPS_") so get_force uses the
-            % new flapper body folder ("20 deg body") rather than the old one
-            body_type = get_downstream_prefix(type) + "body";
-            body_force = get_force(obj.force_path, body_type, body_amp, freq, obj.force_index, var_name_F);
-            force = force - body_force;
-        end
-
-        force = obj.subtract_signal_mean(force);
-
-        time_F = 1:length(force);
-        time_F = time_F / length(force);
-    end
-
-    % Load cell force for a case, or empty if that case's curve is
-    % already in plotted_keys (same type, amp and freq)
-    function [time_F, force, plotted_keys] = get_unplotted_load_cell_force(obj, type, amp, freq, plotted_keys)
-        time_F = [];
-        force = [];
-        key = string(type) + "_" + amp + "deg_" + freq + "Hz";
-        if ismember(key, plotted_keys)
-            return
-        end
-
-        [time_F, force] = obj.get_load_cell_force(type, amp, freq);
-        if ~isempty(force)
-            plotted_keys(end+1) = key;
-        end
     end
 
     % Load cell row(s) and quantity for a load cell variable: rows of the
@@ -1640,11 +1532,6 @@ methods (Access = private)
 
     function dual_plot = should_use_separate_y_axes(obj)
         dual_plot = false;
-        if obj.should_split_load_cell_axis()
-            dual_plot = true;
-            return
-        end
-
         if length(obj.inds) < 2
             return
         end
@@ -1659,43 +1546,19 @@ methods (Access = private)
         end
     end
 
-    function y_label = get_plot_parameter_axis_label(obj)
-        if isempty(obj.inds)
-            y_label = "";
-            return
-        end
-
-        if all(arrayfun(@(index) obj.is_force_like_index(index), obj.inds))
-            y_label = "Plot Parameter Force (N)";
-            return
-        end
-
-        labels = obj.active_labels(obj.inds);
-        if all(labels == labels(1))
-            y_label = labels(1);
-        else
-            y_label = "Plot Parameter Values";
-        end
-    end
-
     function ylabs = get_y_axis_labels(obj, dual_plot)
         ylabs = strings(1,2);
         if ~dual_plot
             return
         end
 
-        if obj.should_split_load_cell_axis()
-            ylabs(1) = obj.get_plot_parameter_axis_label();
-            ylabs(2) = "Load Cell Force (N)";
+        % variable 1 on the left, variables 2 (and 3) on the right
+        ylabs(1) = obj.active_labels(obj.inds(1));
+        right_labels = obj.active_labels(obj.inds(2:end));
+        if all(right_labels == right_labels(1))
+            ylabs(2) = right_labels(1);
         else
-            % variable 1 on the left, variables 2 (and 3) on the right
-            ylabs(1) = obj.active_labels(obj.inds(1));
-            right_labels = obj.active_labels(obj.inds(2:end));
-            if all(right_labels == right_labels(1))
-                ylabs(2) = right_labels(1);
-            else
-                ylabs(2) = "Plot Parameter Values";
-            end
+            ylabs(2) = "Plot Parameter Values";
         end
     end
 
@@ -1830,22 +1693,9 @@ methods (Access = private)
         hold(ax, 'on');
         hold(ax_target, 'on');
 
-        % Load cell curves depend only on the case (type, amp, freq), not
-        % on the PIV variable or data version, so each is drawn once
-        plotted_load_cell = strings(0);
-        plotted_lc_vars = strings(0); % same for load cell variables
-
-        if isempty(obj.inds) && ~isempty(obj.force_index)
-            for i = 1:length(obj.selection)
-                cur_sel = obj.selection(i);
-                [amp, type, freq] = parse_name(cur_sel);
-                [time_F, force, plotted_load_cell] = obj.get_unplotted_load_cell_force(type, amp, freq, plotted_load_cell);
-
-                if ~isempty(force)
-                    obj.plot_load_cell_force(ax, ax_target, time_F, force, cur_sel, color_params);
-                end
-            end
-        end
+        % Load cell variables depend only on the case (type, amp, freq),
+        % not on the PIV data version, so each is drawn once per case
+        plotted_lc_vars = strings(0);
 
         for j = 1:length(obj.inds)
             index = obj.inds(j);
@@ -1876,27 +1726,14 @@ methods (Access = private)
                         'index', index,...
                         'plot_idx', j,...
                         'cur_sel', cur_sel,...
-                        'legend_entry', obj.get_aligned_legend_entry(cur_sel, index, false),...
+                        'legend_entry', obj.get_aligned_legend_entry(cur_sel, index),...
                         'line_style', "",...
                         'marker', "",...
                         'y_axis', "");
                 end
 
-                [time_F, force, plotted_load_cell] = obj.get_unplotted_load_cell_force(type, amp, freq, plotted_load_cell);
-                if align_plot_bool && ~isempty(force)
-                    aligned_curves(end+1) = struct(...
-                        'val', force,...
-                        'time', time_F,...
-                        'index', index,...
-                        'plot_idx', j,...
-                        'cur_sel', cur_sel,...
-                        'legend_entry', obj.get_load_cell_legend_entry(cur_sel),...
-                        'line_style', "-",...
-                        'marker', "none",...
-                        'y_axis', "right");
-                end
                 if ~align_plot_bool
-                    obj.plot_data(ax, ax_target, time, var, time_F, force, index, dual_plot, j, cur_sel, color_params, ylabs);
+                    obj.plot_data(ax, ax_target, time, var, index, dual_plot, j, cur_sel, color_params, ylabs);
                 end
                 continue
             end
@@ -2044,29 +1881,14 @@ methods (Access = private)
                     'index', index,...
                     'plot_idx', j,...
                     'cur_sel', cur_sel,...
-                    'legend_entry', obj.get_aligned_legend_entry(cur_sel, index, false),...
+                    'legend_entry', obj.get_aligned_legend_entry(cur_sel, index),...
                     'line_style', "",...
                     'marker', obj.get_piv_force_marker(index),...
                     'y_axis', "");
             end
 
-            [time_F, force, plotted_load_cell] = obj.get_unplotted_load_cell_force(type, amp, freq, plotted_load_cell);
-
-            if align_plot_bool && ~isempty(force)
-                aligned_curves(end+1) = struct(...
-                    'val', force,...
-                    'time', time_F,...
-                    'index', index,...
-                    'plot_idx', j,...
-                    'cur_sel', cur_sel,...
-                    'legend_entry', obj.get_load_cell_legend_entry(cur_sel),...
-                    'line_style', "-",...
-                    'marker', "none",...
-                    'y_axis', "right");
-            end
-
             if ~align_plot_bool
-            obj.plot_data(ax, ax_target, time, var, time_F, force, index, dual_plot, j, cur_sel, color_params, ylabs); % ylabel_one, ylabel_two
+            obj.plot_data(ax, ax_target, time, var, index, dual_plot, j, cur_sel, color_params, ylabs); % ylabel_one, ylabel_two
             end
         end
         end
@@ -2111,7 +1933,7 @@ methods (Access = private)
             plot_options.line_style = aligned_curves(i).line_style;
             plot_options.marker = aligned_curves(i).marker;
             plot_options.y_axis = aligned_curves(i).y_axis;
-            obj.plot_data(ax, ax_target, aligned_curves(i).time, aligned_curves(i).val, [], [],...
+            obj.plot_data(ax, ax_target, aligned_curves(i).time, aligned_curves(i).val,...
                           aligned_curves(i).index, dual_plot, aligned_curves(i).plot_idx,...
                           aligned_curves(i).cur_sel, color_params, ylabs, plot_options); % ylabel_one, ylabel_two
         end
@@ -2268,46 +2090,8 @@ methods (Access = private)
         end
     end
 
-    % Legend for a load cell curve: the case without the PIV version or
-    % RPCA tag (one load cell curve is shared by all of them)
-    function legend_entry = get_load_cell_legend_entry(obj, cur_sel)
-        [amp, type, freq] = parse_name(cur_sel);
-        case_label = strrep(obj.get_type_label(type) + ", " + amp + " deg, " + freq + " Hz", "_", " ");
-        legend_entry = case_label + " - " + obj.get_force_legend_label();
-    end
-
-    function plot_load_cell_force(obj, ax, ax_target, time_F, force, cur_sel, color_params)
-        original_color = obj.get_curve_color(cur_sel, color_params);
-        legend_entry = obj.get_load_cell_legend_entry(cur_sel);
-
-        line = plot(ax, time_F, force);
-        line.DisplayName = legend_entry;
-        line.Color = original_color;
-        line.LineWidth = 2;
-        line.LineStyle = "-";
-        disp(legend_entry + ": " + mean(force))
-
-        line_h = plot(ax_target, time_F, force);
-        line_h.DisplayName = legend_entry;
-        line_h.Color = original_color;
-        line_h.LineWidth = 2;
-        line_h.LineStyle = "-";
-
-        xlabel(ax, "Time over Wingbeat Period (t/T)", Interpreter="latex")
-        xlabel(ax_target, "Time over Wingbeat Period (t/T)", Interpreter="latex")
-        ylabel(ax, "Load Cell Force (N)", Interpreter="latex")
-        ylabel(ax_target, "Load Cell Force (N)", Interpreter="latex")
-        grid(ax, 'on');
-        legend(ax, Location="best", Interpreter="latex");
-        grid(ax_target, 'on');
-        legend(ax_target, Location="best", Interpreter="latex");
-
-        ax.FontSize = 18;
-        ax_target.FontSize = 18;
-    end
-
-    function plot_data(obj, ax, ax_target, time, var, time_F, force, index, dual_plot, plot_idx, cur_sel, color_params, ylabs, plot_options)
-        if nargin < 14 || isempty(plot_options)
+    function plot_data(obj, ax, ax_target, time, var, index, dual_plot, plot_idx, cur_sel, color_params, ylabs, plot_options)
+        if nargin < 12 || isempty(plot_options)
             plot_options = struct();
         end
 
@@ -2323,8 +2107,6 @@ methods (Access = private)
         if dual_plot
             if has_y_axis
                 axis_side = string(plot_options.y_axis);
-            elseif obj.should_split_load_cell_axis()
-                axis_side = "left";
             elseif plot_idx == 1
                 axis_side = "left";
             else
@@ -2362,7 +2144,7 @@ methods (Access = private)
             if has_legend_override
                 legend_entry = string(plot_options.legend_entry);
             else
-                legend_entry = obj.get_aligned_legend_entry(cur_sel, index, false);
+                legend_entry = obj.get_aligned_legend_entry(cur_sel, index);
             end
 
             if has_line_style
@@ -2397,28 +2179,6 @@ methods (Access = private)
             % if contains(type, "UP")
             %     line.LineStyle = "--";
             % end
-
-            if ~isempty(obj.force_index) && ~contains(type, "UP") && ~isempty(force)
-                if dual_plot && obj.should_split_load_cell_axis()
-                    yyaxis(ax, 'right')
-                    yyaxis(ax_target, 'right')
-                end
-
-                line = plot(ax, time_F, force);
-                F_legend = obj.get_load_cell_legend_entry(cur_sel);
-                line.DisplayName = F_legend;
-                disp(F_legend + ": " + mean(force))
-                line.Color = original_color;
-                line.LineWidth = 2;
-                line.LineStyle = "-";
-
-                % for hidden figure for saving
-                line_h = plot(ax_target, time_F, force);
-                line_h.DisplayName = F_legend;
-                line_h.Color = original_color;
-                line_h.LineWidth = 2;
-                line_h.LineStyle = "-";
-            end
 
             grid(ax, 'on');
             legend(ax, Location="best", Interpreter="latex");
