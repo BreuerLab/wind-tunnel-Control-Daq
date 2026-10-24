@@ -2,6 +2,17 @@ function [var, err] = get_PIV_force(file_name, case_name, force_var_name, avg_ty
         % bounds: trim limits and center point for trim_vel_field
         % (defaults in default_trim_bounds.m)
 
+        % *_tavg (e.g. lift_tavg.vortX, lift_vel_tavg): average the phase
+        % averaged fields over the cycle (each bin weighted equally) into a
+        % single time-averaged field, then compute the force from that field
+        % (no convection axis, so terms like lift.vortY aren't defined).
+        % Ignored for time-averaged (avg_type 0) files, which already are.
+        tavg_bool = false;
+        if contains(force_var_name, "_tavg")
+            force_var_name = erase(force_var_name, "_tavg");
+            tavg_bool = (avg_type == 1);
+        end
+
         vort_bool = true;
         % velocity-only estimates (lift_vel, drag_vel) use vort_bool false;
         % lift.vel_diff is a term of the vorticity-based lift
@@ -49,7 +60,7 @@ function [var, err] = get_PIV_force(file_name, case_name, force_var_name, avg_ty
         
 
         % Use frozen flow assumption, i.e. convection of vortices, to get z-axis
-        if avg_type ~= 0
+        if avg_type ~= 0 && ~tavg_bool
             [~, ~, freq] = parse_name(case_name);
             if freq <= 0 && isfield(d, 'cycle_freq')
                 freq = d.cycle_freq;
@@ -110,6 +121,20 @@ function [var, err] = get_PIV_force(file_name, case_name, force_var_name, avg_ty
         end
     
         unc_tr = d.uncTot_phase_avg;
+
+        if tavg_bool
+            % cycle average of the phase averaged fields (bins on dim 4);
+            % omitnan so a hole in one bin is filled by the other bins
+            u_tr = mean(u_tr, 4, "omitnan");
+            v_tr = mean(v_tr, 4, "omitnan");
+            w_tr = mean(w_tr, 4, "omitnan");
+            if vort_bool
+            vortX_tr = mean(vortX_tr, 4, "omitnan");
+            vortY_tr = mean(vortY_tr, 4, "omitnan");
+            vortZ_tr = mean(vortZ_tr, 4, "omitnan");
+            end
+            unc_tr = mean(unc_tr, 4, "omitnan");
+        end
     end
     
     [y_tr, z_tr, u_tr] = trim_vel_field(y, z, u_tr, bounds);

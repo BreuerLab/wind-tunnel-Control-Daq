@@ -155,17 +155,20 @@ classdef timeAvg_UI < handle
             obj.box_labels = [obj.box_labels, "lift vortX (u avg)", "drag vort (u avg)",...
                 "wx centroid y", "wx centroid z", "Q centroid y", "Q centroid z",...
                 "BA: lift vortX", "BA: lift vel diff", "BA: lift vel", "BA: drag vort", "BA: drag vel",...
-                "lift vortY (edge)", "lift vortX (taper)"];
+                "lift vortY (edge)", "lift vortX (taper)",...
+                "TA: lift vortX", "TA: lift vel diff", "TA: lift vel", "TA: drag vort", "TA: drag vel"];
             obj.var_names = [obj.var_names, "lift_uavg.vortX", "drag_uavg.tot",...
                 "wx_y", "wx_z", "Qx_y", "Qx_z",...
                 "lift_before_avg.vortX", "lift_before_avg.vel_diff", "lift_vel_before_avg",...
                 "drag_before_avg.tot", "drag_vel_before_avg",...
-                "lift.vortY_edge", "lift.vortX_taper"];
+                "lift.vortY_edge", "lift.vortX_taper",...
+                "lift_tavg.vortX", "lift_tavg.vel_diff", "lift_vel_tavg", "drag_tavg.tot", "drag_vel_tavg"];
             obj.y_labels = [obj.y_labels, "Lift (N)", "Drag (N)",...
                 "$\omega_x$ centroid $y/L$", "$\omega_x$ centroid $z/L$",...
                 "Q centroid $y/L$", "Q centroid $z/L$",...
                 "Lift (N)", "Lift (N)", "Lift (N)", "Drag (N)", "Drag (N)",...
-                "Lift (N)", "Lift (N)"];
+                "Lift (N)", "Lift (N)",...
+                "Lift (N)", "Lift (N)", "Lift (N)", "Drag (N)", "Drag (N)"];
 
             % Category of each variable, matching the Variable Type dropdown
             % (same groups as phaseAvg_UI)
@@ -176,6 +179,10 @@ classdef timeAvg_UI < handle
                 "lift_vel", "drag.tot", "drag_vel"])) = "force";
             obj.var_categories(startsWith(obj.var_names, ["lift_before_avg", "drag_before_avg"]) |...
                 endsWith(obj.var_names, ["lift_vel_before_avg", "drag_vel_before_avg"])) = "BA: force";
+            % TA: force - computed from the time-averaged (cycle-averaged)
+            % velocity/vorticity field; always calculated live by
+            % get_PIV_force since nothing is stored for them
+            obj.var_categories(endsWith(obj.var_names, "_tavg") | contains(obj.var_names, "_tavg.")) = "TA: force";
             % Remaining kinematics from phaseAvg_UI (phase-averaged motor
             % acceleration, wing position / speed / acceleration and the
             % modeled voltage, all saved in the _integral file)
@@ -406,7 +413,7 @@ classdef timeAvg_UI < handle
             var_type_dropdown = uidropdown(sidebar_grid);
             var_type_dropdown.Layout.Row = 9;
             var_type_dropdown.Layout.Column = 1;
-            var_type_dropdown.Items = ["kinematics", "flow", "force", "BA: force", "load cell"];
+            var_type_dropdown.Items = ["kinematics", "flow", "force", "BA: force", "TA: force", "load cell"];
             var_type_dropdown.Value = obj.var_type;
 
             % Dropdown boxes for variable selection
@@ -1491,7 +1498,7 @@ classdef timeAvg_UI < handle
 
                     if obj.is_load_cell_var(force_var)
                         var = obj.get_load_cell_signal(force_var, type, amp, freq, false);
-                    elseif obj.calc_bool && obj.is_piv_force_variable(force_var)
+                    elseif (obj.calc_bool && obj.is_piv_force_variable(force_var)) || obj.is_tavg_force_var(force_var)
                         [var, err] = get_PIV_force(filepath, name, force_var, avg_type, obj.y_norm, obj.trim_bounds);
 
                         if obj.PIV_sub
@@ -1797,7 +1804,7 @@ classdef timeAvg_UI < handle
                 var = obj.get_load_cell_signal(force_var, type, amp, freq, true);
                 var = double(var(:)');
                 return
-            elseif obj.calc_bool && obj.is_piv_force_variable(force_var)
+            elseif (obj.calc_bool && obj.is_piv_force_variable(force_var)) || obj.is_tavg_force_var(force_var)
                 var = get_PIV_force(filepath, name, force_var, 1, obj.y_norm, obj.trim_bounds);
             else
                 if contains(force_var, ".")
@@ -2065,6 +2072,13 @@ classdef timeAvg_UI < handle
             else
                 dist = 0.9; % old flapper
             end
+        end
+
+        % forces from the time-averaged field (TA: force), not stored in
+        % the files, so always calculated by get_PIV_force
+        function tf = is_tavg_force_var(obj, force_var)
+            tf = any(obj.var_names == string(force_var)) &&...
+                obj.get_var_category(force_var) == "TA: force";
         end
 
         function force_variable = is_piv_force_variable(obj, force_var)
