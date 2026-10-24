@@ -29,6 +29,10 @@ and time_avg_STB.m. Secondary statistics include aerodynamic forces, integral
 quantities (e.g. kinetic energy, enstrophy, etc.), planar averages (e.g. average
 u, average omega_x, etc.).
 
+harmonic_regression_STB.m ->
+	Harmonic regression alternative to bin averaging, used by phase_avg_STB.m
+when bools.harmonic_reg is true. Helpers are in harmonic regression helpers.
+
 phase averaging helpers ->
 	Functions used to obtain the bins used for phase averaging the velocity
 fields and to compute phase average kinematics and power consumption with finer

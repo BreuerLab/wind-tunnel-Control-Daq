@@ -1,6 +1,20 @@
 function S = phase_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, num_images, bools, bounds)
 tic
 
+% Harmonic regression instead of bin averaging (bools.harmonic_reg, see
+% harmonic_regression_STB). Results are saved under their own version
+% name (bools.version + "_hr", or "hr") so they never overwrite the
+% bin-averaged files and phaseAvg_UI lists them separately.
+hr = get_hr_settings(bools);
+if hr.on
+    if isfield(bools, 'version') && strlength(string(bools.version)) > 0
+        bools.version = string(bools.version) + "_hr";
+    else
+        bools.version = "hr";
+    end
+    fprintf("Harmonic regression on: %d harmonics, saved as version '%s'\n", hr.H, bools.version);
+end
+
 % Prepare path and name for file to be saved (bools.version adds a
 % version name after the case name, e.g. _coarse)
 save_stem = string(PIV_case_name) + get_version_suffix(bools);
@@ -88,7 +102,7 @@ disp("Assuming num images = " + num_images)
 disp("-----------------------------------")
 % get bin number associated with each frame from DAQ measurements
 [norm_frame_pos, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_freq, num_clusters, phase_spread_ratio,...
-    bin_phase_var, phase_res, bin_placement] = frame_to_bin(PIV_case_name, num_images, D.freq_avg, bools.turbine, bools.plot, get_bins_list(bools));
+    bin_phase_var, phase_res, bin_placement, bin_offset] = frame_to_bin(PIV_case_name, num_images, D.freq_avg, bools.turbine, bools.plot, get_bins_list(bools));
 
 % Find matching DAQ file
 [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name);
@@ -130,7 +144,7 @@ calc_Q_inst = ~isfield(bools, 'Q_inst') || bools.Q_inst;
 calc_vort_uavg = ~isfield(bools, 'vort_uavg') || bools.vort_uavg;
 
 % time spent in each stage, printed at the end
-t_stage = struct('import', 0, 'forces', 0, 'stats', 0, 'Q_inst', 0, 'vort_uavg', 0, 'save', 0);
+t_stage = struct('import', 0, 'forces', 0, 'stats', 0, 'Q_inst', 0, 'vort_uavg', 0, 'save', 0, 'hr', 0);
 
 % Compute array of x-positions associated with each frame
 % [~, ~, freq] = parse_name(PIV_case_name);
@@ -164,11 +178,44 @@ num_workers = start_pool(num_workers);
 
 R = cell(1, num_bins);
 t_loop = tic;
+if ~hr.on
 parfor (i = 1:num_bins, num_workers)
     bin_indices = find(bin_ind_arr == i);
     R{i} = process_bin(file_path, U, L, bin_indices, norm_frame_pos(bin_indices),...
         fields, x_conv, bounds, speed, rho_act, opts, i == 1);
     fprintf('processed bin %d/%d\n', i, num_bins);
+end
+else
+% Harmonic regression: the bins are split between the workers, and each
+% worker adds its frames to its own running sums (hr_accumulate) as it
+% loads them, so no frames are kept. The per-bin statistics (std, stresses,
+% per-frame forces) are computed exactly as without harmonic regression.
+num_groups = max(num_workers, 1);
+bin_groups = cell(1, num_groups);
+for g = 1:num_groups
+    bin_groups{g} = g:num_groups:num_bins;
+end
+R_groups = cell(1, num_groups);
+hr_accs = cell(1, num_groups);
+hr_H = hr.H;
+parfor (g = 1:num_groups, num_workers)
+    my_bins = bin_groups{g};
+    R_loc = cell(1, numel(my_bins));
+    acc = [];
+    for j = 1:numel(my_bins)
+        i = my_bins(j);
+        bin_indices = find(bin_ind_arr == i);
+        [R_loc{j}, acc] = process_bin(file_path, U, L, bin_indices, norm_frame_pos(bin_indices),...
+            fields, x_conv, bounds, speed, rho_act, opts, i == 1, acc, hr_H);
+        fprintf('processed bin %d/%d\n', i, num_bins);
+    end
+    R_groups{g} = R_loc;
+    hr_accs{g} = acc;
+end
+for g = 1:num_groups
+    R(bin_groups{g}) = R_groups{g};
+end
+clear R_groups
 end
 t_loop = toc(t_loop);
 
@@ -203,9 +250,17 @@ if ~bools.turbine
     end
 end
 
+% per-frame forces and phases, for harmonic regression of the forces
+frame_phi = [];
+frame_vals = struct();
+
 for i = 1:num_bins
     B = R{i};
     R{i} = []; % free memory as we go
+    if hr.on && ~bools.turbine
+        frame_phi = [frame_phi, B.frames.phi]; %#ok<AGROW>
+        frame_vals = append_frame_vals(frame_vals, B.frames.vals);
+    end
     bin_count(i) = B.bin_count;
     bin_std(i) = B.bin_std;
 
@@ -239,6 +294,48 @@ for i = 1:num_bins
     t_stage.Q_inst = t_stage.Q_inst + B.t.Q_inst;
 end
 clear R B
+
+% Harmonic regression: replace the bin averages with the fitted fields at
+% the bin centres, so everything downstream (secondary values, phaseAvg_UI)
+% works unchanged. std, Reynolds stresses and Q_inst stay per bin.
+if hr.on
+t0 = tic;
+phi_centres = bin_offset + ((1:num_bins) - 0.5) / num_bins;
+hr_opts = struct('H', hr.H, 'save_coef', hr.save_coef);
+HR = harmonic_regression_STB(hr_accs, fields, phi_centres, frame_vals, frame_phi, hr_opts);
+clear hr_accs
+
+for f = 1:length(fields)
+    S.([fields{f} '_phase_avg']) = HR.fields.(fields{f});
+    HR.fields.(fields{f}) = []; % free as we go
+    if hr.save_coef
+        S.([fields{f} '_hr_coef']) = HR.coef.(fields{f});
+    end
+end
+
+if ~bools.turbine
+    for f = 1:length(lift_fields)
+        lift_before_avg.(lift_fields{f}) = HR.scalars.lift.(lift_fields{f});
+    end
+    for f = 1:length(drag_fields)
+        drag_before_avg.(drag_fields{f}) = HR.scalars.drag.(drag_fields{f});
+    end
+    lift_vel_before_avg = HR.scalars.lift_vel;
+    drag_vel_before_avg = HR.scalars.drag_vel;
+end
+
+% The fitted fields sit exactly at the bin centres
+S.bin_placement_frames = bin_placement; % where the frames themselves sat
+bin_placement = zeros(1, num_bins);
+
+S.hr = HR.info;
+S.hr.freq = cycle_freq;
+S.hr.bin_offset = bin_offset;
+S.hr.scalar_coef = HR.scalar_coef;
+S.hr.scalar_std = HR.scalar_std;
+clear HR
+t_stage.hr = toc(t0);
+end
 
 % Vorticity of the phase-averaged velocity (in addition to the average of
 % the per-frame vorticity, vort*_phase_avg)
@@ -280,6 +377,9 @@ fprintf(['  load (import_STB_data): %.1f s\n  per-frame forces: %.1f s\n' ...
     '  vorticity of mean velocity: %.1f s\n  save: %.1f s\n'], ...
     t_stage.import, t_stage.forces, t_stage.stats, t_stage.Q_inst, ...
     t_stage.vort_uavg, t_stage.save);
+if hr.on
+    fprintf('  harmonic regression solve: %.1f s (accumulating is included above)\n', t_stage.hr);
+end
 
 % Calculate secondary values (Q, power, integral values) and save in
 % separate file
@@ -320,8 +420,13 @@ end
 % Process one phase bin: load its frames, compute the phase average,
 % standard deviation, Reynolds stresses, per-frame forces and (optionally)
 % per-frame Q averaged over the bin. Runs on a parallel worker.
-function B = process_bin(file_path, U, L, bin_indices, bin_frame_pos, fields, x_conv, bounds,...
-    speed, rho_act, opts, print_dim_bool)
+% With harmonic regression (acc and hr_H given), the frames are also added
+% to the regression sums acc, and the per-frame forces and phases are
+% returned in B.frames so the forces can be fitted too.
+function [B, acc] = process_bin(file_path, U, L, bin_indices, bin_frame_pos, fields, x_conv, bounds,...
+    speed, rho_act, opts, print_dim_bool, acc, hr_H)
+use_hr = nargin >= 14;
+if ~use_hr, acc = []; end
 
 B.bin_count = length(bin_indices);
 B.bin_std = std(bin_frame_pos)*100;
@@ -353,6 +458,19 @@ if ~opts.turbine
     end
     B.lift_vel = mean(lift_vel_vals(:), "omitnan");
     B.drag_vel = mean(drag_vel_vals(:), "omitnan");
+
+    if use_hr
+        n = B.bin_count;
+        B.frames.phi = reshape(bin_frame_pos, 1, []);
+        for f = 1:length(lift_fields)
+            B.frames.vals.lift.(lift_fields{f}) = per_frame(lift_vals.(lift_fields{f}), n);
+        end
+        for f = 1:length(drag_fields)
+            B.frames.vals.drag.(drag_fields{f}) = per_frame(drag_vals.(drag_fields{f}), n);
+        end
+        B.frames.vals.lift_vel = per_frame(lift_vel_vals, n);
+        B.frames.vals.drag_vel = per_frame(drag_vel_vals, n);
+    end
 end
 B.t.forces = toc(t0);
 
@@ -393,6 +511,63 @@ if opts.calc_Q_inst
     [B.Q{:}] = inst_Q_avg(data{1}, data{2}, data{3}, x, y, z);
     B.t.Q_inst = toc(t0);
 end
+
+% Harmonic regression sums (time counted with the stats)
+if use_hr
+    t0 = tic;
+    acc = hr_accumulate(acc, data, bin_frame_pos, hr_H);
+    B.t.stats = B.t.stats + toc(t0);
+end
+end
+
+% One value per frame from a get_wake_lift output (frames along the last
+% dimension; any other dimensions, e.g. x planes, are averaged like the
+% bin average does). Row vector of length n.
+function v = per_frame(vals, n)
+v = mean(reshape(vals, [], n), 1, "omitnan");
+end
+
+% Append one bin's per-frame force values to the running struct
+function out = append_frame_vals(out, new)
+names = fieldnames(new);
+for k = 1:numel(names)
+    val = new.(names{k});
+    if isstruct(val)
+        sub = fieldnames(val);
+        for j = 1:numel(sub)
+            if isfield(out, names{k}) && isfield(out.(names{k}), sub{j})
+                out.(names{k}).(sub{j}) = [out.(names{k}).(sub{j}), val.(sub{j})];
+            else
+                out.(names{k}).(sub{j}) = val.(sub{j});
+            end
+        end
+    else
+        if isfield(out, names{k})
+            out.(names{k}) = [out.(names{k}), val];
+        else
+            out.(names{k}) = val;
+        end
+    end
+end
+end
+
+% Harmonic regression settings from bools (all optional)
+%   bools.harmonic_reg  - true to fit harmonics instead of bin averaging
+%   bools.num_harmonics - wingbeat harmonics in the fit (default 10)
+%   bools.hr_save_coef  - also save the coefficients (<field>_hr_coef,
+%                         [nx ny nz 2H+1]) for evaluating the fit or its
+%                         exact time derivative at any phase later with
+%                         harmonic_eval; large files (default false)
+function hr = get_hr_settings(bools)
+hr.on = isfield(bools, 'harmonic_reg') && bools.harmonic_reg;
+hr.H = 10;
+if isfield(bools, 'num_harmonics') && ~isempty(bools.num_harmonics)
+    hr.H = round(bools.num_harmonics);
+end
+if hr.H < 1
+    error("bools.num_harmonics must be at least 1, got %g", bools.num_harmonics)
+end
+hr.save_coef = isfield(bools, 'hr_save_coef') && bools.hr_save_coef;
 end
 
 % Start (or reuse) a parallel pool with num_workers workers. Returns 0,

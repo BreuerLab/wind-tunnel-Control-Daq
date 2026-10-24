@@ -1,5 +1,5 @@
 function [norm_signal, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_freq, num_clusters, phase_spread_ratio, ...
-    bin_phase_var, phase_res, bin_placement] ...
+    bin_phase_var, phase_res, bin_placement, bin_offset] ...
     = frame_to_bin(PIV_case_name, num_images, freq_cor, turbine_bool, plot_bool, bins_list)
 % bins_list     - (optional) bin counts findBestNumBins2 searches, e.g.
 %                 100:120 (set with bools.bin_range in main_processing);
@@ -13,6 +13,9 @@ function [norm_signal, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_
 %                 bin centre (% of bin width). Positive = frames sit late in
 %                 the bin, negative = early; 0 = centred, which is what
 %                 phase averaging assumes.
+% bin_offset    - phase (cycles) where bin 1 starts: bin j covers
+%                 bin_offset + [j-1, j)/num_bins of norm_signal, so its
+%                 centre is bin_offset + (j - 0.5)/num_bins
 
 [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name);
 

@@ -46,6 +46,19 @@ bools.bin_range = [80 120]; % [180 210]
 % suffix). Phase averages only; avoid "deg" and "Hz" in the name.
 bools.version = "coarse";
 
+% Harmonic regression instead of bin averaging. Each point's time series
+% is fitted over ALL frames at their actual phases with a Fourier series
+% of num_harmonics wingbeat harmonics, then evaluated at the bin centres,
+% so the saved fields have the same shape as the bin averages and the UIs
+% and secondary values work unchanged. Removes the phase spread within
+% bins and filters noise above num_harmonics x wingbeat frequency. std,
+% Reynolds stresses and Q_inst are still computed per bin. Saved with
+% "_hr" added to the version name (e.g. coarse_hr), so it doesn't
+% overwrite the bin-averaged files. See harmonic_regression_STB.m.
+bools.harmonic_reg = false;
+bools.num_harmonics = 10; % 2*10+1 = 21 coefficients per point and field
+bools.hr_save_coef = false; % save coefficients (to evaluate fit / exact d/dt at any phase); large files
+
 % If you want to make plots here, you can. However, it is NOT recommended.
 % Intead, use main_analysis to produce plots easily in a GUI interface.
 bools.PIV_plot = false;
