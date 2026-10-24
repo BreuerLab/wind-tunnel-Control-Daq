@@ -2,6 +2,8 @@ classdef flowField_UI < handle
 properties (Constant, Access = private)
     ACTIVE_COLOR = [0.3010 0.7450 0.9330];
     INACTIVE_COLOR = [1 1 1];
+    Q_ISO_RANGE = [0.005 0.1];  % Q isovalue slider range (negated by "+/-")
+    Q_ISO_DEFAULT = 0.05;       % Q isovalue slider default
     % Tag on the 3D plot's stroke lines / shading / labels (Label Stroke),
     % so they can be found and removed without touching the isosurface
     STROKE_TAG = "stroke_label_3D";
@@ -130,10 +132,13 @@ properties
     slider;
     play_button;
     iso_slider;
+    iso_sign_button;   % "+/-": flips the Q isovalue slider to negative values
+    iso_value_label;   % "Q isovalue:" label above the slider
     
     % 3D plot settings
     plot_hold_bool;
     iso_val;
+    iso_neg;           % true: Q isovalue slider uses negative values (shear dominated, Q < 0)
     iso_var;
     iso_var_list;
     mirror_bool;
@@ -202,8 +207,8 @@ methods
                             "dv/dz","dw/dx","dw/dy","dw/dz",...
                             "<Qx> inst", "<Qy> inst", "<Qz> inst", "<Q> inst"];
         obj.iso_var = "|Q|";
-        obj.iso_val = 0.05;
-        % obj.iso_val = -0.05;
+        obj.iso_val = obj.Q_ISO_DEFAULT;
+        obj.iso_neg = false;
         obj.mirror_bool = false;
         obj.filter_bool = false;
         obj.num_cycles = 1;
@@ -708,23 +713,37 @@ methods
         param_grid.Padding = [10 8 10 8];
         param_grid.RowSpacing = 6;
 
-        l1 = uilabel(param_grid);
-        l1.Layout.Row = 1;
-        l1.Layout.Column = 1;
-        l1.HorizontalAlignment = 'center';
-        l1.Text = 'Q isovalue:';
+        % Label with a "+/-" button beside it that flips the Q isovalue
+        % slider between positive (vortex cores, Q > 0) and negative
+        % (strain/shear dominated, Q < 0) values over the same range
+        iso_header_grid = uigridlayout(param_grid, [1, 2]);
+        iso_header_grid.Layout.Row = 1;
+        iso_header_grid.Layout.Column = 1;
+        iso_header_grid.ColumnWidth = {'1x', 44};
+        iso_header_grid.RowHeight = {'1x'};
+        iso_header_grid.Padding = [0 0 0 0];
+        iso_header_grid.ColumnSpacing = 4;
+
+        obj.iso_value_label = uilabel(iso_header_grid);
+        obj.iso_value_label.Layout.Row = 1;
+        obj.iso_value_label.Layout.Column = 1;
+        obj.iso_value_label.HorizontalAlignment = 'center';
+        obj.iso_value_label.Text = 'Q isovalue:';
+
+        obj.iso_sign_button = uibutton(iso_header_grid, "state");
+        obj.iso_sign_button.Layout.Row = 1;
+        obj.iso_sign_button.Layout.Column = 2;
+        obj.iso_sign_button.Text = "+/-";
+        obj.iso_sign_button.Value = obj.iso_neg;
+        obj.iso_sign_button.BackgroundColor = obj.get_button_color(obj.iso_neg);
+        obj.iso_sign_button.Tooltip = "Flip the Q isovalue to negative values (Q < 0: strain/shear dominated flow)";
+        obj.iso_sign_button.ValueChangedFcn = @(src, event) iso_sign_change(src, event, plot_area_panel);
 
         obj.iso_slider = uislider(param_grid);
         obj.iso_slider.Layout.Row = 2;
         obj.iso_slider.Layout.Column = 1;
-        obj.iso_slider.Limits = [0.005 0.1];
-        % obj.iso_slider.Limits = [-0.1 -0.005];
-        obj.iso_slider.Value = obj.iso_val;
-        obj.iso_slider.MajorTicks = 0:0.025:0.1; % 0:0.05:0.5
-        obj.iso_slider.MinorTicks = 0.005:0.005:0.1; % 0.01:0.01:0.5
-        % obj.iso_slider.MajorTicks = -0.1:0.025:0; % 0:0.05:0.5
-        % obj.iso_slider.MinorTicks = -0.1:0.005:0.005; % 0.01:0.01:0.5
         obj.iso_slider.ValueChangedFcn = @(src, event) iso_change(src, event, plot_area_panel);
+        obj.set_Q_iso_slider(false);
 
         % Dropdown box for which variables to display
         iso_var_dropdown = uidropdown(param_grid);
@@ -1105,9 +1124,35 @@ methods
             obj.update_plot(plot_panel);
         end
 
+        % "+/-": flip the Q isovalue between positive and negative values,
+        % keeping its magnitude
+        function iso_sign_change(src, ~, plot_panel)
+            obj.iso_neg = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.iso_neg);
+            obj.set_Q_iso_slider(true);
+            obj.update_plot(plot_panel);
+        end
+
         % User selected new desired isosurface variable for 3D plot
         function iso_var_change(src, ~, plot_panel)
             obj.iso_var = src.Value;
+
+            % Q variants (Q_x, Q_y, Q_z, |Q|, <Q> inst ...) all use the
+            % fixed Q range and default, in the current +/- sign
+            if obj.is_Q_iso_var(obj.iso_var)
+                obj.iso_sign_button.Enable = "on";
+                obj.set_Q_iso_slider(false);
+                obj.update_plot(plot_panel);
+                return
+            end
+
+            % other variables: range from their colour limits, and the
+            % +/- flip doesn't apply
+            obj.iso_neg = false;
+            obj.iso_sign_button.Value = false;
+            obj.iso_sign_button.BackgroundColor = obj.get_button_color(false);
+            obj.iso_sign_button.Enable = "off";
+            obj.iso_value_label.Text = 'Isovalue:';
 
             new_limits = obj.get_color_limits(obj.iso_var);
             range_width = new_limits(2) - new_limits(1);
@@ -1355,6 +1400,41 @@ methods (Access = private)
         file_names = string({files.name});
         avg_files = endsWith(file_names, suffix + ".mat");
         file_stems = erase(file_names(avg_files), suffix + ".mat");
+    end
+
+    function tf = is_Q_iso_var(~, iso_var)
+        tf = contains(string(iso_var), "Q");
+    end
+
+    % Q isovalue slider: the fixed range Q_ISO_RANGE (0.005 to 0.1), or the
+    % same range negated when obj.iso_neg is set (shear dominated, Q < 0).
+    % keep_magnitude keeps the current |isovalue| (used by "+/-");
+    % otherwise the slider goes to the default (+/-0.05).
+    function set_Q_iso_slider(obj, keep_magnitude)
+        lims = obj.Q_ISO_RANGE;
+        major = 0:0.025:lims(2);
+        minor = lims(1):0.005:lims(2);
+        if keep_magnitude
+            mag = min(max(abs(obj.iso_val), lims(1)), lims(2));
+        else
+            mag = obj.Q_ISO_DEFAULT;
+        end
+
+        if obj.iso_neg
+            lims = -fliplr(lims);
+            major = -fliplr(major);
+            minor = -fliplr(minor);
+            obj.iso_val = -mag;
+            obj.iso_value_label.Text = 'Q isovalue (Q < 0):';
+        else
+            obj.iso_val = mag;
+            obj.iso_value_label.Text = 'Q isovalue:';
+        end
+
+        obj.iso_slider.Limits = lims;
+        obj.iso_slider.MajorTicks = major;
+        obj.iso_slider.MinorTicks = minor;
+        obj.iso_slider.Value = obj.iso_val;
     end
 
     function stems = strip_RPCA_suffix(~, stems)
