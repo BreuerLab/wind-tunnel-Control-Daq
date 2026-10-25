@@ -72,6 +72,8 @@ classdef timeAvg_UI < handle
         PIV_sub_case;
         force_sub;
         RPCA;
+        % harmonic regression files (_hr, from bools.harmonic_reg)
+        HR;
         % Difference: plot variable 1 minus variables 2 (and 3)
         diff_bool;
         calc_bool;
@@ -216,6 +218,7 @@ classdef timeAvg_UI < handle
             obj.PIV_sub_case = "ring";
             obj.force_sub = false;
             obj.RPCA = false;
+            obj.HR = false;
             obj.filt_num = 3;
             obj.operation = "mean";
 
@@ -361,13 +364,31 @@ classdef timeAvg_UI < handle
             obj.reset_fixed_variable_defaults();
             obj.update_fixed_dropdowns(fixed_dropdown_1, fixed_dropdown_2);
 
-            rpca_button = uibutton(sidebar_grid, "state");
-            rpca_button.Layout.Row = 5;
+            % RPCA and HR (harmonic regression) buttons share a row
+            variant_grid = uigridlayout(sidebar_grid, [1, 2]);
+            variant_grid.Layout.Row = 5;
+            variant_grid.Layout.Column = 1;
+            variant_grid.ColumnWidth = {'1x', '1x'};
+            variant_grid.RowHeight = {'1x'};
+            variant_grid.Padding = [0 0 0 0];
+            variant_grid.ColumnSpacing = 8;
+
+            rpca_button = uibutton(variant_grid, "state");
+            rpca_button.Layout.Row = 1;
             rpca_button.Layout.Column = 1;
             rpca_button.Text = "RPCA";
             rpca_button.FontSize = 18;
             rpca_button.BackgroundColor = obj.get_button_color(obj.RPCA);
             rpca_button.ValueChangedFcn = @(src, event) RPCA_change(src, event);
+
+            hr_button = uibutton(variant_grid, "state");
+            hr_button.Layout.Row = 1;
+            hr_button.Layout.Column = 2;
+            hr_button.Text = "HR";
+            hr_button.FontSize = 18;
+            hr_button.Tooltip = "Harmonic regression files (_hr) for the flapping cases";
+            hr_button.BackgroundColor = obj.get_button_color(obj.HR);
+            hr_button.ValueChangedFcn = @(src, event) HR_change(src, event);
 
             % Button to add entry
             entry_button_grid = uigridlayout(sidebar_grid, [1, 2]);
@@ -722,6 +743,11 @@ classdef timeAvg_UI < handle
                 src.BackgroundColor = obj.get_button_color(obj.RPCA);
             end
 
+            function HR_change(src, ~)
+                obj.HR = src.Value;
+                src.BackgroundColor = obj.get_button_color(obj.HR);
+            end
+
             function force_sub_change(src, ~, plot_panel)
                 obj.force_sub = src.Value;
                 src.BackgroundColor = obj.get_button_color(obj.force_sub);
@@ -784,6 +810,9 @@ classdef timeAvg_UI < handle
 
                 for n = 1:length(selection_keys)
                     selection_key = selection_keys(n);
+                    if obj.HR
+                        selection_key = selection_key + "|HR=true";
+                    end
                     if obj.RPCA
                         selection_key = selection_key + "|RPCA=true";
                     end
@@ -1138,7 +1167,7 @@ classdef timeAvg_UI < handle
 
         function info = decode_selection(~, selection_key)
             parts = split(string(selection_key), "|");
-            info = struct("x_axis_type", parts(1), "type", "", "amp", NaN, "freq", NaN, "RPCA", false);
+            info = struct("x_axis_type", parts(1), "type", "", "amp", NaN, "freq", NaN, "RPCA", false, "HR", false);
 
             for i = 2:length(parts)
                 variable_name = extractBefore(parts(i), "=");
@@ -1152,6 +1181,8 @@ classdef timeAvg_UI < handle
                         info.freq = str2double(value);
                     case "RPCA"
                         info.RPCA = string(value) == "true";
+                    case "HR"
+                        info.HR = string(value) == "true";
                 end
             end
         end
@@ -1168,6 +1199,9 @@ classdef timeAvg_UI < handle
                     label = "Distance | " + info.amp + " deg | " + info.freq + " Hz";
             end
 
+            if info.HR
+                label = label + " | HR";
+            end
             if info.RPCA
                 label = label + " | RPCA";
             end
@@ -1262,6 +1296,9 @@ classdef timeAvg_UI < handle
                     label = info.amp + " deg, " + info.freq + " Hz";
             end
 
+            if info.HR
+                label = label + " - HR";
+            end
             if info.RPCA
                 label = label + " - RPCA";
             end
@@ -1420,7 +1457,7 @@ classdef timeAvg_UI < handle
             for var_idx = 1:num_vars % Loop through each selected variable
                 force_var = selected_force_vars(var_idx);
                 % The load cell is measured at one position, so selections
-                % that differ only in downstream position (or RPCA) share
+                % that differ only in downstream position (or RPCA / HR) share
                 % one load cell series: their points are merged into the
                 % first such selection's series, each case once (positions
                 % may cover different frequencies). Difference mode still
@@ -1463,9 +1500,9 @@ classdef timeAvg_UI < handle
                     end
 
                     name = obj.get_case_name(type, amp, freq);
-                    % RPCA only applies to phase averaged cases
-                    if info.RPCA && freq ~= 0
-                        name = name + "_RPCA";
+                    % RPCA and HR only apply to phase averaged cases
+                    if freq ~= 0
+                        name = obj.add_variant_suffix(name, info.HR, info.RPCA);
                     end
                     if freq == 0
                         suffix = "_time_avg";
@@ -1719,7 +1756,7 @@ classdef timeAvg_UI < handle
                     sigs = cell(1, num_vars);
                     for k = 1:num_vars
                         [sigs{k}, measured_freqs(j), wind_speed_acts(j)] = ...
-                            obj.get_phase_avg_signal(force_vars(k), type, amp, freq, info.RPCA);
+                            obj.get_phase_avg_signal(force_vars(k), type, amp, freq, info.RPCA, info.HR);
                         if obj.conv_shift
                             sigs{k} = obj.apply_convection_shift(sigs{k}, force_vars(k), type, measured_freqs(j));
                         end
@@ -1784,11 +1821,10 @@ classdef timeAvg_UI < handle
 
         % Phase-averaged signal of a variable for one flapping case, with
         % the case's measured wingbeat frequency and wind speed
-        function [var, measured_freq, wind_speed_act] = get_phase_avg_signal(obj, force_var, type, amp, freq, RPCA)
+        function [var, measured_freq, wind_speed_act] = get_phase_avg_signal(obj, force_var, type, amp, freq, RPCA, HR)
+            if nargin < 7, HR = false; end
             name = obj.get_case_name(type, amp, freq);
-            if RPCA
-                name = name + "_RPCA";
-            end
+            name = obj.add_variant_suffix(name, HR, RPCA);
             suffix = "_phase_avg";
             file_base = obj.get_case_file_base(name, suffix);
             filepath = file_base + ".mat";
@@ -1835,13 +1871,26 @@ classdef timeAvg_UI < handle
 
         % Selection without what the load cell doesn't depend on: the
         % downstream position prefix (x1_, MPS_, ...; get_force strips it
-        % too) and RPCA
+        % too), RPCA and HR
         function info = strip_load_cell_position(~, info)
             prefix = get_downstream_prefix(info.type);
             if strlength(prefix) > 0
                 info.type = extractAfter(info.type, strlength(prefix));
             end
             info.RPCA = false;
+            info.HR = false;
+        end
+
+        % Case name with the processing-variant suffixes in the order
+        % phase_avg_STB saves them: <case>_hr_RPCA_phase_avg.mat
+        % (harmonic regression with the default version name, then RPCA)
+        function name = add_variant_suffix(~, name, HR, RPCA)
+            if HR
+                name = name + "_hr";
+            end
+            if RPCA
+                name = name + "_RPCA";
+            end
         end
 
         % Selections with the same key have the same load cell series
