@@ -142,6 +142,7 @@ fields = get_STB_processing_fields();
 % Optional outputs (default on if the caller didn't set them)
 calc_Q_inst = ~isfield(bools, 'Q_inst') || bools.Q_inst;
 calc_vort_uavg = ~isfield(bools, 'vort_uavg') || bools.vort_uavg;
+calc_div_std = ~isfield(bools, 'div_std') || bools.div_std;
 
 % time spent in each stage, printed at the end
 t_stage = struct('import', 0, 'forces', 0, 'stats', 0, 'Q_inst', 0, 'vort_uavg', 0, 'save', 0, 'hr', 0);
@@ -163,6 +164,7 @@ else
     rho_act = S.rho_act;
 end
 opts.calc_Q_inst = calc_Q_inst;
+opts.calc_div_std = calc_div_std;
 opts.nondim = bools.nondim;
 opts.RPCA = bools.RPCA;
 opts.turbine = bools.turbine;
@@ -238,6 +240,9 @@ if calc_Q_inst
         S.(Q_names{k}) = zeros(grid_size);
     end
 end
+if calc_div_std
+    S.div_phase_std = zeros(grid_size);
+end
 
 if ~bools.turbine
     lift_fields = fieldnames(R{1}.lift);
@@ -275,6 +280,9 @@ for i = 1:num_bins
         for k = 1:length(Q_names)
             S.(Q_names{k})(:,:,:,i) = B.Q{k};
         end
+    end
+    if calc_div_std
+        S.div_phase_std(:,:,:,i) = B.div_std;
     end
 
     if ~bools.turbine
@@ -501,6 +509,16 @@ B.stress.vw_stress = mean(v_fluc .* w_fluc, 4, "omitnan");
 % Fluctuation terms related to force calculation
 B.stress.u_wx_stress = mean(u_fluc .* wx_fluc, 4, "omitnan");
 B.stress.u_wy_stress = mean(u_fluc .* wy_fluc, 4, "omitnan");
+
+% Divergence of each frame's velocity field (du/dx + dv/dy + dw/dz), and
+% its frame-to-frame standard deviation within the bin (div_phase_std).
+% Its bin average equals the div saved in the _integral file.
+if opts.calc_div_std
+    div_frames = data{strcmp(fields, 'dudx')} + data{strcmp(fields, 'dvdy')} +...
+        data{strcmp(fields, 'dwdz')};
+    B.div_std = std(div_frames, 0, 4, "omitnan");
+    clear div_frames
+end
 B.t.stats = toc(t0);
 
 % Q on each instantaneous field, then averaged over the bin, with its
