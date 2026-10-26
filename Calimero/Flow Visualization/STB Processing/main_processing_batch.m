@@ -19,8 +19,8 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 % Alternatively, select cases by filter. Leave a filter empty to accept
 % any value. Uncomment the line below the filters to use them.
 positions = ["x3"];        % "x1"-"x5", "MPS", "UP_one", "UP_two", "" = old 0.9 m cases (no prefix)
-amps = [20];               % flapping amplitude (deg)
-freqs = [2 4 6 8];         % wingbeat frequency (Hz), 0 = gliding
+amps = [30];               % flapping amplitude (deg)
+freqs = [2 4 6];         % wingbeat frequency (Hz), 0 = gliding
 sel_case_names = select_cases(get_PIV_paths(), positions, amps, freqs);
 
 % num_images = 1200;
@@ -35,7 +35,7 @@ bools.Q_inst = false; % per-frame Q averaged over each bin, plus its std (Q*_ins
 bools.vort_uavg = false; % vorticity of the averaged velocity (vort*_uavg)
 bools.num_workers = 8; % parallel workers for phase bins (0 = serial); lower if out of memory
 bools.compress_save = false; % true = MATLAB's compressed .mat (smaller, much slower to save)
-bools.proc_vel = false; % false if just calculating secondary values
+bools.proc_vel = true; % false if just calculating secondary values
 
 % Range of phase-bin counts to search. findBestNumBins2 picks the count
 % in this range (and the bin offset) with the smallest phase spread per

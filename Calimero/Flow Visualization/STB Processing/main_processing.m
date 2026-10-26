@@ -15,8 +15,8 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 % Call "  case_names = get_case_names();  "
 % PIV_case_name = 'UP_two_flexible_20deg_6Hz';
 % PIV_case_name = 'x5_wings_20deg_0Hz';
-% PIV_case_name = 'MPS_wings_20deg_6Hz';
-PIV_case_name = 'x3_wings_20deg_6Hz';
+PIV_case_name = 'MPS_wings_20deg_8Hz';
+% PIV_case_name = 'x3_wings_20deg_6Hz';
 % PIV_case_name = 'x3_ring';
 % PIV_case_name = 'turbine';
 
@@ -38,13 +38,13 @@ bools.proc_vel = true; % false if just calculating secondary values
 % in this range (and the bin offset) with the smallest phase spread per
 % bin; it was choosing ~193 in 180-210. Fewer bins = more frames per bin
 % (less noise) but coarser phase resolution. [n n] forces n bins.
-bools.bin_range = [80 120]; % [180 210]
+bools.bin_range = [180 210]; % [180 210]
 
 % Version name added to the saved file names, e.g. "coarse" saves
 % x3_wings_20deg_6Hz_coarse_phase_avg.mat (and _integral.mat); phaseAvg_UI
 % lists it under that name in its version dropdown. "" = default (no
 % suffix). Phase averages only; avoid "deg" and "Hz" in the name.
-bools.version = "coarse";
+bools.version = "";
 
 % Harmonic regression instead of bin averaging. Each point's time series
 % is fitted over ALL frames at their actual phases with a Fourier series

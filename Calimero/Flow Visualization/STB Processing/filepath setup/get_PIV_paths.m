@@ -75,10 +75,10 @@ function file_path = get_PIV_paths(PIV_case_name)
         'x5_wings_20deg_6Hz_v2',         month_2 + "x5_wings_20deg_6Hz_v2" + BIN
         'x5_wings_20deg_6Hz_v3',         month_2 + "x5_wings_20deg_6Hz_v3" + BIN
 
-        'MPS_wings_20deg_2Hz',         month_3 + "MPS_wings_20deg_2Hz" + BIN
-        'MPS_wings_20deg_4Hz',         month_3 + "MPS_wings_20deg_4Hz" + BIN
-        'MPS_wings_20deg_6Hz',         month_3 + "MPS_wings_20deg_6Hz" + BIN
-        'MPS_wings_20deg_8Hz',         month_3 + "MPS_wings_20deg_8Hz" + BIN
+        'MPS_wings_20deg_2Hz',         month_3 + "MPS_wings_20deg_2Hz" + BIN2
+        'MPS_wings_20deg_4Hz',         month_3 + "MPS_wings_20deg_4Hz" + BIN2
+        'MPS_wings_20deg_6Hz',         month_3 + "MPS_wings_20deg_6Hz" + BIN2
+        'MPS_wings_20deg_8Hz',         month_3 + "MPS_wings_20deg_8Hz" + BIN2
 
         'x2_wings_20deg_2Hz',         month_3 + "x2_wings_20deg_2Hz" + BIN2
         'x2_wings_20deg_4Hz',         month_3 + "x2_wings_20deg_4Hz" + BIN2
@@ -93,7 +93,9 @@ function file_path = get_PIV_paths(PIV_case_name)
         'x3_wings_20deg_4Hz',         month_3 + "x3_wings_20deg_4Hz" + BIN2
         'x3_wings_20deg_6Hz',         month_3 + "x3_wings_20deg_6Hz" + BIN2
         'x3_wings_20deg_8Hz',         month_3 + "x3_wings_20deg_8Hz" + BIN2
-        'x3_wings_30deg_6Hz',         month_3 + "x3_wings_30deg_6Hz" + BIN
+        'x3_wings_30deg_2Hz',         month_3 + "x3_wings_30deg_2Hz" + BIN2
+        'x3_wings_30deg_4Hz',         month_3 + "x3_wings_30deg_4Hz" + BIN2
+        'x3_wings_30deg_6Hz',         month_3 + "x3_wings_30deg_6Hz" + BIN2
     };
 
     % Called with no input: return every available case name
