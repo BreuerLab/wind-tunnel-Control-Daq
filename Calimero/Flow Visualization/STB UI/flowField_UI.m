@@ -62,6 +62,12 @@ properties
     time_old_flapper_case_name_list;
     time_new_flapper_case_name_list;
     time_turbine_case_name_list;
+    % file stems (no _hr / _RPCA) per source, for the case list of the
+    % selected downstream position
+    phase_old_flapper_stems;
+    phase_new_flapper_stems;
+    time_old_flapper_stems;
+    time_new_flapper_stems;
     phase_avg_case_ids;
     time_avg_case_ids;
     phase_avg_RPCA_file_path;   % optional subfolder phase_avg\RPCA\
@@ -78,6 +84,7 @@ properties
     new_flapper_distance_labels;
     new_flapper_downstream_type_by_distance;
     RPCA;
+    HR;    % harmonic regression files (_hr, from bools.harmonic_reg)
 
     num_bins;
     frame_ind;
@@ -191,6 +198,7 @@ methods
         obj.source_modes = strings(0);
         obj.source_mode = "";
         obj.RPCA = false;
+        obj.HR = false;
 
         obj.num_bins = 5;
         obj.frame_ind = 1;
@@ -244,8 +252,10 @@ methods
         obj.phase_avg_case_ids = phase_avg_stems;
         obj.time_avg_case_ids = time_avg_stems;
 
-        phase_avg_display_stems = obj.strip_RPCA_suffix(phase_avg_stems);
-        time_avg_display_stems = obj.strip_RPCA_suffix(time_avg_stems);
+        % _hr / _RPCA cases are picked with the HR / RPCA buttons, so they
+        % aren't listed separately
+        phase_avg_display_stems = unique(obj.strip_variant_suffix(phase_avg_stems), 'stable');
+        time_avg_display_stems = unique(obj.strip_variant_suffix(time_avg_stems), 'stable');
 
         turbine_stems = phase_avg_display_stems(contains(phase_avg_display_stems, "turbine"));
         flapper_stems = phase_avg_display_stems(~contains(phase_avg_display_stems, "turbine"));
@@ -256,6 +266,10 @@ methods
         new_flapper_stems = obj.get_new_flapper_stems(flapper_stems);
         time_old_flapper_stems = obj.get_old_flapper_stems(time_flapper_stems);
         time_new_flapper_stems = obj.get_new_flapper_stems(time_flapper_stems);
+        obj.phase_old_flapper_stems = old_flapper_stems;
+        obj.phase_new_flapper_stems = new_flapper_stems;
+        obj.time_old_flapper_stems = time_old_flapper_stems;
+        obj.time_new_flapper_stems = time_new_flapper_stems;
 
         [obj.old_flapper_downstream_types, obj.old_flapper_distance_labels] = ...
             obj.get_available_downstream_options([old_flapper_stems, time_old_flapper_stems], obj.OLD_FLAPPER_SOURCE_MODE);
@@ -590,13 +604,31 @@ methods
         obj.case_name = string(case_dropdown.Value); % use current value in box
         case_dropdown.ValueChangedFcn = @(src, event) case_change(src, event, plot_area_panel);
 
-        rpca_button = uibutton(sidebar_grid, "state");
-        rpca_button.Layout.Row = 4;
+        % RPCA and HR (harmonic regression) buttons share a row
+        variant_grid = uigridlayout(sidebar_grid, [1, 2]);
+        variant_grid.Layout.Row = 4;
+        variant_grid.Layout.Column = 1;
+        variant_grid.ColumnWidth = {'1x', '1x'};
+        variant_grid.RowHeight = {'1x'};
+        variant_grid.Padding = [0 0 0 0];
+        variant_grid.ColumnSpacing = 8;
+
+        rpca_button = uibutton(variant_grid, "state");
+        rpca_button.Layout.Row = 1;
         rpca_button.Layout.Column = 1;
         rpca_button.Text = "RPCA";
         rpca_button.FontSize = 18;
         rpca_button.BackgroundColor = obj.get_button_color(obj.RPCA);
         rpca_button.ValueChangedFcn = @(src, event) RPCA_change(src, event, plot_area_panel);
+
+        hr_button = uibutton(variant_grid, "state");
+        hr_button.Layout.Row = 1;
+        hr_button.Layout.Column = 2;
+        hr_button.Text = "HR";
+        hr_button.FontSize = 18;
+        hr_button.Tooltip = "Harmonic regression files (_hr)";
+        hr_button.BackgroundColor = obj.get_button_color(obj.HR);
+        hr_button.ValueChangedFcn = @(src, event) HR_change(src, event, plot_area_panel);
 
         plot_type_dropdown = uidropdown(sidebar_grid);
         plot_type_dropdown.Layout.Row = 5;
@@ -943,6 +975,21 @@ methods
             previous_plot_type = obj.plot_type;
             obj.RPCA = src.Value;
             src.BackgroundColor = obj.get_button_color(obj.RPCA);
+
+            refresh_case_dropdown();
+            refresh_plot_type_dropdown();
+            refresh_variable_dropdown(previous_plot_type);
+
+            obj.frame_ind = 1;
+            obj.slider.Value = obj.frame_ind;
+
+            obj.update_plot(plot_panel);
+        end
+
+        function HR_change(src, ~, plot_panel)
+            previous_plot_type = obj.plot_type;
+            obj.HR = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.HR);
 
             refresh_case_dropdown();
             refresh_plot_type_dropdown();
@@ -1437,19 +1484,28 @@ methods (Access = private)
         obj.iso_slider.Value = obj.iso_val;
     end
 
-    function stems = strip_RPCA_suffix(~, stems)
+    % File stems are <case>[_hr][_RPCA] (phase_avg_STB adds _hr to the
+    % version name, then _RPCA). These strip / add the suffixes.
+    function stems = strip_variant_suffix(~, stems)
         stems = regexprep(string(stems), "_RPCA$", "");
+        stems = regexprep(stems, "_hr$", "");
     end
 
-    function case_id = with_RPCA_suffix(obj, case_id)
-        case_id = string(case_id);
-        if obj.RPCA && strlength(case_id) > 0 && ~endsWith(case_id, "_RPCA")
+    function case_id = with_variant_suffix(obj, case_id)
+        case_id = obj.strip_variant_suffix(case_id);
+        if strlength(case_id) == 0
+            return
+        end
+        if obj.HR
+            case_id = case_id + "_hr";
+        end
+        if obj.RPCA
             case_id = case_id + "_RPCA";
         end
     end
 
     function tf = has_case_id(obj, case_ids, case_id)
-        tf = any(string(case_ids) == obj.with_RPCA_suffix(case_id));
+        tf = any(string(case_ids) == obj.with_variant_suffix(case_id));
     end
 
     function color = get_button_color(obj, is_active)
@@ -1982,12 +2038,29 @@ methods (Access = private)
         end
     end
 
+    % Cases for the dropdown: for the flappers, only those at the selected
+    % downstream position
     function case_names = get_case_name_list_for_active_plot_type(obj)
-        case_names = obj.get_case_name_list(obj.source_mode, obj.plot_type);
+        case_names = obj.get_case_name_list(obj.source_mode, obj.plot_type, obj.current_downstream_type);
     end
 
-    function case_names = get_case_name_list(obj, source_mode, plot_type)
-        if source_mode == obj.TURBINE_SOURCE_MODE
+    % downstream_type (optional): only cases at that downstream position
+    % (flapper sources); omitted or "" lists every position
+    function case_names = get_case_name_list(obj, source_mode, plot_type, downstream_type)
+        if nargin >= 4 && strlength(string(downstream_type)) > 0 && obj.is_flapper_source_mode(source_mode)
+            if source_mode == obj.NEW_FLAPPER_SOURCE_MODE
+                phase_stems = obj.phase_new_flapper_stems;
+                time_stems = obj.time_new_flapper_stems;
+            else
+                phase_stems = obj.phase_old_flapper_stems;
+                time_stems = obj.time_old_flapper_stems;
+            end
+            downstream_type = string(downstream_type);
+            [known_types, known_labels] = obj.get_known_downstream_options(source_mode);
+            label = known_labels(known_types == downstream_type);
+            phase_case_names = obj.get_flapper_case_names(phase_stems, downstream_type, label, source_mode);
+            time_case_names = obj.get_flapper_case_names(time_stems, downstream_type, label, source_mode);
+        elseif source_mode == obj.TURBINE_SOURCE_MODE
             phase_case_names = obj.phase_turbine_case_name_list;
             time_case_names = obj.time_turbine_case_name_list;
         elseif source_mode == obj.NEW_FLAPPER_SOURCE_MODE
@@ -2069,7 +2142,7 @@ methods (Access = private)
             end
         end
 
-        case_id = obj.with_RPCA_suffix(base_case_id);
+        case_id = obj.with_variant_suffix(base_case_id);
     end
 
     function file_base = get_current_file_base(obj)
