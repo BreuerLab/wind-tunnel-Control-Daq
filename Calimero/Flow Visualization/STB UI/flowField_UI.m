@@ -1118,12 +1118,26 @@ methods
             sidebar_grid.RowHeight = row_heights;
         end
 
-        function clim_change(src, ~, plot_panel)
+        function clim_change(src, event, plot_panel)
             ticks = obj.clim_slider.MinorTicks;
 
-            % ensure that slider snapped to minor tick value
-            newMin = interp1(ticks, ticks, src.Value(1), 'nearest', 'extrap');
-            newMax = interp1(ticks, ticks, src.Value(2), 'nearest', 'extrap');
+            % ensure that slider snapped to minor tick value. Only the
+            % thumb that moved is snapped, so dragging the upper limit
+            % can't shift the lower one (e.g. off 0 when 0 isn't a tick).
+            newMin = src.Value(1);
+            newMax = src.Value(2);
+            if ~isempty(ticks)
+                if newMin ~= event.PreviousValue(1)
+                    newMin = interp1(ticks, ticks, newMin, 'nearest', 'extrap');
+                end
+                if newMax ~= event.PreviousValue(2)
+                    newMax = interp1(ticks, ticks, newMax, 'nearest', 'extrap');
+                end
+            end
+            if newMin >= newMax
+                newMin = event.PreviousValue(1);
+                newMax = event.PreviousValue(2);
+            end
             
             % Update the slider to the snapped positions
             src.Value = [newMin, newMax];
