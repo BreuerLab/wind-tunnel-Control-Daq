@@ -336,6 +336,9 @@ methods
         obj.movie_3D_std_vars = [obj.movie_3D_avg_vars(1:8) obj.movie_3D_avg_vars(13:end)];
         movie_3D_std_values = [movie_3D_avg_values(1:8) movie_3D_avg_values(13:end)];
         movie_3D_std_values = strrep(movie_3D_std_values,"avg","std");
+        % divergence std: per-frame divergence std saved in the main file
+        % by phase_avg_STB (bools.div_std = true)
+        movie_3D_std_values(obj.movie_3D_std_vars == "div") = "div_phase_std";
 
         % Derived variables (computed in update_plot, not loaded directly).
         % Appended after the std list is built since they have no std field.
@@ -2350,7 +2353,7 @@ methods (Access = private)
         if plot_idx ~= 8
             if ~isfield(d, var_name)
                 error("flowField_UI:missingVariable",...
-                    "%s is not in the processed file for %s. Reprocess the case (Q*_inst fields need bools.Q_inst = true).",...
+                    "%s is not in the processed file for %s. Reprocess the case (Q*_inst fields need bools.Q_inst = true, div_phase_std needs bools.div_std = true).",...
                     var_name, obj.case_name)
             end
             val = d.(var_name);
