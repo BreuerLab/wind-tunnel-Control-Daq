@@ -88,6 +88,26 @@ if config.includeHelmDecomp
     [y_B, z_B, velX_B, velY_B, velZ_B] = helm_decomp(config.xConv, y_arr, z_arr, config.length, F);
     S.y_B = y_B; S.z_B = z_B; S.velX_B = velX_B; S.velY_B = velY_B; S.velZ_B = velZ_B;
 
+    % Velocity-only lift/drag (same as lift_vel / drag_vel, vort_bool
+    % false) but on the extrapolated field instead of the measured window.
+    % velX_B is the induced perturbation (u + U)/U, so the full streamwise
+    % velocity is velX_B - 1 (x points upstream, u ~ -U), as in
+    % flowField_UI. Fields are stored [time y z]; get_wake_lift wants
+    % [y z time].
+    F_B.x = config.xConv;
+    F_B.y = y_B;
+    F_B.z = z_B;
+    F_B.u = permute(velX_B, [2 3 1]) - 1;
+    F_B.v = permute(velY_B, [2 3 1]);
+    F_B.w = permute(velZ_B, [2 3 1]);
+    [lift_vel_B, drag_vel_B] = get_wake_lift(config.speed, config.length, F_B, false, config.density);
+    % get_wake_lift integrates a half plane and doubles it, but y_B/z_B
+    % cover the full mirrored plane. The integrands (u*w, u*(u+U)) are
+    % symmetric about the centreline, so halve the full-plane result
+    % rather than cutting the plane (y_B need not have a row at y = 0).
+    S.lift_vel_B = lift_vel_B / 2;
+    S.drag_vel_B = drag_vel_B / 2;
+
     Utot_full = velX_B.^2 + velY_B.^2 + velZ_B.^2;
     KE_tot_field = permute(Utot_full,[2 3 1]);
     KE_tot = trapz(squeeze(y_B(:,1)), KE_tot_field, 1);
