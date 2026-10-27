@@ -2186,7 +2186,9 @@ methods (Access = private)
             time_case_names = obj.time_old_flapper_case_name_list;
         end
 
-        if plot_type == obj.plot_types(1)
+        % time averaged (0 Hz) cases have "time avg of phase avg" and the
+        % section plot only
+        if plot_type == obj.plot_types(1) || plot_type == obj.plot_types(10)
             case_names = unique([phase_case_names, time_case_names], 'stable');
         else
             case_names = phase_case_names;
@@ -2288,6 +2290,10 @@ methods (Access = private)
     function plot_types = get_available_plot_types_for_current_case(obj)
         if obj.is_time_avg_file_selected() || ~obj.current_case_has_phase_avg()
             plot_types = obj.plot_types(1);
+            % the section plot also works on time averaged (0 Hz) files
+            if obj.current_case_has_time_avg()
+                plot_types(end+1) = obj.plot_types(10);
+            end
         else
             plot_types = obj.plot_types;
         end
@@ -2892,17 +2898,30 @@ methods (Access = private)
     function plot_section_force(obj, plot_panel)
         obj.slider.Visible = "off";
         obj.play_button.Visible = "off";
-        if strlength(obj.case_name) == 0 || ~obj.current_case_has_phase_avg()
+        if strlength(obj.case_name) == 0 || ~ismember(obj.variable_name, obj.section_force_vars)
             return
         end
-        if ~ismember(obj.variable_name, obj.section_force_vars)
+        % phase averaged file if there is one, else the time averaged file
+        % (0 Hz cases): mean_* fields, freestream U and rho = 1.225, as in
+        % timeAvg_UI. For a time average the nonlinear terms (lift_vel,
+        % vel diff, bernoulli, drag_vel) use the mean velocity, not the
+        % mean of the per-frame products.
+        case_id = obj.get_current_case_id();
+        if obj.current_case_has_phase_avg()
+            file_base = obj.get_current_file_base(); % phase_avg\ (or its RPCA\ subfolder)
+            avg_type = 1;
+            avg_label = "Time averaged";
+        elseif obj.current_case_has_time_avg()
+            file_base = obj.time_avg_file_path + case_id + "_time_avg";
+            avg_type = 0;
+            avg_label = "Time averaged (0 Hz file)";
+        else
             return
         end
 
         ax = axes(plot_panel);
         force_var = obj.force_var_name_dict(char(obj.variable_name));
-        [~, ~, I] = get_PIV_force(obj.get_current_file_base(), obj.get_current_case_id(), ...
-            force_var, 1, false, default_trim_bounds());
+        [~, ~, I] = get_PIV_force(file_base, case_id, force_var, avg_type, false, default_trim_bounds());
         if isempty(I.field)
             text(ax, 0.5, 0.5, string(obj.variable_name) + " is not a plane integral", ...
                 'HorizontalAlignment', 'center', FontSize=16);
@@ -2973,8 +2992,8 @@ methods (Access = private)
 
         xlim(ax, [edges(1), edges(end)])
         xlabel(ax, "y/c (from centreline)", FontSize=16)
-        title_str = string(sprintf("Time averaged %s: %.4f N total, %d sections", ...
-            string(obj.variable_name), total, n));
+        title_str = string(sprintf("%s %s: %.4f N total, %d sections", ...
+            avg_label, string(obj.variable_name), total, n));
         if nan_cols > 0
             title_str = title_str + sprintf(" (%d NaN columns left out)", nan_cols);
         end
