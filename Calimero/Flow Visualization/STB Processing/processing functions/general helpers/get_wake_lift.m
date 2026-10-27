@@ -1,9 +1,19 @@
-function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density, opts)
+function [lift, drag, integrands] = get_wake_lift(U, L, D, vort_bool, density, opts)
     % opts.edge_taper : width (chords) of the smooth edge taper used for
     %                   the window-edge terms of lift.vortY_edge
     %                   (default 0.75; 0 makes it equal lift.vortY)
     % lift.vortY      : omega_y estimate, integral of omega_y only (default)
     % lift.vortY_edge : same plus the tapered window-edge terms
+    %
+    % integrands (optional 3rd output): the field each force integrates
+    % over the y-z plane, in N/m^2, with the same names (integrands.lift.
+    % vortX, integrands.drag.tot, ...; plain arrays for vort_bool false).
+    % trapz over y then z of a field gives that force (per bin for phase
+    % averages). Used to see where in the plane a force comes from. The
+    % omega_y lift terms are time integrals of a rate, not plane
+    % integrals, so they have no integrand.
+    want_int = nargout >= 3;
+    integrands = struct();
     if nargin < 6 || isempty(opts), opts = struct(); end
     if ~isfield(opts, 'edge_taper'), opts.edge_taper = 0.75; end
 
@@ -153,12 +163,21 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density, opts)
         lift.vortX = lift_wx;
         lift.vel_diff = lift_vel_diff;
         lift.tot = total;
+        if want_int
+            integrands.lift.vortX = 2 * density * term1;
+            integrands.lift.vel_diff = 2 * density * term2;
+            integrands.lift.tot = integrands.lift.vortX + integrands.lift.vel_diff;
+            integrands.lift.vortX_taper = 2 * density * U * (y .* phi .* vortX);
+        end
     else
         lift_mat_full = -(u .* -w);
 
         lift_vec_full = trapz(y(:,1), lift_mat_full, 1);
         lift = 2 * density * trapz(z(1,:), lift_vec_full, 2);
         lift = squeeze(lift);
+        if want_int
+            integrands.lift = 2 * density * lift_mat_full;
+        end
     end
 
     %% Calculate drag
@@ -189,12 +208,21 @@ function [lift, drag] = get_wake_lift(U, L, D, vort_bool, density, opts)
         drag.vortZ = drag_wz;
         drag.bernoulli = bernoulli;
         drag.tot = total;
+        if want_int
+            integrands.drag.vortY = -density * U * (z .* vortY);
+            integrands.drag.vortZ =  density * U * (y .* vortZ);
+            integrands.drag.tot = integrands.drag.vortY + integrands.drag.vortZ;
+            integrands.drag.bernoulli = density * bernoulli_term;
+        end
     else
         drag_mat_full = -u .* (u + U); % If w > U in magnitude, should be -
         
         drag_vec_full = trapz(y(:,1), drag_mat_full, 1);
         drag = 2 * density * trapz(z(1,:), drag_vec_full, 2);
         drag = squeeze(drag);
+        if want_int
+            integrands.drag = 2 * density * drag_mat_full;
+        end
     end
     
 end

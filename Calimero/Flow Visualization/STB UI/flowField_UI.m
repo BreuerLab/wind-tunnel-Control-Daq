@@ -101,6 +101,9 @@ properties
     freq_vars;
     force_vars;
     section_vars;     % "time avg: section avg" plot: number of y sections
+    section_count;    %   the selected one (section_dropdown)
+    section_force_vars; % forces it can break down (wake forces minus the omega_y lift terms)
+    section_dropdown;
     frozen_vars;      % "frozen flow" plot: slab dw/dx vs (1/U) dw/dt
     frozen_label_dict;
     frozen_clims;
@@ -538,6 +541,7 @@ methods
         % over the wingbeat. All nondimensional like dwdx_phase_avg.
         obj.frozen_vars = ["dw/dx (slab)", "(1/U) dw/dt", "rms ratio", "correlation over phase"];
         obj.section_vars = ["5 sections", "3 sections", "10 sections", "20 sections", "every column"];
+        obj.section_count = obj.section_vars(1);
         frozen_labels = ["\boldmath$\frac{\partial w}{\partial x}\frac{c}{U_{\infty}}$", ...
             "\boldmath$\frac{1}{U}\frac{\partial w}{\partial t}\frac{c}{U_{\infty}}$", ...
             "\boldmath$\frac{\mathrm{rms}(\partial_x w)}{\mathrm{rms}(\partial_t w / U)}$", ...
@@ -548,6 +552,9 @@ methods
 
         force_keys = cellstr(obj.force_vars);
         obj.force_var_name_dict = containers.Map(force_keys, force_vals);
+        % the omega_y lift terms are time integrals of a rate, not plane
+        % integrals, so they can't be split across the plane
+        obj.section_force_vars = obj.force_vars(~ismember(force_vals, ["lift.vortY", "lift.vortY_edge"]));
         obj.force_label_dict = containers.Map(force_keys, force_labels);
 
         keys_B = cellstr(movie_3D_avg_values(1:3));
@@ -658,6 +665,16 @@ methods
         obj.clim_slider.Limits = [clim_center - clim_range, clim_center + clim_range];
         obj.clim_slider.Value = obj.clims(1,:);
         obj.clim_slider.ValueChangedFcn = @(src, event) clim_change(src, event, plot_area_panel);
+
+        % Number of y sections for "time avg: section avg" (shares the
+        % colour-limit slider's row; only one of them is shown)
+        obj.section_dropdown = uidropdown(sidebar_grid);
+        obj.section_dropdown.Layout.Row = 7;
+        obj.section_dropdown.Layout.Column = 1;
+        obj.section_dropdown.Items = obj.section_vars;
+        obj.section_dropdown.Value = obj.section_count;
+        obj.section_dropdown.Visible = "off";
+        obj.section_dropdown.ValueChangedFcn = @(src, event) section_count_change(src, event, plot_area_panel);
 
         trim_button = uibutton(sidebar_grid, "state");
         trim_button.Layout.Row = 8;
@@ -929,6 +946,7 @@ methods
 
         % Set up plot titles and axes
         set_param_panel_visibility(strcmp(obj.plot_type, obj.plot_types(5)));
+        obj.set_section_controls();
         obj.update_plot(plot_area_panel);
 
         % Callbacks are nested so each handler mutates this handle object.
@@ -1088,7 +1106,7 @@ methods
                 elseif strcmp(obj.plot_type, obj.plot_types(8))
                     obj.var_name_list = obj.force_vars;
                 elseif strcmp(obj.plot_type, obj.plot_types(10))
-                    obj.var_name_list = obj.section_vars;
+                    obj.var_name_list = obj.section_force_vars;
                 elseif strcmp(obj.plot_type, obj.plot_types(11))
                     obj.var_name_list = obj.frozen_vars;
                 else
@@ -1102,6 +1120,12 @@ methods
             obj.update_color_limit_slider();
 
             set_param_panel_visibility(strcmp(obj.plot_type, obj.plot_types(5)));
+            obj.set_section_controls();
+        end
+
+        function section_count_change(src, ~, plot_panel)
+            obj.section_count = string(src.Value);
+            obj.update_plot(plot_panel);
         end
 
         function set_distance_dropdown_visibility()
@@ -2289,7 +2313,7 @@ methods (Access = private)
         cur_secondary_vars = {};
 
         if plot_idx == 10
-            obj.plot_section_lift(plot_panel);
+            obj.plot_section_force(plot_panel);
             return
         end
 
@@ -2837,66 +2861,73 @@ methods (Access = private)
         end
     end
 
-    % "time avg: section avg" plot type: where across the span the
-    % omega_x (tip vortex) lift comes from. The cycle-averaged lift.vortX
-    % term of get_wake_lift,
-    %     L = 2*rho*U * int int y*omega_x dy dz   (half plane, y >= 0),
-    % is split into vertical slices of the field of view (equal widths in
-    % y; the variable dropdown sets how many). Each bar is the lift from
-    % its slice, so the bars add up to the total, and noise at large y
-    % (where y*omega_x weights it heavily) shows up as large or erratic
-    % outer bars. The line (right axis) is the lift per unit span,
-    % dL/dy = 2*rho*U*y*int omega_x dz, column by column.
+    % Show the section-count dropdown instead of the colour-limit slider
+    % for the "time avg: section avg" plot
+    function set_section_controls(obj)
+        is_section = obj.plot_type == obj.plot_types(10);
+        if is_section
+            obj.section_dropdown.Visible = "on";
+            obj.clim_slider.Visible = "off";
+        else
+            obj.section_dropdown.Visible = "off";
+            obj.clim_slider.Visible = "on";
+        end
+    end
+
+    % "time avg: section avg" plot type: where across the span a wake
+    % force comes from. The variable dropdown picks the force (the same
+    % list as "wake forces", minus the omega_y lift terms, which are time
+    % integrals rather than plane integrals); the dropdown under it picks
+    % how many vertical slices of the field of view (equal widths in y).
+    % Each bar is the cycle-averaged force from its slice, so the bars add
+    % up to the total, e.g. for lift.vortX = 2*rho*U * int int y*omega_x,
+    % noise at large y (weighted heavily) shows up as large or erratic
+    % outer bars. The line (right axis) is the force per unit span, the
+    % integrand integrated over z, column by column.
     %
-    % Same field, trim and dimensions as the stored lift.vortX (and the
-    % wake forces plot): vortX_phase_avg averaged over the bins, trimmed
-    % with default_trim_bounds (y from the centreline), speed U_act*U and
-    % density rho_act. Computed live, nothing needs reprocessing.
-    function plot_section_lift(obj, plot_panel)
+    % The integrand comes from get_PIV_force / get_wake_lift (third
+    % output), so the field, trim (default_trim_bounds), dimensions and
+    % formula are exactly those of the "wake forces" plot, and the total
+    % equals that plot's cycle mean. Computed live, nothing reprocessed.
+    function plot_section_force(obj, plot_panel)
         obj.slider.Visible = "off";
         obj.play_button.Visible = "off";
         if strlength(obj.case_name) == 0 || ~obj.current_case_has_phase_avg()
             return
         end
-        file = obj.get_current_file_base() + ".mat";
-        have = who('-file', file);
+        if ~ismember(obj.variable_name, obj.section_force_vars)
+            return
+        end
 
         ax = axes(plot_panel);
-        need = {'L', 'U', 'U_act', 'rho_act', 'y', 'z', 'vortX_phase_avg'};
-        if ~all(ismember(need, have))
-            text(ax, 0.5, 0.5, "Missing " + strjoin(string(need(~ismember(need, have))), ", ") + " in this file", ...
+        force_var = obj.force_var_name_dict(char(obj.variable_name));
+        [~, ~, I] = get_PIV_force(obj.get_current_file_base(), obj.get_current_case_id(), ...
+            force_var, 1, false, default_trim_bounds());
+        if isempty(I.field)
+            text(ax, 0.5, 0.5, string(obj.variable_name) + " is not a plane integral", ...
                 'HorizontalAlignment', 'center', FontSize=16);
             axis(ax, 'off');
             return
         end
-        d = load(file, need{:});
 
-        speed = d.U_act * d.U;
-        density = d.rho_act;
-        L = d.L;
+        % cycle average (bins weighted equally, like the wake forces mean)
+        field = mean(I.field, 3, "omitnan");   % N/m^2, [ny nz]
+        y_nd = I.y(:);                          % y/c from the centreline
+        y = y_nd * I.L;                         % m
+        z = I.z(:) * I.L;
 
-        % cycle average, then trim exactly like the stored forces
-        vortX = mean(d.vortX_phase_avg, 4, "omitnan");
-        [y_tr, z_tr, vortX] = trim_vel_field(d.y, d.z, vortX, default_trim_bounds());
-        y_nd = y_tr(:, 1);              % y/c from the centreline, >= 0
-        z_nd = z_tr(1, :);
-        y = y_nd * L;                   % m
-        z = z_nd * L;
-        vortX = vortX / (L / speed);    % 1/s
-
-        % lift per unit span of each column, N/m
-        % (term1 = -U .* y .* -vortX in get_wake_lift)
-        dL_dy = 2 * density * speed * y .* trapz(z(:), vortX, 2);
+        % force per unit span of each column, N/m
+        dL_dy = trapz(z, field, 2);
         nan_cols = sum(isnan(dL_dy));
 
         % trapz weights along y, so the slices add up to trapz over y
         dy = diff(y);
         w = ([dy; 0] + [0; dy]) / 2;
         col_lift = w .* dL_dy;                  % N, each column's share
-        total = sum(col_lift, "omitnan");       % = time averaged lift.vortX
+        total = sum(col_lift, "omitnan");       % = cycle mean in "wake forces"
 
         % slices: equal widths in y ("every column": one per column)
-        n_sec = sscanf(char(obj.variable_name), '%d');
+        n_sec = sscanf(char(obj.section_count), '%d');
         if isempty(n_sec)
             edges = [y_nd(1) - (y_nd(2) - y_nd(1))/2; ...
                      (y_nd(1:end-1) + y_nd(2:end))/2; ...
@@ -2925,12 +2956,13 @@ methods (Access = private)
             end
         end
         yline(ax, 0, '-k', 'HandleVisibility', 'off');
-        ylabel(ax, "Lift from section (N)", FontSize=16)
+        force_label = obj.force_label_dict(char(obj.variable_name));   % e.g. "Lift, ω_x term (N)"
+        ylabel(ax, erase(force_label, " (N)") + " from section (N)", FontSize=16)
         lim_l = obj.zero_based_limits(sec_lift);
 
         yyaxis(ax, 'right')
         plot(ax, y_nd, dL_dy, '-', 'LineWidth', 1.5);
-        ylabel(ax, "dL/dy (N/m)", FontSize=16)
+        ylabel(ax, "per unit span (N/m)", FontSize=16)
         lim_r = obj.zero_based_limits(dL_dy);
 
         % same zero height on both axes
@@ -2941,7 +2973,8 @@ methods (Access = private)
 
         xlim(ax, [edges(1), edges(end)])
         xlabel(ax, "y/c (from centreline)", FontSize=16)
-        title_str = string(sprintf("Time averaged \\omega_x lift: %.4f N total, %d sections", total, n));
+        title_str = string(sprintf("Time averaged %s: %.4f N total, %d sections", ...
+            string(obj.variable_name), total, n));
         if nan_cols > 0
             title_str = title_str + sprintf(" (%d NaN columns left out)", nan_cols);
         end

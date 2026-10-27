@@ -1,6 +1,14 @@
-function [var, err] = get_PIV_force(file_name, case_name, force_var_name, avg_type, norm_bool, bounds)
+function [var, err, I] = get_PIV_force(file_name, case_name, force_var_name, avg_type, norm_bool, bounds)
         % bounds: trim limits and center point for trim_vel_field
         % (defaults in default_trim_bounds.m)
+        %
+        % I (optional 3rd output): where in the plane the force comes from.
+        % I.field is the integrand of the requested force in N/m^2
+        % ([ny nz] or [ny nz num_bins]; trapz over y then z gives var,
+        % before norm_bool), I.y and I.z the trimmed grid (y/c, z/c, from
+        % the centre point), I.L the chord. I.field is [] for forces that
+        % aren't plane integrals (the omega_y lift terms).
+        want_int = nargout >= 3;
 
         % *_tavg (e.g. lift_tavg.vortX, lift_vel_tavg): average the phase
         % averaged fields over the cycle (each bin weighted equally) into a
@@ -165,7 +173,11 @@ function [var, err] = get_PIV_force(file_name, case_name, force_var_name, avg_ty
     
     % Capture all outputs into a cell array
     % [outputs{1:2}] = get_wake_lift(speed, d.L, x, d.y, d.z, d, avg_type, vort_bool, y_cen, z_cen, density);
-    [outputs{1:2}] = get_wake_lift(speed, d.L, D, vort_bool, density);
+    if want_int
+        [outputs{1:2}, ints] = get_wake_lift(speed, d.L, D, vort_bool, density);
+    else
+        [outputs{1:2}] = get_wake_lift(speed, d.L, D, vort_bool, density);
+    end
     
     % Define your field names
     fields = {'lift', 'drag'};
@@ -189,6 +201,29 @@ function [var, err] = get_PIV_force(file_name, case_name, force_var_name, avg_ty
         end
     end
     err = 0;
+
+    if want_int
+        % same (possibly nested) name in the integrands
+        if vort_bool
+            G = ints;
+        else
+            G = struct('lift', ints.lift, 'drag', ints.drag);
+        end
+        field = G;
+        for k = 1:numel(parts)
+            if isstruct(field) && isfield(field, parts(k))
+                field = field.(parts(k));
+            else
+                field = [];
+                break
+            end
+        end
+        if isstruct(field), field = []; end
+        I.field = field;
+        I.y = y_tr(:, 1).';
+        I.z = z_tr(1, :);
+        I.L = d.L;
+    end
     
     if norm_bool
         var = var / (0.5 * density * d.L^2 * d.U_act^2);
