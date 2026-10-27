@@ -1,4 +1,4 @@
-function [Qx_avg, Qy_avg, Qz_avg, Q_avg, Qx_std, Qy_std, Qz_std, Q_std] = inst_Q_avg(u, v, w, x, y, z)
+function [Qx_avg, Qy_avg, Qz_avg, Q_avg, Qx_std, Qy_std, Qz_std, Q_std, n_valid] = inst_Q_avg(u, v, w, x, y, z)
 % Q (and its parts Qx, Qy, Qz, as returned by calQlate3D) computed on each
 % instantaneous (binned) velocity field, then averaged over the frames.
 %
@@ -13,6 +13,9 @@ function [Qx_avg, Qy_avg, Qz_avg, Q_avg, Qx_std, Qy_std, Qz_std, Q_std] = inst_Q
 % x, y, z : grids [nx ny nz]
 % outputs : [nx ny nz]; *_std is the frame-to-frame standard deviation
 %           (normalised by N-1, as std(..., 0)), only computed if requested
+% n_valid : [nx ny nz] number of frames with a finite Q at each point, so
+%           averages over several calls can be combined exactly
+%           (sum = avg .* n_valid); asking for it also computes the std
 
 dx = abs(x(2,1,1) - x(1,1,1));
 dy = abs(y(1,2,1) - y(1,1,1));
