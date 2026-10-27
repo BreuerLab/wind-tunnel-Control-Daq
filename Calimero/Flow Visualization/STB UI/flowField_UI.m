@@ -100,6 +100,7 @@ properties
     hist_vars;
     freq_vars;
     force_vars;
+    section_vars;     % "time avg: section avg" plot: number of y sections
     frozen_vars;      % "frozen flow" plot: slab dw/dx vs (1/U) dw/dt
     frozen_label_dict;
     frozen_clims;
@@ -206,7 +207,7 @@ methods
 
         obj.plot_types = ["time avg of phase avg","phase avg: movie", "time avg of phase std","phase std: movie", "phase avg: 3D plot",...
             "image wingbeat phase", "wingbeat frequency","wake forces","phase avg: planar avg",...
-            "frozen flow"];
+            "time avg: section avg", "frozen flow"];
         obj.plot_type = obj.plot_types(1);
         obj.plot_hold_bool = false;
         obj.iso_var_list = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
@@ -536,6 +537,7 @@ methods
         % movies of each estimate, then pointwise rms ratio / correlation
         % over the wingbeat. All nondimensional like dwdx_phase_avg.
         obj.frozen_vars = ["dw/dx (slab)", "(1/U) dw/dt", "rms ratio", "correlation over phase"];
+        obj.section_vars = ["5 sections", "3 sections", "10 sections", "20 sections", "every column"];
         frozen_labels = ["\boldmath$\frac{\partial w}{\partial x}\frac{c}{U_{\infty}}$", ...
             "\boldmath$\frac{1}{U}\frac{\partial w}{\partial t}\frac{c}{U_{\infty}}$", ...
             "\boldmath$\frac{\mathrm{rms}(\partial_x w)}{\mathrm{rms}(\partial_t w / U)}$", ...
@@ -1086,6 +1088,8 @@ methods
                 elseif strcmp(obj.plot_type, obj.plot_types(8))
                     obj.var_name_list = obj.force_vars;
                 elseif strcmp(obj.plot_type, obj.plot_types(10))
+                    obj.var_name_list = obj.section_vars;
+                elseif strcmp(obj.plot_type, obj.plot_types(11))
                     obj.var_name_list = obj.frozen_vars;
                 else
                     obj.var_name_list = obj.movie_3D_avg_vars;
@@ -2277,6 +2281,11 @@ methods (Access = private)
         cur_secondary_vars = {};
 
         if plot_idx == 10
+            obj.plot_section_lift(plot_panel);
+            return
+        end
+
+        if plot_idx == 11
             obj.plot_frozen_flow(plot_panel);
             return
         end
@@ -2820,6 +2829,140 @@ methods (Access = private)
         end
     end
 
+    % "time avg: section avg" plot type: where across the span the
+    % omega_x (tip vortex) lift comes from. The cycle-averaged lift.vortX
+    % term of get_wake_lift,
+    %     L = 2*rho*U * int int y*omega_x dy dz   (half plane, y >= 0),
+    % is split into vertical slices of the field of view (equal widths in
+    % y; the variable dropdown sets how many). Each bar is the lift from
+    % its slice, so the bars add up to the total, and noise at large y
+    % (where y*omega_x weights it heavily) shows up as large or erratic
+    % outer bars. The line (right axis) is the lift per unit span,
+    % dL/dy = 2*rho*U*y*int omega_x dz, column by column.
+    %
+    % Same field, trim and dimensions as the stored lift.vortX (and the
+    % wake forces plot): vortX_phase_avg averaged over the bins, trimmed
+    % with default_trim_bounds (y from the centreline), speed U_act*U and
+    % density rho_act. Computed live, nothing needs reprocessing.
+    function plot_section_lift(obj, plot_panel)
+        obj.slider.Visible = "off";
+        obj.play_button.Visible = "off";
+        if strlength(obj.case_name) == 0 || ~obj.current_case_has_phase_avg()
+            return
+        end
+        file = obj.get_current_file_base() + ".mat";
+        have = who('-file', file);
+
+        ax = axes(plot_panel);
+        need = {'L', 'U', 'U_act', 'rho_act', 'y', 'z', 'vortX_phase_avg'};
+        if ~all(ismember(need, have))
+            text(ax, 0.5, 0.5, "Missing " + strjoin(string(need(~ismember(need, have))), ", ") + " in this file", ...
+                'HorizontalAlignment', 'center', FontSize=16);
+            axis(ax, 'off');
+            return
+        end
+        d = load(file, need{:});
+
+        speed = d.U_act * d.U;
+        density = d.rho_act;
+        L = d.L;
+
+        % cycle average, then trim exactly like the stored forces
+        vortX = mean(d.vortX_phase_avg, 4, "omitnan");
+        [y_tr, z_tr, vortX] = trim_vel_field(d.y, d.z, vortX, default_trim_bounds());
+        y_nd = y_tr(:, 1);              % y/c from the centreline, >= 0
+        z_nd = z_tr(1, :);
+        y = y_nd * L;                   % m
+        z = z_nd * L;
+        vortX = vortX / (L / speed);    % 1/s
+
+        % lift per unit span of each column, N/m
+        % (term1 = -U .* y .* -vortX in get_wake_lift)
+        dL_dy = 2 * density * speed * y .* trapz(z(:), vortX, 2);
+        nan_cols = sum(isnan(dL_dy));
+
+        % trapz weights along y, so the slices add up to trapz over y
+        dy = diff(y);
+        w = ([dy; 0] + [0; dy]) / 2;
+        col_lift = w .* dL_dy;                  % N, each column's share
+        total = sum(col_lift, "omitnan");       % = time averaged lift.vortX
+
+        % slices: equal widths in y ("every column": one per column)
+        n_sec = sscanf(char(obj.variable_name), '%d');
+        if isempty(n_sec)
+            edges = [y_nd(1) - (y_nd(2) - y_nd(1))/2; ...
+                     (y_nd(1:end-1) + y_nd(2:end))/2; ...
+                     y_nd(end) + (y_nd(end) - y_nd(end-1))/2];
+            sec_lift = col_lift;
+        else
+            edges = linspace(y_nd(1), y_nd(end), n_sec + 1)';
+            sec_idx = discretize(y_nd, edges);
+            sec_lift = accumarray(sec_idx, col_lift, [n_sec 1], @(v) sum(v, "omitnan"), 0);
+        end
+        n = numel(edges) - 1;
+
+        % bars as patches so each spans its slice exactly
+        yyaxis(ax, 'left')
+        hold(ax, 'on')
+        c = ax.ColorOrder(1, :);
+        for k = 1:n
+            patch(ax, [edges(k) edges(k+1) edges(k+1) edges(k)], [0 0 sec_lift(k) sec_lift(k)], c, ...
+                'FaceAlpha', 0.5, 'EdgeColor', c);
+        end
+        if n <= 20 && abs(total) > 0
+            for k = 1:n
+                if sec_lift(k) >= 0, va = 'bottom'; else, va = 'top'; end
+                text(ax, (edges(k) + edges(k+1))/2, sec_lift(k), sprintf("%.0f%%", 100*sec_lift(k)/total), ...
+                    'HorizontalAlignment', 'center', 'VerticalAlignment', va, FontSize=12);
+            end
+        end
+        yline(ax, 0, '-k', 'HandleVisibility', 'off');
+        ylabel(ax, "Lift from section (N)", FontSize=16)
+        lim_l = obj.zero_based_limits(sec_lift);
+
+        yyaxis(ax, 'right')
+        plot(ax, y_nd, dL_dy, '-', 'LineWidth', 1.5);
+        ylabel(ax, "dL/dy (N/m)", FontSize=16)
+        lim_r = obj.zero_based_limits(dL_dy);
+
+        % same zero height on both axes
+        [lim_l, lim_r] = obj.align_zero_limits(lim_l, lim_r);
+        yyaxis(ax, 'left');  ylim(ax, lim_l);
+        yyaxis(ax, 'right'); ylim(ax, lim_r);
+        yyaxis(ax, 'left');
+
+        xlim(ax, [edges(1), edges(end)])
+        xlabel(ax, "y/c (from centreline)", FontSize=16)
+        title_str = string(sprintf("Time averaged \\omega_x lift: %.4f N total, %d sections", total, n));
+        if nan_cols > 0
+            title_str = title_str + sprintf(" (%d NaN columns left out)", nan_cols);
+        end
+        title(ax, title_str, FontSize=16)
+    end
+
+    % [lo hi] covering the data and zero, padded 10%
+    function lim = zero_based_limits(~, v)
+        lo = min([0; v(:)], [], "omitnan");
+        hi = max([0; v(:)], [], "omitnan");
+        if hi == lo, hi = lo + 1; end
+        pad = 0.1 * (hi - lo);
+        lim = [lo - pad*(lo < 0), hi + pad*(hi > 0)];
+    end
+
+    % Stretch two [lo hi] ranges so zero sits at the same height on both
+    function [a, b] = align_zero_limits(~, a, b)
+        fa = -a(1) / diff(a);   % fraction of the axis below zero
+        fb = -b(1) / diff(b);
+        f = max(fa, fb);
+        if f >= 1 - 1e-6
+            a(2) = 0.05*diff(a); b(2) = 0.05*diff(b);   % all negative
+            return
+        end
+        % lower the bottom of the axis with less below zero
+        if fa < f, a(1) = -f/(1 - f) * a(2); end
+        if fb < f, b(1) = -f/(1 - f) * b(2); end
+    end
+
     % "frozen flow" plot type: compares the slab-normal derivative dw/dx on
     % the centre plane with the frozen-flow estimate (1/U) dw/dt from the
     % phase series (x points upstream, so dw/dx = (1/U) dw/dt). Both are
@@ -3065,7 +3208,7 @@ methods (Access = private)
         if ismember(obj.plot_type, obj.plot_types([3 4]))
             obj.clims = obj.std_clims;
             obj.clim_dict = obj.std_clim_dict;
-        elseif obj.plot_type == obj.plot_types(10)
+        elseif obj.plot_type == obj.plot_types(11)
             obj.clims = obj.frozen_clims;
             obj.clim_dict = obj.frozen_clim_dict;
         else
@@ -3099,7 +3242,7 @@ methods (Access = private)
             obj.clims(var_idx,:) = new_clims;
         end
 
-        if obj.plot_type == obj.plot_types(10)
+        if obj.plot_type == obj.plot_types(11)
             obj.frozen_clims = obj.update_clim_matrix(obj.frozen_vars, obj.frozen_clims, var_name, new_clims);
         elseif ismember(obj.plot_type, obj.plot_types([3 4]))
             obj.std_clims = obj.update_clim_matrix(obj.movie_3D_std_vars, obj.std_clims, var_name, new_clims);
