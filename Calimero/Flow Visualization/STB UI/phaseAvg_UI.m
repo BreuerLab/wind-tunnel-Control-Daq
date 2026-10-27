@@ -122,6 +122,7 @@ properties
     PIV_sub_case;
     force_sub;
     RPCA;
+    HR;    % harmonic regression files (_hr, from bools.harmonic_reg)
     load_cell_force_var;
     % boolean, spectrum plot overrides phase averaged plot
     spectrum;
@@ -192,6 +193,7 @@ methods
         obj.PIV_sub_case = "ring";
         obj.force_sub = false;
         obj.RPCA = false;
+        obj.HR = false;
         obj.load_cell_force_var = "wingbeat_avg_forces_smoothest";
         obj.freq_scale = false;
         obj.log_scale = false;
@@ -293,13 +295,31 @@ methods
         d3.ValueChangedFcn = @(src, event) amp_change(src, event, d2, d4);
         d4.ValueChangedFcn = @(src, event) version_change(src, event);
 
-        rpca_button = uibutton(sidebar_grid, "state");
-        rpca_button.Layout.Row = 6;
+        % RPCA and HR (harmonic regression) buttons share a row
+        variant_grid = uigridlayout(sidebar_grid, [1, 2]);
+        variant_grid.Layout.Row = 6;
+        variant_grid.Layout.Column = 1;
+        variant_grid.ColumnWidth = {'1x', '1x'};
+        variant_grid.RowHeight = {'1x'};
+        variant_grid.Padding = [0 0 0 0];
+        variant_grid.ColumnSpacing = 8;
+
+        rpca_button = uibutton(variant_grid, "state");
+        rpca_button.Layout.Row = 1;
         rpca_button.Layout.Column = 1;
         rpca_button.Text = "RPCA";
         rpca_button.FontSize = 18;
         rpca_button.BackgroundColor = obj.get_button_color(obj.RPCA);
         rpca_button.ValueChangedFcn = @(src, event) RPCA_change(src, event);
+
+        hr_button = uibutton(variant_grid, "state");
+        hr_button.Layout.Row = 1;
+        hr_button.Layout.Column = 2;
+        hr_button.Text = "HR";
+        hr_button.FontSize = 18;
+        hr_button.Tooltip = "Harmonic regression files (_hr)";
+        hr_button.BackgroundColor = obj.get_button_color(obj.HR);
+        hr_button.ValueChangedFcn = @(src, event) HR_change(src, event);
 
         % Button to add entry defined by selected type,
         % frequency, angle, and speed to list of plotted cases
@@ -718,6 +738,11 @@ methods
             src.BackgroundColor = obj.get_button_color(obj.RPCA);
         end
 
+        function HR_change(src, ~)
+            obj.HR = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.HR);
+        end
+
         function force_sub_change(src, ~, plot_panel)
             obj.force_sub = src.Value;
             src.BackgroundColor = obj.get_button_color(obj.force_sub);
@@ -799,6 +824,10 @@ methods
                 case_name = selection_types(cur_idx) + "_" + string(selection_amps(cur_idx)) +...
                     "deg_" + string(selection_freqs(cur_idx)) + "Hz" +...
                     obj.get_version_suffix(selection_versions(cur_idx));
+                % same order phase_avg_STB saves them: <version>_hr_RPCA
+                if obj.HR
+                    case_name = case_name + "_hr";
+                end
                 if obj.RPCA
                     case_name = case_name + "_RPCA";
                 end
@@ -957,13 +986,20 @@ methods (Access = private)
 
     % File version: whatever follows the "<freq>Hz" part of the name, e.g.
     % x3_wings_20deg_6Hz_coarse -> "coarse", x3_wings_20deg_6Hz_v2 -> "v2"
-    % (a trailing _RPCA is not part of it). No suffix = default version.
-    % Version names shouldn't contain "deg" or "Hz" (parse_name reads those).
+    % (a trailing _RPCA or _hr is not part of it: those files are picked
+    % with the RPCA / HR buttons, so x3_wings_20deg_6Hz_coarse_hr is version
+    % "coarse" and x3_wings_20deg_6Hz_hr the default version). No suffix =
+    % default version. Version names shouldn't contain "deg" or "Hz"
+    % (parse_name reads those).
     function [base_name, version] = extract_file_version(obj, name)
         name = string(name);
         is_rpca = endsWith(name, "_RPCA");
         if is_rpca
             name = extractBefore(name, strlength(name) - strlength("_RPCA") + 1);
+        end
+        is_hr = endsWith(name, "_hr");
+        if is_hr
+            name = extractBefore(name, strlength(name) - strlength("_hr") + 1);
         end
 
         base_name = name;
@@ -975,6 +1011,9 @@ methods (Access = private)
             base_name = strjoin(parts(1:hz_idx), "_");
         end
 
+        if is_hr
+            base_name = base_name + "_hr";
+        end
         if is_rpca
             base_name = base_name + "_RPCA";
         end
@@ -1390,6 +1429,10 @@ methods (Access = private)
         is_rpca = contains(string(cur_sel), "_RPCA");
     end
 
+    function is_hr = is_HR_selection(~, cur_sel)
+        is_hr = endsWith(erase(string(cur_sel), "_RPCA"), "_hr");
+    end
+
     function case_label = get_case_label(obj, cur_sel)
         [amp, type, freq] = parse_name(cur_sel);
         distance_label = obj.get_type_label(type);
@@ -1400,6 +1443,9 @@ methods (Access = private)
             case_label = case_label + ", " + version;
         end
 
+        if obj.is_HR_selection(cur_sel)
+            case_label = case_label + " - HR";
+        end
         if obj.is_RPCA_selection(cur_sel)
             case_label = case_label + " - RPCA";
         end
