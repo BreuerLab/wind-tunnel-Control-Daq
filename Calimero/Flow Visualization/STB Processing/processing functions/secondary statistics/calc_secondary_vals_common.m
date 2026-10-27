@@ -108,6 +108,27 @@ if config.includeHelmDecomp
     S.lift_vel_B = lift_vel_B / 2;
     S.drag_vel_B = drag_vel_B / 2;
 
+    % Same again on a filled field: the measured velocity inside the field
+    % of view, the extrapolated velocity only outside it. The measured
+    % half plane (F, already hole-filled) is mirrored and centred on the
+    % extrapolated grid by index exactly as helm_decomp places the
+    % vorticity (same grid spacing), so the two line up point for point.
+    % Mirroring y -> -y: u and w are even, v is odd.
+    F_fill = F_B;
+    u_meas = mirror_half_plane(F.u, 1);
+    v_meas = mirror_half_plane(F.v, -1);
+    w_meas = mirror_half_plane(F.w, 1);
+    [ny_meas, nz_meas, ~] = size(u_meas);
+    y_fov = floor((size(y_B,1) - ny_meas) / 2) + (1:ny_meas);
+    z_fov = floor((size(z_B,2) - nz_meas) / 2) + (1:nz_meas);
+    F_fill.u(y_fov, z_fov, :) = u_meas;
+    F_fill.v(y_fov, z_fov, :) = v_meas;
+    F_fill.w(y_fov, z_fov, :) = w_meas;
+    [lift_vel_B_fill, drag_vel_B_fill] = get_wake_lift(config.speed, config.length, F_fill, false, config.density);
+    % full mirrored plane, halved as above
+    S.lift_vel_B_fill = lift_vel_B_fill / 2;
+    S.drag_vel_B_fill = drag_vel_B_fill / 2;
+
     Utot_full = velX_B.^2 + velY_B.^2 + velZ_B.^2;
     KE_tot_field = permute(Utot_full,[2 3 1]);
     KE_tot = trapz(squeeze(y_B(:,1)), KE_tot_field, 1);
@@ -184,6 +205,13 @@ end
 if ~isfield(config, 'includeHelmDecomp')
     config.includeHelmDecomp = false;
 end
+end
+
+function full = mirror_half_plane(half, parity)
+% Reflect a [y z time] half-plane field about its first y row (the
+% centreline), as in helm_decomp, skipping that row so it isn't doubled.
+% parity is 1 for components even in y (u, w) and -1 for odd ones (v).
+full = cat(1, parity * flip(half(2:end,:,:), 1), half);
 end
 
 function value = integrate_planar(y_arr, z_arr, field)
