@@ -44,6 +44,11 @@ function [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name)
     cases.x3_ring = {'x3_ring_30_4m.s_10deg_0Hz_2026_09_28_12_44_11_experiment_2026_09_28_12_45_15.mat',d33};
     cases.x3_NACA = {'x3_NACA_30_4m.s_10deg_0Hz_2026_09_28_12_37_44_experiment_2026_09_28_12_38_48.mat',d33};
 
+    cases.x3_wings_10deg_2Hz = {'x3_wings_10_4m.s_10deg_2Hz_2026_09_28_10_24_52_experiment_2026_09_28_10_27_14.mat',d33};
+    cases.x3_wings_10deg_4Hz = {'x3_wings_10_4m.s_10deg_4Hz_2026_09_28_10_33_21_experiment_2026_09_28_10_35_13.mat',d33};
+    cases.x3_wings_10deg_6Hz = {'x3_wings_10_4m.s_10deg_6Hz_2026_09_28_10_44_32_experiment_2026_09_28_10_46_19.mat',d33};
+    cases.x3_wings_10deg_8Hz = {'x3_wings_10_4m.s_10deg_8Hz_2026_09_28_10_52_47_experiment_2026_09_28_10_54_32.mat',d33};
+
     cases.x3_body_20deg_0Hz = {'x3_body_20_4m.s_10deg_0Hz_2026_09_28_09_52_23_experiment_2026_09_28_09_53_39.mat',d33};
     cases.x3_wings_20deg_0Hz = {'x3_wings_20_4m.s_10deg_0Hz_2026_09_28_08_53_47_experiment_2026_09_28_08_55_05.mat',d33};
     cases.x3_wings_20deg_2Hz = {'x3_wings_20_4m.s_10deg_2Hz_2026_09_28_08_58_56_experiment_2026_09_28_09_01_18.mat',d33};
