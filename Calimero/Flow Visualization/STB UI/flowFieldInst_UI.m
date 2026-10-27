@@ -2,10 +2,7 @@ classdef flowFieldInst_UI < handle
 properties (Constant, Access = private)
     ACTIVE_COLOR = [0.3010 0.7450 0.9330];
     INACTIVE_COLOR = [1 1 1];
-    PENDING_COLOR = [1.0000 0.8000 0.3500]; % Load Fields: selection not loaded yet
-    % Bump this if import_STB_data or the processing changes, so stale
-    % per-bin cache files on disk are ignored and rebuilt.
-    CACHE_VERSION = 1;
+    PENDING_COLOR = [1.0000 0.8000 0.3500]; % Load All Frames: only a preview is loaded
     U_INF = 4;      % freestream velocity (m/s) used for nondimensionalization
     L_CHORD = 0.07; % guess of mean aerodynamic chord (m)
     NUM_IMAGES_FALLBACK = 2500; % only used if the phase-avg file has no binning
@@ -79,27 +76,25 @@ properties
 
     RPCA_sparse;
 
-    % What is currently loaded in memory (set only by load_fields). The
-    % plot always draws from this, never from the pending dropdown values.
+    % What is currently loaded in memory. Selection changes load a
+    % one-frame preview (load_preview); the Load All Frames button loads
+    % every frame in the bin (load_all_frames).
     data_loaded = false;
+    loaded_full = false;    % true once all frames in the bin are loaded
     loaded_case_id = "";
     loaded_bin_ind = -1;
-    loaded_plot_idx = -1;
     loaded_num_bins = 0;
+    loaded_frames = [];     % .vc7 frame indices currently in memory
+    cached_x;
     cached_y;
     cached_z;
     cached_data;
-    cached_L;
+    cached_L;               % RPCA, only computed after a full load
     cached_S;
 
     % Per-case binning (frame -> bin), keyed by case id, so it is computed
     % or read at most once per case per session.
     binning_cache;
-
-    % On-disk cache of per-bin instantaneous fields. First load of a bin
-    % reads the .vc7 files; later loads read one .mat file.
-    use_disk_cache = true;
-    inst_cache_path;
 end
 
 methods
@@ -109,7 +104,6 @@ methods
         obj.case_name = "";
         obj.variable_name = "";
         obj.phase_avg_file_path = file_path + "Processed Results\phase_avg\";
-        obj.inst_cache_path = file_path + "Processed Results\inst_cache\";
         obj.binning_cache = containers.Map('KeyType', 'char', 'ValueType', 'any');
 
         obj.num_bins = 5;
@@ -295,18 +289,19 @@ methods
         obj.variable_name = obj.var_dropdown.Value; % use current value in box
         obj.var_dropdown.ValueChangedFcn = @(src, event) variable_change(src, event, plot_panel);
 
-        % Loads the fields for the source/distance/case/plot type/bin that
-        % are currently selected. Changing those selections only marks the
-        % button (amber) until it is pressed. Display-only controls
-        % (variable, trim, mirror, filter, frame, play, sparse) redraw
-        % immediately from the data already in memory.
+        % Changing source/distance/case/bin loads only the first frame of
+        % the selected bin (quick preview). This button then loads every
+        % frame in the bin (slower) for the frame slider, Play and RPCA.
+        % It is amber whenever only the preview is in memory. Display-only
+        % controls (variable, trim, mirror, filter, frame, play, sparse)
+        % redraw from the data already in memory.
         load_button_y = variable_dropdown_y - 50;
         obj.load_button = uibutton(option_panel, "push");
-        obj.load_button.Text = "Load Fields";
-        obj.load_button.FontSize = 18;
+        obj.load_button.Text = "Load All Frames";
+        obj.load_button.FontSize = 16;
         obj.load_button.FontWeight = "bold";
-        obj.load_button.Position = [20 load_button_y 140 unit_height];
-        obj.load_button.ButtonPushedFcn = @(src, event) obj.load_fields(plot_panel);
+        obj.load_button.Position = [15 load_button_y 150 unit_height];
+        obj.load_button.ButtonPushedFcn = @(src, event) obj.load_all_frames(plot_panel);
 
         trim_button_y = load_button_y - 50;
         trim_button = uibutton(option_panel,"state");
@@ -381,16 +376,15 @@ methods
         save_button.BackgroundColor = obj.INACTIVE_COLOR;
         save_button.ValueChangedFcn = @(src, event) save_figure(src, event, plot_panel);
 
-        % Nothing is loaded until Load Fields is pressed
-        obj.preview_bin_slider();
+        % Preview the initial selection
         obj.render_plot(plot_panel);
-        obj.update_load_button_state();
+        obj.load_preview(plot_panel);
 
         % Callbacks are nested so each handler mutates this handle object.
-        % Selection callbacks (source, distance, case, plot type, bin) only
-        % record the new selection; Load Fields does the loading.
+        % Selection callbacks (source, distance, case, bin) load a one-frame
+        % preview; Load All Frames loads the rest of the bin.
 
-        function source_change(src, ~, ~)
+        function source_change(src, ~, plot_panel)
             obj.source_mode = src.Value;
             refresh_distance_dropdown();
             refresh_case_dropdown();
@@ -402,11 +396,10 @@ methods
             obj.bin_ind = 1;
             obj.slider_bin.Value = obj.bin_ind;
 
-            obj.preview_bin_slider();
-            obj.update_load_button_state();
+            obj.load_preview(plot_panel);
         end
 
-        function distance_change(src, ~, ~)
+        function distance_change(src, ~, plot_panel)
             obj.current_downstream_type = string(obj.downstream_type_by_distance(char(src.Value)));
             refresh_case_dropdown();
             refresh_plot_type_dropdown();
@@ -415,11 +408,10 @@ methods
             obj.bin_ind = 1;
             obj.slider_bin.Value = obj.bin_ind;
 
-            obj.preview_bin_slider();
-            obj.update_load_button_state();
+            obj.load_preview(plot_panel);
         end
 
-        function case_change(src, ~, ~)
+        function case_change(src, ~, plot_panel)
             obj.case_name = string(src.Value);
             refresh_plot_type_dropdown();
             refresh_variable_dropdown();
@@ -427,12 +419,13 @@ methods
             obj.bin_ind = 1;
             obj.slider_bin.Value = obj.bin_ind;
 
-            obj.preview_bin_slider();
-            obj.update_load_button_state();
+            obj.load_preview(plot_panel);
         end
 
         % User selected a new plot type.
-        function type_change(src, ~, ~)
+        % RPCA needs every frame in the bin, so selecting it marks Load
+        % All Frames if only a preview is loaded.
+        function type_change(src, ~, plot_panel)
             obj.plot_type = src.Value;
 
             refresh_case_dropdown();
@@ -440,6 +433,7 @@ methods
             refresh_variable_dropdown();
 
             obj.update_load_button_state();
+            obj.render_plot(plot_panel);
         end
 
         % User selected a new variable to plot (all variables are already
@@ -536,13 +530,13 @@ methods
             obj.render_plot(plot_panel);
         end
 
-        % New bin = new set of frames, so this waits for Load Fields.
-        function bin_change(src, ~, ~)
+        % New bin = new set of frames: preview its first frame.
+        function bin_change(src, ~, plot_panel)
             % Force the slider value to the nearest integer immediately
             src.Value = round(src.Value);
 
             obj.bin_ind = src.Value;
-            obj.update_load_button_state();
+            obj.load_preview(plot_panel);
         end
 
         function frame_change(src, ~, plot_panel)
@@ -597,102 +591,117 @@ methods
 
     end
 
-    % Load Fields button: load the fields for the current selection
-    % (source/distance/case/plot type/bin) and redraw.
-    function load_fields(obj, plot_panel)
+    % Called whenever source/distance/case/bin changes: load only the
+    % first frame of the selected bin so the plot updates quickly.
+    function load_preview(obj, plot_panel)
         if strlength(obj.case_name) == 0
             return
         end
         fig = ancestor(plot_panel, 'figure');
+        case_id = obj.get_current_case_id();
 
-        obj.load_button.Text = "Loading...";
-        obj.load_button.Enable = "off";
-        fig.Pointer = "watch";
-        drawnow;
-
+        obj.set_busy(fig, "Loading preview...");
         t_start = tic;
         try
-            case_id = obj.get_current_case_id();
-            plot_idx = find(obj.plot_types == obj.plot_type);
-
             B = obj.get_case_binning(case_id, true);
             obj.bin_ind = min(max(1, round(obj.bin_ind)), B.num_bins);
+            obj.set_slider_range(obj.slider_bin, B.num_bins);
+            obj.slider_bin.Value = obj.bin_ind;
+            obj.slider_bin.Visible = "on";
 
-            [x, y, z, data, from_cache] = obj.get_bin_fields(case_id, obj.bin_ind, B);
+            frames = obj.get_bin_frames(case_id, B, obj.bin_ind);
 
-            L = [];
-            S = [];
-            if plot_idx == 2
-                fields = get_STB_processing_fields();
-                [L, S] = RPCA_vel(x, y, z, data{strcmp(fields, 'u')}, ...
-                    data{strcmp(fields, 'v')}, data{strcmp(fields, 'w')});
+            % Same case and bin already in memory (preview or full)
+            if obj.data_loaded && case_id == obj.loaded_case_id && ...
+                    obj.bin_ind == obj.loaded_bin_ind
+                obj.clear_busy(fig);
+                obj.render_plot(plot_panel);
+                return
             end
+
+            [x, y, z, data] = obj.read_frames(case_id, frames(1));
         catch ME
-            fig.Pointer = "arrow";
-            obj.update_load_button_state();
-            uialert(fig, ME.message, "Load Fields failed");
+            obj.clear_busy(fig);
+            uialert(fig, ME.message, "Loading preview failed");
             return
         end
 
-        % Commit the new data
-        obj.data_loaded = true;
-        obj.loaded_case_id = case_id;
-        obj.loaded_bin_ind = obj.bin_ind;
-        obj.loaded_plot_idx = plot_idx;
-        obj.loaded_num_bins = B.num_bins;
-        obj.cached_y = y;
-        obj.cached_z = z;
-        obj.cached_data = data;
-        obj.cached_L = L;
-        obj.cached_S = S;
-
-        % Sliders follow the loaded data
-        obj.num_bins = B.num_bins;
-        obj.set_slider_range(obj.slider_bin, obj.num_bins);
-        obj.slider_bin.Value = obj.bin_ind;
-        obj.slider_bin.Visible = "on";
-
-        obj.bin_count = size(data{1}, 4);
-        obj.set_slider_range(obj.slider_frame, obj.bin_count);
+        obj.commit_data(case_id, B.num_bins, frames(1), x, y, z, data);
+        obj.loaded_full = isscalar(frames); % a one-frame bin is already complete
+        obj.bin_count = numel(frames);
         obj.frame_ind = 1;
-        obj.slider_frame.Value = obj.frame_ind;
+        obj.set_slider_range(obj.slider_frame, 1); % only frame 1 until full load
+        obj.slider_frame.Value = 1;
 
-        if from_cache
-            src_str = "disk cache";
-        else
-            src_str = "raw .vc7 files";
-        end
-        fprintf("Loaded %s bin %d (%d frames) from %s in %.1f s\n", ...
-            case_id, obj.bin_ind, obj.bin_count, src_str, toc(t_start));
+        fprintf("Preview: %s bin %d, frame 1 of %d (%.1f s)\n", ...
+            case_id, obj.bin_ind, numel(frames), toc(t_start));
 
-        fig.Pointer = "arrow";
-        obj.update_load_button_state();
+        obj.clear_busy(fig);
         obj.render_plot(plot_panel);
     end
 
-    % Fill the on-disk cache for every bin of a case (or a subset), e.g.
-    % overnight, so that every later Load Fields for that case is fast:
-    %   b = flowFieldInst_UI(data_file_path);
-    %   b.precache_case("x3_wings_20deg_6Hz");          % all bins
-    %   b.precache_case("x3_wings_20deg_6Hz", 1:20);    % bins 1-20
-    function precache_case(obj, case_id, bins)
-        case_id = string(case_id);
-        B = obj.get_case_binning(case_id, true);
-        if nargin < 3 || isempty(bins)
-            bins = 1:B.num_bins;
+    % Load All Frames button: load every frame of the selected bin (reusing
+    % the preview frame if it is already in memory) and redraw.
+    function load_all_frames(obj, plot_panel)
+        if strlength(obj.case_name) == 0
+            return
         end
-        t_all = tic;
-        for k = 1:numel(bins)
-            t0 = tic;
-            [~, ~, ~, ~, from_cache] = obj.get_bin_fields(case_id, bins(k), B);
-            if from_cache
-                status = "already cached";
+        fig = ancestor(plot_panel, 'figure');
+        case_id = obj.get_current_case_id();
+
+        if obj.is_selection_loaded() && obj.loaded_full
+            obj.render_plot(plot_panel); % nothing new to load
+            return
+        end
+
+        obj.set_busy(fig, "Loading frames...");
+        t_start = tic;
+        try
+            B = obj.get_case_binning(case_id, true);
+            obj.bin_ind = min(max(1, round(obj.bin_ind)), B.num_bins);
+            frames = obj.get_bin_frames(case_id, B, obj.bin_ind);
+
+            same_bin = obj.data_loaded && case_id == obj.loaded_case_id && ...
+                obj.bin_ind == obj.loaded_bin_ind;
+            if same_bin
+                have = obj.loaded_frames;
+                missing = frames(~ismember(frames, have));
             else
-                status = sprintf("cached in %.1f s", toc(t0));
+                have = [];
+                missing = frames;
             end
-            fprintf("%s bin %d/%d: %s\n", case_id, bins(k), B.num_bins, status);
+
+            [x, y, z, new_data] = obj.read_frames(case_id, missing);
+
+            if isempty(have)
+                data = new_data;
+            else
+                % Append to the frames already loaded, then put everything
+                % back in bin order.
+                all_frames = [have, missing];
+                [~, ord] = ismember(frames, all_frames);
+                data = cellfun(@(a, b) cat(4, a, b), obj.cached_data, new_data, ...
+                    'UniformOutput', false);
+                data = cellfun(@(a) a(:,:,:,ord), data, 'UniformOutput', false);
+            end
+        catch ME
+            obj.clear_busy(fig);
+            uialert(fig, ME.message, "Load All Frames failed");
+            return
         end
-        fprintf("Done caching %s (%.1f min)\n", case_id, toc(t_all)/60);
+
+        obj.commit_data(case_id, B.num_bins, frames, x, y, z, data);
+        obj.loaded_full = true;
+        obj.bin_count = numel(frames);
+        obj.frame_ind = 1;
+        obj.set_slider_range(obj.slider_frame, obj.bin_count);
+        obj.slider_frame.Value = 1;
+
+        fprintf("Loaded %s bin %d: %d frames in %.1f s\n", ...
+            case_id, obj.bin_ind, numel(frames), toc(t_start));
+
+        obj.clear_busy(fig);
+        obj.render_plot(plot_panel);
     end
 end
 
@@ -890,15 +899,27 @@ methods (Access = private)
         obj.set_placeholder(plot_panel, "");
 
         if ~obj.data_loaded
-            obj.set_placeholder(plot_panel, ...
-                "Select a case and bin, then press Load Fields.");
+            obj.set_placeholder(plot_panel, "Select a case and bin to preview.");
             return
         end
 
         fields = get_STB_processing_fields();
         var_name = obj.variable_name_dict(obj.variable_name);
         var_clims = obj.get_color_limits(obj.variable_name);
-        plot_idx = obj.loaded_plot_idx;
+        plot_idx = find(obj.plot_types == obj.plot_type);
+
+        if plot_idx == 2
+            % RPCA separates low-rank and sparse parts across frames, so it
+            % needs the whole bin.
+            if ~obj.loaded_full
+                obj.set_placeholder(plot_panel, ...
+                    "RPCA needs every frame in the bin. Press Load All Frames.");
+                return
+            end
+            if ~obj.ensure_rpca(plot_panel)
+                return
+            end
+        end
 
         % Pick the requested variable out of the loaded data
         if plot_idx == 1
@@ -991,7 +1012,7 @@ methods (Access = private)
             tmp_data(tmp_data < params.clims(1)) = params.clims(1);
             tmp_data(tmp_data > params.clims(2)) = params.clims(2);
 
-            % Another callback (Load Fields, variable change, ...) may have
+            % Another callback (a load, variable change, ...) may have
             % replaced these axes while we were paused.
             if ~isvalid(h) || ~isvalid(t)
                 break
@@ -1035,7 +1056,9 @@ methods (Access = private)
     function str = get_plot_title(obj)
         str = obj.loaded_case_id + "  |  bin " + obj.loaded_bin_ind + " / " + ...
             obj.loaded_num_bins + ",  frame " + obj.frame_ind + " / " + obj.bin_count;
-        if obj.loaded_plot_idx == 2
+        if ~obj.loaded_full
+            str = str + "  (preview: first frame only)";
+        elseif obj.plot_type == obj.plot_types(2)
             if obj.RPCA_sparse
                 str = str + "  (RPCA sparse)";
             else
@@ -1057,44 +1080,39 @@ methods (Access = private)
     end
 
     % ---------------------------------------------------------------------
-    % Load Fields button state
+    % Load All Frames button state and busy indicator
     % ---------------------------------------------------------------------
     function tf = is_selection_loaded(obj)
-        plot_idx = find(obj.plot_types == obj.plot_type);
         tf = obj.data_loaded && ...
              obj.get_current_case_id() == obj.loaded_case_id && ...
-             obj.bin_ind == obj.loaded_bin_ind && ...
-             isequal(plot_idx, obj.loaded_plot_idx);
+             obj.bin_ind == obj.loaded_bin_ind;
     end
 
     function update_load_button_state(obj)
         if isempty(obj.load_button) || ~isvalid(obj.load_button)
             return
         end
-        obj.load_button.Text = "Load Fields";
+        obj.load_button.Text = "Load All Frames";
         obj.load_button.Enable = "on";
-        if obj.is_selection_loaded()
+        if obj.is_selection_loaded() && obj.loaded_full
             obj.load_button.BackgroundColor = obj.INACTIVE_COLOR;
-            obj.load_button.Tooltip = "Selection is loaded";
+            obj.load_button.Tooltip = "All frames in this bin are loaded";
         else
             obj.load_button.BackgroundColor = obj.PENDING_COLOR;
-            obj.load_button.Tooltip = "Selection changed - press to load these fields";
+            obj.load_button.Tooltip = "Only a one-frame preview is loaded - press to load every frame in the bin";
         end
     end
 
-    % Update the bin slider range for the selected (not yet loaded) case,
-    % but only if that is cheap (binning stored in the phase-avg file).
-    function preview_bin_slider(obj)
-        if strlength(obj.case_name) == 0
-            return
-        end
-        B = obj.get_case_binning(obj.get_current_case_id(), false);
-        if isempty(B)
-            return
-        end
-        obj.set_slider_range(obj.slider_bin, B.num_bins);
-        obj.bin_ind = min(max(1, obj.bin_ind), B.num_bins);
-        obj.slider_bin.Value = obj.bin_ind;
+    function set_busy(obj, fig, msg)
+        obj.load_button.Text = msg;
+        obj.load_button.Enable = "off";
+        fig.Pointer = "watch";
+        drawnow;
+    end
+
+    function clear_busy(obj, fig)
+        fig.Pointer = "arrow";
+        obj.update_load_button_state();
     end
 
     function set_slider_range(~, slider, n)
@@ -1175,67 +1193,57 @@ methods (Access = private)
     end
 
     % ---------------------------------------------------------------------
-    % Field loading with an on-disk per-bin cache
+    % Field loading
     % ---------------------------------------------------------------------
-    function [x, y, z, data, from_cache] = get_bin_fields(obj, case_id, bin_ind, B)
+    function frames = get_bin_frames(~, case_id, B, bin_ind)
         frames = find(B.bin_ind_arr == bin_ind).';
         if isempty(frames)
             error("Bin %d of %s has no frames.", bin_ind, case_id);
         end
-        cache_file = obj.get_cache_file(case_id, bin_ind);
+    end
 
-        % Try the disk cache first
-        if obj.use_disk_cache && isfile(cache_file)
-            try
-                C = load(cache_file);
-                if isfield(C, 'cache_version') && C.cache_version == obj.CACHE_VERSION && ...
-                        isequal(C.frames, frames)
-                    x = C.x; y = C.y; z = C.z;
-                    data = cellfun(@double, C.data, 'UniformOutput', false);
-                    from_cache = true;
-                    return
-                end
-                disp("Cache for " + case_id + " bin " + bin_ind + " is stale; reloading raw fields")
-            catch ME
-                warning("Could not read cache %s (%s); reloading raw fields", cache_file, ME.message);
-            end
-        end
-
-        % Read the raw .vc7 frames for this bin (slow)
+    % Read the given .vc7 frames (indices into the case's vc7 folder)
+    function [x, y, z, data] = read_frames(obj, case_id, frames)
         fields = get_STB_processing_fields();
         data = cell(1, numel(fields));
         file_path = get_PIV_paths(case_id);
         [x, y, z, data{:}] = import_STB_data(file_path, true, obj.U_INF, obj.L_CHORD, frames, false);
-        from_cache = false;
-
-        if obj.use_disk_cache
-            obj.write_cache(cache_file, x, y, z, data, frames);
-        end
     end
 
-    function write_cache(obj, cache_file, x, y, z, data, frames)
+    function commit_data(obj, case_id, num_bins, frames, x, y, z, data)
+        obj.data_loaded = true;
+        obj.loaded_case_id = case_id;
+        obj.loaded_bin_ind = obj.bin_ind;
+        obj.loaded_num_bins = num_bins;
+        obj.loaded_frames = frames;
+        obj.cached_x = x;
+        obj.cached_y = y;
+        obj.cached_z = z;
+        obj.cached_data = data;
+        obj.cached_L = []; % RPCA is recomputed for the new data on demand
+        obj.cached_S = [];
+        obj.num_bins = num_bins;
+    end
+
+    % RPCA of the loaded bin, computed once the first time it is plotted
+    % (no file reading involved). Returns false if it failed.
+    function ok = ensure_rpca(obj, plot_panel)
+        ok = true;
+        if ~isempty(obj.cached_L)
+            return
+        end
+        fig = ancestor(plot_panel, 'figure');
+        obj.set_busy(fig, "Running RPCA...");
         try
-            cache_dir = fileparts(cache_file);
-            if ~isfolder(cache_dir)
-                mkdir(cache_dir);
-            end
-            C.cache_version = obj.CACHE_VERSION;
-            C.frames = frames;
-            C.x = x; C.y = y; C.z = z;
-            % single precision halves the file size; -v6 is uncompressed,
-            % which loads fastest (no zlib, no HDF5 overhead for cells)
-            C.data = cellfun(@single, data, 'UniformOutput', false);
-            tmp_file = cache_file + ".tmp.mat";
-            save(tmp_file, '-struct', 'C', '-v6');
-            movefile(tmp_file, cache_file, 'f'); % no half-written cache files
+            fields = get_STB_processing_fields();
+            data = obj.cached_data;
+            [obj.cached_L, obj.cached_S] = RPCA_vel(obj.cached_x, obj.cached_y, obj.cached_z, ...
+                data{strcmp(fields, 'u')}, data{strcmp(fields, 'v')}, data{strcmp(fields, 'w')});
         catch ME
-            warning("Could not write cache %s: %s", cache_file, ME.message);
+            ok = false;
+            uialert(fig, ME.message, "RPCA failed");
         end
-    end
-
-    function cache_file = get_cache_file(obj, case_id, bin_ind)
-        cache_file = obj.inst_cache_path + case_id + filesep + ...
-            sprintf("bin_%03d.mat", bin_ind);
+        obj.clear_busy(fig);
     end
 
     function clim_dict = build_clim_dict(~, var_names, clim_values)
