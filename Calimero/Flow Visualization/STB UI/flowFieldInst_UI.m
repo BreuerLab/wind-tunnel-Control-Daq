@@ -2,6 +2,13 @@ classdef flowFieldInst_UI < handle
 properties (Constant, Access = private)
     ACTIVE_COLOR = [0.3010 0.7450 0.9330];
     INACTIVE_COLOR = [1 1 1];
+    PENDING_COLOR = [1.0000 0.8000 0.3500]; % Load Fields: selection not loaded yet
+    % Bump this if import_STB_data or the processing changes, so stale
+    % per-bin cache files on disk are ignored and rebuilt.
+    CACHE_VERSION = 1;
+    U_INF = 4;      % freestream velocity (m/s) used for nondimensionalization
+    L_CHORD = 0.07; % guess of mean aerodynamic chord (m)
+    NUM_IMAGES_FALLBACK = 2500; % only used if the phase-avg file has no binning
     TRIM_Y_BOUNDS = [-2.26 2]; % roughly -0.15 to 0.15 m
     TRIM_Z_BOUNDS = [-2.36 2.55]; % roughly -0.2 to 0.2 m
     MIRROR_CENTER_Y = -2.26;
@@ -62,6 +69,8 @@ properties
     var_dropdown;
     slider_bin;
     slider_frame;
+    load_button;
+    placeholder_label;
     
     % Plot settings
     mirror_bool;
@@ -70,15 +79,27 @@ properties
 
     RPCA_sparse;
 
-    % Data cache properties
-    cached_bin_ind = -1;
-    cached_case_id = "";
+    % What is currently loaded in memory (set only by load_fields). The
+    % plot always draws from this, never from the pending dropdown values.
+    data_loaded = false;
+    loaded_case_id = "";
+    loaded_bin_ind = -1;
+    loaded_plot_idx = -1;
+    loaded_num_bins = 0;
     cached_y;
     cached_z;
     cached_data;
     cached_L;
     cached_S;
-    cached_plot_idx = "";
+
+    % Per-case binning (frame -> bin), keyed by case id, so it is computed
+    % or read at most once per case per session.
+    binning_cache;
+
+    % On-disk cache of per-bin instantaneous fields. First load of a bin
+    % reads the .vc7 files; later loads read one .mat file.
+    use_disk_cache = true;
+    inst_cache_path;
 end
 
 methods
@@ -88,6 +109,8 @@ methods
         obj.case_name = "";
         obj.variable_name = "";
         obj.phase_avg_file_path = file_path + "Processed Results\phase_avg\";
+        obj.inst_cache_path = file_path + "Processed Results\inst_cache\";
+        obj.binning_cache = containers.Map('KeyType', 'char', 'ValueType', 'any');
 
         obj.num_bins = 5;
         obj.bin_ind = 1;
@@ -272,7 +295,20 @@ methods
         obj.variable_name = obj.var_dropdown.Value; % use current value in box
         obj.var_dropdown.ValueChangedFcn = @(src, event) variable_change(src, event, plot_panel);
 
-        trim_button_y = variable_dropdown_y - 70;
+        % Loads the fields for the source/distance/case/plot type/bin that
+        % are currently selected. Changing those selections only marks the
+        % button (amber) until it is pressed. Display-only controls
+        % (variable, trim, mirror, filter, frame, play, sparse) redraw
+        % immediately from the data already in memory.
+        load_button_y = variable_dropdown_y - 50;
+        obj.load_button = uibutton(option_panel, "push");
+        obj.load_button.Text = "Load Fields";
+        obj.load_button.FontSize = 18;
+        obj.load_button.FontWeight = "bold";
+        obj.load_button.Position = [20 load_button_y 140 unit_height];
+        obj.load_button.ButtonPushedFcn = @(src, event) obj.load_fields(plot_panel);
+
+        trim_button_y = load_button_y - 50;
         trim_button = uibutton(option_panel,"state");
         trim_button.Value = true;
         trim_button.Text = "Trim";
@@ -345,70 +381,72 @@ methods
         save_button.BackgroundColor = obj.INACTIVE_COLOR;
         save_button.ValueChangedFcn = @(src, event) save_figure(src, event, plot_panel);
 
-        % Set up plot titles and axes
-        obj.update_plot(plot_panel);
+        % Nothing is loaded until Load Fields is pressed
+        obj.preview_bin_slider();
+        obj.render_plot(plot_panel);
+        obj.update_load_button_state();
 
         % Callbacks are nested so each handler mutates this handle object.
+        % Selection callbacks (source, distance, case, plot type, bin) only
+        % record the new selection; Load Fields does the loading.
 
-        function source_change(src, ~, plot_panel)
+        function source_change(src, ~, ~)
             obj.source_mode = src.Value;
             refresh_distance_dropdown();
             refresh_case_dropdown();
             refresh_plot_type_dropdown();
             refresh_variable_dropdown();
 
-            % Force frame and bin sliders back to 1 since not all datasets
-            % have the same number of frames.
+            % Force bin slider back to 1 since not all datasets have the
+            % same number of bins.
             obj.bin_ind = 1;
-            obj.frame_ind = 1;
             obj.slider_bin.Value = obj.bin_ind;
-            obj.slider_frame.Value = obj.frame_ind;
 
-            obj.update_plot(plot_panel);
+            obj.preview_bin_slider();
+            obj.update_load_button_state();
         end
 
-        function distance_change(src, ~, plot_panel)
+        function distance_change(src, ~, ~)
             obj.current_downstream_type = string(obj.downstream_type_by_distance(char(src.Value)));
             refresh_case_dropdown();
             refresh_plot_type_dropdown();
             refresh_variable_dropdown();
 
-            % Force frame slider back to 1 since not all datasets have the
-            % same number of frames
             obj.bin_ind = 1;
             obj.slider_bin.Value = obj.bin_ind;
 
-            obj.update_plot(plot_panel);
+            obj.preview_bin_slider();
+            obj.update_load_button_state();
         end
 
-        function case_change(src, ~, plot_panel)
+        function case_change(src, ~, ~)
             obj.case_name = string(src.Value);
             refresh_plot_type_dropdown();
             refresh_variable_dropdown();
 
-            % Force frame slider back to 1 since not all datasets have the
-            % same number of frames
             obj.bin_ind = 1;
             obj.slider_bin.Value = obj.bin_ind;
 
-            obj.update_plot(plot_panel);
+            obj.preview_bin_slider();
+            obj.update_load_button_state();
         end
 
         % User selected a new plot type.
-        function type_change(src, ~, plot_panel)
+        function type_change(src, ~, ~)
             obj.plot_type = src.Value;
 
             refresh_case_dropdown();
             refresh_plot_type_dropdown();
             refresh_variable_dropdown();
 
-            obj.update_plot(plot_panel);
+            obj.update_load_button_state();
         end
 
-        % User selected a new variable to plot.
+        % User selected a new variable to plot (all variables are already
+        % in memory, so this redraws without loading).
         function variable_change(src, ~, plot_panel)
             obj.variable_name = src.Value;
-            obj.update_plot(plot_panel);
+            obj.render_plot(plot_panel);
         end
 
         function refresh_distance_dropdown()
@@ -471,7 +509,7 @@ methods
                 src.BackgroundColor = obj.INACTIVE_COLOR;
             end
 
-            obj.update_plot(plot_panel);
+            obj.render_plot(plot_panel);
         end
 
         function mirror_change(src, ~, plot_panel)
@@ -483,7 +521,7 @@ methods
                 src.BackgroundColor = obj.INACTIVE_COLOR;
             end
 
-            obj.update_plot(plot_panel);
+            obj.render_plot(plot_panel);
         end
 
         function filter_change(src, ~, plot_panel)
@@ -495,15 +533,16 @@ methods
                 src.BackgroundColor = obj.INACTIVE_COLOR;
             end
 
-            obj.update_plot(plot_panel);
+            obj.render_plot(plot_panel);
         end
 
-        function bin_change(src, ~, plot_panel)
+        % New bin = new set of frames, so this waits for Load Fields.
+        function bin_change(src, ~, ~)
             % Force the slider value to the nearest integer immediately
             src.Value = round(src.Value);
 
             obj.bin_ind = src.Value;
-            obj.update_plot(plot_panel);
+            obj.update_load_button_state();
         end
 
         function frame_change(src, ~, plot_panel)
@@ -511,7 +550,7 @@ methods
             src.Value = round(src.Value);
 
             obj.frame_ind = src.Value;
-            obj.update_plot(plot_panel);
+            obj.render_plot(plot_panel);
         end
 
         % User toggled movie playback.
@@ -526,7 +565,7 @@ methods
                 src.Text = "Play";
             end
 
-            obj.update_plot(plot_panel);
+            obj.render_plot(plot_panel);
         end
 
         function RPCA_change(src, ~, plot_panel)
@@ -540,7 +579,8 @@ methods
 
             % reset frame index
             obj.frame_ind = 1;
-            obj.update_plot(plot_panel);
+            obj.slider_frame.Value = obj.frame_ind;
+            obj.render_plot(plot_panel);
         end
 
         function save_figure(~, ~, plot_panel)
@@ -555,6 +595,104 @@ methods
             delete(fignew);
         end
 
+    end
+
+    % Load Fields button: load the fields for the current selection
+    % (source/distance/case/plot type/bin) and redraw.
+    function load_fields(obj, plot_panel)
+        if strlength(obj.case_name) == 0
+            return
+        end
+        fig = ancestor(plot_panel, 'figure');
+
+        obj.load_button.Text = "Loading...";
+        obj.load_button.Enable = "off";
+        fig.Pointer = "watch";
+        drawnow;
+
+        t_start = tic;
+        try
+            case_id = obj.get_current_case_id();
+            plot_idx = find(obj.plot_types == obj.plot_type);
+
+            B = obj.get_case_binning(case_id, true);
+            obj.bin_ind = min(max(1, round(obj.bin_ind)), B.num_bins);
+
+            [x, y, z, data, from_cache] = obj.get_bin_fields(case_id, obj.bin_ind, B);
+
+            L = [];
+            S = [];
+            if plot_idx == 2
+                fields = get_STB_processing_fields();
+                [L, S] = RPCA_vel(x, y, z, data{strcmp(fields, 'u')}, ...
+                    data{strcmp(fields, 'v')}, data{strcmp(fields, 'w')});
+            end
+        catch ME
+            fig.Pointer = "arrow";
+            obj.update_load_button_state();
+            uialert(fig, ME.message, "Load Fields failed");
+            return
+        end
+
+        % Commit the new data
+        obj.data_loaded = true;
+        obj.loaded_case_id = case_id;
+        obj.loaded_bin_ind = obj.bin_ind;
+        obj.loaded_plot_idx = plot_idx;
+        obj.loaded_num_bins = B.num_bins;
+        obj.cached_y = y;
+        obj.cached_z = z;
+        obj.cached_data = data;
+        obj.cached_L = L;
+        obj.cached_S = S;
+
+        % Sliders follow the loaded data
+        obj.num_bins = B.num_bins;
+        obj.set_slider_range(obj.slider_bin, obj.num_bins);
+        obj.slider_bin.Value = obj.bin_ind;
+        obj.slider_bin.Visible = "on";
+
+        obj.bin_count = size(data{1}, 4);
+        obj.set_slider_range(obj.slider_frame, obj.bin_count);
+        obj.frame_ind = 1;
+        obj.slider_frame.Value = obj.frame_ind;
+
+        if from_cache
+            src_str = "disk cache";
+        else
+            src_str = "raw .vc7 files";
+        end
+        fprintf("Loaded %s bin %d (%d frames) from %s in %.1f s\n", ...
+            case_id, obj.bin_ind, obj.bin_count, src_str, toc(t_start));
+
+        fig.Pointer = "arrow";
+        obj.update_load_button_state();
+        obj.render_plot(plot_panel);
+    end
+
+    % Fill the on-disk cache for every bin of a case (or a subset), e.g.
+    % overnight, so that every later Load Fields for that case is fast:
+    %   b = flowFieldInst_UI(data_file_path);
+    %   b.precache_case("x3_wings_20deg_6Hz");          % all bins
+    %   b.precache_case("x3_wings_20deg_6Hz", 1:20);    % bins 1-20
+    function precache_case(obj, case_id, bins)
+        case_id = string(case_id);
+        B = obj.get_case_binning(case_id, true);
+        if nargin < 3 || isempty(bins)
+            bins = 1:B.num_bins;
+        end
+        t_all = tic;
+        for k = 1:numel(bins)
+            t0 = tic;
+            [~, ~, ~, ~, from_cache] = obj.get_bin_fields(case_id, bins(k), B);
+            if from_cache
+                status = "already cached";
+            else
+                status = sprintf("cached in %.1f s", toc(t0));
+            end
+            fprintf("%s bin %d/%d: %s\n", case_id, bins(k), B.num_bins, status);
+        end
+        fprintf("Done caching %s (%.1f min)\n", case_id, toc(t_all)/60);
     end
 end
 
@@ -744,147 +882,48 @@ methods (Access = private)
             plot_types = obj.plot_types;
     end
 
-    % Update the active plot after a selection or display setting changes.
-    function update_plot(obj, plot_panel)
-        ax = findobj(plot_panel.Children, 'Type', 'axes');
-        delete(ax);
+    % ---------------------------------------------------------------------
+    % Display: draws only from data already in memory (never loads)
+    % ---------------------------------------------------------------------
+    function render_plot(obj, plot_panel)
+        delete(findobj(plot_panel.Children, 'Type', 'axes'));
+        obj.set_placeholder(plot_panel, "");
 
-        plot_idx = find(obj.plot_types == obj.plot_type);
-
-        var_name = obj.variable_name_dict(obj.variable_name);
-
-        var_clims = obj.get_color_limits(obj.variable_name);
-
-        if strlength(obj.case_name) == 0
+        if ~obj.data_loaded
+            obj.set_placeholder(plot_panel, ...
+                "Select a case and bin, then press Load Fields.");
             return
         end
 
-        RPCA_bool = false;
-        U = 4;
-        L = 0.07; % guess of mean aerodynamic chord
-
-        PIV_case_name = obj.get_current_case_id();
         fields = get_STB_processing_fields();
-        [amp, ~, freq] = parse_name(PIV_case_name);
+        var_name = obj.variable_name_dict(obj.variable_name);
+        var_clims = obj.get_color_limits(obj.variable_name);
+        plot_idx = obj.loaded_plot_idx;
 
-        % Check if the bin_ind or case has changed since the last plot
-        if obj.bin_ind ~= obj.cached_bin_ind || PIV_case_name ~= obj.cached_case_id || plot_idx ~= obj.cached_plot_idx
-
-        file_path = get_PIV_paths(PIV_case_name);
-
-        [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name);
-
-        % Get raw data from file
-        load([daq_data_path daq_data_filename]);
-        
-        % no load cell mounted, so blank values used
-        offsets = zeros(1,size(results,2));
-        cal_mat = zeros(6,6);
-        
-        ticksPerRev = 18432;
-        OC_pulse_step = 4;
-        pulsesPerRev = ticksPerRev / OC_pulse_step;
-        [~, ~, voltAdj, curAdj, home_signal, pos, speed, acc, wing_pos, wing_speed, wing_acc] = ...
-            process_data(results, offsets, cal_mat, ticksPerRev, OC_pulse_step, amp, true);
-
-        % Define the field names in the order they are returned by the function
-        fNames = {'freq_avg', 'norm_time_speed', 'phase_avg_pos', 'phase_std_pos', ...
-                  'phase_avg_speed', 'phase_std_speed',...
-                  'phase_avg_acc', 'phase_std_acc',...
-                  'phase_avg_wing_pos', 'phase_std_wing_pos',...
-                  'phase_avg_wing_speed', 'phase_std_wing_speed',...
-                  'phase_avg_wing_acc', 'phase_std_wing_acc',...
-                  'bin_count_speed', 'bin_std_speed',...
-                  'phase_avg_volt', 'phase_std_volt',...
-                  'phase_avg_cur', 'phase_std_cur'};
-
-        % Capture all outputs into a cell array
-        outputs = cell(1, numel(fNames));
-        plot_bool = false;
-        [outputs{:}] = speed_phase_avg(results, voltAdj, curAdj, pos, speed, acc,...
-                wing_pos, wing_speed, wing_acc, pulsesPerRev, plot_bool);
-        
-        % Map cell array to struct fields
-        for i = 1:numel(fNames)
-            D.(fNames{i}) = outputs{i};
-        end
-
-        num_images = 2500;
-        disp("Assuming num images = " + num_images)
-        % get bin number associated with each frame from DAQ measurements
-        [norm_frame_pos, tick_frame_pos, bin_ind_arr, num_bins, full_cycle, cycle_freq, num_clusters, phase_spread_ratio]...
-            = frame_to_bin(PIV_case_name, num_images, D.freq_avg, false, false);
-        
-        bin_indices = find(bin_ind_arr == obj.bin_ind);
-        [B, I] = sort(tick_frame_pos(bin_indices));
-        bin_indices_sorted = bin_indices(I); % sorted by phase position
-        bin_count = length(bin_indices);
-        bin_std = std(norm_frame_pos(bin_indices))*100;
-    
-        % Import data (since bin_ind or case changed)
-        [x, y, z, data{1:length(fields)}] = ...
-            import_STB_data(file_path, true, U, L, bin_indices, RPCA_bool); % or bin_indices_sorted
-
-        if plot_idx == 2
-        [L, S] = RPCA_vel(x,y,z,data{strcmp(fields, 'u')},...
-                data{strcmp(fields, 'v')},data{strcmp(fields, 'w')});
-        end
-        
-        obj.slider_bin.Visible = "on";
-        % Adjust slider for number of bins
-        if num_bins ~= obj.num_bins
-            obj.num_bins = num_bins;
-            obj.slider_bin.Limits = [1 obj.num_bins];
-            obj.slider_bin.MajorTicks = 1:5:obj.num_bins;
-            obj.slider_bin.MinorTicks = 1:obj.num_bins;
-        end
-        if bin_count ~= obj.bin_count
-            obj.bin_count = bin_count;
-            obj.slider_frame.Limits = [1 obj.bin_count];
-            obj.slider_frame.MajorTicks = 1:5:obj.bin_count;
-            obj.slider_frame.MinorTicks = 1:obj.bin_count;
-        end
-
-        % Update cache
-        obj.cached_bin_ind = obj.bin_ind;
-        obj.cached_case_id = PIV_case_name;
-        obj.cached_plot_idx = plot_idx;
-        obj.cached_y = y;
-        obj.cached_z = z;
-        obj.cached_data = data;
-        if plot_idx == 2
-        obj.cached_L = L;
-        obj.cached_S = S;
-        end
+        % Pick the requested variable out of the loaded data
+        if plot_idx == 1
+            source = obj.cached_data;
+        elseif obj.RPCA_sparse
+            source = obj.cached_S; % RPCA sparse part: u, v, w only
         else
-        % Load from cache
+            source = obj.cached_L; % RPCA low-rank part: u, v, w, |U|, vorticity
+        end
+        var_idx = find(strcmp(fields, var_name), 1);
+        if isempty(var_idx) || var_idx > numel(source)
+            obj.set_placeholder(plot_panel, "'" + obj.variable_name + ...
+                "' is not available for the loaded " + obj.plot_types(plot_idx) + " data.");
+            return
+        end
+        val = source{var_idx};
+
+        % Select the centre x-plane (all frames in the bin)
         y = obj.cached_y;
         z = obj.cached_z;
-        data = obj.cached_data;
-        if plot_idx == 2
-        L = obj.cached_L;
-        S = obj.cached_S;
-        end
-        end
-        
-        if plot_idx == 1
-            % Extract the desired variable
-            val = data{strcmp(fields, var_name)};
-        else
-            if obj.RPCA_sparse
-            val = S{strcmp(fields, var_name)};
-            else
-            val = L{strcmp(fields, var_name)};
-            end
-        end
-        x_idx = (size(val,1) + 1) / 2;
-
-        % Select a single plane and a single frame
-        y_tr = squeeze(y(x_idx,:,:));
-        z_tr = squeeze(z(x_idx,:,:));
-        val_tr = squeeze(val(x_idx,:,:,:));
-
-        params.U = U;
+        y_plane_idx = ceil(size(y, 1) / 2);
+        x_idx = ceil(size(val, 1) / 2);
+        y_tr = squeeze(y(y_plane_idx,:,:));
+        z_tr = squeeze(z(y_plane_idx,:,:));
+        val_tr = reshape(val(x_idx,:,:,:), size(val, 2), size(val, 3), []);
 
         if obj.trim_bool
             y_idx = find(y_tr(:,1) > obj.TRIM_Y_BOUNDS(1) & y_tr(:,1) < obj.TRIM_Y_BOUNDS(2));
@@ -892,42 +931,43 @@ methods (Access = private)
 
             y_tr = y_tr(y_idx, z_idx);
             z_tr = z_tr(y_idx, z_idx);
-
-            val_tr = val_tr(y_idx,z_idx,:);
-            
+            val_tr = val_tr(y_idx, z_idx, :);
         end
+
         if obj.mirror_bool
             % Mirror across the centerline to reconstruct the opposite side of the wake.
-            y_idx_m = find(y(:,1) > obj.MIRROR_CENTER_Y);
+            y_idx_m = find(y_tr(:,1) > obj.MIRROR_CENTER_Y);
 
-            y = y(y_idx_m, :);
-            z = z(y_idx_m, :);
-
-            val = val(y_idx_m,:,:);
+            y_tr = y_tr(y_idx_m, :);
+            z_tr = z_tr(y_idx_m, :);
+            val_tr = val_tr(y_idx_m, :, :);
 
             % Shift so the mirror center is the origin.
-            y = y - min(y, [], "all");
+            y_tr = y_tr - min(y_tr, [], "all");
 
             % Reflect and skip the first row to avoid double-counting the centerline.
-            y_add = flip(-y(2:end,:),1);
-            z_add = flip(z(2:end,:),1);
+            y_add = flip(-y_tr(2:end,:), 1);
+            z_add = flip(z_tr(2:end,:), 1);
+            val_add = flip(val_tr(2:end,:,:), 1);
 
-            val_add = flip(val(2:end,:,:),1);
-
-            y = [y_add; y];
-            z = [z_add; z];
-            val = [val_add; val];
+            y_tr = [y_add; y_tr];
+            z_tr = [z_add; z_tr];
+            val_tr = [val_add; val_tr];
         end
 
-        if obj.filter_bool
-            val = medfilt3(val);
-        end
+        num_frames = size(val_tr, 3);
+        obj.frame_ind = min(max(1, round(obj.frame_ind)), num_frames);
+        obj.slider_frame.Value = obj.frame_ind;
 
         % sparse matrix values are much smaller
-        if obj.RPCA_sparse
-        var_clims = [min(val_tr,[],"all") max(val_tr,[],"all")];
+        if plot_idx == 2 && obj.RPCA_sparse
+            var_clims = [min(val_tr, [], "all", "omitnan") max(val_tr, [], "all", "omitnan")];
+            if ~(var_clims(2) > var_clims(1))
+                var_clims = var_clims(1) + [-1 1]*max(abs(var_clims(1)), eps);
+            end
         end
 
+        params.U = obj.U_INF;
         if min(var_clims) < -1
             params.zero = -1;
         elseif min(var_clims) < 0.5
@@ -935,36 +975,267 @@ methods (Access = private)
         else
             params.zero = 1;
         end
-        
-        ax = axes(plot_panel);
         params.cb_lab = obj.label_dict(obj.variable_name);
         params.clims = var_clims;
 
-        val_tr_fr = squeeze(val_tr(:,:,obj.frame_ind));
-        h = PIV_plot(y_tr, z_tr, val_tr_fr, params, ax);
-        t = title(ax, "Bin number: " + obj.bin_ind + ", frame number: " + obj.frame_ind, FontSize=18);
+        ax = axes(plot_panel);
+        h = PIV_plot(y_tr, z_tr, obj.get_display_frame(val_tr, obj.frame_ind), params, ax);
+        t = title(ax, obj.get_plot_title(), FontSize=18, Interpreter="none");
 
-        while obj.play && (obj.frame_ind < obj.bin_count)
+        while obj.play && (obj.frame_ind < num_frames)
             obj.frame_ind = obj.frame_ind + 1;
             obj.slider_frame.Value = obj.frame_ind;
 
             % Cap the data so it stays within the current color limits.
-            tmp_data = val_tr(:,:,obj.frame_ind);
+            tmp_data = obj.get_display_frame(val_tr, obj.frame_ind);
             tmp_data(tmp_data < params.clims(1)) = params.clims(1);
             tmp_data(tmp_data > params.clims(2)) = params.clims(2);
-    
-            % Update the existing contour instead of recreating axes.
-            set(h, 'ZData', tmp_data); 
-            set(t, 'String', "Bin number: " + obj.bin_ind + ", frame number: " + obj.frame_ind);
-    
-            drawnow;
 
+            % Another callback (Load Fields, variable change, ...) may have
+            % replaced these axes while we were paused.
+            if ~isvalid(h) || ~isvalid(t)
+                break
+            end
+
+            % Update the existing contour instead of recreating axes.
+            set(h, 'ZData', tmp_data);
+            set(t, 'String', obj.get_plot_title());
+
+            drawnow;
             pause(0.1);
 
-            if obj.frame_ind == obj.bin_count
-            obj.frame_ind = 0; % reset for next loop iteration
+            if obj.frame_ind == num_frames
+                obj.frame_ind = 0; % reset for next loop iteration
             end
         end
+    end
+
+    function frame = get_display_frame(obj, val_tr, k)
+        frame = val_tr(:,:,k);
+        if obj.filter_bool
+            frame = obj.nan_safe_medfilt2(frame);
+        end
+    end
+
+    function A = nan_safe_medfilt2(~, A)
+        % medfilt2 is undefined with NaN input: fill NaNs with their
+        % nearest neighbours, filter, then put the NaNs back.
+        nan_mask = isnan(A);
+        if all(nan_mask, "all")
+            return
+        end
+        if any(nan_mask, "all")
+            A = fillmissing(A, "nearest", 1);
+            A = fillmissing(A, "nearest", 2);
+        end
+        A = medfilt2(A);
+        A(nan_mask) = NaN;
+    end
+
+    function str = get_plot_title(obj)
+        str = obj.loaded_case_id + "  |  bin " + obj.loaded_bin_ind + " / " + ...
+            obj.loaded_num_bins + ",  frame " + obj.frame_ind + " / " + obj.bin_count;
+        if obj.loaded_plot_idx == 2
+            if obj.RPCA_sparse
+                str = str + "  (RPCA sparse)";
+            else
+                str = str + "  (RPCA low-rank)";
+            end
+        end
+    end
+
+    function set_placeholder(obj, plot_panel, msg)
+        if isempty(obj.placeholder_label) || ~isvalid(obj.placeholder_label)
+            obj.placeholder_label = uilabel(plot_panel, ...
+                "HorizontalAlignment", "center", "FontSize", 20, ...
+                "FontColor", [0.4 0.4 0.4], "WordWrap", "on");
+        end
+        pos = plot_panel.InnerPosition;
+        obj.placeholder_label.Position = [20 pos(4)/2 - 40 max(pos(3) - 40, 100) 80];
+        obj.placeholder_label.Text = msg;
+        obj.placeholder_label.Visible = strlength(msg) > 0;
+    end
+
+    % ---------------------------------------------------------------------
+    % Load Fields button state
+    % ---------------------------------------------------------------------
+    function tf = is_selection_loaded(obj)
+        plot_idx = find(obj.plot_types == obj.plot_type);
+        tf = obj.data_loaded && ...
+             obj.get_current_case_id() == obj.loaded_case_id && ...
+             obj.bin_ind == obj.loaded_bin_ind && ...
+             isequal(plot_idx, obj.loaded_plot_idx);
+    end
+
+    function update_load_button_state(obj)
+        if isempty(obj.load_button) || ~isvalid(obj.load_button)
+            return
+        end
+        obj.load_button.Text = "Load Fields";
+        obj.load_button.Enable = "on";
+        if obj.is_selection_loaded()
+            obj.load_button.BackgroundColor = obj.INACTIVE_COLOR;
+            obj.load_button.Tooltip = "Selection is loaded";
+        else
+            obj.load_button.BackgroundColor = obj.PENDING_COLOR;
+            obj.load_button.Tooltip = "Selection changed - press to load these fields";
+        end
+    end
+
+    % Update the bin slider range for the selected (not yet loaded) case,
+    % but only if that is cheap (binning stored in the phase-avg file).
+    function preview_bin_slider(obj)
+        if strlength(obj.case_name) == 0
+            return
+        end
+        B = obj.get_case_binning(obj.get_current_case_id(), false);
+        if isempty(B)
+            return
+        end
+        obj.set_slider_range(obj.slider_bin, B.num_bins);
+        obj.bin_ind = min(max(1, obj.bin_ind), B.num_bins);
+        obj.slider_bin.Value = obj.bin_ind;
+    end
+
+    function set_slider_range(~, slider, n)
+        n = max(1, round(n));
+        slider.Limits = [1 max(n, 2)]; % uislider limits must be increasing
+        slider.MajorTicks = unique([1:5:n, n]);
+        slider.MinorTicks = 1:n;
+        slider.Enable = n > 1;
+    end
+
+    % ---------------------------------------------------------------------
+    % Binning: which frames belong to which phase bin
+    % ---------------------------------------------------------------------
+    % Fast path: read bin_ind_arr/num_bins saved by phase_avg_STB in the
+    % phase-avg file (only these small variables are read, not the file).
+    % This is also the exact binning the phase averages were computed with.
+    % Slow path (allow_slow): recompute from the DAQ file like before.
+    function B = get_case_binning(obj, case_id, allow_slow)
+        key = char(case_id);
+        if isKey(obj.binning_cache, key)
+            B = obj.binning_cache(key);
+            return
+        end
+
+        B = [];
+        phase_file = obj.phase_avg_file_path + case_id + "_phase_avg.mat";
+        if isfile(phase_file)
+            try
+                vars = who('-file', char(phase_file));
+                if all(ismember({'bin_ind_arr', 'num_bins'}, vars))
+                    S = load(phase_file, 'bin_ind_arr', 'num_bins');
+                    B.bin_ind_arr = S.bin_ind_arr(:);
+                    B.num_bins = double(S.num_bins);
+                    B.source = "phase-avg file";
+                end
+            catch ME
+                warning("Could not read binning from %s: %s", phase_file, ME.message);
+            end
+        end
+
+        if isempty(B) && allow_slow
+            B = obj.compute_case_binning(case_id);
+        end
+
+        if ~isempty(B)
+            obj.binning_cache(key) = B;
+        end
+    end
+
+    function B = compute_case_binning(obj, case_id)
+        disp("No binning in phase-avg file for " + case_id + ...
+            "; recomputing from DAQ data (slow, assumes " + obj.NUM_IMAGES_FALLBACK + " images)")
+        [amp, ~, ~] = parse_name(case_id);
+        [daq_data_filename, daq_data_path] = get_daq_paths(case_id);
+        R = load([daq_data_path daq_data_filename], 'results');
+        results = R.results;
+
+        % no load cell mounted, so blank values used
+        offsets = zeros(1, size(results, 2));
+        cal_mat = zeros(6, 6);
+
+        ticksPerRev = 18432;
+        OC_pulse_step = 4;
+        pulsesPerRev = ticksPerRev / OC_pulse_step;
+        [~, ~, voltAdj, curAdj, ~, pos, speed, acc, wing_pos, wing_speed, wing_acc] = ...
+            process_data(results, offsets, cal_mat, ticksPerRev, OC_pulse_step, amp, true);
+
+        % Only freq_avg (first output) is needed for the binning
+        freq_avg = speed_phase_avg(results, voltAdj, curAdj, pos, speed, acc, ...
+            wing_pos, wing_speed, wing_acc, pulsesPerRev, false);
+
+        [~, ~, bin_ind_arr, num_bins] = ...
+            frame_to_bin(case_id, obj.NUM_IMAGES_FALLBACK, freq_avg, false, false);
+
+        B.bin_ind_arr = bin_ind_arr(:);
+        B.num_bins = num_bins;
+        B.source = "recomputed from DAQ";
+    end
+
+    % ---------------------------------------------------------------------
+    % Field loading with an on-disk per-bin cache
+    % ---------------------------------------------------------------------
+    function [x, y, z, data, from_cache] = get_bin_fields(obj, case_id, bin_ind, B)
+        frames = find(B.bin_ind_arr == bin_ind).';
+        if isempty(frames)
+            error("Bin %d of %s has no frames.", bin_ind, case_id);
+        end
+        cache_file = obj.get_cache_file(case_id, bin_ind);
+
+        % Try the disk cache first
+        if obj.use_disk_cache && isfile(cache_file)
+            try
+                C = load(cache_file);
+                if isfield(C, 'cache_version') && C.cache_version == obj.CACHE_VERSION && ...
+                        isequal(C.frames, frames)
+                    x = C.x; y = C.y; z = C.z;
+                    data = cellfun(@double, C.data, 'UniformOutput', false);
+                    from_cache = true;
+                    return
+                end
+                disp("Cache for " + case_id + " bin " + bin_ind + " is stale; reloading raw fields")
+            catch ME
+                warning("Could not read cache %s (%s); reloading raw fields", cache_file, ME.message);
+            end
+        end
+
+        % Read the raw .vc7 frames for this bin (slow)
+        fields = get_STB_processing_fields();
+        data = cell(1, numel(fields));
+        file_path = get_PIV_paths(case_id);
+        [x, y, z, data{:}] = import_STB_data(file_path, true, obj.U_INF, obj.L_CHORD, frames, false);
+        from_cache = false;
+
+        if obj.use_disk_cache
+            obj.write_cache(cache_file, x, y, z, data, frames);
+        end
+    end
+
+    function write_cache(obj, cache_file, x, y, z, data, frames)
+        try
+            cache_dir = fileparts(cache_file);
+            if ~isfolder(cache_dir)
+                mkdir(cache_dir);
+            end
+            C.cache_version = obj.CACHE_VERSION;
+            C.frames = frames;
+            C.x = x; C.y = y; C.z = z;
+            % single precision halves the file size; -v6 is uncompressed,
+            % which loads fastest (no zlib, no HDF5 overhead for cells)
+            C.data = cellfun(@single, data, 'UniformOutput', false);
+            tmp_file = cache_file + ".tmp.mat";
+            save(tmp_file, '-struct', 'C', '-v6');
+            movefile(tmp_file, cache_file, 'f'); % no half-written cache files
+        catch ME
+            warning("Could not write cache %s: %s", cache_file, ME.message);
+        end
+    end
+
+    function cache_file = get_cache_file(obj, case_id, bin_ind)
+        cache_file = obj.inst_cache_path + case_id + filesep + ...
+            sprintf("bin_%03d.mat", bin_ind);
     end
 
     function clim_dict = build_clim_dict(~, var_names, clim_values)
