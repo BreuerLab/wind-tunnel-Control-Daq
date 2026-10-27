@@ -1366,7 +1366,15 @@ methods
 
             filename = "saved_figure.fig";
             fignew = figure('Visible','off'); % Invisible figure
-            copyobj([ax cb], fignew);
+            % copyobj can't copy axes with two y axes (yyaxis, e.g. the
+            % section avg plot), so those are rebuilt side by side
+            is_yy = arrayfun(@(a) numel(a.YAxis) > 1, ax);
+            if any(~is_yy) || ~isempty(cb)
+                copyobj([ax(~is_yy); cb(:)], fignew);
+            end
+            for a = ax(is_yy)'
+                obj.copy_yyaxis_axes(a, fignew);
+            end
             set(fignew,'CreateFcn','set(gcbf,''Visible'',''on'')'); % Make it visible upon loading
             savefig(fignew,filename);
             delete(fignew);
@@ -2938,6 +2946,32 @@ methods (Access = private)
             title_str = title_str + sprintf(" (%d NaN columns left out)", nan_cols);
         end
         title(ax, title_str, FontSize=16)
+    end
+
+    % Copy an axes with left and right y axes (yyaxis) into fig, which
+    % copyobj doesn't support: copies each side's plotted objects, limits
+    % and labels into a new yyaxis axes at the same position
+    function dst = copy_yyaxis_axes(~, src, fig)
+        dst = axes(fig, 'Units', src.Units, 'Position', src.Position, 'FontSize', src.FontSize);
+        sides = ["left", "right"];
+        for k = 1:2
+            yyaxis(src, sides(k));
+            yyaxis(dst, sides(k));
+            hold(dst, 'on');
+            if ~isempty(src.Children)
+                copyobj(flipud(src.Children), dst);
+            end
+            ylim(dst, ylim(src));
+            dst.YAxis(k).Color = src.YAxis(k).Color;
+            ylabel(dst, src.YLabel.String, 'FontSize', src.YLabel.FontSize, ...
+                'Interpreter', src.YLabel.Interpreter);
+        end
+        yyaxis(src, 'left');
+        yyaxis(dst, 'left');
+        xlim(dst, xlim(src));
+        xlabel(dst, src.XLabel.String, 'FontSize', src.XLabel.FontSize, 'Interpreter', src.XLabel.Interpreter);
+        title(dst, src.Title.String, 'FontSize', src.Title.FontSize, 'Interpreter', src.Title.Interpreter);
+        box(dst, src.Box);
     end
 
     % [lo hi] covering the data and zero, padded 10%
