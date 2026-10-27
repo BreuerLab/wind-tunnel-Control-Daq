@@ -2978,7 +2978,7 @@ methods (Access = private)
         if nan_cols > 0
             title_str = title_str + sprintf(" (%d NaN columns left out)", nan_cols);
         end
-        title(ax, title_str, FontSize=16)
+        title(ax, title_str, FontSize=16, Interpreter="none") % names contain "_"
     end
 
     % Copy an axes with left and right y axes (yyaxis) into fig, which
