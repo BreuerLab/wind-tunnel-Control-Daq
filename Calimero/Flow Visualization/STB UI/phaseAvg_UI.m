@@ -1709,8 +1709,17 @@ methods (Access = private)
         colors = colors(1:num_selections);
     end
 
-    function color = get_curve_color(obj, cur_sel, color_params)
+    function color = get_curve_color(obj, cur_sel, color_params, index)
         color = [0 0 0];
+
+        % single case, several variables: one colour per variable
+        if nargin >= 4 && isfield(color_params, 'by_variable') && color_params.by_variable
+            var_pos = find(obj.inds == index, 1);
+            if ~isempty(var_pos)
+                color = obj.hex_to_rgb(color_params.variable_colors(var_pos));
+                return
+            end
+        end
 
         if color_params.use_selection_colors && isfield(color_params, 'selection_names') && isfield(color_params, 'selection_colors')
             selection_idx = find(color_params.selection_names == string(cur_sel), 1);
@@ -1797,6 +1806,11 @@ methods (Access = private)
         color_params.use_selection_colors = use_selection_colors;
         color_params.selection_names = string(obj.selection);
         color_params.selection_colors = selection_colors;
+        % One case: the variables are told apart by colour (no markers).
+        % Several cases: colour shows the case, markers the variable.
+        color_params.single_case = length(obj.selection) <= 1;
+        color_params.by_variable = color_params.single_case && length(obj.inds) > 1;
+        color_params.variable_colors = obj.get_default_selection_colors(length(obj.inds));
 
         align_plot_bool = obj.align_bool &&...
                           ~isempty(obj.inds) &&...
@@ -2276,7 +2290,9 @@ methods (Access = private)
 
         [amp, type, freq] = parse_name(cur_sel);
         % Get color for this case name
-        original_color = obj.get_curve_color(cur_sel, color_params);
+        original_color = obj.get_curve_color(cur_sel, color_params, index);
+        % markers tell variables apart only when several cases are plotted
+        use_markers = ~(isfield(color_params, 'single_case') && color_params.single_case);
 
         if dual_plot
             if has_y_axis
@@ -2330,7 +2346,9 @@ methods (Access = private)
                 line_h.LineStyle = char(line_style);
             end
 
-            if has_marker
+            if ~use_markers
+                % no markers for a single case
+            elseif has_marker
                 line.Marker = char(plot_options.marker);
                 line_h.Marker = char(plot_options.marker);
             else
