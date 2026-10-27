@@ -7,6 +7,19 @@ properties (Constant, Access = private)
     % Tag on the 3D plot's stroke lines / shading / labels (Label Stroke),
     % so they can be found and removed without touching the isosurface
     STROKE_TAG = "stroke_label_3D";
+    % "Card Style" on the 3D plot (lit isosurface, red-green diverging
+    % colormap, dark background, no axes). Purely cosmetic and fully
+    % reversible: the original look is stored on the axes when the style
+    % is applied and restored when it is turned off.
+    CARD_TAG = "card_style_3D";             % tag on the card style's lights
+    CARD_BG = [0.035 0.055 0.11];           % deep navy background
+    % lights relative to the camera: [azimuth elevation] (deg), and colours
+    CARD_LIGHT_POS = [35 30; -75 5];        % warm key light, cool fill light
+    CARD_LIGHT_COLOR = [1 0.95 0.86; 0.40 0.46 0.58];
+    % colormap anchors, negative -> zero -> positive (e.g. ω_x < 0 green,
+    % ω_x > 0 red): pine green, cream, cranberry
+    CARD_CMAP_ANCHORS = [0.05 0.33 0.20; 0.30 0.60 0.40; 0.93 0.89 0.78; ...
+                         0.85 0.30 0.30; 0.60 0.05 0.13];
     % Derived variable: lift integrand from the wake, computed on the fly
     % from stored fields (term1 in get_wake_lift: -U .* y .* -vortX, with y
     % measured from the mirror centerline)
@@ -188,6 +201,11 @@ properties
     % top / bottom (bin, 1-based, conv-shifted frame), N (bins),
     % frame_shift (bins the plot is shifted by on top of the conv shift)
     stroke_3D;
+    % "Card Style" toggle for the 3D plot (see CARD_TAG)
+    card_style;
+    % plot panel background before the card style darkened it, [] if the
+    % panel isn't darkened (the panel outlives the axes, so it is kept here)
+    card_panel_color;
     extrapolate_bool;
     full_section_bool; % with Extrapolate: show the whole test section, not just the field of view
     floor_bool;
@@ -239,6 +257,8 @@ methods
         obj.geom_3D = [];
         obj.label_stroke = false;
         obj.stroke_3D = [];
+        obj.card_style = false;
+        obj.card_panel_color = [];
         obj.trim_bool = true;
         obj.extrapolate_bool = false;
         obj.full_section_bool = false;
@@ -802,9 +822,9 @@ methods
         obj.param_panel.Title = "3D Plot Parameters";
         obj.param_panel.TitlePosition = 'centertop';
 
-        param_grid = uigridlayout(obj.param_panel, [11, 1]);
+        param_grid = uigridlayout(obj.param_panel, [12, 1]);
         param_grid.ColumnWidth = {'1x'};
-        param_grid.RowHeight = {22, 55, 30, 22, 55, 30, 30, 30, 50, 18, 24};
+        param_grid.RowHeight = {22, 55, 30, 22, 55, 30, 30, 30, 50, 18, 24, 30};
         param_grid.Padding = [10 8 10 8];
         param_grid.RowSpacing = 6;
 
@@ -972,6 +992,19 @@ methods
                 iso_button.ButtonPushedFcn = @(src, event) view_change_handler(src.Text, plot_area_panel);
             end
         end
+
+        % Cosmetic "card" look: lighting, red-green diverging colormap
+        % (best with ω_x as the colour variable), dark background, axes
+        % hidden. Turning it off restores the plot exactly as it was.
+        card_style_button = uibutton(param_grid, "state");
+        card_style_button.Layout.Row = 12;
+        card_style_button.Layout.Column = 1;
+        card_style_button.Text = "Card Style";
+        card_style_button.FontSize = 16;
+        card_style_button.Value = obj.card_style;
+        card_style_button.BackgroundColor = obj.get_button_color(obj.card_style);
+        card_style_button.Tooltip = "Lit isosurface, red-green colormap symmetric about zero (choose ω_x as the variable), dark background and no axes. Off restores the original look";
+        card_style_button.ValueChangedFcn = @(src, event) card_style_change(src, event, plot_area_panel);
 
         save_button = uibutton(sidebar_grid, "state");
         save_button.Layout.Row = 17;
@@ -1182,7 +1215,7 @@ methods
             row_heights = sidebar_grid.RowHeight;
             if is_visible
                 obj.param_panel.Visible = "on";
-                row_heights{16} = 523;
+                row_heights{16} = 559;
             else
                 obj.param_panel.Visible = "off";
                 row_heights{16} = 0;
@@ -1451,6 +1484,9 @@ methods
             for a = ax(is_yy)'
                 obj.copy_yyaxis_axes(a, fignew);
             end
+            if ~isempty(obj.card_panel_color)
+                fignew.Color = obj.CARD_BG; % card style: dark around the axes too
+            end
             set(fignew,'CreateFcn','set(gcbf,''Visible'',''on'')'); % Make it visible upon loading
             savefig(fignew,filename);
             delete(fignew);
@@ -1552,6 +1588,21 @@ methods
             % just add / remove the labels on the current axes
             ax = findobj(plot_panel.Children, 'Type', 'axes');
             obj.draw_stroke_labels_3D(ax);
+        end
+
+        function card_style_change(src, ~, plot_panel)
+            obj.card_style = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.card_style);
+            % restyle the current 3D plot in place, no reload or redraw
+            ax = findobj(plot_panel.Children, 'Type', 'axes');
+            if obj.card_style
+                if obj.plot_type == obj.plot_types(5)
+                    obj.apply_card_style(ax);
+                end
+            else
+                obj.remove_card_style(ax);
+                obj.restore_card_panel(plot_panel);
+            end
         end
 
         function frame_change(src, ~, plot_panel)
@@ -1738,6 +1789,173 @@ methods (Access = private)
     % The 3D plot's isosurface patch (not the Label Stroke shading)
     function p = find_isosurface_patch(obj, ax)
         p = findobj(ax, 'Type', 'patch', '-not', 'Tag', obj.STROKE_TAG);
+    end
+
+    % "Card Style" for the 3D plot: lights the isosurface, recolours it
+    % with a red-green colormap symmetric about zero, darkens the
+    % background and hides the axes and colorbar. Everything it changes is
+    % saved first (axes appdata "card_style_orig", panel colour in
+    % obj.card_panel_color) so remove_card_style puts it back exactly.
+    % Safe to call repeatedly, e.g. after every redraw.
+    function apply_card_style(obj, ax)
+        if isempty(ax) || ~isscalar(ax) || ~isvalid(ax)
+            return
+        end
+        p = obj.find_isosurface_patch(ax);
+        if isempty(p)
+            return
+        end
+        panel = ax.Parent;
+        cb = findall(panel, 'Type', 'colorbar');
+
+        patch_props = {'FaceLighting', 'AmbientStrength', 'DiffuseStrength', ...
+            'SpecularStrength', 'SpecularExponent', 'SpecularColorReflectance'};
+        ax_props = {'Color', 'XColor', 'YColor', 'ZColor', 'Box', ...
+            'XGrid', 'YGrid', 'ZGrid', 'CLimMode'};
+
+        S = [];
+        if isappdata(ax, 'card_style_orig')
+            S = getappdata(ax, 'card_style_orig');
+        end
+        if isempty(S)
+            % first time on this axes: save the original look
+            S.patch = p;
+            S.patch_props = patch_props;
+            S.patch_vals = get(p, patch_props);
+            S.ax_props = ax_props;
+            S.ax_vals = get(ax, ax_props);
+            S.title_visible = ax.Title.Visible;
+            S.cmap = ax.Colormap;
+            S.clim = ax.CLim;
+            S.card_cmap = [];
+            S.card_clim = [];
+            S.cb = cb(:);
+            S.cb_visible = visibility(cb);
+            % lights are placed relative to the camera, so re-aim them
+            % whenever the view changes (view buttons or mouse rotation);
+            % added once per axes, they do nothing while the style is off
+            if ~isappdata(ax, 'card_style_listeners')
+                for prop = ["View", "CameraPosition"]
+                    try
+                        addlistener(ax, prop, 'PostSet', @(~, ~) obj.aim_card_lights(ax));
+                    catch
+                    end
+                end
+                setappdata(ax, 'card_style_listeners', true);
+            end
+        else
+            % redraw on the same axes: setColorBar may have reset the
+            % colormap / limits, so save those again unless they are still
+            % the card style's own
+            if ~isequal(ax.Colormap, S.card_cmap)
+                S.cmap = ax.Colormap;
+            end
+            if ~isequal(ax.CLim, S.card_clim)
+                S.clim = ax.CLim;
+            end
+            % colorbars already saved keep their original visibility;
+            % only new ones are added
+            keep = isvalid(S.cb);
+            old_cb = S.cb(keep);
+            old_vis = S.cb_visible(keep);
+            is_new = arrayfun(@(h) ~any(h == old_cb), cb);
+            new_cb = cb(is_new);
+            S.cb = [old_cb(:); new_cb(:)];
+            S.cb_visible = [old_vis(:); visibility(new_cb)];
+        end
+
+        % surface: soft satin highlights
+        set(p, 'FaceLighting', 'gouraud', 'AmbientStrength', 0.35, ...
+            'DiffuseStrength', 0.75, 'SpecularStrength', 0.55, ...
+            'SpecularExponent', 18, 'SpecularColorReflectance', 0.6);
+
+        % lights (replaced, never duplicated)
+        delete(findall(ax, 'Type', 'light', 'Tag', obj.CARD_TAG));
+        for k = 1:size(obj.CARD_LIGHT_POS, 1)
+            lgt = light(ax, 'Color', obj.CARD_LIGHT_COLOR(k, :), 'Tag', obj.CARD_TAG, ...
+                'HandleVisibility', 'off', 'UserData', k); % k: row of CARD_LIGHT_POS
+            camlight(lgt, obj.CARD_LIGHT_POS(k, 1), obj.CARD_LIGHT_POS(k, 2));
+        end
+
+        % colours symmetric about zero so zero sits on the cream centre
+        S.card_cmap = obj.card_colormap(256);
+        ax.Colormap = S.card_cmap;
+        c = max(abs(S.clim));
+        if c > 0
+            S.card_clim = [-c c];
+            ax.CLim = S.card_clim;
+        end
+
+        % dark, quiet background with no axes, labels, title or colorbar
+        set(ax, 'Color', obj.CARD_BG, 'XColor', 'none', 'YColor', 'none', ...
+            'ZColor', 'none', 'Box', 'off', 'XGrid', 'off', 'YGrid', 'off', 'ZGrid', 'off');
+        ax.Title.Visible = 'off';
+        set(S.cb, 'Visible', 'off');
+        if isempty(obj.card_panel_color)
+            obj.card_panel_color = panel.BackgroundColor;
+        end
+        panel.BackgroundColor = obj.CARD_BG;
+
+        setappdata(ax, 'card_style_orig', S);
+
+        function vis = visibility(h)
+            if isempty(h)
+                vis = cell(0, 1);
+            else
+                vis = get(h(:), {'Visible'});
+            end
+        end
+    end
+
+    % Undo apply_card_style on this axes (no-op if it was never applied)
+    function remove_card_style(obj, ax)
+        if isempty(ax) || ~isscalar(ax) || ~isvalid(ax) || ~isappdata(ax, 'card_style_orig')
+            return
+        end
+        S = getappdata(ax, 'card_style_orig');
+        delete(findall(ax, 'Type', 'light', 'Tag', obj.CARD_TAG));
+        keep = isvalid(S.patch);
+        if any(keep)
+            set(S.patch(keep), S.patch_props, S.patch_vals(keep, :));
+        end
+        set(ax, S.ax_props, S.ax_vals);
+        ax.Title.Visible = S.title_visible;
+        ax.Colormap = S.cmap;
+        ax.CLim = S.clim;
+        if strcmp(S.ax_vals{strcmp(S.ax_props, 'CLimMode')}, 'auto')
+            ax.CLimMode = 'auto';
+        end
+        keep = isvalid(S.cb);
+        if any(keep)
+            set(S.cb(keep), {'Visible'}, S.cb_visible(keep));
+        end
+        rmappdata(ax, 'card_style_orig');
+    end
+
+    % Give the plot panel its original background back
+    function restore_card_panel(obj, plot_panel)
+        if ~isempty(obj.card_panel_color) && isvalid(plot_panel)
+            plot_panel.BackgroundColor = obj.card_panel_color;
+        end
+        obj.card_panel_color = [];
+    end
+
+    % Keep the card style's lights at the same place relative to the camera
+    function aim_card_lights(obj, ax)
+        if ~isvalid(ax)
+            return
+        end
+        lgts = findall(ax, 'Type', 'light', 'Tag', obj.CARD_TAG);
+        for lgt = lgts(:)'
+            k = lgt.UserData;
+            camlight(lgt, obj.CARD_LIGHT_POS(k, 1), obj.CARD_LIGHT_POS(k, 2));
+        end
+    end
+
+    % Diverging pine green -> cream -> cranberry colormap, n levels
+    function cmap = card_colormap(obj, n)
+        anchors = obj.CARD_CMAP_ANCHORS;
+        cmap = interp1(linspace(0, 1, size(anchors, 1)), anchors, linspace(0, 1, n));
     end
 
     % Stroke reversals for the 3D plot from the phase-averaged wing
@@ -2382,6 +2600,11 @@ methods (Access = private)
         end
 
         plot_idx = find(obj.plot_types == obj.plot_type);
+        if plot_idx ~= 5
+            % card style is only for the 3D plot; other plots get the
+            % normal panel background back (their axes are new anyway)
+            obj.restore_card_panel(plot_panel);
+        end
         using_time_avg_file = obj.is_time_avg_file_selected();
         use_extrapolated_data = obj.extrapolate_bool && ~using_time_avg_file;
         % extrapolated - measured velocity: stored on the field of view grid
@@ -2895,6 +3118,11 @@ methods (Access = private)
             end
             obj.set_stroke_frame_shift(params.shift - conv_shift_bins);
             obj.draw_stroke_labels_3D(ax);
+            if obj.card_style
+                % setColorBar above reset the colormap / colour limits, so
+                % re-apply (also styles a freshly created axes)
+                obj.apply_card_style(ax);
+            end
         elseif plot_idx == 6
             if (obj.variable_name == obj.hist_vars(3))
                 if isfield(d, "bin_ind_arr")
