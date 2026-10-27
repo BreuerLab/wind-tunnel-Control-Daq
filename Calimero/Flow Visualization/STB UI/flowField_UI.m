@@ -689,6 +689,10 @@ methods
         extrapolate_button.FontSize = 18;
         extrapolate_button.BackgroundColor = obj.INACTIVE_COLOR;
         extrapolate_button.ValueChangedFcn = @(src, event) extrapolate_change(src, event, plot_area_panel);
+        % Extrapolate forces mirroring (helm_decomp mirrors the wake), so
+        % the Mirror button is switched on and locked while it is active.
+        % This remembers what Mirror was before, to restore it afterwards.
+        mirror_before_extrapolate = obj.mirror_bool;
 
         floor_button = uibutton(sidebar_grid, "state");
         floor_button.Layout.Row = 12;
@@ -1269,9 +1273,23 @@ methods
             if (src.Value)
                 obj.extrapolate_bool = true;
                 src.BackgroundColor = obj.ACTIVE_COLOR;
+
+                % Extrapolation always mirrors the wake: show Mirror as on
+                % and lock it until Extrapolate is turned off
+                mirror_before_extrapolate = obj.mirror_bool;
+                obj.mirror_bool = true;
+                mirror_button.Value = true;
+                mirror_button.BackgroundColor = obj.ACTIVE_COLOR;
+                mirror_button.Enable = "off";
             else
                 obj.extrapolate_bool = false;
                 src.BackgroundColor = obj.INACTIVE_COLOR;
+
+                % Give Mirror back to the user in the state it was in
+                obj.mirror_bool = mirror_before_extrapolate;
+                mirror_button.Value = mirror_before_extrapolate;
+                mirror_button.BackgroundColor = obj.get_button_color(mirror_before_extrapolate);
+                mirror_button.Enable = "on";
             end
 
             obj.update_plot(plot_panel);
@@ -1523,6 +1541,50 @@ methods (Access = private)
 
     function tf = has_case_id(obj, case_ids, case_id)
         tf = any(string(case_ids) == obj.with_variant_suffix(case_id));
+    end
+
+    % Outline the measured (original) field of view on an extrapolated plot
+    % with a black dashed box. Extrapolation (helm_decomp) trims the
+    % measured plane with default_trim_bounds (trim_vel_field), mirrors it
+    % about the centreline and centres it, by index, in a larger zero-padded
+    % grid (y_B, z_B). The same steps are repeated here to find where the
+    % measured points sit on that grid.
+    function draw_original_fov_box(~, ax, d)
+        if ~all(isfield(d, {'y', 'z', 'y_B', 'z_B'}))
+            return
+        end
+
+        bounds = default_trim_bounds();
+        y_meas = d.y(1,:,1);
+        z_meas = squeeze(d.z(1,1,:));
+        y_keep = y_meas(y_meas > bounds.ybounds(1) & y_meas < bounds.ybounds(2));
+        num_y = sum(y_keep >= bounds.y_cen);   % one side of the centreline
+        num_z = sum(z_meas > bounds.zbounds(1) & z_meas < bounds.zbounds(2));
+        num_y = 2*num_y - 1;                   % mirrored, centreline once
+
+        y_arr = d.y_B(:,1);
+        z_arr = d.z_B(1,:);
+        Ny = numel(y_arr);
+        Nz = numel(z_arr);
+        if num_y < 1 || num_z < 1 || Ny < 2 || Nz < 2
+            return
+        end
+
+        % index placement used in helm_decomp
+        y_first = max(floor((Ny - num_y) / 2) + 1, 1);
+        z_first = max(floor((Nz - num_z) / 2) + 1, 1);
+        y_last = min(y_first + num_y - 1, Ny);
+        z_last = min(z_first + num_z - 1, Nz);
+
+        % box at the outer edges of the measured cells
+        dy = abs(y_arr(2) - y_arr(1));
+        dz = abs(z_arr(2) - z_arr(1));
+        y_lims = [min(y_arr([y_first y_last])) - dy/2, max(y_arr([y_first y_last])) + dy/2];
+        z_lims = [min(z_arr([z_first z_last])) - dz/2, max(z_arr([z_first z_last])) + dz/2];
+
+        hold(ax, 'on')
+        plot(ax, y_lims([1 2 2 1 1]), z_lims([1 1 2 2 1]), 'k--', ...
+            'LineWidth', 1.5, 'HandleVisibility', 'off', 'Tag', "original_fov_box");
     end
 
     function color = get_button_color(obj, is_active)
@@ -2231,7 +2293,9 @@ methods (Access = private)
 
             if use_extrapolated_data
                 var_name = obj.dict_B(var_name);
-                vars = {"L","U","num_bins","cycle_freq"};
+                % measured y/z are only needed to outline the original
+                % field of view on the extrapolated grid
+                vars = {"L","U","num_bins","cycle_freq","y","z"};
                 cur_secondary_vars = {"z_B","y_B"};
             end
 
@@ -2500,7 +2564,7 @@ methods (Access = private)
             if obj.trim_bool
                 Q = Q(y_idx,z_idx,:);
             end
-            if obj.mirror_bool
+            if obj.mirror_bool && ~use_extrapolated_data
                 Q = Q(y_idx_m,:,:);
                 Q_add = flip(Q(2:end,:,:),1);
                 Q = [Q_add; Q];
@@ -2542,6 +2606,9 @@ methods (Access = private)
             end
 
             PIV_plot(y, z, mean_val, params, ax);
+            if use_extrapolated_data
+                obj.draw_original_fov_box(ax, d);
+            end
         elseif plot_idx == 3
             params.clims = var_clims;
 
@@ -2553,6 +2620,10 @@ methods (Access = private)
 
         val_tr = val(:,:,obj.frame_ind);
         h = PIV_plot(y, z, val_tr, params, ax);
+        if use_extrapolated_data && plot_idx == 2
+            % drawn once; playing only updates the contour's ZData
+            obj.draw_original_fov_box(ax, d);
+        end
         t = title(ax, ["Bin number: " + obj.frame_ind], FontSize=18);
 
         while obj.play && (obj.frame_ind < obj.num_bins)
