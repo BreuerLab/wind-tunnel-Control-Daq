@@ -85,7 +85,7 @@ if has_uavg
 end
 
 if config.includeHelmDecomp
-    [y_B, z_B, velX_B, velY_B, velZ_B] = helm_decomp(config.xConv, y_arr, z_arr, config.length, F);
+    [y_B, z_B, velX_B, velY_B, velZ_B, iy_B, iz_B] = helm_decomp(config.xConv, y_arr, z_arr, config.length, F);
     S.y_B = y_B; S.z_B = z_B; S.velX_B = velX_B; S.velY_B = velY_B; S.velZ_B = velZ_B;
 
     % Velocity-only lift/drag (same as lift_vel / drag_vel, vort_bool
@@ -110,17 +110,16 @@ if config.includeHelmDecomp
 
     % Same again on a filled field: the measured velocity inside the field
     % of view, the extrapolated velocity only outside it. The measured
-    % half plane (F, already hole-filled) is mirrored and centred on the
-    % extrapolated grid by index exactly as helm_decomp places the
-    % vorticity (same grid spacing), so the two line up point for point.
+    % half plane (F, already hole-filled) is mirrored like the vorticity in
+    % helm_decomp and put where helm_decomp placed the field of view
+    % (iy_B, iz_B; same grid spacing), so the two line up point for point.
     % Mirroring y -> -y: u and w are even, v is odd.
     F_fill = F_B;
     u_meas = mirror_half_plane(F.u, 1);
     v_meas = mirror_half_plane(F.v, -1);
     w_meas = mirror_half_plane(F.w, 1);
-    [ny_meas, nz_meas, ~] = size(u_meas);
-    y_fov = floor((size(y_B,1) - ny_meas) / 2) + (1:ny_meas);
-    z_fov = floor((size(z_B,2) - nz_meas) / 2) + (1:nz_meas);
+    y_fov = iy_B;
+    z_fov = iz_B;
     F_fill.u(y_fov, z_fov, :) = u_meas;
     F_fill.v(y_fov, z_fov, :) = v_meas;
     F_fill.w(y_fov, z_fov, :) = w_meas;
@@ -128,6 +127,15 @@ if config.includeHelmDecomp
     % full mirrored plane, halved as above
     S.lift_vel_B_fill = lift_vel_B_fill / 2;
     S.drag_vel_B_fill = drag_vel_B_fill / 2;
+
+    % Extrapolated minus measured velocity on the field of view, / U, for
+    % checking the extrapolation (flowField_UI: "u/v/w: extrap - meas").
+    % Same [time y z] layout as velX_B, on the grid y_B_fov, z_B_fov.
+    S.y_B_fov = y_B(y_fov, z_fov);
+    S.z_B_fov = z_B(y_fov, z_fov);
+    S.velX_B_diff = permute(F_B.u(y_fov, z_fov, :) - u_meas, [3 1 2]);
+    S.velY_B_diff = permute(F_B.v(y_fov, z_fov, :) - v_meas, [3 1 2]);
+    S.velZ_B_diff = permute(F_B.w(y_fov, z_fov, :) - w_meas, [3 1 2]);
 
     Utot_full = velX_B.^2 + velY_B.^2 + velZ_B.^2;
     KE_tot_field = permute(Utot_full,[2 3 1]);

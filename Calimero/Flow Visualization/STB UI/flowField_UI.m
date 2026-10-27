@@ -12,6 +12,12 @@ properties (Constant, Access = private)
     % measured from the mirror centerline)
     LIFT_WX_VAR = "lift (U y ω_x)"; % name shown in the variable dropdown
     LIFT_WX_FIELD = "lift_wx_field"; % internal name, not stored in files
+    % Extrapolated minus measured velocity on the field of view, saved in
+    % the phase-avg _integral file by the Helmholtz extrapolation
+    % (calc_secondary_vals_common). Plotted on their own grid
+    % (y_B_fov, z_B_fov), time avg / movie only.
+    EXTRAP_DIFF_VARS = ["u: extrap - meas", "v: extrap - meas", "w: extrap - meas"];
+    EXTRAP_DIFF_FIELDS = ["velX_B_diff", "velY_B_diff", "velZ_B_diff"];
     % Trim bounds and mirror centerline for each flapper source mode.
     % The active set is copied into trim_y_bounds / trim_z_bounds /
     % mirror_center_y by set_trim_settings_for_source_mode().
@@ -356,6 +362,9 @@ methods
         obj.movie_3D_avg_vars = [obj.movie_3D_avg_vars, "<Qx> inst", "<Qy> inst", "<Qz> inst", "<Q> inst"];
         movie_3D_avg_values = [movie_3D_avg_values, "Qx_inst_avg", "Qy_inst_avg", "Qz_inst_avg", "Q_inst_avg"];
         time_avg_values = [time_avg_values, "Qx_inst_avg", "Qy_inst_avg", "Qz_inst_avg", "Q_inst_avg"];
+        obj.movie_3D_avg_vars = [obj.movie_3D_avg_vars, obj.EXTRAP_DIFF_VARS];
+        movie_3D_avg_values = [movie_3D_avg_values, obj.EXTRAP_DIFF_FIELDS];
+        time_avg_values = [time_avg_values, obj.EXTRAP_DIFF_FIELDS]; % not in time-avg files
         % frame-to-frame standard deviation of that Q within each bin
         % (phase_avg_STB with bools.Q_inst = true)
         obj.movie_3D_std_vars = [obj.movie_3D_std_vars, "<Qx> inst", "<Qy> inst", "<Qz> inst", "<Q> inst"];
@@ -434,7 +443,10 @@ methods
                       0, 0.1;...  % <Qx> inst
                       0, 0.1;...  % <Qy> inst
                       0, 0.1;...  % <Qz> inst
-                      0, 0.1];    % <Q> inst
+                      0, 0.1;...  % <Q> inst
+                      -0.05, 0.05;... % u: extrap - meas
+                      -0.05, 0.05;... % v: extrap - meas
+                      -0.05, 0.05];   % w: extrap - meas
 
         % for std plots
         obj.std_clims = [0, 0.05;...
@@ -515,7 +527,10 @@ methods
             "\boldmath$\langle Q_x \rangle \frac{c^2}{U_{\infty}^2}$",...
             "\boldmath$\langle Q_y \rangle \frac{c^2}{U_{\infty}^2}$",...
             "\boldmath$\langle Q_z \rangle \frac{c^2}{U_{\infty}^2}$",...
-            "\boldmath$\langle Q \rangle \frac{c^2}{U_{\infty}^2}$"];
+            "\boldmath$\langle Q \rangle \frac{c^2}{U_{\infty}^2}$",...
+            "$(u_{extrap} - u_{meas}) \; / \; U$",...
+            "$(v_{extrap} - v_{meas}) \; / \; U$",...
+            "$(w_{extrap} - w_{meas}) \; / \; U$"];
 
         keys = cellstr(obj.movie_3D_avg_vars);
         values = movie_3D_avg_values;
@@ -1580,12 +1595,25 @@ methods (Access = private)
     end
 
     % Outline the measured (original) field of view on an extrapolated plot
-    % with a black dashed box. Extrapolation (helm_decomp) trims the
-    % measured plane with default_trim_bounds (trim_vel_field), mirrors it
-    % about the centreline and centres it, by index, in a larger zero-padded
-    % grid (y_B, z_B). The same steps are repeated here to find where the
-    % measured points sit on that grid.
+    % with a black dashed box. Newer files save the field of view's grid
+    % (y_B_fov, z_B_fov). For older ones: extrapolation (helm_decomp) trims
+    % the measured plane with default_trim_bounds (trim_vel_field), mirrors
+    % it about the centreline and centres it, by index, in a larger
+    % zero-padded grid (y_B, z_B); the same steps are repeated here to find
+    % where the measured points sit on that grid.
     function draw_original_fov_box(~, ax, d)
+        if all(isfield(d, {'y_B_fov', 'z_B_fov'}))
+            y_fov = d.y_B_fov(:,1);
+            z_fov = d.z_B_fov(1,:);
+            dy = abs(y_fov(2) - y_fov(1));
+            dz = abs(z_fov(2) - z_fov(1));
+            y_lims = [min(y_fov) - dy/2, max(y_fov) + dy/2];
+            z_lims = [min(z_fov) - dz/2, max(z_fov) + dz/2];
+            hold(ax, 'on')
+            plot(ax, y_lims([1 2 2 1 1]), z_lims([1 1 2 2 1]), 'k--', ...
+                'LineWidth', 1.5, 'HandleVisibility', 'off', 'Tag', "original_fov_box");
+            return
+        end
         if ~all(isfield(d, {'y', 'z', 'y_B', 'z_B'}))
             return
         end
@@ -2313,6 +2341,21 @@ methods (Access = private)
         plot_idx = find(obj.plot_types == obj.plot_type);
         using_time_avg_file = obj.is_time_avg_file_selected();
         use_extrapolated_data = obj.extrapolate_bool && ~using_time_avg_file;
+        % extrapolated - measured velocity: stored on the field of view grid
+        % of the extrapolation, so it is loaded like the extrapolated data
+        is_extrap_diff = any(obj.variable_name == obj.EXTRAP_DIFF_VARS) && ismember(plot_idx, [1, 2, 5, 9]);
+        if is_extrap_diff
+            if using_time_avg_file || ~ismember(plot_idx, [1, 2])
+                delete(findobj(plot_panel.Children, 'Type', 'axes'));
+                ax = axes(plot_panel);
+                text(ax, 0.5, 0.5, "Extrapolated - measured is only available for phase averages " + ...
+                    "(time avg of phase avg / phase avg: movie)", 'HorizontalAlignment', 'center', FontSize=14);
+                axis(ax, 'off');
+                obj.plot_hold_bool = false;
+                return
+            end
+            use_extrapolated_data = true;
+        end
         q_mask_enabled = obj.q_mask_bool && ismember(plot_idx, [1, 2]) && ~use_extrapolated_data;
         q_mask_var_name = "Q";
 
@@ -2338,10 +2381,15 @@ methods (Access = private)
             end
             var_clims = obj.get_color_limits(obj.variable_name);
 
-            if use_extrapolated_data
+            if is_extrap_diff
+                % already the _integral field name (EXTRAP_DIFF_FIELDS)
+                vars = {"L","U","num_bins","cycle_freq"};
+                cur_secondary_vars = {"z_B_fov","y_B_fov"};
+            elseif use_extrapolated_data
                 var_name = obj.dict_B(var_name);
                 % measured y/z are only needed to outline the original
-                % field of view on the extrapolated grid
+                % field of view on the extrapolated grid (files processed
+                % before y_B_fov / z_B_fov were saved)
                 vars = {"L","U","num_bins","cycle_freq","y","z"};
                 cur_secondary_vars = {"z_B","y_B"};
             end
@@ -2426,6 +2474,26 @@ methods (Access = private)
 
         full_file_path = obj.get_current_file_base();
 
+        % field of view of the extrapolation (newer files), for the box
+        if use_extrapolated_data && ~is_extrap_diff && ismember(plot_idx, [1, 2])
+            integral_vars = who('-file', full_file_path + "_integral.mat");
+            if all(ismember({'y_B_fov', 'z_B_fov'}, integral_vars))
+                cur_secondary_vars = [cur_secondary_vars, {"y_B_fov", "z_B_fov"}];
+            end
+        end
+        if is_extrap_diff
+            integral_vars = who('-file', full_file_path + "_integral.mat");
+            if ~ismember(char(var_name), integral_vars)
+                delete(findobj(plot_panel.Children, 'Type', 'axes'));
+                ax = axes(plot_panel);
+                text(ax, 0.5, 0.5, string(var_name) + " is not in this file: reprocess the case", ...
+                    'HorizontalAlignment', 'center', Interpreter='none', FontSize=14);
+                axis(ax, 'off');
+                obj.plot_hold_bool = false;
+                return
+            end
+        end
+
         if plot_idx == 8
             % wake forces: data is loaded by get_PIV_force below
         elseif ~isempty(cur_secondary_vars)
@@ -2476,7 +2544,11 @@ methods (Access = private)
         end
 
         if ismember(plot_idx, [1, 2, 3, 4, 5, 9])
-            if use_extrapolated_data
+            if is_extrap_diff
+                y = d.y_B_fov;
+                z = d.z_B_fov;
+                val = permute(val, [2 3 1]); % time dimension moved
+            elseif use_extrapolated_data
                 y = d.y_B;
                 z = d.z_B;
                 val = permute(val, [2 3 1]); % time dimension moved
@@ -2653,7 +2725,7 @@ methods (Access = private)
             end
 
             PIV_plot(y, z, mean_val, params, ax);
-            if use_extrapolated_data
+            if use_extrapolated_data && ~is_extrap_diff
                 obj.draw_original_fov_box(ax, d);
             end
         elseif plot_idx == 3
@@ -2667,7 +2739,7 @@ methods (Access = private)
 
         val_tr = val(:,:,obj.frame_ind);
         h = PIV_plot(y, z, val_tr, params, ax);
-        if use_extrapolated_data && plot_idx == 2
+        if use_extrapolated_data && ~is_extrap_diff && plot_idx == 2
             % drawn once; playing only updates the contour's ZData
             obj.draw_original_fov_box(ax, d);
         end

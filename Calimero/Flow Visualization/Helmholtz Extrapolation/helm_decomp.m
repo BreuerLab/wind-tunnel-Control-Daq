@@ -1,92 +1,91 @@
-function [y_big, z_big, velX, velY, velZ] = helm_decomp(x, y, z, L, D)
+function [y_big, z_big, velX, velY, velZ, iy_fov, iz_fov] = helm_decomp(x, y, z, L, D)
+% Velocity field induced by the measured phase-averaged vorticity,
+% extrapolated beyond the field of view (Helmholtz / Biot-Savart).
+%
+% The wingbeat is turned into a volume with the frozen-flow assumption
+% (bin k sits at x = U t_k). The half-plane data are mirrored about the
+% centreline, placed in a zero-padded tunnel-sized cross-section, and the
+% velocity is solved on a box that is periodic in all directions: one
+% wingbeat repeating up- and downstream (exact for a periodic wake) and
+% periodic copies of the wake one tunnel width apart in y and z (an
+% approximation of the walls).
+%
+% x    : frozen-flow position of each bin (m), x = U t, uniformly spaced
+%        over one wingbeat (nominal bin times)
+% y, z : measured half-plane coordinates (chords, divided by L), y(1) on
+%        the centreline (as returned by trim_vel_field)
+% L    : chord (m)
+% D    : struct with vortX, vortY, vortZ, [ny nz nbins] (omega L / U)
+%
+% y_big, z_big     : [Ny Nz] grid (chords); the measured points keep their
+%                    measured coordinates
+% velX, velY, velZ : [nbins Ny Nz] velocity induced by the vorticity, / U.
+%                    The freestream is not included (velX is (u + U)/U)
+% iy_fov, iz_fov   : indices of the (mirrored) field of view in y_big, z_big
+
+TUNNEL_SIZE = 1.2; % m, test section width and height
+
 % -----------------------------------------
-% ----- Reorder and resize matrices -------
+% ----- Reorder to [x y z] ----------------
 % -----------------------------------------
 vortX = permute(D.vortX, [3 1 2]);
 vortY = permute(D.vortY, [3 1 2]);
 vortZ = permute(D.vortZ, [3 1 2]);
-u = permute(D.u, [3 1 2]);
-
-x = repmat(x', [1, size(vortX,2), size(vortX,3)]);
-y = repmat(y', [size(vortX,1), 1, size(vortX,3)]);
-z = repmat(reshape(z, [1 1 length(z)]), [size(vortX,1), size(vortX,2), 1]);
 
 % -----------------------------------------
 % ------------- Mirroring Wake ------------
 % -----------------------------------------
-
 % Reflect and skip the first row to avoid double-counting the centerline.
-x_add = flip(x(:,2:end,:),2);
-y_add = flip(-y(:,2:end,:),2); % INVERSION
-z_add = flip(z(:,2:end,:),2);
+% y -> -y: omega_x and omega_z change sign, omega_y doesn't.
+vortX = cat(2, flip(-vortX(:,2:end,:),2), vortX);
+vortY = cat(2, flip(vortY(:,2:end,:),2), vortY);
+vortZ = cat(2, flip(-vortZ(:,2:end,:),2), vortZ);
+[nx, ny, nz] = size(vortX);
 
-vortX_add = flip(-vortX(:,2:end,:),2);
-vortY_add = flip(vortY(:,2:end,:),2); % NO INVERSION
-vortZ_add = flip(-vortZ(:,2:end,:),2);
+% -----------------------------------------
+% ---- Grid, all lengths in chords --------
+% -----------------------------------------
+x = x(:) / L;
+dx = x(2) - x(1); % one wingbeat = nx * dx
+dy = y(2) - y(1);
+dz = z(2) - z(1);
 
-u_add = flip(u(:,2:end,:),2);
+% tunnel-sized cross-section, with the field of view in the middle
+Ny = max(round((TUNNEL_SIZE / L) / dy), ny);
+Nz = max(round((TUNNEL_SIZE / L) / dz), nz);
+iy_fov = floor((Ny - ny) / 2) + (1:ny);
+iz_fov = floor((Nz - nz) / 2) + (1:nz);
 
-x = cat(2, x_add, x);
-y = cat(2, y_add, y);
-z = cat(2, z_add, z);
-vortX = cat(2, vortX_add, vortX);
-vortY = cat(2, vortY_add, vortY); 
-vortZ = cat(2, vortZ_add, vortZ);
-u = cat(2, u_add, u);
+% coordinates continued from the measured ones: the centreline row (y(1))
+% is the middle row of the mirrored data
+iy_centre = iy_fov((ny + 1) / 2);
+y_arr = y(1) + ((1:Ny)' - iy_centre) * dy;
+z_arr = z(1) + ((1:Nz) - iz_fov(1)) * dz;
+y_big = repmat(y_arr, [1, Nz]);
+z_big = repmat(z_arr, [Ny, 1]);
 
 % -----------------------------------------
 % ---- Enlarge fields with emptiness ------
 % -----------------------------------------
-dy = y(1,2,1) - y(1,1,1);
-dz = z(1,1,2) - z(1,1,1);
-Ny = round((1.2 / L) / dy);
-Nz = round((1.2 / L) / dz);
-start_y = floor((Ny - size(x,2)) / 2) + 1;
-start_z = floor((Nz - size(x,3)) / 2) + 1;
-
-vortX_extra = zeros(size(x,1), Ny, Nz);
-vortY_extra = zeros(size(x,1), Ny, Nz);
-vortZ_extra = zeros(size(x,1), Ny, Nz);
-
-vortX_extra(:, start_y:start_y + size(x,2) - 1, start_z:start_z + size(x,3) - 1) = vortX;
-vortY_extra(:, start_y:start_y + size(x,2) - 1, start_z:start_z + size(x,3) - 1) = vortY;
-vortZ_extra(:, start_y:start_y + size(x,2) - 1, start_z:start_z + size(x,3) - 1) = vortZ;
-
-x_arr = squeeze(x(:,1,1));
-y_arr = -(Ny/2)*dy:dy:(Ny/2 - 1)*dy;
-z_arr = -(Nz/2)*dz:dz:(Nz/2 - 1)*dz;
-
-y_big = repmat(y_arr', [1, length(z_arr)]);
-z_big = repmat(z_arr, [length(y_arr), 1]);
+n_bad = nnz(~isfinite(vortX)) + nnz(~isfinite(vortY)) + nnz(~isfinite(vortZ));
+if n_bad > 0
+    warning("helm_decomp:nanVorticity", ...
+        "%d non-finite vorticity values set to 0 before extrapolating", n_bad)
+end
+vortX_big = zeros(nx, Ny, Nz);
+vortY_big = zeros(nx, Ny, Nz);
+vortZ_big = zeros(nx, Ny, Nz);
+vortX_big(:, iy_fov, iz_fov) = fillmissing_zero(vortX);
+vortY_big(:, iy_fov, iz_fov) = fillmissing_zero(vortY);
+vortZ_big(:, iy_fov, iz_fov) = fillmissing_zero(vortZ);
+clear vortX vortY vortZ
 
 % -----------------------------------------
 % -------- Extrapolate Flowfield ----------
 % -----------------------------------------
-[velX, velY, velZ] = get_vel_from_vort(x_arr, y_arr, z_arr, vortX_extra, vortY_extra, vortZ_extra);
+[velX, velY, velZ] = get_vel_from_vort(dx, dy, dz, vortX_big, vortY_big, vortZ_big);
+end
 
-% Compare with measured flowfield
-% velX_tr = velX(:,y_arr >= min(y,[],"all") & y_arr <= max(y,[],"all"), z_arr >= min(z,[],"all") & z_arr <= max(z,[],"all"));
-% velY_tr = velY(:,y_arr >= min(y,[],"all") & y_arr <= max(y,[],"all"), z_arr >= min(z,[],"all") & z_arr <= max(z,[],"all"));
-% velZ_tr = velZ(:,y_arr >= min(y,[],"all") & y_arr <= max(y,[],"all"), z_arr >= min(z,[],"all") & z_arr <= max(z,[],"all"));
-% 
-% params.clims = [-0.1 0.1];
-% params.zero = 0;
-% params.cb_lab = "u/U";
-% 
-% p_y = squeeze(y(1,:,2:end));
-% p_z = squeeze(z(1,:,2:end));
-% p_u = squeeze(u(1,:,2:end));
-% p_u = p_u + 1;
-% 
-% figure
-% ax = gca;
-% PIV_plot(y_big, z_big, squeeze(velX(1,:,:)), params, ax);
-% 
-% figure
-% ax = gca;
-% PIV_plot(p_y, p_z, squeeze(velX_tr(1,:,:)), params, ax);
-% 
-% figure
-% ax = gca;
-% PIV_plot(p_y, p_z, p_u, params, ax);
+function a = fillmissing_zero(a)
+a(~isfinite(a)) = 0;
 end
