@@ -189,6 +189,7 @@ properties
     % frame_shift (bins the plot is shifted by on top of the conv shift)
     stroke_3D;
     extrapolate_bool;
+    full_section_bool; % with Extrapolate: show the whole test section, not just the field of view
     floor_bool;
     thresh;
     q_mask_bool;
@@ -240,6 +241,7 @@ methods
         obj.stroke_3D = [];
         obj.trim_bool = true;
         obj.extrapolate_bool = false;
+        obj.full_section_bool = false;
         obj.floor_bool = false;
         obj.thresh = 0.1;
         obj.q_mask_bool = false;
@@ -716,13 +718,33 @@ methods
         filter_button.BackgroundColor = obj.INACTIVE_COLOR;
         filter_button.ValueChangedFcn = @(src, event) filter_change(src, event, plot_area_panel);
 
-        extrapolate_button = uibutton(sidebar_grid, "state");
-        extrapolate_button.Layout.Row = 11;
+        % Extrapolate (velocity from the vorticity, on the field of view)
+        % and Full Section (the same over the whole test section, only
+        % available while Extrapolate is on) share a row
+        extrap_grid = uigridlayout(sidebar_grid, [1, 2]);
+        extrap_grid.Layout.Row = 11;
+        extrap_grid.Layout.Column = 1;
+        extrap_grid.ColumnWidth = {'1x', '1x'};
+        extrap_grid.RowHeight = {'1x'};
+        extrap_grid.Padding = [0 0 0 0];
+        extrap_grid.ColumnSpacing = 8;
+
+        extrapolate_button = uibutton(extrap_grid, "state");
+        extrapolate_button.Layout.Row = 1;
         extrapolate_button.Layout.Column = 1;
         extrapolate_button.Text = "Extrapolate";
         extrapolate_button.FontSize = 18;
         extrapolate_button.BackgroundColor = obj.INACTIVE_COLOR;
         extrapolate_button.ValueChangedFcn = @(src, event) extrapolate_change(src, event, plot_area_panel);
+
+        full_section_button = uibutton(extrap_grid, "state");
+        full_section_button.Layout.Row = 1;
+        full_section_button.Layout.Column = 2;
+        full_section_button.Text = "Full Section";
+        full_section_button.FontSize = 18;
+        full_section_button.BackgroundColor = obj.INACTIVE_COLOR;
+        full_section_button.Enable = "off"; % until Extrapolate is on
+        full_section_button.ValueChangedFcn = @(src, event) full_section_change(src, event, plot_area_panel);
         % Extrapolate forces mirroring (helm_decomp mirrors the wake), so
         % the Mirror button is switched on and locked while it is active.
         % This remembers what Mirror was before, to restore it afterwards.
@@ -1324,9 +1346,17 @@ methods
                 mirror_button.Value = true;
                 mirror_button.BackgroundColor = obj.ACTIVE_COLOR;
                 mirror_button.Enable = "off";
+
+                full_section_button.Enable = "on";
             else
                 obj.extrapolate_bool = false;
                 src.BackgroundColor = obj.INACTIVE_COLOR;
+
+                % Full Section only applies to extrapolated data
+                obj.full_section_bool = false;
+                full_section_button.Value = false;
+                full_section_button.BackgroundColor = obj.INACTIVE_COLOR;
+                full_section_button.Enable = "off";
 
                 % Give Mirror back to the user in the state it was in
                 obj.mirror_bool = mirror_before_extrapolate;
@@ -1335,6 +1365,13 @@ methods
                 mirror_button.Enable = "on";
             end
 
+            obj.update_plot(plot_panel);
+        end
+
+        function full_section_change(src, ~, plot_panel)
+            obj.full_section_bool = src.Value && obj.extrapolate_bool;
+            src.Value = obj.full_section_bool;
+            src.BackgroundColor = obj.get_button_color(obj.full_section_bool);
             obj.update_plot(plot_panel);
         end
 
@@ -1594,57 +1631,63 @@ methods (Access = private)
         tf = any(string(case_ids) == obj.with_variant_suffix(case_id));
     end
 
-    % Outline the measured (original) field of view on an extrapolated plot
-    % with a black dashed box. Newer files save the field of view's grid
-    % (y_B_fov, z_B_fov). For older ones: extrapolation (helm_decomp) trims
-    % the measured plane with default_trim_bounds (trim_vel_field), mirrors
-    % it about the centreline and centres it, by index, in a larger
-    % zero-padded grid (y_B, z_B); the same steps are repeated here to find
-    % where the measured points sit on that grid.
-    function draw_original_fov_box(~, ax, d)
-        if all(isfield(d, {'y_B_fov', 'z_B_fov'}))
-            y_fov = d.y_B_fov(:,1);
-            z_fov = d.z_B_fov(1,:);
-            dy = abs(y_fov(2) - y_fov(1));
-            dz = abs(z_fov(2) - z_fov(1));
-            y_lims = [min(y_fov) - dy/2, max(y_fov) + dy/2];
-            z_lims = [min(z_fov) - dz/2, max(z_fov) + dz/2];
-            hold(ax, 'on')
-            plot(ax, y_lims([1 2 2 1 1]), z_lims([1 1 2 2 1]), 'k--', ...
-                'LineWidth', 1.5, 'HandleVisibility', 'off', 'Tag', "original_fov_box");
+    % Indices of the measured (original) field of view on the extrapolated
+    % grid (y_B, z_B). Newer files save that region's grid (y_B_fov,
+    % z_B_fov). For older ones: extrapolation (helm_decomp) trims the
+    % measured plane with default_trim_bounds (trim_vel_field), mirrors it
+    % about the centreline and centres it, by index, in a larger zero-padded
+    % grid; the same steps are repeated here. [] if it can't be found.
+    function [iy, iz] = get_extrap_fov_indices(~, d)
+        iy = []; iz = [];
+        if ~all(isfield(d, {'y_B', 'z_B'}))
             return
         end
-        if ~all(isfield(d, {'y', 'z', 'y_B', 'z_B'}))
-            return
-        end
-
-        bounds = default_trim_bounds();
-        y_meas = d.y(1,:,1);
-        z_meas = squeeze(d.z(1,1,:));
-        y_keep = y_meas(y_meas > bounds.ybounds(1) & y_meas < bounds.ybounds(2));
-        num_y = sum(y_keep >= bounds.y_cen);   % one side of the centreline
-        num_z = sum(z_meas > bounds.zbounds(1) & z_meas < bounds.zbounds(2));
-        num_y = 2*num_y - 1;                   % mirrored, centreline once
-
         y_arr = d.y_B(:,1);
         z_arr = d.z_B(1,:);
         Ny = numel(y_arr);
         Nz = numel(z_arr);
-        if num_y < 1 || num_z < 1 || Ny < 2 || Nz < 2
+        if Ny < 2 || Nz < 2
             return
         end
 
-        % index placement used in helm_decomp
-        y_first = max(floor((Ny - num_y) / 2) + 1, 1);
-        z_first = max(floor((Nz - num_z) / 2) + 1, 1);
-        y_last = min(y_first + num_y - 1, Ny);
-        z_last = min(z_first + num_z - 1, Nz);
+        if all(isfield(d, {'y_B_fov', 'z_B_fov'}))
+            [~, y_first] = min(abs(y_arr - d.y_B_fov(1,1)));
+            [~, z_first] = min(abs(z_arr - d.z_B_fov(1,1)));
+            num_y = size(d.y_B_fov, 1);
+            num_z = size(d.y_B_fov, 2);
+        elseif all(isfield(d, {'y', 'z'}))
+            bounds = default_trim_bounds();
+            y_meas = d.y(1,:,1);
+            z_meas = squeeze(d.z(1,1,:));
+            y_keep = y_meas(y_meas > bounds.ybounds(1) & y_meas < bounds.ybounds(2));
+            num_y = 2*sum(y_keep >= bounds.y_cen) - 1; % mirrored, centreline once
+            num_z = sum(z_meas > bounds.zbounds(1) & z_meas < bounds.zbounds(2));
+            y_first = floor((Ny - num_y) / 2) + 1;      % index placement in helm_decomp
+            z_first = floor((Nz - num_z) / 2) + 1;
+        else
+            return
+        end
+        if num_y < 1 || num_z < 1
+            return
+        end
+        iy = max(y_first, 1) : min(y_first + num_y - 1, Ny);
+        iz = max(z_first, 1) : min(z_first + num_z - 1, Nz);
+    end
 
-        % box at the outer edges of the measured cells
+    % Outline the measured (original) field of view on a Full Section
+    % extrapolated plot with a black dashed box, at the outer edges of the
+    % measured cells
+    function draw_original_fov_box(obj, ax, d)
+        [iy, iz] = obj.get_extrap_fov_indices(d);
+        if isempty(iy) || isempty(iz)
+            return
+        end
+        y_arr = d.y_B(:,1);
+        z_arr = d.z_B(1,:);
         dy = abs(y_arr(2) - y_arr(1));
         dz = abs(z_arr(2) - z_arr(1));
-        y_lims = [min(y_arr([y_first y_last])) - dy/2, max(y_arr([y_first y_last])) + dy/2];
-        z_lims = [min(z_arr([z_first z_last])) - dz/2, max(z_arr([z_first z_last])) + dz/2];
+        y_lims = [min(y_arr(iy([1 end]))) - dy/2, max(y_arr(iy([1 end]))) + dy/2];
+        z_lims = [min(z_arr(iz([1 end]))) - dz/2, max(z_arr(iz([1 end]))) + dz/2];
 
         hold(ax, 'on')
         plot(ax, y_lims([1 2 2 1 1]), z_lims([1 1 2 2 1]), 'k--', ...
@@ -2474,7 +2517,7 @@ methods (Access = private)
 
         full_file_path = obj.get_current_file_base();
 
-        % field of view of the extrapolation (newer files), for the box
+        % field of view of the extrapolation (newer files), for the crop / box
         if use_extrapolated_data && ~is_extrap_diff && ismember(plot_idx, [1, 2])
             integral_vars = who('-file', full_file_path + "_integral.mat");
             if all(ismember({'y_B_fov', 'z_B_fov'}, integral_vars))
@@ -2554,6 +2597,16 @@ methods (Access = private)
                 val = permute(val, [2 3 1]); % time dimension moved
                 if contains(var_name, "X")
                     val = val - 1; % add back freestream
+                end
+                % Extrapolate alone: only the original field of view
+                % (velocity from the vorticity there); Full Section: all
+                if ~obj.full_section_bool && ismember(plot_idx, [1, 2])
+                    [iy_fov, iz_fov] = obj.get_extrap_fov_indices(d);
+                    if ~isempty(iy_fov)
+                        y = y(iy_fov, iz_fov);
+                        z = z(iy_fov, iz_fov);
+                        val = val(iy_fov, iz_fov, :);
+                    end
                 end
             elseif using_time_avg_file
                 y = squeeze(d.y(planeIdx,:,:));
@@ -2725,7 +2778,7 @@ methods (Access = private)
             end
 
             PIV_plot(y, z, mean_val, params, ax);
-            if use_extrapolated_data && ~is_extrap_diff
+            if use_extrapolated_data && ~is_extrap_diff && obj.full_section_bool
                 obj.draw_original_fov_box(ax, d);
             end
         elseif plot_idx == 3
@@ -2739,7 +2792,7 @@ methods (Access = private)
 
         val_tr = val(:,:,obj.frame_ind);
         h = PIV_plot(y, z, val_tr, params, ax);
-        if use_extrapolated_data && ~is_extrap_diff && plot_idx == 2
+        if use_extrapolated_data && ~is_extrap_diff && obj.full_section_bool && plot_idx == 2
             % drawn once; playing only updates the contour's ZData
             obj.draw_original_fov_box(ax, d);
         end
