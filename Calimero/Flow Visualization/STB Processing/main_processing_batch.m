@@ -34,7 +34,8 @@ bools.RPCA = false; % RPCA filtering of vector fields
 bools.Q_inst = false; % per-frame Q averaged over each bin, plus its std (Q*_inst_avg, Q*_inst_std), slow
 bools.vort_uavg = false; % vorticity of the averaged velocity (vort*_uavg)
 bools.div_std = true; % frame-to-frame std of the velocity divergence in each bin (div_phase_std), quick
-bools.num_workers = 8; % parallel workers for phase bins (0 = serial); lower if out of memory
+bools.num_workers = 8; % parallel workers for phase bins / time-avg frame chunks (0 = serial); lower if out of memory
+bools.frames_per_chunk = 20; % time averages: frames loaded and processed per call on each worker; lower if out of memory
 bools.compress_save = false; % true = MATLAB's compressed .mat (smaller, much slower to save)
 bools.proc_vel = true; % false if just calculating secondary values
 
