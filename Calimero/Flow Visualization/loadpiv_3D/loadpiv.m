@@ -738,7 +738,11 @@ function [dudx, dudy, dudz] = get_gradients(x, y, z, u)
     % across them, consistent with calculateVorticity
     u = fill3D(u);
 
-    dudx = central_diff_4th_3D(squeeze(x(:,1,1)), u);
-    dudy = central_diff_4th_3D(squeeze(y(1,:,1)), u);
-    dudz = central_diff_4th_3D(squeeze(z(1,1,:)), u);
+    % Coordinate vectors are passed WITHOUT squeeze so each keeps its
+    % orientation (central_diff_4th_3D finds the dimension from it).
+    % squeeze(z(1,1,:)) is a column, which made dudz a derivative along x
+    % (scaled by the z spacing), NaN on all but the centre x plane.
+    dudx = central_diff_4th_3D(x(:,1,1), u);
+    dudy = central_diff_4th_3D(y(1,:,1), u);
+    dudz = central_diff_4th_3D(z(1,1,:), u);
 end
