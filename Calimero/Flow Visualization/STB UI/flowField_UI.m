@@ -20,6 +20,9 @@ properties (Constant, Access = private)
     % ω_x > 0 red): pine green, cream, cranberry
     CARD_CMAP_ANCHORS = [0.05 0.33 0.20; 0.30 0.60 0.40; 0.93 0.89 0.78; ...
                          0.85 0.30 0.30; 0.60 0.05 0.13];
+    % card style despeckle default: hide isosurface pieces with fewer
+    % triangles than this % of the largest piece (0 = keep everything)
+    CARD_MIN_BLOB_DEFAULT = 2;
     % Derived variable: lift integrand from the wake, computed on the fly
     % from stored fields (term1 in get_wake_lift: -U .* y .* -vortX, with y
     % measured from the mirror centerline)
@@ -206,6 +209,8 @@ properties
     % plot panel background before the card style darkened it, [] if the
     % panel isn't darkened (the panel outlives the axes, so it is kept here)
     card_panel_color;
+    % card style despeckle threshold, % of the largest isosurface piece
+    card_min_blob;
     extrapolate_bool;
     full_section_bool; % with Extrapolate: show the whole test section, not just the field of view
     floor_bool;
@@ -259,6 +264,7 @@ methods
         obj.stroke_3D = [];
         obj.card_style = false;
         obj.card_panel_color = [];
+        obj.card_min_blob = obj.CARD_MIN_BLOB_DEFAULT;
         obj.trim_bool = true;
         obj.extrapolate_bool = false;
         obj.full_section_bool = false;
@@ -996,8 +1002,17 @@ methods
         % Cosmetic "card" look: lighting, red-green diverging colormap
         % (best with ω_x as the colour variable), dark background, axes
         % hidden. Turning it off restores the plot exactly as it was.
-        card_style_button = uibutton(param_grid, "state");
-        card_style_button.Layout.Row = 12;
+        % next to it: despeckle threshold (% of the largest surface piece)
+        card_grid = uigridlayout(param_grid, [1, 3]);
+        card_grid.Layout.Row = 12;
+        card_grid.Layout.Column = 1;
+        card_grid.ColumnWidth = {'1x', 46, 14};
+        card_grid.RowHeight = {'1x'};
+        card_grid.Padding = [0 0 0 0];
+        card_grid.ColumnSpacing = 3;
+
+        card_style_button = uibutton(card_grid, "state");
+        card_style_button.Layout.Row = 1;
         card_style_button.Layout.Column = 1;
         card_style_button.Text = "Card Style";
         card_style_button.FontSize = 16;
@@ -1005,6 +1020,20 @@ methods
         card_style_button.BackgroundColor = obj.get_button_color(obj.card_style);
         card_style_button.Tooltip = "Lit isosurface, red-green colormap symmetric about zero (choose ω_x as the variable), dark background and no axes. Off restores the original look";
         card_style_button.ValueChangedFcn = @(src, event) card_style_change(src, event, plot_area_panel);
+
+        card_blob_field = uieditfield(card_grid, "numeric");
+        card_blob_field.Layout.Row = 1;
+        card_blob_field.Layout.Column = 2;
+        card_blob_field.Limits = [0 100];
+        card_blob_field.Value = obj.card_min_blob;
+        card_blob_field.HorizontalAlignment = 'center';
+        card_blob_field.Tooltip = "Card Style despeckle: hide isosurface pieces with fewer triangles than this % of the largest piece (0 = off). Only hides triangles; the data are unchanged";
+        card_blob_field.ValueChangedFcn = @(src, event) card_blob_change(src, event, plot_area_panel);
+
+        card_blob_label = uilabel(card_grid);
+        card_blob_label.Layout.Row = 1;
+        card_blob_label.Layout.Column = 3;
+        card_blob_label.Text = '%';
 
         save_button = uibutton(sidebar_grid, "state");
         save_button.Layout.Row = 17;
@@ -1577,6 +1606,8 @@ methods
             ax = findobj(plot_panel.Children, 'Type', 'axes');
             if ~obj.shift_3D_surface(ax)
                 obj.update_plot(plot_panel);
+            elseif obj.card_style
+                obj.apply_card_style(ax); % despeckle the shifted surface
             end
         end
 
@@ -1602,6 +1633,15 @@ methods
             else
                 obj.remove_card_style(ax);
                 obj.restore_card_panel(plot_panel);
+            end
+        end
+
+        function card_blob_change(src, ~, plot_panel)
+            obj.card_min_blob = src.Value;
+            % re-filter the current surface in place
+            if obj.card_style && obj.plot_type == obj.plot_types(5)
+                ax = findobj(plot_panel.Children, 'Type', 'axes');
+                obj.apply_card_style(ax);
             end
         end
 
@@ -1829,6 +1869,8 @@ methods (Access = private)
             S.clim = ax.CLim;
             S.card_cmap = [];
             S.card_clim = [];
+            S.faces_full = [];
+            S.card_faces = [];
             S.cb = cb(:);
             S.cb_visible = visibility(cb);
             % lights are placed relative to the camera, so re-aim them
@@ -1862,6 +1904,19 @@ methods (Access = private)
             new_cb = cb(is_new);
             S.cb = [old_cb(:); new_cb(:)];
             S.cb_visible = [old_vis(:); visibility(new_cb)];
+        end
+
+        % despeckle: hide small disconnected pieces of the isosurface (noise
+        % near the edges of the measurement volume). Only Faces changes;
+        % Vertices / colours stay, so the x-axis units switch still works.
+        % If the faces aren't the card style's own (new plot, "+/-" shift)
+        % they are the full surface, so save them for remove_card_style.
+        if isscalar(p)
+            if ~isequal(p.Faces, S.card_faces)
+                S.faces_full = p.Faces;
+            end
+            S.card_faces = obj.despeckle_faces(S.faces_full, obj.card_min_blob);
+            p.Faces = S.card_faces;
         end
 
         % surface: soft satin highlights
@@ -1918,6 +1973,11 @@ methods (Access = private)
         if any(keep)
             set(S.patch(keep), S.patch_props, S.patch_vals(keep, :));
         end
+        % put the speckles back, unless the surface was replaced since
+        if isscalar(S.patch) && isvalid(S.patch) && ~isempty(S.faces_full) ...
+                && isequal(S.patch.Faces, S.card_faces)
+            S.patch.Faces = S.faces_full;
+        end
         set(ax, S.ax_props, S.ax_vals);
         ax.Title.Visible = S.title_visible;
         ax.Colormap = S.cmap;
@@ -1950,6 +2010,24 @@ methods (Access = private)
             k = lgt.UserData;
             camlight(lgt, obj.CARD_LIGHT_POS(k, 1), obj.CARD_LIGHT_POS(k, 2));
         end
+    end
+
+    % Faces of the triangle mesh without its small connected pieces: a
+    % piece is kept if it has at least min_pct % as many triangles as the
+    % largest piece. Pieces are found from shared vertices (isosurface
+    % output shares vertices between neighbouring triangles).
+    function faces = despeckle_faces(~, faces, min_pct)
+        if isempty(faces) || min_pct <= 0
+            return
+        end
+        n_verts = max(faces(:));
+        G = graph([faces(:,1); faces(:,2); faces(:,3)], ...
+                  [faces(:,2); faces(:,3); faces(:,1)], [], n_verts);
+        piece = conncomp(G);                      % piece of each vertex
+        face_piece = piece(faces(:,1));           % piece of each triangle
+        n_faces = accumarray(face_piece(:), 1);   % triangles per piece
+        keep_piece = n_faces >= min_pct / 100 * max(n_faces);
+        faces = faces(keep_piece(face_piece), :);
     end
 
     % Diverging pine green -> cream -> cranberry colormap, n levels
