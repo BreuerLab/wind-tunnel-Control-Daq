@@ -71,6 +71,9 @@ classdef timeAvg_UI < handle
         % which steady case to subtract: "ring", "body", or "gliding"
         PIV_sub_case;
         force_sub;
+        % boolean, with wingbeat frequency on the x-axis plot every load
+        % cell frequency in range, not just those with flow field data
+        all_lc_freqs_bool;
         RPCA;
         % harmonic regression files (_hr, from bools.harmonic_reg)
         HR;
@@ -232,6 +235,7 @@ classdef timeAvg_UI < handle
             obj.PIV_sub = false;
             obj.PIV_sub_case = "ring";
             obj.force_sub = false;
+            obj.all_lc_freqs_bool = false;
             obj.RPCA = false;
             obj.HR = false;
             obj.filt_num = 3;
@@ -544,14 +548,30 @@ classdef timeAvg_UI < handle
             piv_sub_dropdown.Tooltip = "Steady case subtracted (e.g. for x3_wings_20deg_4Hz: ring = x3_ring, body = x3_body_20deg_0Hz, gliding = x3_wings_20deg_0Hz)";
             piv_sub_dropdown.ValueChangedFcn = @(src, event) PIV_sub_case_change(src, event, plot_panel);
 
-            force_sub_button = uibutton(sidebar_grid, "state");
-            force_sub_button.Layout.Row = 17;
+            lc_grid = uigridlayout(sidebar_grid, [1, 2]);
+            lc_grid.Layout.Row = 17;
+            lc_grid.Layout.Column = 1;
+            lc_grid.Padding = [0 0 0 0];
+            lc_grid.ColumnSpacing = 6;
+
+            force_sub_button = uibutton(lc_grid, "state");
+            force_sub_button.Layout.Row = 1;
             force_sub_button.Layout.Column = 1;
             force_sub_button.Text = "Force Body Sub";
-            force_sub_button.FontSize = 18;
+            force_sub_button.FontSize = 16;
             force_sub_button.BackgroundColor = obj.COLOR_INACTIVE;
             force_sub_button.Tooltip = "Subtract the body load cell signal from the load cell forces / moment (load cell variables)";
             force_sub_button.ValueChangedFcn = @(src, event) force_sub_change(src, event, plot_panel);
+
+            % Load cell frequencies without flow field data (e.g. 0.1 Hz)
+            all_lc_button = uibutton(lc_grid, "state");
+            all_lc_button.Layout.Row = 1;
+            all_lc_button.Layout.Column = 2;
+            all_lc_button.Text = "All LC Freqs";
+            all_lc_button.FontSize = 16;
+            all_lc_button.BackgroundColor = obj.COLOR_INACTIVE;
+            all_lc_button.Tooltip = "Wingbeat frequency x-axis: plot load cell variables at every frequency in range with load cell data (latest repeat), including frequencies with no flow field case";
+            all_lc_button.ValueChangedFcn = @(src, event) all_lc_freqs_change(src, event, plot_panel);
 
             % Which processed load cell data the load cell variables read
             % (forces, voltage, current)
@@ -800,6 +820,14 @@ classdef timeAvg_UI < handle
                 obj.force_sub = src.Value;
                 src.BackgroundColor = obj.get_button_color(obj.force_sub);
                 obj.update_plot(plot_panel);
+            end
+
+            function all_lc_freqs_change(src, ~, plot_panel)
+                obj.all_lc_freqs_bool = src.Value;
+                src.BackgroundColor = obj.get_button_color(obj.all_lc_freqs_bool);
+                if any(obj.is_load_cell_var(obj.get_active_force_vars()))
+                    obj.update_plot(plot_panel);
+                end
             end
 
             function set_load_cell_data_enable()
@@ -1458,6 +1486,29 @@ classdef timeAvg_UI < handle
             marker = markers(mod(var_idx - 1, length(markers)) + 1);
         end
 
+        % "All LC Freqs": add the frequencies in range that have processed
+        % load cell data for the selection's type and amplitude but no flow
+        % field case. They are flagged in points.lc_only.
+        function points = add_load_cell_only_points(obj, points, info)
+            lc_freqs = get_force_freqs(obj.force_path, info.type, info.amp);
+            in_range = lc_freqs >= obj.freq_range(1) - 1e-9 & lc_freqs <= obj.freq_range(2) + 1e-9;
+            lc_freqs = lc_freqs(in_range);
+            % compare with a tolerance (e.g. 0.1 stored as 0.1000000001)
+            is_new = arrayfun(@(f) ~any(abs(points.freqs - f) < 1e-6), lc_freqs);
+            new_freqs = lc_freqs(is_new);
+            if isempty(new_freqs)
+                return
+            end
+            disp("Load cell only frequencies for " + info.type + ", " + info.amp + " deg: " +...
+                strjoin(string(new_freqs), ", ") + " Hz")
+            n = length(new_freqs);
+            points.types = [points.types, repmat(info.type, 1, n)];
+            points.amps = [points.amps, repmat(info.amp, 1, n)];
+            points.freqs = [points.freqs, new_freqs];
+            points.x_values = [points.x_values, new_freqs];
+            points.lc_only = [points.lc_only, true(1, n)];
+        end
+
         function U = get_nominal_speed(~, filepath)
             % nominal freestream speed the STB "pitot U" (U_act) is
             % normalised by; 4 m/s unless the case file says otherwise
@@ -1538,6 +1589,13 @@ classdef timeAvg_UI < handle
                 % position, so there the series is left as is
                 merge_this = merge_lc && info.x_axis_type ~= "downstream distance";
                 points = obj.get_selection_points(info);
+                points.lc_only = false(1, length(points.freqs));
+                % "All LC Freqs": add load cell frequencies with no flow
+                % field case (difference mode needs matching points)
+                if obj.is_load_cell_var(force_var) && obj.all_lc_freqs_bool &&...
+                        ~diff_plot && info.x_axis_type == "wingbeat frequency"
+                    points = obj.add_load_cell_only_points(points, info);
+                end
                 num_points = length(points.freqs);
 
                 if num_points == 0
@@ -1562,6 +1620,20 @@ classdef timeAvg_UI < handle
                             continue
                         end
                         lc_point_keys(end+1) = point_key;
+                    end
+
+                    if points.lc_only(j)
+                        % no flow field case: nominal frequency, and the
+                        % tunnel speed saved with the load cell data
+                        measured_freqs(j) = freq;
+                        if obj.x_norm && freq > 0
+                            wind_speed_acts(j) = obj.get_load_cell_signal("LC_U", type, amp, freq, false) *...
+                                obj.get_nominal_speed("");
+                        end
+                        var = obj.get_load_cell_signal(force_var, type, amp, freq, false);
+                        vals(j) = obj.reduce_signal(var);
+                        disp(j + " of " + num_points + " complete (load cell only)")
+                        continue
                     end
 
                     name = obj.get_case_name(type, amp, freq);
@@ -1656,7 +1728,7 @@ classdef timeAvg_UI < handle
                 end
 
                 if info.x_axis_type == "wingbeat frequency" && obj.x_norm
-                    missing_wind_indices = find(~isfinite(wind_speed_acts) & points.freqs > 0);
+                    missing_wind_indices = find(~isfinite(wind_speed_acts) & points.freqs > 0 & ~points.lc_only);
                     for k = missing_wind_indices
                         type = points.types(k);
                         amp = points.amps(k);
@@ -2056,7 +2128,16 @@ classdef timeAvg_UI < handle
                         body_amp = 20;
                     end
                     body_type = get_downstream_prefix(type) + "body";
-                    body_signal = get_force(obj.force_path, body_type, body_amp, freq, idx, var_name_F);
+                    try
+                        body_signal = get_force(obj.force_path, body_type, body_amp, freq, idx, var_name_F);
+                    catch ME
+                        if ~startsWith(ME.identifier, "get_force:")
+                            rethrow(ME)
+                        end
+                        disp(ME.message + " - no body case, point not plotted")
+                        signal = NaN;
+                        return
+                    end
                     signal = obj.subtract_alignment_body_signal(signal, body_signal);
                 end
             end
