@@ -217,6 +217,11 @@ properties
     thresh;
     q_mask_bool;
     q_mask_thresh;
+    % 3D plot uncertainty mask: hide points whose wingbeat-averaged total
+    % uncertainty (uncTot_phase_avg, nondimensional) exceeds
+    % unc_mask_thresh percent of the freestream speed
+    unc_mask_bool;
+    unc_mask_thresh;
 end
 
 methods
@@ -265,6 +270,8 @@ methods
         obj.card_style = false;
         obj.card_panel_color = [];
         obj.card_min_blob = obj.CARD_MIN_BLOB_DEFAULT;
+        obj.unc_mask_bool = false;
+        obj.unc_mask_thresh = 5; % % of freestream
         obj.trim_bool = true;
         obj.extrapolate_bool = false;
         obj.full_section_bool = false;
@@ -828,9 +835,9 @@ methods
         obj.param_panel.Title = "3D Plot Parameters";
         obj.param_panel.TitlePosition = 'centertop';
 
-        param_grid = uigridlayout(obj.param_panel, [12, 1]);
+        param_grid = uigridlayout(obj.param_panel, [13, 1]);
         param_grid.ColumnWidth = {'1x'};
-        param_grid.RowHeight = {22, 55, 30, 22, 55, 30, 30, 30, 50, 18, 24, 30};
+        param_grid.RowHeight = {22, 55, 30, 22, 55, 30, 30, 30, 50, 18, 24, 30, 30};
         param_grid.Padding = [10 8 10 8];
         param_grid.RowSpacing = 6;
 
@@ -1034,6 +1041,40 @@ methods
         card_blob_label.Layout.Row = 1;
         card_blob_label.Layout.Column = 3;
         card_blob_label.Text = '%';
+
+        % Uncertainty mask: hide the isosurface where the wingbeat-averaged
+        % total uncertainty is above the threshold (% of freestream)
+        unc_grid = uigridlayout(param_grid, [1, 3]);
+        unc_grid.Layout.Row = 13;
+        unc_grid.Layout.Column = 1;
+        unc_grid.ColumnWidth = {'1x', 46, 14};
+        unc_grid.RowHeight = {'1x'};
+        unc_grid.Padding = [0 0 0 0];
+        unc_grid.ColumnSpacing = 3;
+
+        unc_mask_button = uibutton(unc_grid, "state");
+        unc_mask_button.Layout.Row = 1;
+        unc_mask_button.Layout.Column = 1;
+        unc_mask_button.Text = "Unc Mask";
+        unc_mask_button.FontSize = 16;
+        unc_mask_button.Value = obj.unc_mask_bool;
+        unc_mask_button.BackgroundColor = obj.get_button_color(obj.unc_mask_bool);
+        unc_mask_button.Tooltip = "Hide the isosurface where the total uncertainty, averaged over the wingbeat, is above this % of the freestream speed. Display only: the data and other calculations are unchanged";
+        unc_mask_button.ValueChangedFcn = @(src, event) unc_mask_change(src, event, plot_area_panel);
+
+        unc_mask_field = uieditfield(unc_grid, "numeric");
+        unc_mask_field.Layout.Row = 1;
+        unc_mask_field.Layout.Column = 2;
+        unc_mask_field.Limits = [0 Inf];
+        unc_mask_field.Value = obj.unc_mask_thresh;
+        unc_mask_field.HorizontalAlignment = 'center';
+        unc_mask_field.Tooltip = "Uncertainty mask threshold, % of the freestream speed";
+        unc_mask_field.ValueChangedFcn = @(src, event) unc_mask_thresh_change(src, event, plot_area_panel);
+
+        unc_mask_label = uilabel(unc_grid);
+        unc_mask_label.Layout.Row = 1;
+        unc_mask_label.Layout.Column = 3;
+        unc_mask_label.Text = '%';
 
         save_button = uibutton(sidebar_grid, "state");
         save_button.Layout.Row = 17;
@@ -1244,7 +1285,7 @@ methods
             row_heights = sidebar_grid.RowHeight;
             if is_visible
                 obj.param_panel.Visible = "on";
-                row_heights{16} = 559;
+                row_heights{16} = 595;
             else
                 obj.param_panel.Visible = "off";
                 row_heights{16} = 0;
@@ -1633,6 +1674,21 @@ methods
             else
                 obj.remove_card_style(ax);
                 obj.restore_card_panel(plot_panel);
+            end
+        end
+
+        function unc_mask_change(src, ~, plot_panel)
+            obj.unc_mask_bool = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.unc_mask_bool);
+            if obj.plot_type == obj.plot_types(5)
+                obj.update_plot(plot_panel); % new isosurface, same view
+            end
+        end
+
+        function unc_mask_thresh_change(src, ~, plot_panel)
+            obj.unc_mask_thresh = src.Value;
+            if obj.unc_mask_bool && obj.plot_type == obj.plot_types(5)
+                obj.update_plot(plot_panel);
             end
         end
 
@@ -2088,7 +2144,8 @@ methods (Access = private)
             mat2str(obj.trim_y_bounds), mat2str(obj.trim_z_bounds), ...
             string(obj.mirror_bool), mat2str(obj.mirror_center_y), ...
             string(obj.filter_bool), string(use_extrapolated_data), ...
-            string(obj.frame_ind), string(obj.conv_shift), string(obj.stroke_flip)];
+            string(obj.frame_ind), string(obj.conv_shift), string(obj.stroke_flip), ...
+            string(obj.unc_mask_bool), sprintf("%.10g", obj.unc_mask_thresh)];
         key = strjoin(parts, "|");
     end
 
@@ -2776,6 +2833,9 @@ methods (Access = private)
             else
                 vars{end+1} = iso_var_name;
             end
+            if plot_idx == 5 && ~geom_hit && obj.unc_mask_bool && ~use_extrapolated_data
+                vars{end+1} = "uncTot_phase_avg";
+            end
         elseif plot_idx == 4
             var_name = obj.std_var_name_dict(obj.variable_name);
             var_clims = obj.get_color_limits(obj.variable_name);
@@ -3044,6 +3104,26 @@ methods (Access = private)
             end
             if obj.filter_bool
                 Q = obj.nan_safe_medfilt(Q);
+            end
+
+            % Uncertainty mask (3D plot only, display only). Masked points
+            % get the median of the iso variable (its background value, ~0
+            % for Q) rather than NaN, so no isosurface forms there and
+            % surfaces crossing the mask edge are closed off cleanly.
+            if plot_idx == 5 && obj.unc_mask_bool && ~use_extrapolated_data
+                unc = squeeze(mean(d.uncTot_phase_avg(planeIdx,:,:,:), 4, "omitnan"));
+                if obj.trim_bool
+                    unc = unc(y_idx, z_idx);
+                end
+                if obj.mirror_bool
+                    unc = unc(y_idx_m, :);
+                    unc = [flip(unc(2:end,:), 1); unc];
+                end
+                mask = unc > obj.unc_mask_thresh / 100 | isnan(unc);
+                mask3 = repmat(mask, 1, 1, size(Q, 3));
+                Q(mask3) = median(Q(~mask3), "omitnan");
+                fprintf("Uncertainty mask: %.1f%% of points hidden (unc > %g%% of U)\n", ...
+                    100 * mean(mask(:)), obj.unc_mask_thresh);
             end
         end
         
