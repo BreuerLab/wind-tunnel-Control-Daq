@@ -206,15 +206,34 @@ disp("---------------------------------------------------------------")
 [d, latest_timestamp] = eval_params(params_path);
 params.freq_vals = d.freq_vals;
 
+% Processing timers: per trial and for the whole run
+fmt_dur = @(sec) string(duration(0, 0, sec, 'Format', 'hh:mm:ss.SSS'));
+is_trial = ~contains(string({exp_files.name}), "speedCheck");
+num_trials = nnz(is_trial);
+trial_times = nan(1, num_trials);
+trial_count = 0;
+total_timer = tic;
+disp("Processing " + num_trials + " trials (started " + string(time_now) + ")")
+
 % Grab each file and process the data from that file, storing the results
 for k = 1 : length(exp_files)
     baseFileName = convertCharsToStrings(exp_files(k).name);
 
-    if ~contains(baseFileName, "speedCheck")
+    if is_trial(k)
+    trial_count = trial_count + 1;
     disp("Reading from: ")
     disp(baseFileName)
 
+    trial_timer = tic;
     process_trial(baseFileName, raw_data_path, offsets_path, processed_data_path, wind_tunnel_path, params);
+    trial_times(trial_count) = toc(trial_timer);
+
+    elapsed = toc(total_timer);
+    mean_trial = mean(trial_times, 'omitnan');
+    remaining = mean_trial * (num_trials - trial_count);
+    fprintf("Trial %d/%d processed in %s | elapsed %s | est. remaining %s\n",...
+        trial_count, num_trials, fmt_dur(trial_times(trial_count)),...
+        fmt_dur(elapsed), fmt_dur(remaining));
     end
 
     percent_complete = round((k / length(exp_files)) * 100, 2);
@@ -225,12 +244,23 @@ for k = 1 : length(exp_files)
     end
 end
 
+total_time = toc(total_timer);
+disp("---------------------------------------------------------------")
+fprintf("Processed %d trials in %s total\n", trial_count, fmt_dur(total_time));
+if trial_count > 0
+    fprintf("Per trial: mean %s | min %s | max %s\n",...
+        fmt_dur(mean(trial_times, 'omitnan')),...
+        fmt_dur(min(trial_times)), fmt_dur(max(trial_times)));
+end
+disp("---------------------------------------------------------------")
+
 diary off
 time_now = datetime;
 time_now.Format = 'yyyy_MM_dd HH_mm_ss';
 
 if slack_bool
-s.send("Finished processing all files at: " + string(time_now))
+s.send("Finished processing all files at: " + string(time_now) +...
+    " (" + trial_count + " trials in " + fmt_dur(total_time) + ")")
 end
 catch ME
 time_now = datetime;
