@@ -54,15 +54,24 @@ for j = 1:num_wingbeats
     end_idx = nextRev_idx(j);
     cur_wingbeat = mod_results(:, cur_idx:end_idx);
 
-    % ------ New resampling procedure -------
-    N = length(cur_wingbeat);
-    xq = 1:frames_per_beat; 
-    
-    % Wrap query points back into the 1..N index domain
-    xq_wrapped = mod(xq - 1, N) + 1;
-    
-    % Interpolate within bounds using wrapped coordinates
-    cur_wingbeat_resampled = interp1(1:N, cur_wingbeat.', xq_wrapped, 'pchip').';
+    % ------ Phase-normalized resampling procedure -------
+    % cur_wingbeat runs from the first sample of this wingbeat to the first
+    % sample of the next one (both endpoints included), so it spans exactly
+    % one cycle: phase 0 -> 1. Map every wingbeat onto the same phase axis
+    % so that frame k is the same phase in every wingbeat, regardless of
+    % small beat-to-beat changes in wingbeat duration.
+    %
+    % (The previous version sampled at indices 1:frames_per_beat and
+    % wrapped with mod(), which did no resampling at all: long beats had
+    % their ends cut off, short beats wrapped back to their own start. The
+    % resulting phase error grew through the cycle and produced a
+    % non-physical cusp at t/T = 1 in the phase-averaged signal.)
+    N = size(cur_wingbeat, 2);
+    phase_src = linspace(0, 1, N);
+    % Periodic phase grid: phase 1 is excluded since it is the same instant
+    % as phase 0 of the next wingbeat. Keeps averages cleanly circshift-able.
+    phase_dst = (0:frames_per_beat-1) / frames_per_beat;
+    cur_wingbeat_resampled = interp1(phase_src, cur_wingbeat.', phase_dst, 'pchip').';
 
     % ------- Old resampling procedure, sometimes failed for certain combos
     % of frames_per_beat and length(cur_wingbeat) when they didn't have
@@ -101,7 +110,8 @@ end
 % xlabel("Time (seconds)")
 % ylabel("Wingbeat Frequency (Hz)")
 
-frames = linspace(0, 1, frames_per_beat);
+% Periodic phase axis matching phase_dst used in the resampling above
+frames = (0:frames_per_beat-1) / frames_per_beat;
 
 wingbeat_avg_forces = zeros(numAxes, frames_per_beat);
 wingbeat_SD_forces = zeros(numAxes, frames_per_beat);
