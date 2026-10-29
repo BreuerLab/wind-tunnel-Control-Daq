@@ -65,6 +65,22 @@ fill_velocity_nans = true;
 [F, y_tr, z_tr, T] = prepare_STB_wake_field(D.L, D.y, D.z, print_dim_bool, trim_source, config.xConvBins, bounds, fill_velocity_nans);
 F.period = config.period;
 
+% Uncertainty mask for every force below (bounds.unc_mask, set in
+% default_trim_bounds): points whose time averaged total uncertainty is
+% above the threshold are set to undisturbed freestream so they add
+% nothing to the integrals (apply_unc_mask). The extrapolated-field
+% forces (helm_decomp) start from these masked fields too. The planar
+% averages and integral quantities further down use the unmasked T.
+unc_thresh = [];
+if isfield(bounds, 'unc_mask'), unc_thresh = bounds.unc_mask; end
+[F, unc_mask] = apply_unc_mask(F, T.uncTot, unc_thresh);
+S.unc_mask = unc_mask;            % [ny nz] logical on the trimmed grid ([] = off)
+S.unc_mask_thresh = unc_thresh;   % fraction of the freestream speed
+if ~isempty(unc_mask)
+    fprintf("Uncertainty mask (%.3g U): %.1f%% of the trimmed plane left out of the forces\n", ...
+        unc_thresh, 100 * mean(unc_mask(:)));
+end
+
 y_arr = squeeze(y_tr(:,1));
 z_arr = squeeze(z_tr(1,:));
 
@@ -80,6 +96,7 @@ if has_uavg
     F_uavg.vortX = T.vortX_uavg;
     F_uavg.vortY = T.vortY_uavg;
     F_uavg.vortZ = T.vortZ_uavg;
+    F_uavg = apply_unc_mask(F_uavg, T.uncTot, unc_thresh);
     [lift_uavg, drag_uavg] = get_wake_lift(config.speed, config.length, F_uavg, true, config.density);
     S.lift_uavg = lift_uavg; S.drag_uavg = drag_uavg;
 end

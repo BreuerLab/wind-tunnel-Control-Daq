@@ -19,4 +19,10 @@ bounds.ybounds = [-2.4 2.8];
 bounds.zbounds = [-2.9 3.1];
 bounds.y_cen = -2.06;
 bounds.z_cen = -0.35;
+
+% Uncertainty mask for the force integrals (apply_unc_mask): points whose
+% time averaged total uncertainty is above this fraction of the freestream
+% speed add nothing to the forces. Used for the saved forces (_integral
+% files) and the UIs' live forces. 0 = off.
+bounds.unc_mask = 0.04;
 end

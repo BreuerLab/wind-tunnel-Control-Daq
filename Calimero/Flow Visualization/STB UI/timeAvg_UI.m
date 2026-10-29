@@ -249,9 +249,14 @@ classdef timeAvg_UI < handle
             obj.conv_shift = false;
             obj.unwrap_shift = false;
             obj.trim_bounds = default_trim_bounds();
-            obj.unc_mask_bool = false;
+            % uncertainty mask starts as the saved forces use it
+            % (default_trim_bounds), so live and stored forces agree
+            obj.unc_mask_bool = isfield(obj.trim_bounds, 'unc_mask') && obj.trim_bounds.unc_mask > 0;
             obj.unc_mask_pct = 4;
-            obj.trim_bounds.unc_mask = 0; % off
+            if obj.unc_mask_bool
+                obj.unc_mask_pct = 100 * obj.trim_bounds.unc_mask;
+            end
+            obj.set_unc_mask_bound();
 
             % Search through files in path to get types and speeds.
             % Phase averaged cases live in phase_avg\, the 0 Hz (gliding)
