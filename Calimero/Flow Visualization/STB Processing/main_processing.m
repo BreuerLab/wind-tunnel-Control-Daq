@@ -1,4 +1,4 @@
-clear
+% clear
 close all
 
 % Change current working directory to the directory where this file is
@@ -16,13 +16,13 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 % PIV_case_name = 'UP_two_flexible_20deg_6Hz';
 % PIV_case_name = 'x5_wings_20deg_0Hz';
 % PIV_case_name = 'MPS_wings_20deg_6Hz';
-PIV_case_name = 'x3_wings_20deg_0Hz';
+PIV_case_name = 'x3_wings_10deg_6Hz';
 % PIV_case_name = 'x3_ring';
 % PIV_case_name = 'turbine';
 
-num_images = 1200; 
-% num_images = 3000;
-% num_images = 900;
+% num_images = 1200; 
+num_images = 3000;
+% num_images = 500;
 
 % save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
 save_filepath_local = "F:\Processed Results\";
@@ -41,7 +41,7 @@ bools.proc_vel = true; % false if just calculating secondary values
 % in this range (and the bin offset) with the smallest phase spread per
 % bin; it was choosing ~193 in 180-210. Fewer bins = more frames per bin
 % (less noise) but coarser phase resolution. [n n] forces n bins.
-bools.bin_range = [180 210]; % [180 210]
+bools.bin_range = [180 200]; % [180 210]
 
 % Version name added to the saved file names, e.g. "coarse" saves
 % x3_wings_20deg_6Hz_coarse_phase_avg.mat (and _integral.mat); phaseAvg_UI

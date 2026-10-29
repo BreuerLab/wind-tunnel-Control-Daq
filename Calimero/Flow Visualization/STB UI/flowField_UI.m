@@ -281,7 +281,7 @@ methods
         obj.remove_small_bool = false;
         obj.remove_small_pct = obj.REMOVE_SMALL_DEFAULT;
         obj.unc_mask_bool = false;
-        obj.unc_mask_thresh = 5; % % of freestream
+        obj.unc_mask_thresh = 4; % % of freestream
         obj.fix_lims_bool = false;
         obj.fix_ylim = [-5 5];
         obj.fix_zlim = [-3 3];

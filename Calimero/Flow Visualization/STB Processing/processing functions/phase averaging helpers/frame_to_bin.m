@@ -201,7 +201,7 @@ phase_spread_ratio = length(unique(tick_frame_pos)) / length(tick_frame_pos);
 if nargin < 6 || isempty(bins_list)
     bins_list = 180:1:210;
 end
-minFrames = 3;
+minFrames = 1;
 % [num_bins, bin_ind_arr, bin_count, bin_std] = findBestNumBins(norm_signal, bins_list, minFrames);
 num_shifts = 10;
 [num_bins, bin_offset, bin_ind_arr, bin_count,bin_std] = findBestNumBins2(norm_signal, bins_list, minFrames, num_shifts);
