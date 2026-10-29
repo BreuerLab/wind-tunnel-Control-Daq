@@ -88,6 +88,12 @@ classdef timeAvg_UI < handle
         % (get_PIV_force -> trim_vel_field); starts from
         % default_trim_bounds() and is adjusted in the sidebar
         trim_bounds;
+        % Live Calculate uncertainty mask: points whose wingbeat-averaged
+        % total uncertainty exceeds unc_mask_pct % of the freestream add
+        % nothing to the force integrals (trim_bounds.unc_mask, see
+        % get_PIV_force)
+        unc_mask_bool;
+        unc_mask_pct;
 
         % ------- Available parameters user can select from -------
         available_selections;
@@ -243,6 +249,9 @@ classdef timeAvg_UI < handle
             obj.conv_shift = false;
             obj.unwrap_shift = false;
             obj.trim_bounds = default_trim_bounds();
+            obj.unc_mask_bool = false;
+            obj.unc_mask_pct = 4;
+            obj.trim_bounds.unc_mask = 0; % off
 
             % Search through files in path to get types and speeds.
             % Phase averaged cases live in phase_avg\, the 0 Hz (gliding)
@@ -322,7 +331,7 @@ classdef timeAvg_UI < handle
             sidebar_grid = uigridlayout(option_panel, [25, 1]);
             sidebar_grid.ColumnWidth = {'1x'};
             sidebar_grid.RowHeight = {30, 60, 30, 30, 30, 30, 110, 30, 30, 30, 30, 30, 30, 30,...
-                                      30, 25, 30, 30, 30, 30, 30, 30, 30, 130, 30};
+                                      30, 25, 30, 30, 30, 30, 30, 30, 30, 160, 30};
             sidebar_grid.Padding = [10 10 10 10];
             sidebar_grid.RowSpacing = 6;
             if isprop(sidebar_grid, "Scrollable")
@@ -599,9 +608,9 @@ classdef timeAvg_UI < handle
             bounds_panel.Title = "Live Calc Bounds (y/L, z/L)";
             bounds_panel.TitlePosition = 'centertop';
 
-            bounds_grid = uigridlayout(bounds_panel, [3, 3]);
+            bounds_grid = uigridlayout(bounds_panel, [4, 3]);
             bounds_grid.ColumnWidth = {45, '1x', '1x'};
-            bounds_grid.RowHeight = {25, 25, 25};
+            bounds_grid.RowHeight = {25, 25, 25, 25};
             bounds_grid.Padding = [6 4 6 4];
             bounds_grid.RowSpacing = 4;
             bounds_grid.ColumnSpacing = 4;
@@ -627,6 +636,31 @@ classdef timeAvg_UI < handle
                     bounds_fields(end+1) = bound_field; %#ok<AGROW>
                 end
             end
+            % Uncertainty mask: threshold (% of freestream) and on/off
+            unc_label = uilabel(bounds_grid);
+            unc_label.Layout.Row = 4;
+            unc_label.Layout.Column = 1;
+            unc_label.Text = "unc %";
+
+            unc_field = uieditfield(bounds_grid, 'numeric');
+            unc_field.Layout.Row = 4;
+            unc_field.Layout.Column = 2;
+            unc_field.Limits = [0 Inf];
+            unc_field.Value = obj.unc_mask_pct;
+            unc_field.Tooltip = "Uncertainty mask threshold, % of the freestream speed";
+            unc_field.ValueChangedFcn = @(src, event) unc_mask_pct_change(src, event, plot_panel);
+            bounds_fields(end+1) = unc_field;
+
+            unc_button = uibutton(bounds_grid, "state");
+            unc_button.Layout.Row = 4;
+            unc_button.Layout.Column = 3;
+            unc_button.Text = "Unc Mask";
+            unc_button.Value = obj.unc_mask_bool;
+            unc_button.BackgroundColor = obj.get_button_color(obj.unc_mask_bool);
+            unc_button.Tooltip = "Leave out of the live force integrals the points whose total uncertainty, averaged over the wingbeat, is above this % of the freestream speed (they are treated as undisturbed freestream)";
+            unc_button.ValueChangedFcn = @(src, event) unc_mask_change(src, event, plot_panel);
+            bounds_fields(end+1) = unc_button;
+
             set(bounds_fields, 'Enable', 'off'); % only used with Live Calculate
             calc_button.ValueChangedFcn = @(src, event) calc_change(src, event, plot_panel, bounds_fields);
 
@@ -864,6 +898,23 @@ classdef timeAvg_UI < handle
                     return
                 end
                 if obj.calc_bool
+                    obj.update_plot(plot_panel);
+                end
+            end
+
+            function unc_mask_change(src, ~, plot_panel)
+                obj.unc_mask_bool = src.Value;
+                src.BackgroundColor = obj.get_button_color(obj.unc_mask_bool);
+                obj.set_unc_mask_bound();
+                if obj.calc_bool
+                    obj.update_plot(plot_panel);
+                end
+            end
+
+            function unc_mask_pct_change(src, ~, plot_panel)
+                obj.unc_mask_pct = src.Value;
+                obj.set_unc_mask_bound();
+                if obj.calc_bool && obj.unc_mask_bool
                     obj.update_plot(plot_panel);
                 end
             end
@@ -2220,6 +2271,16 @@ classdef timeAvg_UI < handle
             [~, file_name] = fileparts(files(1));
             fprintf("%s not defined for %s, using 0\n", var_name, file_name);
             var = 0;
+        end
+
+        % Uncertainty mask threshold passed to get_PIV_force with the trim
+        % bounds (fraction of the freestream; 0 = off)
+        function set_unc_mask_bound(obj)
+            if obj.unc_mask_bool
+                obj.trim_bounds.unc_mask = obj.unc_mask_pct / 100;
+            else
+                obj.trim_bounds.unc_mask = 0;
+            end
         end
 
         function value = get_trim_bound_value(obj, field_name)

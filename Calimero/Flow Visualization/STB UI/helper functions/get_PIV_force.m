@@ -7,7 +7,8 @@ function [var, err, I] = get_PIV_force(file_name, case_name, force_var_name, avg
         % ([ny nz] or [ny nz num_bins]; trapz over y then z gives var,
         % before norm_bool), I.y and I.z the trimmed grid (y/c, z/c, from
         % the centre point), I.L the chord. I.field is [] for forces that
-        % aren't plane integrals (the omega_y lift terms).
+        % aren't plane integrals (the omega_y lift terms). I.mask is the
+        % uncertainty mask (bounds.unc_mask), [] if none.
         want_int = nargout >= 3;
 
         % *_tavg (e.g. lift_tavg.vortX, lift_vel_tavg): average the phase
@@ -162,6 +163,29 @@ function [var, err, I] = get_PIV_force(file_name, case_name, force_var_name, avg
     u_tr = nanRegionFill(u_tr);
     v_tr = nanRegionFill(v_tr);
     w_tr = nanRegionFill(w_tr);
+
+    % Uncertainty mask (optional, bounds.unc_mask = threshold as a
+    % fraction of the freestream speed, e.g. 0.04; 0 or absent = off).
+    % Points whose total uncertainty averaged over the wingbeat (or the
+    % time averaged uncertainty for 0 Hz files) is above the threshold,
+    % or that were never measured, are set to undisturbed freestream
+    % (u = -1, v = w = 0, zero vorticity, nondimensional), so they add
+    % nothing to any of the force integrals in get_wake_lift.
+    mask = [];
+    if isfield(bounds, 'unc_mask') && ~isempty(bounds.unc_mask) && bounds.unc_mask > 0
+        unc_t = mean(unc_tr, 3, "omitnan");             % [ny nz]
+        mask = unc_t > bounds.unc_mask | isnan(unc_t);
+        m = repmat(mask, 1, 1, size(u_tr, 3));
+        u_tr(m) = -1;
+        v_tr(m) = 0;
+        w_tr(m) = 0;
+        if vort_bool
+            mv = repmat(mask, 1, 1, size(vortX_tr, 3));
+            vortX_tr(mv) = 0;
+            vortY_tr(mv) = 0;
+            vortZ_tr(mv) = 0;
+        end
+    end
     
     D.x = x_conv; D.y = y_tr; D.z = z_tr;
     D.period = period; % wingbeat period, for the periodic time integrals
@@ -223,6 +247,7 @@ function [var, err, I] = get_PIV_force(file_name, case_name, force_var_name, avg
         I.y = y_tr(:, 1).';
         I.z = z_tr(1, :);
         I.L = d.L;
+        I.mask = mask; % [ny nz] logical, [] when no uncertainty mask
     end
     
     if norm_bool
