@@ -224,6 +224,13 @@ properties
     % unc_mask_thresh percent of the freestream speed
     unc_mask_bool;
     unc_mask_thresh;
+    % 3D plot "Fix Limits": hold the y and z axis limits (y/c, z/c) at
+    % fix_ylim / fix_zlim so cases can be compared on the same axes;
+    % fix_lims_set is true once limits were entered or taken from a plot
+    fix_lims_bool;
+    fix_ylim;
+    fix_zlim;
+    fix_lims_set;
 end
 
 methods
@@ -275,6 +282,10 @@ methods
         obj.remove_small_pct = obj.REMOVE_SMALL_DEFAULT;
         obj.unc_mask_bool = false;
         obj.unc_mask_thresh = 5; % % of freestream
+        obj.fix_lims_bool = false;
+        obj.fix_ylim = [-5 5];
+        obj.fix_zlim = [-3 3];
+        obj.fix_lims_set = false;
         obj.trim_bool = true;
         obj.extrapolate_bool = false;
         obj.full_section_bool = false;
@@ -769,7 +780,7 @@ methods
         extrapolate_button.Layout.Row = 1;
         extrapolate_button.Layout.Column = 1;
         extrapolate_button.Text = "Extrapolate";
-        extrapolate_button.FontSize = 15;
+        extrapolate_button.FontSize = 14;
         extrapolate_button.BackgroundColor = obj.INACTIVE_COLOR;
         extrapolate_button.ValueChangedFcn = @(src, event) extrapolate_change(src, event, plot_area_panel);
 
@@ -777,7 +788,7 @@ methods
         full_section_button.Layout.Row = 1;
         full_section_button.Layout.Column = 2;
         full_section_button.Text = "Full Section";
-        full_section_button.FontSize = 15;
+        full_section_button.FontSize = 14;
         full_section_button.BackgroundColor = obj.INACTIVE_COLOR;
         full_section_button.Enable = "off"; % until Extrapolate is on
         full_section_button.ValueChangedFcn = @(src, event) full_section_change(src, event, plot_area_panel);
@@ -799,7 +810,7 @@ methods
         floor_button.Layout.Row = 1;
         floor_button.Layout.Column = 1;
         floor_button.Text = "Noise Floor";
-        floor_button.FontSize = 15;
+        floor_button.FontSize = 14;
         floor_button.BackgroundColor = obj.INACTIVE_COLOR;
         floor_button.ValueChangedFcn = @(src, event) floor_change(src, event, plot_area_panel);
 
@@ -823,7 +834,7 @@ methods
         q_mask_button.Layout.Row = 1;
         q_mask_button.Layout.Column = 1;
         q_mask_button.Text = "Q-mask";
-        q_mask_button.FontSize = 15;
+        q_mask_button.FontSize = 14;
         q_mask_button.BackgroundColor = obj.INACTIVE_COLOR;
         q_mask_button.ValueChangedFcn = @(src, event) q_mask_change(src, event, plot_area_panel);
 
@@ -858,11 +869,12 @@ methods
         obj.param_panel.Title = "3D Plot Parameters";
         obj.param_panel.TitlePosition = 'centertop';
 
-        param_grid = uigridlayout(obj.param_panel, [14, 1]);
+        param_grid = uigridlayout(obj.param_panel, [15, 1]);
         param_grid.ColumnWidth = {'1x'};
-        % isovalue, iso variable, views, x-axis / shift / stroke labels,
-        % Remove Small, Unc Mask, number of wingbeats, Card Style
-        param_grid.RowHeight = {22, 55, 30, 50, 18, 24, 30, 30, 30, 30, 30, 22, 55, 30};
+        % isovalue, iso variable, views, fixed y / z limits, x-axis /
+        % shift / stroke labels, Remove Small, Unc Mask, number of
+        % wingbeats, Card Style
+        param_grid.RowHeight = {22, 55, 30, 50, 18, 24, 52, 30, 30, 30, 30, 30, 22, 55, 30};
         param_grid.Padding = [10 8 10 8];
         param_grid.RowSpacing = 6;
 
@@ -907,13 +919,13 @@ methods
         iso_var_dropdown.ValueChangedFcn = @(src, event) iso_var_change(src, event, plot_area_panel);
 
         l2 = uilabel(param_grid);
-        l2.Layout.Row = 12;
+        l2.Layout.Row = 13;
         l2.Layout.Column = 1;
         l2.HorizontalAlignment = 'center';
         l2.Text = 'Number of Wingbeats';
 
         num_cycles_slider = uislider(param_grid);
-        num_cycles_slider.Layout.Row = 13;
+        num_cycles_slider.Layout.Row = 14;
         num_cycles_slider.Layout.Column = 1;
         num_cycles_slider.Limits = [1 5];
         num_cycles_slider.Value = obj.num_cycles;
@@ -921,9 +933,57 @@ methods
         num_cycles_slider.MinorTicks = [];
         num_cycles_slider.ValueChangedFcn = @(src, event) num_cycles_change(src, event, plot_area_panel);
 
+        % Fix Limits: hold the y and z axes at the limits typed beside it,
+        % so different cases are drawn on the same axes. Turning it on the
+        % first time fills the boxes with the current plot's limits.
+        lims_grid = uigridlayout(param_grid, [2, 4]);
+        lims_grid.Layout.Row = 7;
+        lims_grid.Layout.Column = 1;
+        lims_grid.ColumnWidth = {'1x', 14, 44, 44};
+        lims_grid.RowHeight = {'1x', '1x'};
+        lims_grid.Padding = [0 0 0 0];
+        lims_grid.RowSpacing = 4;
+        lims_grid.ColumnSpacing = 3;
+
+        fix_lims_button = uibutton(lims_grid, "state");
+        fix_lims_button.Layout.Row = [1 2];
+        fix_lims_button.Layout.Column = 1;
+        fix_lims_button.Text = "Fix Limits";
+        fix_lims_button.FontSize = 14;
+        fix_lims_button.Value = obj.fix_lims_bool;
+        fix_lims_button.BackgroundColor = obj.get_button_color(obj.fix_lims_bool);
+        fix_lims_button.Tooltip = "Hold the y/c and z/c axis limits at the values beside it (x is always 0 to 1 in t/T). Off: limits follow the data";
+        fix_lims_button.ValueChangedFcn = @(src, event) fix_lims_change(src, event, plot_area_panel);
+
+        lim_names = ["y", "z"];
+        lim_sides = ["lower", "upper"];
+        lim_fields = gobjects(2, 2);
+        for lim_row = 1:2
+            lim_label = uilabel(lims_grid);
+            lim_label.Layout.Row = lim_row;
+            lim_label.Layout.Column = 2;
+            lim_label.Text = lim_names(lim_row);
+            lim_label.HorizontalAlignment = 'right';
+            for lim_col = 1:2
+                lim_f = uieditfield(lims_grid, "numeric");
+                lim_f.Layout.Row = lim_row;
+                lim_f.Layout.Column = 2 + lim_col;
+                lim_f.HorizontalAlignment = 'center';
+                lim_f.ValueDisplayFormat = '%.3g';
+                if lim_row == 1
+                    lim_f.Value = obj.fix_ylim(lim_col);
+                else
+                    lim_f.Value = obj.fix_zlim(lim_col);
+                end
+                lim_f.Tooltip = lim_names(lim_row) + "/c " + lim_sides(lim_col) + " limit (Fix Limits)";
+                lim_f.ValueChangedFcn = @(src, event) fix_lims_value_change(src, event, plot_area_panel);
+                lim_fields(lim_row, lim_col) = lim_f;
+            end
+        end
+
         % x-axis as wingbeat time (t/T) or convective distance (x/c = U t / c)
         conv_units_button = uibutton(param_grid, "state");
-        conv_units_button.Layout.Row = 7;
+        conv_units_button.Layout.Row = 8;
         conv_units_button.Layout.Column = 1;
         conv_units_button.Text = "x-axis: t/T";
         conv_units_button.FontSize = 16;
@@ -937,7 +997,7 @@ methods
         % to it "+/-": a further half wingbeat, so the upstroke is centred
         % instead of the downstroke
         conv_shift_grid = uigridlayout(param_grid, [1, 2]);
-        conv_shift_grid.Layout.Row = 8;
+        conv_shift_grid.Layout.Row = 9;
         conv_shift_grid.Layout.Column = 1;
         conv_shift_grid.ColumnWidth = {'1x', 32};
         conv_shift_grid.RowHeight = {'1x'};
@@ -969,7 +1029,7 @@ methods
         % labels; drawn only in the 2D views that show the x-axis
         % (+/-yz, +/-xz). Needs the convection shift, like phaseAvg_UI.
         label_stroke_button = uibutton(param_grid, "state");
-        label_stroke_button.Layout.Row = 9;
+        label_stroke_button.Layout.Row = 10;
         label_stroke_button.Layout.Column = 1;
         label_stroke_button.Text = "Label Stroke";
         label_stroke_button.FontSize = 16;
@@ -1035,7 +1095,7 @@ methods
         % (best with ω_x as the colour variable), dark background, axes
         % hidden. Turning it off restores the plot exactly as it was.
         card_style_button = uibutton(param_grid, "state");
-        card_style_button.Layout.Row = 14;
+        card_style_button.Layout.Row = 15;
         card_style_button.Layout.Column = 1;
         card_style_button.Text = "Card Style";
         card_style_button.FontSize = 16;
@@ -1047,7 +1107,7 @@ methods
         % Remove Small: hide small disconnected pieces of the isosurface
         % (speckle), threshold as % of the largest piece
         small_grid = uigridlayout(param_grid, [1, 3]);
-        small_grid.Layout.Row = 10;
+        small_grid.Layout.Row = 11;
         small_grid.Layout.Column = 1;
         small_grid.ColumnWidth = {'1x', 46, 14};
         small_grid.RowHeight = {'1x'};
@@ -1081,7 +1141,7 @@ methods
         % Uncertainty mask: hide the isosurface where the wingbeat-averaged
         % total uncertainty is above the threshold (% of freestream)
         unc_grid = uigridlayout(param_grid, [1, 3]);
-        unc_grid.Layout.Row = 11;
+        unc_grid.Layout.Row = 12;
         unc_grid.Layout.Column = 1;
         unc_grid.ColumnWidth = {'1x', 46, 14};
         unc_grid.RowHeight = {'1x'};
@@ -1321,7 +1381,7 @@ methods
             row_heights = sidebar_grid.RowHeight;
             if is_visible
                 obj.param_panel.Visible = "on";
-                row_heights{14} = 631;
+                row_heights{14} = 689;
             else
                 obj.param_panel.Visible = "off";
                 row_heights{14} = 0;
@@ -1713,6 +1773,45 @@ methods
             end
         end
 
+        function fix_lims_change(src, ~, plot_panel)
+            obj.fix_lims_bool = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.fix_lims_bool);
+            ax = findobj(plot_panel.Children, 'Type', 'axes');
+            if obj.fix_lims_bool && ~obj.fix_lims_set && isscalar(ax) && obj.plot_type == obj.plot_types(5)
+                % first use: start from the current plot's limits
+                obj.fix_ylim = round(ax.YLim, 2);
+                obj.fix_zlim = round(ax.ZLim, 2);
+                obj.fix_lims_set = true;
+                set_lim_fields();
+            end
+            if obj.plot_type == obj.plot_types(5)
+                obj.apply_fixed_lims(ax);
+            end
+        end
+
+        function fix_lims_value_change(~, ~, plot_panel)
+            ylim_new = [lim_fields(1,1).Value, lim_fields(1,2).Value];
+            zlim_new = [lim_fields(2,1).Value, lim_fields(2,2).Value];
+            if ylim_new(1) >= ylim_new(2) || zlim_new(1) >= zlim_new(2)
+                set_lim_fields(); % lower must be below upper: undo
+                return
+            end
+            obj.fix_ylim = ylim_new;
+            obj.fix_zlim = zlim_new;
+            obj.fix_lims_set = true;
+            if obj.fix_lims_bool && obj.plot_type == obj.plot_types(5)
+                ax = findobj(plot_panel.Children, 'Type', 'axes');
+                obj.apply_fixed_lims(ax);
+            end
+        end
+
+        function set_lim_fields()
+            lim_fields(1,1).Value = obj.fix_ylim(1);
+            lim_fields(1,2).Value = obj.fix_ylim(2);
+            lim_fields(2,1).Value = obj.fix_zlim(1);
+            lim_fields(2,2).Value = obj.fix_zlim(2);
+        end
+
         function unc_mask_change(src, ~, plot_panel)
             obj.unc_mask_bool = src.Value;
             src.BackgroundColor = obj.get_button_color(obj.unc_mask_bool);
@@ -2091,6 +2190,26 @@ methods (Access = private)
             k = lgt.UserData;
             camlight(lgt, obj.CARD_LIGHT_POS(k, 1), obj.CARD_LIGHT_POS(k, 2));
         end
+    end
+
+    % "Fix Limits" on the 3D plot: y and z axes held at fix_ylim / fix_zlim
+    % (y/c, z/c), or back to automatic limits when off. The stroke labels
+    % are drawn to the axis limits, so they are redrawn too.
+    function apply_fixed_lims(obj, ax)
+        if isempty(ax) || ~isscalar(ax) || ~isvalid(ax)
+            return
+        end
+        if obj.fix_lims_bool
+            ylim(ax, obj.fix_ylim);
+            zlim(ax, obj.fix_zlim);
+        else
+            % stroke labels span the old limits; remove them first so the
+            % automatic limits follow the data only
+            delete(findall(ax, 'Tag', obj.STROKE_TAG));
+            ax.YLimMode = 'auto';
+            ax.ZLimMode = 'auto';
+        end
+        obj.draw_stroke_labels_3D(ax);
     end
 
     % "Remove Small" on the 3D plot's isosurface: with remove_small_bool
@@ -3333,6 +3452,7 @@ methods (Access = private)
                 obj.add_stroke_view_listeners(ax);
                 obj.plot_hold_bool = true;
             end
+            obj.apply_fixed_lims(ax);
             obj.set_stroke_frame_shift(params.shift - conv_shift_bins);
             obj.draw_stroke_labels_3D(ax);
             obj.apply_remove_small(ax);
