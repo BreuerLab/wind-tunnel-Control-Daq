@@ -628,9 +628,9 @@ methods
         end
         pause(1) % wait until GUI opened
 
-        sidebar_grid = uigridlayout(option_panel, [17, 1]);
+        sidebar_grid = uigridlayout(option_panel, [15, 1]);
         sidebar_grid.ColumnWidth = {'1x'};
-        sidebar_grid.RowHeight = {30, 30, 30, 30, 30, 30, 35, 30, 30, 30, 30, 30, 30, 30, 30, 0, 30};
+        sidebar_grid.RowHeight = {30, 30, 30, 30, 30, 30, 35, 30, 30, 30, 30, 30, 30, 0, 30};
         sidebar_grid.Padding = [10 10 10 10];
         sidebar_grid.RowSpacing = 6;
         if isprop(sidebar_grid, "Scrollable")
@@ -769,7 +769,7 @@ methods
         extrapolate_button.Layout.Row = 1;
         extrapolate_button.Layout.Column = 1;
         extrapolate_button.Text = "Extrapolate";
-        extrapolate_button.FontSize = 18;
+        extrapolate_button.FontSize = 15;
         extrapolate_button.BackgroundColor = obj.INACTIVE_COLOR;
         extrapolate_button.ValueChangedFcn = @(src, event) extrapolate_change(src, event, plot_area_panel);
 
@@ -777,7 +777,7 @@ methods
         full_section_button.Layout.Row = 1;
         full_section_button.Layout.Column = 2;
         full_section_button.Text = "Full Section";
-        full_section_button.FontSize = 18;
+        full_section_button.FontSize = 15;
         full_section_button.BackgroundColor = obj.INACTIVE_COLOR;
         full_section_button.Enable = "off"; % until Extrapolate is on
         full_section_button.ValueChangedFcn = @(src, event) full_section_change(src, event, plot_area_panel);
@@ -786,31 +786,51 @@ methods
         % This remembers what Mirror was before, to restore it afterwards.
         mirror_before_extrapolate = obj.mirror_bool;
 
-        floor_button = uibutton(sidebar_grid, "state");
-        floor_button.Layout.Row = 12;
+        % Noise Floor and its threshold share a row
+        floor_grid = uigridlayout(sidebar_grid, [1, 2]);
+        floor_grid.Layout.Row = 12;
+        floor_grid.Layout.Column = 1;
+        floor_grid.ColumnWidth = {'1x', 64};
+        floor_grid.RowHeight = {'1x'};
+        floor_grid.Padding = [0 0 0 0];
+        floor_grid.ColumnSpacing = 8;
+
+        floor_button = uibutton(floor_grid, "state");
+        floor_button.Layout.Row = 1;
         floor_button.Layout.Column = 1;
         floor_button.Text = "Noise Floor";
-        floor_button.FontSize = 18;
+        floor_button.FontSize = 15;
         floor_button.BackgroundColor = obj.INACTIVE_COLOR;
         floor_button.ValueChangedFcn = @(src, event) floor_change(src, event, plot_area_panel);
 
-        floor_field = uieditfield(sidebar_grid, 'numeric');
-        floor_field.Layout.Row = 13;
-        floor_field.Layout.Column = 1;
+        floor_field = uieditfield(floor_grid, 'numeric');
+        floor_field.Layout.Row = 1;
+        floor_field.Layout.Column = 2;
+        floor_field.HorizontalAlignment = 'center';
         floor_field.Value = obj.thresh;
         floor_field.ValueChangedFcn = @(src, event) thresh_change(src, event, plot_area_panel);
 
-        q_mask_button = uibutton(sidebar_grid, "state");
-        q_mask_button.Layout.Row = 14;
+        % Q-mask and its threshold share a row
+        q_mask_grid = uigridlayout(sidebar_grid, [1, 2]);
+        q_mask_grid.Layout.Row = 13;
+        q_mask_grid.Layout.Column = 1;
+        q_mask_grid.ColumnWidth = {'1x', 64};
+        q_mask_grid.RowHeight = {'1x'};
+        q_mask_grid.Padding = [0 0 0 0];
+        q_mask_grid.ColumnSpacing = 8;
+
+        q_mask_button = uibutton(q_mask_grid, "state");
+        q_mask_button.Layout.Row = 1;
         q_mask_button.Layout.Column = 1;
         q_mask_button.Text = "Q-mask";
-        q_mask_button.FontSize = 18;
+        q_mask_button.FontSize = 15;
         q_mask_button.BackgroundColor = obj.INACTIVE_COLOR;
         q_mask_button.ValueChangedFcn = @(src, event) q_mask_change(src, event, plot_area_panel);
 
-        q_mask_field = uieditfield(sidebar_grid, 'numeric');
-        q_mask_field.Layout.Row = 15;
-        q_mask_field.Layout.Column = 1;
+        q_mask_field = uieditfield(q_mask_grid, 'numeric');
+        q_mask_field.Layout.Row = 1;
+        q_mask_field.Layout.Column = 2;
+        q_mask_field.HorizontalAlignment = 'center';
         q_mask_field.Value = obj.q_mask_thresh;
         q_mask_field.ValueChangedFcn = @(src, event) q_mask_thresh_change(src, event, plot_area_panel);
 
@@ -832,7 +852,7 @@ methods
         obj.play_button.ValueChangedFcn = @(src, event) playStop_change(src, event, plot_area_panel);
 
         obj.param_panel = uipanel(sidebar_grid);
-        obj.param_panel.Layout.Row = 16;
+        obj.param_panel.Layout.Row = 14;
         obj.param_panel.Layout.Column = 1;
         obj.param_panel.Visible = "off";
         obj.param_panel.Title = "3D Plot Parameters";
@@ -840,7 +860,9 @@ methods
 
         param_grid = uigridlayout(obj.param_panel, [14, 1]);
         param_grid.ColumnWidth = {'1x'};
-        param_grid.RowHeight = {22, 55, 30, 22, 55, 30, 30, 30, 50, 18, 24, 30, 30, 30};
+        % isovalue, iso variable, views, x-axis / shift / stroke labels,
+        % Remove Small, Unc Mask, number of wingbeats, Card Style
+        param_grid.RowHeight = {22, 55, 30, 50, 18, 24, 30, 30, 30, 30, 30, 22, 55, 30};
         param_grid.Padding = [10 8 10 8];
         param_grid.RowSpacing = 6;
 
@@ -885,13 +907,13 @@ methods
         iso_var_dropdown.ValueChangedFcn = @(src, event) iso_var_change(src, event, plot_area_panel);
 
         l2 = uilabel(param_grid);
-        l2.Layout.Row = 4;
+        l2.Layout.Row = 12;
         l2.Layout.Column = 1;
         l2.HorizontalAlignment = 'center';
         l2.Text = 'Number of Wingbeats';
 
         num_cycles_slider = uislider(param_grid);
-        num_cycles_slider.Layout.Row = 5;
+        num_cycles_slider.Layout.Row = 13;
         num_cycles_slider.Layout.Column = 1;
         num_cycles_slider.Limits = [1 5];
         num_cycles_slider.Value = obj.num_cycles;
@@ -901,7 +923,7 @@ methods
 
         % x-axis as wingbeat time (t/T) or convective distance (x/c = U t / c)
         conv_units_button = uibutton(param_grid, "state");
-        conv_units_button.Layout.Row = 6;
+        conv_units_button.Layout.Row = 7;
         conv_units_button.Layout.Column = 1;
         conv_units_button.Text = "x-axis: t/T";
         conv_units_button.FontSize = 16;
@@ -915,7 +937,7 @@ methods
         % to it "+/-": a further half wingbeat, so the upstroke is centred
         % instead of the downstroke
         conv_shift_grid = uigridlayout(param_grid, [1, 2]);
-        conv_shift_grid.Layout.Row = 7;
+        conv_shift_grid.Layout.Row = 8;
         conv_shift_grid.Layout.Column = 1;
         conv_shift_grid.ColumnWidth = {'1x', 32};
         conv_shift_grid.RowHeight = {'1x'};
@@ -947,7 +969,7 @@ methods
         % labels; drawn only in the 2D views that show the x-axis
         % (+/-yz, +/-xz). Needs the convection shift, like phaseAvg_UI.
         label_stroke_button = uibutton(param_grid, "state");
-        label_stroke_button.Layout.Row = 8;
+        label_stroke_button.Layout.Row = 9;
         label_stroke_button.Layout.Column = 1;
         label_stroke_button.Text = "Label Stroke";
         label_stroke_button.FontSize = 16;
@@ -959,7 +981,7 @@ methods
 
         % View buttons rotate the current 3D axes without redrawing data.
         view_grid = uigridlayout(param_grid, [2, 3]);
-        view_grid.Layout.Row = 9;
+        view_grid.Layout.Row = 4;
         view_grid.Layout.Column = 1;
         view_grid.RowHeight = {'1x', '1x'};
         view_grid.ColumnWidth = {'1x', '1x', '1x'};
@@ -982,13 +1004,13 @@ methods
         % Isometric views from above: camera along (+/-1, +/-1, 1); button
         % text is the sign of the camera's x, y, z.
         iso_label = uilabel(param_grid);
-        iso_label.Layout.Row = 10;
+        iso_label.Layout.Row = 5;
         iso_label.Layout.Column = 1;
         iso_label.HorizontalAlignment = 'center';
         iso_label.Text = 'Iso views';
 
         iso_grid = uigridlayout(param_grid, [1, 4]);
-        iso_grid.Layout.Row = 11;
+        iso_grid.Layout.Row = 6;
         iso_grid.Layout.Column = 1;
         iso_grid.RowHeight = {'1x'};
         iso_grid.ColumnWidth = {'1x', '1x', '1x', '1x'};
@@ -1013,7 +1035,7 @@ methods
         % (best with ω_x as the colour variable), dark background, axes
         % hidden. Turning it off restores the plot exactly as it was.
         card_style_button = uibutton(param_grid, "state");
-        card_style_button.Layout.Row = 12;
+        card_style_button.Layout.Row = 14;
         card_style_button.Layout.Column = 1;
         card_style_button.Text = "Card Style";
         card_style_button.FontSize = 16;
@@ -1025,7 +1047,7 @@ methods
         % Remove Small: hide small disconnected pieces of the isosurface
         % (speckle), threshold as % of the largest piece
         small_grid = uigridlayout(param_grid, [1, 3]);
-        small_grid.Layout.Row = 13;
+        small_grid.Layout.Row = 10;
         small_grid.Layout.Column = 1;
         small_grid.ColumnWidth = {'1x', 46, 14};
         small_grid.RowHeight = {'1x'};
@@ -1059,7 +1081,7 @@ methods
         % Uncertainty mask: hide the isosurface where the wingbeat-averaged
         % total uncertainty is above the threshold (% of freestream)
         unc_grid = uigridlayout(param_grid, [1, 3]);
-        unc_grid.Layout.Row = 14;
+        unc_grid.Layout.Row = 11;
         unc_grid.Layout.Column = 1;
         unc_grid.ColumnWidth = {'1x', 46, 14};
         unc_grid.RowHeight = {'1x'};
@@ -1091,7 +1113,7 @@ methods
         unc_mask_label.Text = '%';
 
         save_button = uibutton(sidebar_grid, "state");
-        save_button.Layout.Row = 17;
+        save_button.Layout.Row = 15;
         save_button.Layout.Column = 1;
         save_button.Text = "Save Figure";
         save_button.FontSize = 18;
@@ -1299,10 +1321,10 @@ methods
             row_heights = sidebar_grid.RowHeight;
             if is_visible
                 obj.param_panel.Visible = "on";
-                row_heights{16} = 631;
+                row_heights{14} = 631;
             else
                 obj.param_panel.Visible = "off";
-                row_heights{16} = 0;
+                row_heights{14} = 0;
             end
             sidebar_grid.RowHeight = row_heights;
         end
