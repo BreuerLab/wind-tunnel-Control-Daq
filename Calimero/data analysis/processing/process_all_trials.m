@@ -11,6 +11,9 @@
 % (i.e. you must be in the process trial folder)
 clear
 close all
+% Close any processing log left open by a run that was interrupted (Ctrl+C)
+% or errored, so this run's output doesn't spill into the old log
+diary off
 
 % Change current working directory to the directory where this file is
 cd(fileparts(mfilename('fullpath')));
@@ -186,7 +189,13 @@ if ~exist(dirPath, 'dir')
     mkdir(dirPath);
     fprintf('Directory "%s" created.\n', dirPath);
 end
-diary(dirPath + DELIM + wind_speed + "ms_" + type + ".txt")
+% One log per run, named with its start time, rather than appending every
+% run to the same file
+log_time = datetime('now', 'Format', 'yyyy_MM_dd_HH_mm_ss');
+log_file = dirPath + DELIM + wind_speed + "ms_" + type + "_" + string(log_time) + ".txt";
+diary(log_file)
+disp("Processing log started " + string(log_time))
+disp("Data folder: " + filepath)
 percent_complete = 0;
 try
 time_now = datetime;
@@ -255,6 +264,7 @@ end
 disp("---------------------------------------------------------------")
 
 diary off
+clean_log(log_file)
 time_now = datetime;
 time_now.Format = 'yyyy_MM_dd HH_mm_ss';
 
@@ -263,6 +273,11 @@ s.send("Finished processing all files at: " + string(time_now) +...
     " (" + trial_count + " trials in " + fmt_dur(total_time) + ")")
 end
 catch ME
+% Record the error in the log, then close the log before rethrowing
+disp(getReport(ME, 'extended', 'hyperlinks', 'off'))
+disp(percent_complete + "% complete when the error occurred")
+diary off
+clean_log(log_file)
 time_now = datetime;
 time_now.Format = 'yyyy_MM_dd HH_mm_ss';
 
@@ -271,4 +286,18 @@ s.send("Encountered error while processing files at: " + string(time_now)...
     + ". " + percent_complete + "% complete.")    
 end
 rethrow(ME)
+end
+
+% Strip the MATLAB hyperlink markup (<a href=...>) that warnings and errors
+% write into the diary, so the log reads as plain text
+function clean_log(log_file)
+    try
+        txt = fileread(log_file);
+        txt = regexprep(txt, '<a\s[^>]*>|</a>', '');
+        fid = fopen(log_file, 'w', 'n', 'UTF-8');
+        fprintf(fid, '%s', txt);
+        fclose(fid);
+    catch
+        warning("Could not clean up log file " + log_file)
+    end
 end

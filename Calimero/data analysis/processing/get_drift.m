@@ -35,7 +35,7 @@ function [drift, offsets_before, offsets_after] = get_drift(experiment_filename,
     offsets_string = "after_offsets";
     [offsets_fin, offsets_fin_filename] = findMatchingOffset...
     (offsets_files, offsets_string, wing_freq_exp, amp_exp, AoA_exp, wind_speed_exp, type_exp, time_stamp_exp);
-    disp("After offsets: " + offsets_first_filename)
+    disp("After offsets: " + offsets_fin_filename)
 
     offsets_after = coordinate_transformation(cal_mat * offsets_fin(1:6)', AoA_exp);
     offsets_after = [offsets_after; offsets_fin(7:8)']; % encoder data still excluded
