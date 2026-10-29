@@ -20,9 +20,9 @@ properties (Constant, Access = private)
     % ω_x > 0 red): pine green, cream, cranberry
     CARD_CMAP_ANCHORS = [0.05 0.33 0.20; 0.30 0.60 0.40; 0.93 0.89 0.78; ...
                          0.85 0.30 0.30; 0.60 0.05 0.13];
-    % card style despeckle default: hide isosurface pieces with fewer
+    % "Remove Small" default: hide isosurface pieces with fewer
     % triangles than this % of the largest piece (0 = keep everything)
-    CARD_MIN_BLOB_DEFAULT = 2;
+    REMOVE_SMALL_DEFAULT = 2;
     % Derived variable: lift integrand from the wake, computed on the fly
     % from stored fields (term1 in get_wake_lift: -U .* y .* -vortX, with y
     % measured from the mirror centerline)
@@ -209,8 +209,10 @@ properties
     % plot panel background before the card style darkened it, [] if the
     % panel isn't darkened (the panel outlives the axes, so it is kept here)
     card_panel_color;
-    % card style despeckle threshold, % of the largest isosurface piece
-    card_min_blob;
+    % "Remove Small": hide small disconnected isosurface pieces, those with
+    % fewer triangles than remove_small_pct % of the largest piece
+    remove_small_bool;
+    remove_small_pct;
     extrapolate_bool;
     full_section_bool; % with Extrapolate: show the whole test section, not just the field of view
     floor_bool;
@@ -269,7 +271,8 @@ methods
         obj.stroke_3D = [];
         obj.card_style = false;
         obj.card_panel_color = [];
-        obj.card_min_blob = obj.CARD_MIN_BLOB_DEFAULT;
+        obj.remove_small_bool = false;
+        obj.remove_small_pct = obj.REMOVE_SMALL_DEFAULT;
         obj.unc_mask_bool = false;
         obj.unc_mask_thresh = 5; % % of freestream
         obj.trim_bool = true;
@@ -835,9 +838,9 @@ methods
         obj.param_panel.Title = "3D Plot Parameters";
         obj.param_panel.TitlePosition = 'centertop';
 
-        param_grid = uigridlayout(obj.param_panel, [13, 1]);
+        param_grid = uigridlayout(obj.param_panel, [14, 1]);
         param_grid.ColumnWidth = {'1x'};
-        param_grid.RowHeight = {22, 55, 30, 22, 55, 30, 30, 30, 50, 18, 24, 30, 30};
+        param_grid.RowHeight = {22, 55, 30, 22, 55, 30, 30, 30, 50, 18, 24, 30, 30, 30};
         param_grid.Padding = [10 8 10 8];
         param_grid.RowSpacing = 6;
 
@@ -1009,17 +1012,8 @@ methods
         % Cosmetic "card" look: lighting, red-green diverging colormap
         % (best with ω_x as the colour variable), dark background, axes
         % hidden. Turning it off restores the plot exactly as it was.
-        % next to it: despeckle threshold (% of the largest surface piece)
-        card_grid = uigridlayout(param_grid, [1, 3]);
-        card_grid.Layout.Row = 12;
-        card_grid.Layout.Column = 1;
-        card_grid.ColumnWidth = {'1x', 46, 14};
-        card_grid.RowHeight = {'1x'};
-        card_grid.Padding = [0 0 0 0];
-        card_grid.ColumnSpacing = 3;
-
-        card_style_button = uibutton(card_grid, "state");
-        card_style_button.Layout.Row = 1;
+        card_style_button = uibutton(param_grid, "state");
+        card_style_button.Layout.Row = 12;
         card_style_button.Layout.Column = 1;
         card_style_button.Text = "Card Style";
         card_style_button.FontSize = 16;
@@ -1028,24 +1022,44 @@ methods
         card_style_button.Tooltip = "Lit isosurface, red-green colormap symmetric about zero (choose ω_x as the variable), dark background and no axes. Off restores the original look";
         card_style_button.ValueChangedFcn = @(src, event) card_style_change(src, event, plot_area_panel);
 
-        card_blob_field = uieditfield(card_grid, "numeric");
-        card_blob_field.Layout.Row = 1;
-        card_blob_field.Layout.Column = 2;
-        card_blob_field.Limits = [0 100];
-        card_blob_field.Value = obj.card_min_blob;
-        card_blob_field.HorizontalAlignment = 'center';
-        card_blob_field.Tooltip = "Card Style despeckle: hide isosurface pieces with fewer triangles than this % of the largest piece (0 = off). Only hides triangles; the data are unchanged";
-        card_blob_field.ValueChangedFcn = @(src, event) card_blob_change(src, event, plot_area_panel);
+        % Remove Small: hide small disconnected pieces of the isosurface
+        % (speckle), threshold as % of the largest piece
+        small_grid = uigridlayout(param_grid, [1, 3]);
+        small_grid.Layout.Row = 13;
+        small_grid.Layout.Column = 1;
+        small_grid.ColumnWidth = {'1x', 46, 14};
+        small_grid.RowHeight = {'1x'};
+        small_grid.Padding = [0 0 0 0];
+        small_grid.ColumnSpacing = 3;
 
-        card_blob_label = uilabel(card_grid);
-        card_blob_label.Layout.Row = 1;
-        card_blob_label.Layout.Column = 3;
-        card_blob_label.Text = '%';
+        remove_small_button = uibutton(small_grid, "state");
+        remove_small_button.Layout.Row = 1;
+        remove_small_button.Layout.Column = 1;
+        remove_small_button.Text = "Remove Small";
+        remove_small_button.FontSize = 16;
+        remove_small_button.Value = obj.remove_small_bool;
+        remove_small_button.BackgroundColor = obj.get_button_color(obj.remove_small_bool);
+        remove_small_button.Tooltip = "Hide small disconnected pieces of the isosurface. Only hides triangles; the data are unchanged";
+        remove_small_button.ValueChangedFcn = @(src, event) remove_small_change(src, event, plot_area_panel);
+
+        remove_small_field = uieditfield(small_grid, "numeric");
+        remove_small_field.Layout.Row = 1;
+        remove_small_field.Layout.Column = 2;
+        remove_small_field.Limits = [0 100];
+        remove_small_field.Value = obj.remove_small_pct;
+        remove_small_field.HorizontalAlignment = 'center';
+        remove_small_field.Tooltip = "Remove Small: hide isosurface pieces with fewer triangles than this % of the largest piece";
+        remove_small_field.ValueChangedFcn = @(src, event) remove_small_pct_change(src, event, plot_area_panel);
+
+        remove_small_label = uilabel(small_grid);
+        remove_small_label.Layout.Row = 1;
+        remove_small_label.Layout.Column = 3;
+        remove_small_label.Text = '%';
 
         % Uncertainty mask: hide the isosurface where the wingbeat-averaged
         % total uncertainty is above the threshold (% of freestream)
         unc_grid = uigridlayout(param_grid, [1, 3]);
-        unc_grid.Layout.Row = 13;
+        unc_grid.Layout.Row = 14;
         unc_grid.Layout.Column = 1;
         unc_grid.ColumnWidth = {'1x', 46, 14};
         unc_grid.RowHeight = {'1x'};
@@ -1285,7 +1299,7 @@ methods
             row_heights = sidebar_grid.RowHeight;
             if is_visible
                 obj.param_panel.Visible = "on";
-                row_heights{16} = 595;
+                row_heights{16} = 631;
             else
                 obj.param_panel.Visible = "off";
                 row_heights{16} = 0;
@@ -1647,8 +1661,8 @@ methods
             ax = findobj(plot_panel.Children, 'Type', 'axes');
             if ~obj.shift_3D_surface(ax)
                 obj.update_plot(plot_panel);
-            elseif obj.card_style
-                obj.apply_card_style(ax); % despeckle the shifted surface
+            else
+                obj.apply_remove_small(ax); % filter the shifted surface
             end
         end
 
@@ -1692,12 +1706,21 @@ methods
             end
         end
 
-        function card_blob_change(src, ~, plot_panel)
-            obj.card_min_blob = src.Value;
-            % re-filter the current surface in place
-            if obj.card_style && obj.plot_type == obj.plot_types(5)
+        function remove_small_change(src, ~, plot_panel)
+            obj.remove_small_bool = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.remove_small_bool);
+            % filter (or restore) the current surface in place
+            if obj.plot_type == obj.plot_types(5)
                 ax = findobj(plot_panel.Children, 'Type', 'axes');
-                obj.apply_card_style(ax);
+                obj.apply_remove_small(ax);
+            end
+        end
+
+        function remove_small_pct_change(src, ~, plot_panel)
+            obj.remove_small_pct = src.Value;
+            if obj.remove_small_bool && obj.plot_type == obj.plot_types(5)
+                ax = findobj(plot_panel.Children, 'Type', 'axes');
+                obj.apply_remove_small(ax);
             end
         end
 
@@ -1925,8 +1948,6 @@ methods (Access = private)
             S.clim = ax.CLim;
             S.card_cmap = [];
             S.card_clim = [];
-            S.faces_full = [];
-            S.card_faces = [];
             S.cb = cb(:);
             S.cb_visible = visibility(cb);
             % lights are placed relative to the camera, so re-aim them
@@ -1960,19 +1981,6 @@ methods (Access = private)
             new_cb = cb(is_new);
             S.cb = [old_cb(:); new_cb(:)];
             S.cb_visible = [old_vis(:); visibility(new_cb)];
-        end
-
-        % despeckle: hide small disconnected pieces of the isosurface (noise
-        % near the edges of the measurement volume). Only Faces changes;
-        % Vertices / colours stay, so the x-axis units switch still works.
-        % If the faces aren't the card style's own (new plot, "+/-" shift)
-        % they are the full surface, so save them for remove_card_style.
-        if isscalar(p)
-            if ~isequal(p.Faces, S.card_faces)
-                S.faces_full = p.Faces;
-            end
-            S.card_faces = obj.despeckle_faces(S.faces_full, obj.card_min_blob);
-            p.Faces = S.card_faces;
         end
 
         % surface: soft satin highlights
@@ -2029,11 +2037,6 @@ methods (Access = private)
         if any(keep)
             set(S.patch(keep), S.patch_props, S.patch_vals(keep, :));
         end
-        % put the speckles back, unless the surface was replaced since
-        if isscalar(S.patch) && isvalid(S.patch) && ~isempty(S.faces_full) ...
-                && isequal(S.patch.Faces, S.card_faces)
-            S.patch.Faces = S.faces_full;
-        end
         set(ax, S.ax_props, S.ax_vals);
         ax.Title.Visible = S.title_visible;
         ax.Colormap = S.cmap;
@@ -2065,6 +2068,40 @@ methods (Access = private)
         for lgt = lgts(:)'
             k = lgt.UserData;
             camlight(lgt, obj.CARD_LIGHT_POS(k, 1), obj.CARD_LIGHT_POS(k, 2));
+        end
+    end
+
+    % "Remove Small" on the 3D plot's isosurface: with remove_small_bool
+    % on, hide pieces smaller than remove_small_pct % of the largest; off,
+    % put them back. Only Faces changes (Vertices and colours stay, so the
+    % x-axis units switch still works). The full faces are kept in the
+    % patch's appdata; if the patch's faces aren't the filtered ones (new
+    % surface, "+/-" shift) they are the full surface. Safe to call
+    % repeatedly, e.g. after every redraw.
+    function apply_remove_small(obj, ax)
+        if isempty(ax) || ~isscalar(ax) || ~isvalid(ax)
+            return
+        end
+        p = obj.find_isosurface_patch(ax);
+        if ~isscalar(p)
+            return
+        end
+        R = struct('faces_full', [], 'faces_kept', []);
+        if isappdata(p, 'remove_small')
+            R = getappdata(p, 'remove_small');
+        end
+        if isempty(R.faces_kept) || ~isequal(p.Faces, R.faces_kept)
+            R.faces_full = p.Faces;   % current faces are the full surface
+        end
+        if obj.remove_small_bool
+            R.faces_kept = obj.despeckle_faces(R.faces_full, obj.remove_small_pct);
+            p.Faces = R.faces_kept;
+            setappdata(p, 'remove_small', R);
+        else
+            p.Faces = R.faces_full;
+            if isappdata(p, 'remove_small')
+                rmappdata(p, 'remove_small');
+            end
         end
     end
 
@@ -3276,6 +3313,7 @@ methods (Access = private)
             end
             obj.set_stroke_frame_shift(params.shift - conv_shift_bins);
             obj.draw_stroke_labels_3D(ax);
+            obj.apply_remove_small(ax);
             if obj.card_style
                 % setColorBar above reset the colormap / colour limits, so
                 % re-apply (also styles a freshly created axes)
