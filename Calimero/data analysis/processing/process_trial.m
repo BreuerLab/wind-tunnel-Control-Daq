@@ -45,17 +45,27 @@ end
 % Get raw data from file
 load(raw_data_path + file); % load in results var
 
+% Data are filtered with some padding still attached and only trimmed to
+% the analysed portion (core_idx) afterwards, so the filters' start-up and
+% end transients land in the discarded padding. Filtering the already
+% trimmed data put those transients on the first and last samples, which
+% leaked into the phase averages as a jump between t/T = 0 and t/T = 1.
 if (wing_freq == 0)
 % for gliding case, trim off first and last second of data
-trimmed_results = results(frame_rate:end-frame_rate,:);
+trimmed_results = results;
+core_idx = frame_rate:(size(results,1) - frame_rate);
 else
-% trim off period when acceleration + padding
-trimmed_results = trim_data(results, rec_wingbeats, num_wingbeats);
+% trim off period when acceleration + padding, keeping up to two
+% wingbeats of padding on each side for filtering
+pad_samples = 2 * frame_rate / wing_freq;
+[trimmed_results, core_idx] = trim_data(results, rec_wingbeats, num_wingbeats, pad_samples);
 end
 
 async = true; % We are doing async method of collecting data
 
-[time_data, force_data, voltAdj, curAdj, home_signal, pos, speed, acc, wing_pos, wing_speed, wing_acc] = ...
+% wing kinematics outputs not requested since they aren't used here
+% (skips computing them)
+[time_data, force_data, voltAdj, curAdj, home_signal, ~, speed] = ...
     process_data(trimmed_results, offsets, cal_matrix, ticksPerRev, OC_pulse_step, amp, async);
 OC_pulse_count = trimmed_results(:,11);
 
@@ -70,11 +80,6 @@ mod_results = [results_lab; home_signal'; voltAdj'; curAdj'];
 % if wing_freq ~= 0
 %     motor_model(time_data, voltAdj, curAdj, wing_freq, speed);
 % end
-
-% Non-dimensionalize the data. Newtons to Force Coefficients and
-% Newton*meters to Moment Coefficients
-[norm_data, norm_factors, St, Re, U_act, rho_act] =...
-    non_dimensionalize_data(wind_tunnel_path, results_lab, file, params.freq_vals);
 
 % Smooth the data with a butterworth filter
 % fc = 100; % cutoff frequency
@@ -102,6 +107,23 @@ else
     fc = 4;
 end
 filtered_data_smoothest = filter_data(mod_results, frame_rate, fc);
+
+% Now trim everything to the analysed wingbeats (drops filter transients,
+% and the Savitzky-Golay edge zeros in speed, along with the padding)
+time_data = time_data(core_idx);
+force_data = force_data(:, core_idx);
+results_lab = results_lab(:, core_idx);
+mod_results = mod_results(:, core_idx);
+filtered_data = filtered_data(:, core_idx);
+filtered_data_smoother = filtered_data_smoother(:, core_idx);
+filtered_data_smoothest = filtered_data_smoothest(:, core_idx);
+speed = speed(core_idx);
+OC_pulse_count = OC_pulse_count(core_idx);
+
+% Non-dimensionalize the data. Newtons to Force Coefficients and
+% Newton*meters to Moment Coefficients
+[norm_data, norm_factors, St, Re, U_act, rho_act] =...
+    non_dimensionalize_data(wind_tunnel_path, results_lab, file, params.freq_vals);
 
 % if (wing_freq > 1)
 %     fc = 5*wing_freq; % cutoff frequency
@@ -175,7 +197,9 @@ else
 end
 
 disp("Saving " + processed_data_path + filename)
-save(processed_data_path + filename, vars{:})
+% -v7.3 without compression: these files are several hundred MB and
+% compressing them on save was a large share of the processing time
+save(processed_data_path + filename, vars{:}, '-v7.3', '-nocompression')
 % else
 %     cycle_forces = reshape(results_lab, 6, length(results_lab)/24, 24);
 %     cycle_avg_forces = squeeze(mean(cycle_forces,2));
