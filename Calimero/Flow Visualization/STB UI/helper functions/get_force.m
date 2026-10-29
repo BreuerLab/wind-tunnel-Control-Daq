@@ -93,13 +93,34 @@ function [force, frames] = get_force(path, type, amp, freq, idx, var_name_F)
     contents = dir(force_path);
     force_files = contents(~[contents.isdir]);
 
+    % Each case is measured several times (repeats let thermal drift
+    % settle), so several processed files can match. Use the repeat with
+    % the latest timestamp, which should be the best measurement.
+    % Processed file names look like:
+    %   "body 10 4m.s 10deg 0.1Hz 2026_09_27_14_11_38.mat"
+    freq_val = str2double(freq);
     force_filename = "";
+    latest_time = NaT;
+    num_matches = 0;
     for j = 1:length(force_files)
-        cur_name = force_files(j).name;
-         % 10 deg AoA case and matching frequency
-        % (the lookbehind stops "0Hz" from also matching "10Hz")
-        if contains(cur_name, "10deg") &&...
-                ~isempty(regexp(cur_name, "(?<![\d.])" + freq + "Hz", 'once'))
+        cur_name = string(force_files(j).name);
+        % 10 deg AoA case (the lookbehind stops "10deg" matching "110deg")
+        if isempty(regexp(cur_name, "(?<![\d.])10deg", 'once'))
+            continue
+        end
+        % matching frequency, compared as numbers ("0.1" == "0.10")
+        freq_tok = regexp(cur_name, "(?<![\d.])(\d+(?:\.\d+)?)Hz", 'tokens', 'once');
+        if isempty(freq_tok) || str2double(freq_tok{1}) ~= freq_val
+            continue
+        end
+        time_tok = regexp(cur_name, "(\d{4})_(\d{2})_(\d{2})_(\d{2})_(\d{2})_(\d{2})\.mat$", 'tokens', 'once');
+        if isempty(time_tok)
+            continue
+        end
+        cur_time = datetime(str2double(time_tok));
+        num_matches = num_matches + 1;
+        if isnat(latest_time) || cur_time > latest_time
+            latest_time = cur_time;
             force_filename = cur_name;
         end
     end
@@ -107,6 +128,9 @@ function [force, frames] = get_force(path, type, amp, freq, idx, var_name_F)
     if force_filename == ""
         error("get_force:fileNotFound",...
             "No 10deg AoA, %s Hz force file found in %s", freq, force_path);
+    end
+    if num_matches > 1
+        disp("Using latest of " + num_matches + " repeats for " + type + " " + amp + " deg " + freq + " Hz")
     end
 
     % var_name_F = "wingbeat_avg_forces_raw";
