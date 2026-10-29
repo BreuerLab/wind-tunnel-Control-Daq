@@ -1616,9 +1616,12 @@ methods (Access = private)
     % Wingbeat-averaged load cell signal for a load cell variable and case,
     % using the Force Data filter. Force Body Sub subtracts the body
     % signal from the forces / moment. Empty if there is no load cell data
-    % (e.g. upstream cases).
-    function signal = get_load_cell_var_signal(obj, var_name, type, amp, freq)
+    % (e.g. upstream cases). time is the wingbeat phase (t/T) of each
+    % sample, taken from the 'frames' saved with the processed load cell
+    % data; falls back to a periodic grid (0:n-1)/n if frames wasn't saved.
+    function [signal, time] = get_load_cell_var_signal(obj, var_name, type, amp, freq)
         signal = [];
+        time = [];
         if contains(type, "UP")
             disp("No load cell data for upstream case " + type)
             return
@@ -1627,13 +1630,14 @@ methods (Access = private)
         var_name_F = obj.load_cell_force_var;
 
         try
-            signal = get_force(obj.force_path, type, amp, freq, idx, var_name_F);
+            [signal, time] = get_force(obj.force_path, type, amp, freq, idx, var_name_F);
         catch ME
             if ~startsWith(ME.identifier, "get_force:")
                 rethrow(ME)
             end
             disp(ME.message + " - not plotted")
             signal = [];
+            time = [];
             return
         end
         if quantity == "electric power" && size(signal, 1) == 2
@@ -1650,6 +1654,11 @@ methods (Access = private)
             signal = signal - body_signal;
         end
         signal = double(signal(:)');
+
+        n = length(signal);
+        if length(time) ~= n
+            time = (0:n-1) / n;
+        end
     end
 
     function dual_plot = should_use_separate_y_axes(obj)
@@ -1859,14 +1868,15 @@ methods (Access = private)
                 if ismember(lc_key, plotted_lc_vars)
                     continue
                 end
-                var = obj.get_load_cell_var_signal(obj.active_names(index), type, amp, freq);
+                [var, time] = obj.get_load_cell_var_signal(obj.active_names(index), type, amp, freq);
                 if isempty(var)
                     continue
                 end
                 plotted_lc_vars(end+1) = lc_key;
                 var = circshift(var, round(flip_frac * length(var))); % "+/-"
                 var = obj.subtract_signal_mean(var);
-                time = (1:length(var)) / length(var);
+                % time: saved wingbeat phase (frames) of each sample; the
+                % circshift above moves the signal along this fixed grid
 
                 if align_plot_bool
                     aligned_curves(end+1) = struct(...
@@ -2070,14 +2080,22 @@ methods (Access = private)
             return
         end
         maxLength = min(lengths);
-        time_interp = 1:maxLength;
-        time_interp = time_interp / length(time_interp);
+        time_interp = (0:maxLength-1) / maxLength; % periodic phase grid
 
-        % resample data points to have the same number of bins
+        % resample data points to have the same number of bins. The signals
+        % are periodic in t/T, so pad one wingbeat on either side before
+        % interpolating (no extrapolation at the ends of the cycle, works
+        % for any phase grid, e.g. (0:n-1)/n or (1:n)/n)
         for i = 1:length(aligned_curves)
-            var = aligned_curves(i).val;
-            time = aligned_curves(i).time;
-            aligned_curves(i).val = interp1(time, var, time_interp, 'pchip');
+            var = aligned_curves(i).val(:)';
+            time = mod(aligned_curves(i).time(:)', 1);
+            [time, order] = sort(time);
+            var = var(order);
+            [time, keep] = unique(time);
+            var = var(keep);
+            time_pad = [time - 1, time, time + 1];
+            var_pad = [var, var, var];
+            aligned_curves(i).val = interp1(time_pad, var_pad, time_interp, 'pchip');
             aligned_curves(i).time = time_interp;
         end
 

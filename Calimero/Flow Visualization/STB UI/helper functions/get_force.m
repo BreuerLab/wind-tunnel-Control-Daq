@@ -1,5 +1,10 @@
-function force = get_force(path, type, amp, freq, idx, var_name_F)
+function [force, frames] = get_force(path, type, amp, freq, idx, var_name_F)
     % Loads the wingbeat-averaged load cell force for a given case.
+    %
+    % Optional second output: the wingbeat phase (t/T) of each sample in
+    % force, read from the 'frames' variable saved alongside var_name_F
+    % (e.g. wingbeat_avg_forces_smoothest -> frames_smoothest). Empty if no
+    % matching frames variable was saved.
     %
     % Two folder conventions are supported:
     %   old flapper: <path>\<type>_<amp>deg\4 m.s\<dated folder>\processed data\
@@ -118,4 +123,13 @@ function force = get_force(path, type, amp, freq, idx, var_name_F)
     var_F = c.(var_name_F);
 
     force = var_F(idx,:);
+
+    if nargout > 1
+        frames = [];
+        frames_name = replace(string(var_name_F), "wingbeat_avg_forces", "frames");
+        if frames_name ~= string(var_name_F) && ismember(char(frames_name), file_vars)
+            f = load(force_path + force_filename, frames_name);
+            frames = double(f.(frames_name)(:)');
+        end
+    end
 end
