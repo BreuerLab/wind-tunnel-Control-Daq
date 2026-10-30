@@ -8,18 +8,16 @@ function [force_path, type] = get_force_folder(path, type, amp)
     %   new flapper: <path>\<amp> deg <type>\4 m.s\<dated folder>\processed data\
     %                e.g. "Force Measurements\20 deg wings\4 m.s\wings_2026_09_26\..."
     %
-    % New flapper STB types carry a downstream position prefix
-    % ("x1_wings", "x3_body", ...). The load cell is only measured at one
-    % position, so that prefix is stripped (returned type is without it).
+    % STB types carry a measurement position prefix: "x1_wings", "x3_body"
+    % (new flapper) or "UP_one_flexible" (old flapper). The load cell is
+    % only measured at the robot, so the prefix is stripped (returned type
+    % is without it; see old_flapper_compat "load_cell_type").
 
     type = string(type);
     amp = string(amp);
 
-    downstream_prefix = get_downstream_prefix(type); % "x3_", "MPS_", ...
-    is_new_flapper = strlength(downstream_prefix) > 0;
-    if is_new_flapper
-        type = extractAfter(type, strlength(downstream_prefix));
-    end
+    is_new_flapper = strlength(get_downstream_prefix(type)) > 0; % x3_, MPS_, ...
+    type = old_flapper_compat("load_cell_type", type);
 
     old_dir = path + type + "_" + amp + "deg" + "\4 m.s\";
     new_dir = path + amp + " deg " + type + "\4 m.s\";
