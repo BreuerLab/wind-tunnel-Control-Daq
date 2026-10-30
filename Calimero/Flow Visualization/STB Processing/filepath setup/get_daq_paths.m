@@ -20,6 +20,7 @@ function [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name)
     d30 = [base_new_v2, 'MPS Testing Sept\daq data\experiment data\'];
     d32 = [base_new_v2, 'x2\daq data\experiment data\'];
     d33 = [base_new_v2, 'x3\daq data\experiment data\'];
+    d34 = [base_new_v2, 'x4\daq data\experiment data\'];
     
     % Create an organized lookup structure
     % Format: cases.(alias) = {filename, path}
@@ -59,6 +60,13 @@ function [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name)
     cases.x3_wings_30deg_2Hz = {'x3_wings_30_4m.s_10deg_2Hz_2026_09_28_11_50_15_experiment_2026_09_28_11_52_40.mat',d33};
     cases.x3_wings_30deg_4Hz = {'x3_wings_30_4m.s_10deg_4Hz_2026_09_28_12_01_09_experiment_2026_09_28_12_03_01.mat',d33};
     cases.x3_wings_30deg_6Hz = {'x3_wings_30_4m.s_10deg_6Hz_2026_09_28_12_09_14_experiment_2026_09_28_12_10_58.mat',d33};
+
+    cases.x4_body_20deg_0Hz = {'x4_body_20_4m.s_10deg_0Hz_2026_09_28_20_18_08_experiment_2026_09_28_20_19_26.mat',d34};
+    cases.x4_wings_20deg_0Hz = {'x4_wings_20_4m.s_10deg_0Hz_2026_09_28_19_25_42_experiment_2026_09_28_19_26_57.mat',d34};
+    cases.x4_wings_20deg_2Hz = {'x4_wings_20_4m.s_10deg_2Hz_2026_09_28_19_33_23_experiment_2026_09_28_19_35_48.mat',d34};
+    cases.x4_wings_20deg_4Hz = {'x4_wings_20_4m.s_10deg_4Hz_2026_09_28_19_42_26_experiment_2026_09_28_19_44_18.mat',d34};
+    cases.x4_wings_20deg_6Hz = {'x4_wings_20_4m.s_10deg_6Hz_2026_09_28_19_51_04_experiment_2026_09_28_19_52_50.mat',d34};
+    cases.x4_wings_20deg_8Hz = {'x4_wings_20_4m.s_10deg_8Hz_2026_09_28_20_03_07_experiment_2026_09_28_20_04_53.mat',d34};
 
     % Feb 15th Data
     cases.UP_two_flexible_10deg_2Hz = {'UP_two_PIV_flexible_10_4m.s_10deg_2Hz_2026-02-15 13-19-51_experiment_2026_02_15_13_21_12.mat', d15};
