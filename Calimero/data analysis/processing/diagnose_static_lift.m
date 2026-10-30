@@ -23,6 +23,14 @@
 % the load cell it is mounted on): compare it with how far each session's
 % static lift and tares drift.
 %
+% A third figure plots static lift against holding current, one tile per
+% session. The controller holds the wings at midstroke against the
+% shoulder springs, so the holding current reflects how far the crank sits
+% from its target and how hard the springs push. Static lift also drifts
+% after each tare, so points are coloured by time since the preceding
+% wind-off tare, and the printout fits lift = a + b*current + c*time so the
+% current effect (b) is separated from that drift (c).
+%
 % Set the session folders (the <type>_<date> folders containing
 % "raw data" and "processed data") below and run.
 
@@ -57,6 +65,18 @@ xlabel(ax_cur, "Time since session's first tare (min)")
 ylabel(ax_cur, "Motor current, wings stationary (mA)")
 title(ax_cur, "Wind-off tares (filled), before/after (hollow, line), final offsets (x), 0 Hz trials (squares)")
 colors = lines(length(sessions));
+
+fig_sc = figure(Name="Static lift vs current", Position=[80 80 1400 800]);
+tl_sc = tiledlayout(fig_sc, "flow", TileSpacing="compact");
+title(tl_sc, "Static lift vs holding current (circles: before/after, squares: 0 Hz trials; colour: min since tare)")
+ax_sc = gobjects(1, length(sessions));
+for s = 1:length(sessions)
+    ax_sc(s) = nexttile(tl_sc);
+    hold(ax_sc(s), "on"); grid(ax_sc(s), "on")
+    xlabel(ax_sc(s), "Holding current (mA)")
+    ylabel(ax_sc(s), "Static lift (N)")
+end
+dt_max = 0; % for a shared colour scale
 
 for s = 1:length(sessions)
     sess = sessions(s);
@@ -138,12 +158,14 @@ for s = 1:length(sessions)
         [~, o] = sort([static.t]); static = static(o);
         st_t = NaT(1, numel(static)); st_l = NaN(1, numel(static));
         st_c = [static.c];
+        st_dt = NaN(1, numel(static)); % min since preceding wind-off tare
         fprintf("\nStatic wind-on readings (zeroed with the latest tare before each):\n")
         fprintf("  %-20s %-15s %7s %10s %12s\n", "time", "kind", "freq", "lift (N)", "current (mA)")
         for k = 1:numel(static)
             ti = find(tare_t <= static(k).t, 1, 'last');
             if isempty(ti), ti = 1; end
             st_t(k) = static(k).t;
+            st_dt(k) = minutes(static(k).t - tare_t(ti));
             st_l(k) = to_lift(static(k).v - tare_v(ti,:), cal_matrix, AoA, lift_row);
             fprintf("  %-20s %-15s %6gHz %+10.4f %12.1f\n", string(static(k).t, "yyyy_MM_dd HH:mm:ss"),...
                 static(k).kind, static(k).freq, st_l(k), st_c(k))
@@ -159,6 +181,28 @@ for s = 1:length(sessions)
             DisplayName=sess_label + " static (before/after)")
         plot(ax_cur, mins, st_c, 'o-', Color=colors(s,:), MarkerFaceColor="none",...
             DisplayName=sess_label + " static (before/after)")
+
+        % ---- static lift vs holding current ----
+        scatter(ax_sc(s), st_c, st_l, 45, st_dt, "filled", MarkerEdgeColor="k")
+        title(ax_sc(s), sess_label, Interpreter="none", FontWeight="normal")
+        dt_max = max(dt_max, max(st_dt));
+        good = isfinite(st_c) & isfinite(st_l) & isfinite(st_dt);
+        if nnz(good) > 3
+            R = corrcoef(st_c(good), st_l(good));
+            X = [ones(nnz(good),1), st_c(good)', st_dt(good)'];
+            coef = X \ st_l(good)';
+            res = st_l(good)' - X*coef;
+            % fit of lift on time since tare alone, for comparison
+            X0 = X(:, [1 3]);
+            res0 = st_l(good)' - X0*(X0 \ st_l(good)');
+            fprintf("Lift vs current: r = %+.2f\n", R(1,2))
+            fprintf("Fit lift = a + b*current + c*time since tare:\n")
+            fprintf("  b = %+.5f N/mA (%+.4f N over the %.1f mA current range)\n",...
+                coef(2), coef(2)*range(st_c(good)), range(st_c(good)))
+            fprintf("  c = %+.5f N/min since tare\n", coef(3))
+            fprintf("  residual std: %.4f N with current, %.4f N with time since tare only\n",...
+                std(res), std(res0))
+        end
     end
 
     % ---- 0 Hz trials (processed) ----
@@ -190,9 +234,25 @@ for s = 1:length(sessions)
             MarkerFaceColor=colors(s,:), DisplayName=sess_label + " 0 Hz trials")
         plot(ax_cur, minutes(z_t - t0), z_c, 's', MarkerSize=10, Color=colors(s,:),...
             MarkerFaceColor=colors(s,:), DisplayName=sess_label + " 0 Hz trials")
+        z_dt = NaN(size(z_t));
+        for k = 1:numel(z_t)
+            ti = find(tare_t <= z_t(k), 1, 'last');
+            if ~isempty(ti), z_dt(k) = minutes(z_t(k) - tare_t(ti)); end
+        end
+        scatter(ax_sc(s), z_c, z_l, 110, z_dt, "filled", "s", MarkerEdgeColor="k", LineWidth=1.2)
+        dt_max = max(dt_max, max(z_dt));
     end
 end
 legend(ax_lift, Location="bestoutside", Interpreter="none")
+for s = 1:length(sessions)
+    colormap(ax_sc(s), parula)
+    if dt_max > 0
+        clim(ax_sc(s), [0 dt_max])
+    end
+end
+cb = colorbar(ax_sc(end));
+cb.Layout.Tile = "east";
+cb.Label.String = "Minutes since preceding wind-off tare";
 legend(ax_cur, Location="bestoutside", Interpreter="none")
 
 function lift = to_lift(volt_diff, cal_matrix, AoA, lift_row)
