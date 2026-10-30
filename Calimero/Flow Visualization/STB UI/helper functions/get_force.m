@@ -1,5 +1,9 @@
-function [force, frames] = get_force(path, type, amp, freq, idx, var_name_F)
+function [force, frames] = get_force(path, type, amp, freq, idx, var_name_F, time_stamp)
     % Loads the wingbeat-averaged load cell force for a given case.
+    %
+    % Optional time_stamp (e.g. "2026_09_27_14_11_38"): load that repeat of
+    % the case. By default the repeat with the latest timestamp is used
+    % (get_force_timestamps lists the repeats).
     %
     % Optional second output: the wingbeat phase (t/T) of each sample in
     % force, read from the 'frames' variable saved alongside var_name_F
@@ -28,6 +32,10 @@ function [force, frames] = get_force(path, type, amp, freq, idx, var_name_F)
     % Processed file names look like:
     %   "body 10 4m.s 10deg 0.1Hz 2026_09_27_14_11_38.mat"
     freq_val = str2double(freq);
+    if nargin < 7
+        time_stamp = "";
+    end
+    time_stamp = string(time_stamp);
     force_filename = "";
     latest_time = NaT;
     num_matches = 0;
@@ -48,17 +56,25 @@ function [force, frames] = get_force(path, type, amp, freq, idx, var_name_F)
         end
         cur_time = datetime(str2double(time_tok));
         num_matches = num_matches + 1;
-        if isnat(latest_time) || cur_time > latest_time
+        if strlength(time_stamp) > 0
+            if strjoin(string(time_tok), "_") == time_stamp
+                force_filename = cur_name; % the requested repeat
+            end
+        elseif isnat(latest_time) || cur_time > latest_time
             latest_time = cur_time;
             force_filename = cur_name;
         end
     end
 
+    if force_filename == "" && strlength(time_stamp) > 0
+        error("get_force:fileNotFound",...
+            "No 10deg AoA, %s Hz force file with timestamp %s found in %s", freq, time_stamp, force_path);
+    end
     if force_filename == ""
         error("get_force:fileNotFound",...
             "No 10deg AoA, %s Hz force file found in %s", freq, force_path);
     end
-    if num_matches > 1
+    if num_matches > 1 && strlength(time_stamp) == 0
         disp("Using latest of " + num_matches + " repeats for " + type + " " + amp + " deg " + freq + " Hz")
     end
 

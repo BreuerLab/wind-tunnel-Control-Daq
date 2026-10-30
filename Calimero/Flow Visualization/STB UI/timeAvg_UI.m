@@ -74,6 +74,9 @@ classdef timeAvg_UI < handle
         % boolean, with wingbeat frequency on the x-axis plot every load
         % cell frequency in range, not just those with flow field data
         all_lc_freqs_bool;
+        % boolean, also plot every earlier repeat of each load cell case
+        % (hollow markers); the series itself uses the latest repeat
+        all_lc_repeats_bool;
         RPCA;
         % harmonic regression files (_hr, from bools.harmonic_reg)
         HR;
@@ -236,6 +239,7 @@ classdef timeAvg_UI < handle
             obj.PIV_sub_case = "ring";
             obj.force_sub = false;
             obj.all_lc_freqs_bool = false;
+            obj.all_lc_repeats_bool = false;
             obj.RPCA = false;
             obj.HR = false;
             obj.filt_num = 3;
@@ -337,10 +341,10 @@ classdef timeAvg_UI < handle
                 option_panel.Scrollable = "on";
             end
 
-            sidebar_grid = uigridlayout(option_panel, [25, 1]);
+            sidebar_grid = uigridlayout(option_panel, [26, 1]);
             sidebar_grid.ColumnWidth = {'1x'};
             sidebar_grid.RowHeight = {30, 60, 30, 30, 30, 30, 110, 30, 30, 30, 30, 30, 30, 30,...
-                                      30, 25, 30, 30, 30, 30, 30, 30, 30, 160, 30};
+                                      30, 25, 30, 30, 30, 30, 30, 30, 30, 30, 160, 30};
             sidebar_grid.Padding = [10 10 10 10];
             sidebar_grid.RowSpacing = 6;
             if isprop(sidebar_grid, "Scrollable")
@@ -548,35 +552,45 @@ classdef timeAvg_UI < handle
             piv_sub_dropdown.Tooltip = "Steady case subtracted (e.g. for x3_wings_20deg_4Hz: ring = x3_ring, body = x3_body_20deg_0Hz, gliding = x3_wings_20deg_0Hz)";
             piv_sub_dropdown.ValueChangedFcn = @(src, event) PIV_sub_case_change(src, event, plot_panel);
 
-            lc_grid = uigridlayout(sidebar_grid, [1, 2]);
-            lc_grid.Layout.Row = 17;
-            lc_grid.Layout.Column = 1;
-            lc_grid.Padding = [0 0 0 0];
-            lc_grid.ColumnSpacing = 6;
-
-            force_sub_button = uibutton(lc_grid, "state");
-            force_sub_button.Layout.Row = 1;
+            force_sub_button = uibutton(sidebar_grid, "state");
+            force_sub_button.Layout.Row = 17;
             force_sub_button.Layout.Column = 1;
             force_sub_button.Text = "Force Body Sub";
-            force_sub_button.FontSize = 16;
+            force_sub_button.FontSize = 18;
             force_sub_button.BackgroundColor = obj.COLOR_INACTIVE;
             force_sub_button.Tooltip = "Subtract the body load cell signal from the load cell forces / moment (load cell variables)";
             force_sub_button.ValueChangedFcn = @(src, event) force_sub_change(src, event, plot_panel);
 
-            % Load cell frequencies without flow field data (e.g. 0.1 Hz)
+            % Which load cell cases are plotted: frequencies without flow
+            % field data (e.g. 0.1 Hz), and every repeat of each case
+            lc_grid = uigridlayout(sidebar_grid, [1, 2]);
+            lc_grid.Layout.Row = 18;
+            lc_grid.Layout.Column = 1;
+            lc_grid.Padding = [0 0 0 0];
+            lc_grid.ColumnSpacing = 6;
+
             all_lc_button = uibutton(lc_grid, "state");
             all_lc_button.Layout.Row = 1;
-            all_lc_button.Layout.Column = 2;
+            all_lc_button.Layout.Column = 1;
             all_lc_button.Text = "All LC Freqs";
             all_lc_button.FontSize = 16;
             all_lc_button.BackgroundColor = obj.COLOR_INACTIVE;
             all_lc_button.Tooltip = "Wingbeat frequency x-axis: plot load cell variables at every frequency in range with load cell data (latest repeat), including frequencies with no flow field case";
             all_lc_button.ValueChangedFcn = @(src, event) all_lc_freqs_change(src, event, plot_panel);
 
+            all_repeats_button = uibutton(lc_grid, "state");
+            all_repeats_button.Layout.Row = 1;
+            all_repeats_button.Layout.Column = 2;
+            all_repeats_button.Text = "All LC Repeats";
+            all_repeats_button.FontSize = 16;
+            all_repeats_button.BackgroundColor = obj.COLOR_INACTIVE;
+            all_repeats_button.Tooltip = "Also plot every earlier repeat of each load cell case (same case measured at different times) as hollow markers; the series uses the latest repeat";
+            all_repeats_button.ValueChangedFcn = @(src, event) all_lc_repeats_change(src, event, plot_panel);
+
             % Which processed load cell data the load cell variables read
             % (forces, voltage, current)
             load_cell_data_dropdown = uidropdown(sidebar_grid);
-            load_cell_data_dropdown.Layout.Row = 18;
+            load_cell_data_dropdown.Layout.Row = 19;
             load_cell_data_dropdown.Layout.Column = 1;
             load_cell_data_dropdown.Items = obj.load_cell_data_labels;
             load_cell_data_dropdown.Value = obj.load_cell_data_labels(obj.load_cell_data_vars == obj.load_cell_data_var);
@@ -585,7 +599,7 @@ classdef timeAvg_UI < handle
             load_cell_data_dropdown.ValueChangedFcn = @(src, event) load_cell_data_change(src, event, plot_panel);
 
             x_norm_button = uibutton(sidebar_grid, "state");
-            x_norm_button.Layout.Row = 19;
+            x_norm_button.Layout.Row = 20;
             x_norm_button.Layout.Column = 1;
             x_norm_button.Text = "Normalize X-axis";
             x_norm_button.FontSize = 18;
@@ -593,7 +607,7 @@ classdef timeAvg_UI < handle
             x_norm_button.ValueChangedFcn = @(src, event) x_norm_change(src, event, plot_panel);
 
             y_norm_button = uibutton(sidebar_grid, "state");
-            y_norm_button.Layout.Row = 20;
+            y_norm_button.Layout.Row = 21;
             y_norm_button.Layout.Column = 1;
             y_norm_button.Text = "Normalize Y-axis";
             y_norm_button.FontSize = 18;
@@ -602,7 +616,7 @@ classdef timeAvg_UI < handle
 
             % Put the two selected variables on separate left/right y-axes
             separate_y_button = uibutton(sidebar_grid, "state");
-            separate_y_button.Layout.Row = 21;
+            separate_y_button.Layout.Row = 22;
             separate_y_button.Layout.Column = 1;
             separate_y_button.Text = "Separate Y-Axis";
             separate_y_button.FontSize = 18;
@@ -610,7 +624,7 @@ classdef timeAvg_UI < handle
             separate_y_button.ValueChangedFcn = @(src, event) separate_y_axis_change(src, event, plot_panel);
 
             diff_button = uibutton(sidebar_grid, "state");
-            diff_button.Layout.Row = 22;
+            diff_button.Layout.Row = 23;
             diff_button.Layout.Column = 1;
             diff_button.Text = "Difference";
             diff_button.FontSize = 18;
@@ -619,7 +633,7 @@ classdef timeAvg_UI < handle
             diff_button.ValueChangedFcn = @(src, event) diff_change(src, event, plot_panel);
 
             calc_button = uibutton(sidebar_grid, "state");
-            calc_button.Layout.Row = 23;
+            calc_button.Layout.Row = 24;
             calc_button.Layout.Column = 1;
             calc_button.Text = "Live Calculate";
             calc_button.FontSize = 18;
@@ -628,7 +642,7 @@ classdef timeAvg_UI < handle
             % Trim limits and center point for Live Calculate,
             % nondimensional (divided by L)
             bounds_panel = uipanel(sidebar_grid);
-            bounds_panel.Layout.Row = 24;
+            bounds_panel.Layout.Row = 25;
             bounds_panel.Layout.Column = 1;
             bounds_panel.Title = "Live Calc Bounds (y/L, z/L)";
             bounds_panel.TitlePosition = 'centertop';
@@ -690,7 +704,7 @@ classdef timeAvg_UI < handle
             calc_button.ValueChangedFcn = @(src, event) calc_change(src, event, plot_panel, bounds_fields);
 
             save_fig_button = uibutton(sidebar_grid);
-            save_fig_button.Layout.Row = 25;
+            save_fig_button.Layout.Row = 26;
             save_fig_button.Layout.Column = 1;
             save_fig_button.Text = "Save Fig";
             save_fig_button.FontSize = 18;
@@ -825,6 +839,14 @@ classdef timeAvg_UI < handle
             function all_lc_freqs_change(src, ~, plot_panel)
                 obj.all_lc_freqs_bool = src.Value;
                 src.BackgroundColor = obj.get_button_color(obj.all_lc_freqs_bool);
+                if any(obj.is_load_cell_var(obj.get_active_force_vars()))
+                    obj.update_plot(plot_panel);
+                end
+            end
+
+            function all_lc_repeats_change(src, ~, plot_panel)
+                obj.all_lc_repeats_bool = src.Value;
+                src.BackgroundColor = obj.get_button_color(obj.all_lc_repeats_bool);
                 if any(obj.is_load_cell_var(obj.get_active_force_vars()))
                     obj.update_plot(plot_panel);
                 end
@@ -1486,6 +1508,20 @@ classdef timeAvg_UI < handle
             marker = markers(mod(var_idx - 1, length(markers)) + 1);
         end
 
+        % "All LC Repeats": the reduced value (mean / range / ...) of every
+        % repeat of a load cell case except the latest, which the series
+        % itself uses. Force Body Sub uses the latest body case for all.
+        function vals = get_load_cell_repeat_values(obj, force_var, type, amp, freq)
+            stamps = get_force_timestamps(obj.force_path, type, amp, freq);
+            stamps = stamps(1:end-1); % drop the latest
+            vals = NaN(1, length(stamps));
+            for k = 1:length(stamps)
+                var = obj.get_load_cell_signal(force_var, type, amp, freq, false, stamps(k));
+                vals(k) = obj.reduce_signal(var);
+            end
+            vals = vals(isfinite(vals));
+        end
+
         % "All LC Freqs": add the frequencies in range that have processed
         % load cell data for the selection's type and amplitude but no flow
         % field case. They are flagged in points.lc_only.
@@ -1569,6 +1605,9 @@ classdef timeAvg_UI < handle
             values = cell(num_vars, num_sel);
             errors = cell(num_vars, num_sel);
             x_vals = cell(num_vars, num_sel);
+            % "All LC Repeats": earlier repeats of each load cell point
+            rep_values = cell(num_vars, num_sel);
+            rep_x_vals = cell(num_vars, num_sel);
 
             for var_idx = 1:num_vars % Loop through each selected variable
                 force_var = selected_force_vars(var_idx);
@@ -1604,6 +1643,10 @@ classdef timeAvg_UI < handle
 
                 vals = NaN(1, num_points);
                 errs = zeros(1, num_points);
+                % earlier repeats: point index and value of each
+                show_repeats = obj.is_load_cell_var(force_var) && obj.all_lc_repeats_bool && ~diff_plot;
+                rep_j = zeros(1, 0);
+                rep_v = zeros(1, 0);
                 measured_freqs = points.freqs;
                 wind_speed_acts = NaN(1, num_points);
                 keep = true(1, num_points);
@@ -1632,6 +1675,11 @@ classdef timeAvg_UI < handle
                         end
                         var = obj.get_load_cell_signal(force_var, type, amp, freq, false);
                         vals(j) = obj.reduce_signal(var);
+                        if show_repeats
+                            v = obj.get_load_cell_repeat_values(force_var, type, amp, freq);
+                            rep_j = [rep_j, repmat(j, 1, length(v))];
+                            rep_v = [rep_v, v];
+                        end
                         disp(j + " of " + num_points + " complete (load cell only)")
                         continue
                     end
@@ -1712,6 +1760,11 @@ classdef timeAvg_UI < handle
 
                     % Calculate mean force and store in array for plotting
                     vals(j) = obj.reduce_signal(var);
+                    if show_repeats
+                        v = obj.get_load_cell_repeat_values(force_var, type, amp, freq);
+                        rep_j = [rep_j, repmat(j, 1, length(v))];
+                        rep_v = [rep_v, v];
+                    end
                     disp(j + " of " + num_points + " complete")
                 end
 
@@ -1758,6 +1811,14 @@ classdef timeAvg_UI < handle
                 end
                 if isempty(vals) && target ~= i
                     continue
+                end
+                if show_repeats && ~isempty(rep_j)
+                    % same x as their point (rep_j indexes the points
+                    % before x_var was reduced to the kept ones; repeats
+                    % only exist for kept points)
+                    kept_pos = cumsum(keep);
+                    rep_x_vals{var_idx, target} = [rep_x_vals{var_idx, target}, x_var(kept_pos(rep_j))];
+                    rep_values{var_idx, target} = [rep_values{var_idx, target}, rep_v];
                 end
                 x_all = [x_vals{var_idx, target}, x_var(:)'];
                 v_all = [values{var_idx, target}, vals(:)'];
@@ -1826,6 +1887,13 @@ classdef timeAvg_UI < handle
                     s1.MarkerEdgeColor = original_color;
                     s1.MarkerFaceColor = original_color;
                     s1.DisplayName = obj.get_plot_legend_label(curve_label, force_var, num_vars);
+
+                    % "All LC Repeats": earlier repeats as hollow markers
+                    if ~isempty(rep_values{var_idx, i})
+                        s2 = plot(ax, rep_x_vals{var_idx, i}, rep_values{var_idx, i}, char(variable_marker),...
+                            LineStyle="none", MarkerSize=8, Color=original_color, MarkerFaceColor="none");
+                        s2.DisplayName = s1.DisplayName + " (earlier repeats)";
+                    end
                 end
             end
             end
@@ -2077,7 +2145,12 @@ classdef timeAvg_UI < handle
         % load cell data, or its wingbeat-averaged version (phase_avg).
         % Force Body Sub subtracts the body signal from forces / moments.
         % NaN if there is no load cell data for the case.
-        function signal = get_load_cell_signal(obj, force_var, type, amp, freq, phase_avg)
+        function signal = get_load_cell_signal(obj, force_var, type, amp, freq, phase_avg, time_stamp)
+            % time_stamp (optional): which repeat of the case to load;
+            % default the latest
+            if nargin < 7
+                time_stamp = "";
+            end
             signal = NaN;
             [idx, quantity] = obj.get_load_cell_var_row(force_var);
             if contains(type, "UP")
@@ -2095,7 +2168,7 @@ classdef timeAvg_UI < handle
             end
 
             try
-                signal = get_force(obj.force_path, type, amp, freq, idx, var_name_F);
+                signal = get_force(obj.force_path, type, amp, freq, idx, var_name_F, time_stamp);
             catch ME
                 if ~startsWith(ME.identifier, "get_force:")
                     rethrow(ME)
