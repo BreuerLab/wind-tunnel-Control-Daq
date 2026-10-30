@@ -93,6 +93,12 @@ properties
     phase_avg_case_ids;
     time_avg_case_ids;
     phase_avg_RPCA_file_path;   % optional subfolder phase_avg\RPCA\
+    % Data roots (e.g. ["F:\", "C:\...\STB Round 1\"]) and the folder
+    % holding each case's files, keyed "<phase|time|rpca>|<case id>"
+    % (get_case_dir). The first root is the primary one; a case found in
+    % several roots is taken from the first.
+    data_roots;
+    case_dir_map;
     phase_avg_main_case_ids;    % case ids found directly in phase_avg\
     phase_avg_RPCA_case_ids;    % case ids found in phase_avg\RPCA\ (must end in _RPCA)
     current_downstream_type;
@@ -237,6 +243,10 @@ methods
     % Constructor Function
     % Defines constants and default values for parameters
     function obj = flowField_UI(file_path)
+        % file_path: one data root, or several as a string array (e.g. the
+        % new flapper data and the old flapper STB Round 1 folder)
+        obj.data_roots = string(file_path(:))';
+        file_path = obj.data_roots(1);
         obj.case_name = "";
         obj.variable_name = "";
         obj.phase_avg_file_path = file_path + "Processed Results\phase_avg\";
@@ -296,17 +306,33 @@ methods
 
         obj.file_suffix = "_phase_avg";
 
-        phase_avg_files = dir(obj.phase_avg_file_path + "*.mat");
-        time_avg_files = dir(obj.time_avg_file_path + "*.mat");
+        % Cases from every data root; each case's folder is recorded in
+        % case_dir_map. RPCA phase averages may also live in a
+        % phase_avg\RPCA\ subfolder. Only files named *_RPCA_phase_avg.mat
+        % are used as RPCA cases there.
+        obj.case_dir_map = containers.Map('KeyType', 'char', 'ValueType', 'char');
+        phase_avg_stems = strings(1, 0);
+        time_avg_stems = strings(1, 0);
+        rpca_ids = strings(1, 0);
+        for r = 1:numel(obj.data_roots)
+            phase_dir = obj.data_roots(r) + "Processed Results\phase_avg\";
+            time_dir = obj.data_roots(r) + "Processed Results\time_avg\";
+            rpca_dir = phase_dir + "RPCA\";
+            stems = obj.get_file_stems(dir(phase_dir + "*.mat"), "_phase_avg");
+            obj.register_case_dirs("phase", stems, phase_dir);
+            phase_avg_stems = [phase_avg_stems, stems]; %#ok<AGROW>
+            stems = obj.get_file_stems(dir(time_dir + "*.mat"), "_time_avg");
+            obj.register_case_dirs("time", stems, time_dir);
+            time_avg_stems = [time_avg_stems, stems]; %#ok<AGROW>
+            stems = obj.get_file_stems(dir(rpca_dir + "*.mat"), "_RPCA_phase_avg") + "_RPCA";
+            obj.register_case_dirs("rpca", stems, rpca_dir);
+            rpca_ids = [rpca_ids, stems]; %#ok<AGROW>
+        end
+        phase_avg_stems = unique(phase_avg_stems, 'stable');
+        time_avg_stems = unique(time_avg_stems, 'stable');
 
-        phase_avg_stems = obj.get_file_stems(phase_avg_files, "_phase_avg");
-        time_avg_stems = obj.get_file_stems(time_avg_files, "_time_avg");
-
-        % RPCA phase averages may also live in a phase_avg\RPCA\ subfolder.
-        % Only files named *_RPCA_phase_avg.mat are used as RPCA cases.
         obj.phase_avg_main_case_ids = phase_avg_stems;
-        rpca_files = dir(obj.phase_avg_RPCA_file_path + "*.mat");
-        obj.phase_avg_RPCA_case_ids = obj.get_file_stems(rpca_files, "_RPCA_phase_avg") + "_RPCA";
+        obj.phase_avg_RPCA_case_ids = unique(rpca_ids, 'stable');
         phase_avg_stems = unique([phase_avg_stems, obj.phase_avg_RPCA_case_ids], 'stable');
         obj.phase_avg_case_ids = phase_avg_stems;
         obj.time_avg_case_ids = time_avg_stems;
@@ -357,7 +383,7 @@ methods
         obj.time_turbine_case_name_list = obj.get_turbine_case_names(time_turbine_stems);
         obj.source_modes = obj.get_available_source_modes();
         if isempty(obj.source_modes)
-            error("No STB average files found. Expected *_phase_avg.mat files in %s or *_time_avg.mat files in %s.", obj.phase_avg_file_path, obj.time_avg_file_path)
+            error("No STB average files found. Expected *_phase_avg.mat or *_time_avg.mat files in Processed Results\\phase_avg\\ or time_avg\\ of %s.", strjoin(obj.data_roots, ", "))
         end
         obj.source_mode = obj.source_modes(1);
         obj.set_downstream_options_for_source_mode(obj.source_mode);
@@ -1928,7 +1954,7 @@ methods (Access = private)
     % measured plane with default_trim_bounds (trim_vel_field), mirrors it
     % about the centreline and centres it, by index, in a larger zero-padded
     % grid; the same steps are repeated here. [] if it can't be found.
-    function [iy, iz] = get_extrap_fov_indices(~, d)
+    function [iy, iz] = get_extrap_fov_indices(obj, d)
         iy = []; iz = [];
         if ~all(isfield(d, {'y_B', 'z_B'}))
             return
@@ -1947,7 +1973,8 @@ methods (Access = private)
             num_y = size(d.y_B_fov, 1);
             num_z = size(d.y_B_fov, 2);
         elseif all(isfield(d, {'y', 'z'}))
-            bounds = default_trim_bounds();
+            % old flapper cases use their own trim bounds (old_flapper_compat)
+            bounds = old_flapper_compat("trim_bounds_for", obj.get_current_case_id());
             y_meas = d.y(1,:,1);
             z_meas = squeeze(d.z(1,1,:));
             y_keep = y_meas(y_meas > bounds.ybounds(1) & y_meas < bounds.ybounds(2));
@@ -2866,14 +2893,54 @@ methods (Access = private)
 
     function file_base = get_current_file_base(obj)
         if obj.is_time_avg_file_selected()
-            file_base = obj.time_avg_file_path + obj.get_current_case_id() + "_time_avg";
+            case_id = obj.get_current_case_id();
+            file_base = obj.get_case_dir("time", case_id) + case_id + "_time_avg";
         else
             case_id = obj.get_current_case_id();
             if ~any(obj.phase_avg_main_case_ids == case_id) && any(obj.phase_avg_RPCA_case_ids == case_id)
-                file_base = obj.phase_avg_RPCA_file_path + case_id + "_phase_avg";
+                file_base = obj.get_case_dir("rpca", case_id) + case_id + "_phase_avg";
             else
-                file_base = obj.phase_avg_file_path + case_id + "_phase_avg";
+                file_base = obj.get_case_dir("phase", case_id) + case_id + "_phase_avg";
             end
+        end
+    end
+
+    % Message in the plot area instead of a plot, when the selected case's
+    % processed file doesn't hold the variable (reprocess the case to get it)
+    function show_missing_variable(obj, plot_panel, var_name)
+        delete(findobj(plot_panel.Children, 'Type', 'axes'));
+        ax = axes(plot_panel);
+        text(ax, 0.5, 0.5, string(var_name) + " is not in the processed file for " +...
+            string(obj.get_current_case_id()) + newline + "(processed with an older version of the code: reprocess the case to get it)", ...
+            'HorizontalAlignment', 'center', Interpreter='none', FontSize=14);
+        axis(ax, 'off');
+        obj.plot_hold_bool = false;
+        fprintf("%s not in the processed file for %s - not plotted\n", var_name, obj.get_current_case_id());
+    end
+
+    % Record the folder of each case (first data root wins)
+    function register_case_dirs(obj, kind, case_ids, folder)
+        for k = 1:numel(case_ids)
+            key = char(kind + "|" + case_ids(k));
+            if ~isKey(obj.case_dir_map, key)
+                obj.case_dir_map(key) = char(folder);
+            end
+        end
+    end
+
+    % Folder holding a case's files: kind "phase" (phase_avg\), "rpca"
+    % (phase_avg\RPCA\) or "time" (time_avg\). Falls back to the primary
+    % root's folder for a case that wasn't found.
+    function folder = get_case_dir(obj, kind, case_id)
+        key = char(string(kind) + "|" + string(case_id));
+        if ~isempty(obj.case_dir_map) && isKey(obj.case_dir_map, key)
+            folder = string(obj.case_dir_map(key));
+            return
+        end
+        switch string(kind)
+            case "time", folder = obj.time_avg_file_path;
+            case "rpca", folder = obj.phase_avg_RPCA_file_path;
+            otherwise,   folder = obj.phase_avg_file_path;
         end
     end
 
@@ -3113,9 +3180,11 @@ methods (Access = private)
 
         if plot_idx ~= 8
             if ~isfield(d, var_name)
-                error("flowField_UI:missingVariable",...
-                    "%s is not in the processed file for %s. Reprocess the case (Q*_inst fields need bools.Q_inst = true, div_phase_std needs bools.div_std = true).",...
-                    var_name, obj.case_name)
+                % e.g. older (old flapper) processing, or optional fields
+                % (Q*_inst need bools.Q_inst = true, div_phase_std needs
+                % bools.div_std = true)
+                obj.show_missing_variable(plot_panel, var_name);
+                return
             end
             val = d.(var_name);
             planeIdx = (size(val,1) + 1) / 2;
@@ -3603,7 +3672,7 @@ methods (Access = private)
             avg_type = 1;
             avg_label = "Time averaged";
         elseif obj.current_case_has_time_avg()
-            file_base = obj.time_avg_file_path + case_id + "_time_avg";
+            file_base = obj.get_case_dir("time", case_id) + case_id + "_time_avg";
             avg_type = 0;
             avg_label = "Time averaged (0 Hz file)";
         else

@@ -39,6 +39,11 @@ classdef timeAvg_UI < handle
         % (e.g. "x3_NACA", "x3_ring"); treated as amp = 0, freq = 0
         plain_steady_types;
         force_path;
+        % All data roots (e.g. ["F:\", "C:\...\STB Round 1\"]) and, for
+        % each wing type, the root its STB cases came from (its load cell
+        % data is read from that root's Force Measurements)
+        data_roots;
+        type_root_map;
 
         % integer, 0-6, defines which force/moment axes to display
         index;
@@ -127,7 +132,10 @@ classdef timeAvg_UI < handle
         % Constructor Function
         % Defines constants and default values for parameters
         function obj = timeAvg_UI(data_path)
-            obj.root_path = data_path;
+            % data_path: one data root, or several as a string array (e.g.
+            % the new flapper data and the old flapper STB Round 1 folder)
+            obj.data_roots = string(data_path(:))';
+            obj.root_path = obj.data_roots(1);
             obj.PIV_path = obj.root_path + "Processed Results\phase_avg\";
             obj.time_avg_path = obj.root_path + "Processed Results\time_avg\";
             obj.force_path = obj.root_path + "Force Measurements\";
@@ -269,33 +277,52 @@ classdef timeAvg_UI < handle
             % Search through files in path to get types and speeds.
             % Phase averaged cases live in phase_avg\, the 0 Hz (gliding)
             % cases are time averaged and live in time_avg\.
-            contents = dir(obj.PIV_path);
-            files = contents(~[contents.isdir]);
-            if isfolder(obj.time_avg_path)
-                contents_t = dir(obj.time_avg_path);
-                contents_t = contents_t(~[contents_t.isdir]);
-                % 0 Hz cases named like the flapping ones (plain-named
-                % steady cases are added below)
-                is_zero_hz = ~cellfun(@isempty, regexp({contents_t.name}, '_0Hz_time_avg\.mat$', 'once'));
-                files = [files; contents_t(is_zero_hz)];
-            end
-
-            % Get amps, freqs, types from file names
-            obj.available_selections = get_sel_from_file(files);
-
-            % Steady cases named without amplitude/frequency (e.g.
-            % x3_NACA_time_avg.mat) are added as their own type with
-            % amp = 0 and freq = 0
+            % (from every data root; each wing type remembers its root)
+            obj.available_selections = cell(0, 3);
             obj.plain_steady_types = strings(0, 1);
-            if isfolder(obj.time_avg_path)
-                steady_names = string({contents_t.name});
-                steady_names = steady_names(endsWith(steady_names, "_time_avg.mat") &...
-                                            ~contains(steady_names, "Hz"));
-                steady_types = erase(steady_names, "_time_avg.mat");
-                obj.plain_steady_types = unique(steady_types(:), 'stable');
-                for k = 1:length(obj.plain_steady_types)
-                    obj.available_selections(end+1, :) = {obj.plain_steady_types(k), 0, 0};
+            obj.type_root_map = containers.Map('KeyType', 'char', 'ValueType', 'char');
+            for r = 1:numel(obj.data_roots)
+                phase_dir = obj.data_roots(r) + "Processed Results\phase_avg\";
+                time_dir = obj.data_roots(r) + "Processed Results\time_avg\";
+                files = dir(phase_dir);
+                files = files(~[files.isdir]);
+                contents_t = [];
+                if isfolder(time_dir)
+                    contents_t = dir(time_dir);
+                    contents_t = contents_t(~[contents_t.isdir]);
+                    % 0 Hz cases named like the flapping ones (plain-named
+                    % steady cases are added below)
+                    is_zero_hz = ~cellfun(@isempty, regexp({contents_t.name}, '_0Hz_time_avg\.mat$', 'once'));
+                    files = [files; contents_t(is_zero_hz)]; %#ok<AGROW>
                 end
+
+                % Get amps, freqs, types from file names
+                root_selections = cell(0, 3);
+                if ~isempty(files)
+                    root_selections = get_sel_from_file(files);
+                end
+
+                % Steady cases named without amplitude/frequency (e.g.
+                % x3_NACA_time_avg.mat) are added as their own type with
+                % amp = 0 and freq = 0
+                if ~isempty(contents_t)
+                    steady_names = string({contents_t.name});
+                    steady_names = steady_names(endsWith(steady_names, "_time_avg.mat") &...
+                                                ~contains(steady_names, "Hz"));
+                    steady_types = unique(erase(steady_names, "_time_avg.mat")', 'stable');
+                    obj.plain_steady_types = unique([obj.plain_steady_types; steady_types(:)], 'stable');
+                    for k = 1:length(steady_types)
+                        root_selections(end+1, :) = {steady_types(k), 0, 0}; %#ok<AGROW>
+                    end
+                end
+
+                for k = 1:size(root_selections, 1)
+                    key = char(string(root_selections{k, 1}));
+                    if ~isKey(obj.type_root_map, key)
+                        obj.type_root_map(key) = char(obj.data_roots(r));
+                    end
+                end
+                obj.available_selections = [obj.available_selections; root_selections];
             end
 
             % drop duplicate cases (e.g. a 0 Hz file present in both folders)
@@ -308,7 +335,7 @@ classdef timeAvg_UI < handle
             end
 
             if isempty(obj.available_selections)
-                error("No STB files found in %s. Expected *_phase_avg.mat or *_time_avg.mat files.", obj.PIV_path)
+                error("No STB files found in Processed Results of %s. Expected *_phase_avg.mat or *_time_avg.mat files.", strjoin(obj.data_roots, ", "))
             end
 
             % full frequency range to start (0 to 8 Hz for the current data)
@@ -1512,7 +1539,7 @@ classdef timeAvg_UI < handle
         % repeat of a load cell case except the latest, which the series
         % itself uses. Force Body Sub uses the latest body case for all.
         function vals = get_load_cell_repeat_values(obj, force_var, type, amp, freq)
-            stamps = get_force_timestamps(obj.force_path, type, amp, freq);
+            stamps = get_force_timestamps(obj.get_force_path(type), type, amp, freq);
             stamps = stamps(1:end-1); % drop the latest
             vals = NaN(1, length(stamps));
             for k = 1:length(stamps)
@@ -1526,7 +1553,7 @@ classdef timeAvg_UI < handle
         % load cell data for the selection's type and amplitude but no flow
         % field case. They are flagged in points.lc_only.
         function points = add_load_cell_only_points(obj, points, info)
-            lc_freqs = get_force_freqs(obj.force_path, info.type, info.amp);
+            lc_freqs = get_force_freqs(obj.get_force_path(info.type), info.type, info.amp);
             in_range = lc_freqs >= obj.freq_range(1) - 1e-9 & lc_freqs <= obj.freq_range(2) + 1e-9;
             lc_freqs = lc_freqs(in_range);
             % compare with a tolerance (e.g. 0.1 stored as 0.1000000001)
@@ -1787,7 +1814,7 @@ classdef timeAvg_UI < handle
                         amp = points.amps(k);
                         freq = points.freqs(k);
                         name = obj.get_case_name(type, amp, freq);
-                        d = load(obj.PIV_path + name + "_phase_avg.mat", "U", "U_act");
+                        d = load(obj.get_case_file_base(name, "_phase_avg") + ".mat", "U", "U_act");
                         wind_speed_acts(k) = d.U_act * d.U;
                     end
                 end
@@ -2062,11 +2089,12 @@ classdef timeAvg_UI < handle
             end
             var = double(var(:)');
 
-            % old flapper 10 deg flexible case started at mid-downstroke
-            % rather than mid-upstroke: same half-cycle correction as
-            % phaseAvg_UI applies to its STB curves (not the load cell)
-            if amp == 10 && ~contains(type, "UP") && strlength(get_downstream_prefix(type)) == 0
-                var = circshift(var, round(0.5*length(var)));
+            % old flapper cases without automated homing that started at a
+            % different phase: same correction as phaseAvg_UI applies to its
+            % STB curves, not the load cell (table in old_flapper_compat)
+            phase_offset = old_flapper_compat("phase_offset", type, amp, freq);
+            if phase_offset ~= 0
+                var = circshift(var, round(phase_offset*length(var)));
             end
         end
 
@@ -2168,7 +2196,7 @@ classdef timeAvg_UI < handle
             end
 
             try
-                signal = get_force(obj.force_path, type, amp, freq, idx, var_name_F, time_stamp);
+                signal = get_force(obj.get_force_path(type), type, amp, freq, idx, var_name_F, time_stamp);
             catch ME
                 if ~startsWith(ME.identifier, "get_force:")
                     rethrow(ME)
@@ -2200,7 +2228,7 @@ classdef timeAvg_UI < handle
                     % to 20 deg only when there is no body data at this
                     % amplitude)
                     try
-                        body_signal = get_body_force(obj.force_path, type, amp, freq, idx, var_name_F);
+                        body_signal = get_body_force(obj.get_force_path(type), type, amp, freq, idx, var_name_F);
                     catch ME
                         if ~startsWith(ME.identifier, "get_force:")
                             rethrow(ME)
@@ -2365,21 +2393,39 @@ classdef timeAvg_UI < handle
             if isfile(file_base + ".mat") || isfile(file_base + "_integral.mat") || ~endsWith(name, "_RPCA")
                 return
             end
-            rpca_base = obj.PIV_path + "RPCA\" + name + suffix;
-            if isfile(rpca_base + ".mat") || isfile(rpca_base + "_integral.mat")
-                file_base = rpca_base;
+            for r = 1:numel(obj.data_roots)
+                rpca_base = obj.data_roots(r) + "Processed Results\phase_avg\RPCA\" + name + suffix;
+                if isfile(rpca_base + ".mat") || isfile(rpca_base + "_integral.mat")
+                    file_base = rpca_base;
+                    return
+                end
             end
         end
 
         function case_dir = get_case_dir(obj, name, suffix)
             % Folder holding a case: phase_avg\ first, then time_avg\
-            % (where the 0 Hz mean flow field cases are saved)
+            % (where the 0 Hz mean flow field cases are saved), in each
+            % data root in turn (first match wins). Defaults to the primary
+            % root's phase_avg\.
             case_dir = obj.PIV_path;
-            if ~isfile(case_dir + name + suffix + ".mat") &&...
-                    ~isfile(case_dir + name + suffix + "_integral.mat") &&...
-                    (isfile(obj.time_avg_path + name + suffix + ".mat") ||...
-                     isfile(obj.time_avg_path + name + suffix + "_integral.mat"))
-                case_dir = obj.time_avg_path;
+            for r = 1:numel(obj.data_roots)
+                for d = [obj.data_roots(r) + "Processed Results\phase_avg\",...
+                         obj.data_roots(r) + "Processed Results\time_avg\"]
+                    if isfile(d + name + suffix + ".mat") || isfile(d + name + suffix + "_integral.mat")
+                        case_dir = d;
+                        return
+                    end
+                end
+            end
+        end
+
+        % Load cell folder for a wing type: Force Measurements of the data
+        % root its STB cases came from (the primary root if unknown)
+        function force_path = get_force_path(obj, type)
+            key = char(string(type));
+            force_path = obj.force_path;
+            if ~isempty(obj.type_root_map) && isKey(obj.type_root_map, key)
+                force_path = string(obj.type_root_map(key)) + "Force Measurements\";
             end
         end
 
@@ -2426,6 +2472,17 @@ classdef timeAvg_UI < handle
             end
 
             [~, file_name] = fileparts(files(1));
+            % an old flapper file without the variable at all was processed
+            % before it existed: leave the point out rather than plot 0
+            in_any = false;
+            for f = 1:numel(files)
+                in_any = in_any || ismember(char(parts(1)), who('-file', files(f)));
+            end
+            if ~in_any && old_flapper_compat("is_old", file_name)
+                fprintf("%s not saved for %s (older processing), not plotted\n", var_name, file_name);
+                var = NaN;
+                return
+            end
             fprintf("%s not defined for %s, using 0\n", var_name, file_name);
             var = 0;
         end
@@ -2532,8 +2589,13 @@ classdef timeAvg_UI < handle
             % steady cases may sit in a time_avg subfolder (old ring
             % location), next to the phase averaged files, or in
             % Processed Results\time_avg
-            search_dirs = [obj.PIV_path + "time_avg\", obj.PIV_path,...
-                           obj.root_path + "Processed Results\time_avg\"];
+            % (in every data root)
+            search_dirs = strings(1, 0);
+            for r = 1:numel(obj.data_roots)
+                root_phase = obj.data_roots(r) + "Processed Results\phase_avg\";
+                search_dirs = [search_dirs, root_phase + "time_avg\", root_phase,...
+                               obj.data_roots(r) + "Processed Results\time_avg\"]; %#ok<AGROW>
+            end
 
             tried = strings(0);
             for k = 1:length(case_names)

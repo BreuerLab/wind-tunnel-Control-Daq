@@ -28,9 +28,14 @@ classdef phaseAvg_UI < handle
 
 properties
 
-    root_path; % file path to data
+    root_path; % file path to data (the primary data root)
     PIV_path;
     force_path;
+    % All data roots (e.g. ["F:\", "C:\...\STB Round 1\"]) and, for each
+    % wing type, the root its STB cases came from (its load cell data is
+    % read from that root's Force Measurements)
+    data_roots;
+    type_root_map;
 
     inds;
 
@@ -183,7 +188,10 @@ methods
     % Constructor Function
     % Defines constants and default values for parameters
     function obj = phaseAvg_UI(data_path)
-        obj.root_path = data_path;
+        % data_path: one data root, or several as a string array (e.g. the
+        % new flapper data and the old flapper STB Round 1 folder)
+        obj.data_roots = string(data_path(:))';
+        obj.root_path = obj.data_roots(1);
         obj.PIV_path = obj.root_path + "Processed Results\";
         obj.force_path = obj.root_path + "Force Measurements\";
 
@@ -219,19 +227,30 @@ methods
 
         % Search through files in path to get types and speeds
 
-        contents = dir(obj.PIV_path + "phase_avg\");
-        files = contents(~[contents.isdir]);
-
-        % Get types, amplitudes, frequencies, and file versions from names.
-        obj.available_selections = obj.get_phase_avg_selections_from_files(files);
+        % Get types, amplitudes, frequencies, and file versions from the
+        % names of the phase averaged files in every data root
+        obj.available_selections = cell(0, 4);
+        obj.type_root_map = containers.Map('KeyType', 'char', 'ValueType', 'char');
+        for r = 1:numel(obj.data_roots)
+            contents = dir(obj.data_roots(r) + "Processed Results\phase_avg\");
+            files = contents(~[contents.isdir]);
+            root_selections = obj.get_phase_avg_selections_from_files(files);
+            for k = 1:size(root_selections, 1)
+                key = char(string(root_selections{k, 1}));
+                if ~isKey(obj.type_root_map, key)
+                    obj.type_root_map(key) = char(obj.data_roots(r));
+                end
+            end
+            obj.available_selections = [obj.available_selections; root_selections];
+        end
 
         if isempty(obj.available_selections)
-            error("No STB files found in %s. Expected *_phase_avg.mat or *_time_avg.mat files.", obj.PIV_path + "phase_avg\")
+            error("No STB files found in Processed Results\\phase_avg\\ of %s. Expected *_phase_avg.mat files.", strjoin(obj.data_roots, ", "))
         end
 
         obj.source_modes = obj.get_available_source_modes();
         if isempty(obj.source_modes)
-            error("No old or new flapper STB files found in %s.", obj.PIV_path + "phase_avg\")
+            error("No old or new flapper STB files found in %s.", strjoin(obj.data_roots, ", "))
         end
         obj.source_mode = obj.source_modes(1);
 
@@ -1420,16 +1439,41 @@ methods (Access = private)
     % Path (without .mat) to a case's phase averaged file. RPCA cases are
     % looked for in phase_avg\ first, then in the phase_avg\RPCA\ subfolder.
     % Either way the file must be named *_RPCA_phase_avg.mat.
+    % With several data roots, the first root holding the case is used.
     function file_base = get_phase_avg_file_base(obj, cur_sel)
         cur_sel = string(cur_sel);
-        phase_dir = obj.PIV_path + "phase_avg\";
-        file_base = phase_dir + cur_sel + "_phase_avg";
-        if isfile(file_base + ".mat") || isfile(file_base + "_integral.mat") || ~endsWith(cur_sel, "_RPCA")
-            return
+        for r = 1:numel(obj.data_roots)
+            phase_dir = obj.data_roots(r) + "Processed Results\phase_avg\";
+            candidates = phase_dir + cur_sel + "_phase_avg";
+            if endsWith(cur_sel, "_RPCA")
+                candidates(end+1) = phase_dir + "RPCA\" + cur_sel + "_phase_avg"; %#ok<AGROW>
+            end
+            for c = candidates
+                if isfile(c + ".mat") || isfile(c + "_integral.mat")
+                    file_base = c;
+                    return
+                end
+            end
         end
-        rpca_base = phase_dir + "RPCA\" + cur_sel + "_phase_avg";
-        if isfile(rpca_base + ".mat") || isfile(rpca_base + "_integral.mat")
-            file_base = rpca_base;
+        file_base = obj.PIV_path + "phase_avg\" + cur_sel + "_phase_avg";
+    end
+
+    % True if a .mat file holds the variable (for "a.b" names, the struct a)
+    function tf = file_has_var(~, file, var_name)
+        var_name = string(var_name);
+        if contains(var_name, ".")
+            var_name = extractBefore(var_name, ".");
+        end
+        tf = isfile(file) && ismember(char(var_name), who('-file', file));
+    end
+
+    % Load cell folder for a wing type: Force Measurements of the data root
+    % its STB cases came from (the primary root if unknown)
+    function force_path = get_force_path(obj, type)
+        key = char(string(type));
+        force_path = obj.force_path;
+        if ~isempty(obj.type_root_map) && isKey(obj.type_root_map, key)
+            force_path = string(obj.type_root_map(key)) + "Force Measurements\";
         end
     end
 
@@ -1577,12 +1621,16 @@ methods (Access = private)
                 error("Unknown PIV subtraction case: %s", obj.PIV_sub_case);
         end
 
+        % look in every data root (first match wins)
         time_avg_dir = obj.PIV_path + "time_avg\";
-        for k = 1:length(case_names)
-            file_path = time_avg_dir + case_names(k) + "_time_avg.mat";
-            secondary_file_path = time_avg_dir + case_names(k) + "_time_avg_integral.mat";
-            if isfile(file_path) || isfile(secondary_file_path)
-                return
+        for r = 1:numel(obj.data_roots)
+            root_time_dir = obj.data_roots(r) + "Processed Results\time_avg\";
+            for k = 1:length(case_names)
+                file_path = root_time_dir + case_names(k) + "_time_avg.mat";
+                secondary_file_path = root_time_dir + case_names(k) + "_time_avg_integral.mat";
+                if isfile(file_path) || isfile(secondary_file_path)
+                    return
+                end
             end
         end
 
@@ -1630,7 +1678,7 @@ methods (Access = private)
         var_name_F = obj.load_cell_force_var;
 
         try
-            [signal, time] = get_force(obj.force_path, type, amp, freq, idx, var_name_F);
+            [signal, time] = get_force(obj.get_force_path(type), type, amp, freq, idx, var_name_F);
         catch ME
             if ~startsWith(ME.identifier, "get_force:")
                 rethrow(ME)
@@ -1647,8 +1695,23 @@ methods (Access = private)
         if obj.force_sub && ismember(quantity, ["drag", "lift", "pitch"])
             % same-amplitude body case (get_body_force falls back to 20 deg
             % only when there is no body data at this amplitude)
-            body_signal = get_body_force(obj.force_path, type, amp, freq, idx, var_name_F);
-            signal = signal - body_signal;
+            try
+                body_signal = get_body_force(obj.get_force_path(type), type, amp, freq, idx, var_name_F);
+            catch ME
+                if ~startsWith(ME.identifier, "get_force:")
+                    rethrow(ME)
+                end
+                disp(ME.message + " - no body case, not plotted")
+                signal = [];
+                time = [];
+                return
+            end
+            if numel(body_signal) ~= numel(signal)
+                % e.g. older files saved with a different number of frames
+                body_signal = interp1(linspace(0, 1, numel(body_signal)), double(body_signal(:)'),...
+                    linspace(0, 1, numel(signal)), 'pchip');
+            end
+            signal = signal - reshape(body_signal, size(signal));
         end
         signal = double(signal(:)');
 
@@ -1907,10 +1970,22 @@ methods (Access = private)
                 % Compute forces from flow field live
                 [var, err] = get_PIV_force(file_path, cur_sel, var_name, avg_type, norm_bool, default_trim_bounds());
             else
+                % skip cases whose processed file doesn't hold the variable
+                % (e.g. old flapper cases processed with older code)
+                is_ba_var = contains(var_name, ["lift_before_avg", "drag_before_avg",...
+                        "lift_vel_before_avg", "drag_vel_before_avg"]);
+                if is_ba_var
+                    stored_file = file_path;
+                else
+                    stored_file = secondary_file_path;
+                end
+                if ~obj.file_has_var(stored_file, var_name)
+                    disp(var_name + " not saved for " + cur_sel + " (older processing) - not plotted")
+                    continue
+                end
                 vars = {"L","U"};
                 d2 = load(file_path, vars{:});
-                if contains(var_name, ["lift_before_avg", "drag_before_avg",...
-                        "lift_vel_before_avg", "drag_vel_before_avg"])
+                if is_ba_var
                     if contains(var_name, ".")
                         abbrv_name = extractBefore(var_name, ".");
                         d2 = load(file_path, abbrv_name);
@@ -1965,6 +2040,11 @@ methods (Access = private)
                     [bod_var, bod_err] = get_PIV_force(file_path_t, "", var_name, 0, norm_bool, default_trim_bounds());
                     var = var - bod_var;
                 else
+                    if ~obj.file_has_var(secondary_file_path_t, var_name)
+                        disp(var_name + " not saved for the " + obj.PIV_sub_case +...
+                            " subtraction case of " + cur_sel + " (older processing) - not plotted")
+                        continue
+                    end
                     if contains(var_name, ".")
                         abbrv_name = extractBefore(var_name, ".");
                         d2 = load(secondary_file_path_t, abbrv_name);
@@ -2016,13 +2096,13 @@ methods (Access = private)
             %     disp("Shifted STB curve for " + cur_sel)
             % end
 
-            % 10 amp flexible case accidentally started at mid-downstroke
-            % rather than mid-upstroke used for the rest (old flapper only)
-            if amp == 10 && ~contains(type, "UP") && ~obj.is_new_flapper_type(type)
-                % var = circshift(var, round(0.44*length(var)));
-                var = circshift(var, round(0.5*length(var)));
-                placement_pct = circshift(placement_pct, round(0.5*length(var)));
-                disp("Shifted STB curve for " + cur_sel)
+            % old flapper cases without automated homing that started at a
+            % different phase (table in old_flapper_compat)
+            phase_offset = old_flapper_compat("phase_offset", type, amp, freq);
+            if phase_offset ~= 0
+                var = circshift(var, round(phase_offset*length(var)));
+                placement_pct = circshift(placement_pct, round(phase_offset*length(var)));
+                disp("Shifted STB curve for " + cur_sel + " by " + phase_offset + " cycles (old_flapper_compat)")
             end
 
             % "+/-": all curves (wing phase) shifted to centre the upstroke
@@ -2165,7 +2245,7 @@ methods (Access = private)
         t_bottom = [];
         for i = 1:length(obj.selection)
             cur_sel = obj.selection(i);
-            [amp, type, ~] = parse_name(cur_sel);
+            [amp, type, freq] = parse_name(cur_sel);
             secondary_file_path = obj.get_phase_avg_file_base(cur_sel) + "_integral.mat";
             try
                 d = load(secondary_file_path, "phase_avg_wing_pos");
@@ -2176,8 +2256,9 @@ methods (Access = private)
             end
 
             % same phase correction applied to the plotted curves
-            if amp == 10 && ~contains(type, "UP") && ~obj.is_new_flapper_type(type)
-                wing_pos = circshift(wing_pos, round(0.5*length(wing_pos)));
+            phase_offset = old_flapper_compat("phase_offset", type, amp, freq);
+            if phase_offset ~= 0
+                wing_pos = circshift(wing_pos, round(phase_offset*length(wing_pos)));
             end
 
             % time base matches the plotted curves: (1:N)/N

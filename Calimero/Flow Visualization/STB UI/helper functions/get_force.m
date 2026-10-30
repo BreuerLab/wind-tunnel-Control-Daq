@@ -16,9 +16,9 @@ function [force, frames] = get_force(path, type, amp, freq, idx, var_name_F, tim
     %   new flapper: <path>\<amp> deg <type>\4 m.s\<dated folder>\processed data\
     %                e.g. "Force Measurements\20 deg wings\4 m.s\wings_2026_09_26\..."
     %
-    % New flapper STB types carry a downstream position prefix
-    % ("x1_wings", "x3_body", ...). The load cell is only measured at one
-    % position, so that prefix is stripped before building the path.
+    % The measurement position prefix of the STB type (x3_, MPS_, UP_one_,
+    % ...) is stripped before building the path: the load cell is only
+    % measured at the robot.
 
     freq = string(freq);
     force_path = get_force_folder(path, type, amp);
@@ -91,6 +91,12 @@ function [force, frames] = get_force(path, type, amp, freq, idx, var_name_F, tim
     c = load(force_path + force_filename, var_name_F);
     var_F = c.(var_name_F);
 
+    % older processed files may hold fewer rows (e.g. no voltage /
+    % current rows)
+    if max(idx) > size(var_F, 1)
+        error("get_force:rowNotFound", "%s in %s has %d rows, row %d requested",...
+            var_name_F, force_path + force_filename, size(var_F, 1), max(idx));
+    end
     force = var_F(idx,:);
 
     if nargout > 1

@@ -11,6 +11,11 @@ function [var, err, I] = get_PIV_force(file_name, case_name, force_var_name, avg
         % uncertainty mask (bounds.unc_mask), [] if none.
         want_int = nargout >= 3;
 
+        % old flapper cases (STB Round 1) use the trim bounds they were
+        % analysed with (old_flapper_compat), not the new flapper ones
+        [~, file_stem] = fileparts(string(file_name));
+        bounds = old_flapper_compat("trim_bounds_for", file_stem, bounds);
+
         % *_tavg (e.g. lift_tavg.vortX, lift_vel_tavg): average the phase
         % averaged fields over the cycle (each bin weighted equally) into a
         % single time-averaged field, then compute the force from that field
