@@ -1645,12 +1645,9 @@ methods (Access = private)
         end
 
         if obj.force_sub && ismember(quantity, ["drag", "lift", "pitch"])
-            body_amp = amp;
-            if body_amp == 30
-                body_amp = 20;
-            end
-            body_type = get_downstream_prefix(type) + "body";
-            body_signal = get_force(obj.force_path, body_type, body_amp, freq, idx, var_name_F);
+            % same-amplitude body case (get_body_force falls back to 20 deg
+            % only when there is no body data at this amplitude)
+            body_signal = get_body_force(obj.force_path, type, amp, freq, idx, var_name_F);
             signal = signal - body_signal;
         end
         signal = double(signal(:)');

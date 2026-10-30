@@ -90,6 +90,12 @@ for s = 1:length(sessions)
         end
     end
     t0 = tare_t(1);
+    % mark each wind-off tare (one per repetition: run_experiment takes a
+    % tare at the start of every pass through the AoA list in main.m)
+    for k = 1:numel(tare_t)
+        xl = xline(minutes(tare_t(k) - t0), ":", Color=colors(s,:));
+        xl.HandleVisibility = "off";
+    end
 
     % ---- wind-on static readings (before / after each trial) ----
     if isempty(static)

@@ -2196,13 +2196,11 @@ classdef timeAvg_UI < handle
                 if obj.is_plain_steady_type(type)
                     disp("Force Body Sub skipped for steady case " + type)
                 else
-                    body_amp = amp;
-                    if body_amp == 30
-                        body_amp = 20;
-                    end
-                    body_type = get_downstream_prefix(type) + "body";
+                    % same-amplitude body case (get_body_force falls back
+                    % to 20 deg only when there is no body data at this
+                    % amplitude)
                     try
-                        body_signal = get_force(obj.force_path, body_type, body_amp, freq, idx, var_name_F);
+                        body_signal = get_body_force(obj.force_path, type, amp, freq, idx, var_name_F);
                     catch ME
                         if ~startsWith(ME.identifier, "get_force:")
                             rethrow(ME)
