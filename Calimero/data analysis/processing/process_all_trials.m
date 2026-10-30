@@ -214,6 +214,12 @@ disp("---------------------------------------------------------------")
 % Get some general parameters from the params file
 [d, latest_timestamp] = eval_params(params_path);
 params.freq_vals = d.freq_vals;
+% DAQ sampling rate saved by run_experiment / benchtop_test (used for
+% filtering and trimming in process_trial)
+if isfield(d, 'rate')
+    params.rate = d.rate;
+    disp("DAQ rate from experiment params: " + params.rate + " Hz")
+end
 
 % Processing timers: per trial and for the whole run
 fmt_dur = @(sec) string(duration(0, 0, sec, 'Format', 'hh:mm:ss.SSS'));

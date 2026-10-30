@@ -151,7 +151,16 @@ else
 ticksPerRev = 18432;
 OC_pulse_step = 4;
 pulsesPerRev = ticksPerRev / OC_pulse_step;
-rate = 15000;
+% DAQ rate from the benchtop_test params saved with this recording
+% ("...\experiment parameters\" next to "...\experiment data\"),
+% checked against the recording's time column
+[~, daq_time_stamp] = parse_filename(daq_data_filename);
+params_dir = strrep(string(daq_data_path), "experiment data", "experiment parameters");
+[daq_params, daq_params_file] = load_params_near(params_dir, daq_time_stamp);
+if daq_params_file == ""
+    disp("No experiment params found in " + params_dir + ", DAQ rate from the time column")
+end
+rate = get_daq_rate(daq_params, results(:,1));
 
 % Find indices where a laser fire has been recorded, each time this
 % counter is incremented, a laser pulse (and vel field) has been recorded

@@ -33,7 +33,7 @@ sessions = [
     "F:\Force Measurements\30 deg body\4 m.s\body_2026_09_27"
     ];
 AoA = 10;        % deg, only files at this AoA are used
-fs = 12000;      % DAQ sampling rate (Hz), as process_trial assumes
+fs_default = 15000; % DAQ rate (Hz) if a session's params have none
 smooth_s = 0.5;  % moving-average window for plotting (s)
 plot_step = 50;  % plot every n-th sample of the smoothed trace
 
@@ -68,6 +68,16 @@ for s = 1:length(sessions)
     sess_label = extractBefore(extractAfter(sess, "Force Measurements\"), "\4 m.s") + " (" + sess_name + ")";
     title(axs(1, s), sess_label, Interpreter="none", FontWeight="normal")
 
+    % DAQ rate from the session's experiment params (offsets recordings
+    % have no time column to measure it from)
+    fs = fs_default;
+    try
+        dp = eval_params(fullfile(sess, "raw data", "experiment parameters") + filesep);
+        fs = get_daq_rate(dp);
+    catch ME
+        fprintf("%s: %s - assuming %g Hz\n", sess_label, ME.message, fs_default)
+    end
+
     files = dir(fullfile(offsets_dir, "*.mat"));
     tares = struct('t', {}, 'file', {});
     befores = struct('t', {}, 'file', {});
@@ -91,7 +101,7 @@ for s = 1:length(sessions)
     rep_colors = lines(numel(tares));
 
     fprintf("\n================================================================\n")
-    fprintf("%s\n", sess_label)
+    fprintf("%s (DAQ rate %g Hz)\n", sess_label, fs)
     fprintf("================================================================\n")
     fprintf("  %-4s %-9s %8s | %-28s | %-28s | %s\n", "rep", "kind", "dur (s)",...
         "lift: slope, change in rec.", "drag: slope, change in rec.", "lift slide by next reading")

@@ -45,6 +45,15 @@ end
 % Get raw data from file
 load(raw_data_path + file); % load in results var
 
+% DAQ sampling rate: the rate saved in the experiment params (params.rate,
+% set by process_all_trials), checked against the recording's time
+% column. get_sampling_info's 12 kHz is only a fallback for old calls.
+if nargin < 6
+    params = struct();
+end
+frame_rate = get_daq_rate(params, results(:,1));
+disp("DAQ rate: " + frame_rate + " Hz")
+
 % Data are filtered with some padding still attached and only trimmed to
 % the analysed portion (core_idx) afterwards, so the filters' start-up and
 % end transients land in the discarded padding. Filtering the already
