@@ -31,6 +31,7 @@ sessions = [
     "F:\Force Measurements\30 deg wings\4 m.s\wings_2026_09_27"
     "F:\Force Measurements\10 deg body\4 m.s\body_2026_09_27"
     "F:\Force Measurements\20 deg body\4 m.s\body_2026_09_27"
+    "F:\Force Measurements\30 deg body\4 m.s\body_2026_09_27"
     ];
 AoA = 10; % deg, only files at this AoA are used
 lift_row = 3; % lab frame rows: [drag; side; lift; roll; pitch; yaw]
