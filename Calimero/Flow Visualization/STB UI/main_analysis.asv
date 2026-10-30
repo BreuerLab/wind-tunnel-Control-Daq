@@ -1,0 +1,40 @@
+clear
+close all force
+
+% Change current working directory to the directory where this file is
+cd(fileparts(mfilename('fullpath')));
+addpath(genpath('../../'))
+
+% Data should be moved locally. Using this GUI with data stored on the LRS
+% is slow
+% data_file_path = "C:\Users\rgissler\Documents\STB Round 1\";
+data_file_path = "F:\";
+% data_file_path = "R:\ENG_Breuer_Shared\group\Wind turbine\Turbine_STB\Turbine_STB_02_17_2026\Processed Data\";
+
+% GUI for plotting vector fields and wake topology
+% a = flowField_UI(data_file_path);
+% a.dynamic_plotting();
+
+% GUI for plotting instantaneous vector fields before phase averaging
+% b = flowFieldInst_UI(data_file_path);
+% b.dynamic_plotting();
+
+% GUI for plotting phase averaged quantities
+c = phaseAvg_UI(data_file_path);
+c.dynamic_plotting();
+
+% % GUI for plotting time averaged quantities
+% d = timeAvg_UI(data_file_path);
+% d.dynamic_plotting();
+
+% ----------------------------------------------
+% Diagnostic recommendations from Claude
+
+% case_name = "x3_wings_20deg_6Hz";
+% file = data_file_path + "Processed Results\phase_avg\" + case_name + "_phase_avg.mat";
+% o.taper = 0.75;   % taper width in chords
+% B = wake_lift_budget(file, case_name, default_trim_bounds(), o);
+
+% M = slab_derivative_map(file);
+
+% T = mean_weighting_check(data_file_path, "x3_wings_20deg");

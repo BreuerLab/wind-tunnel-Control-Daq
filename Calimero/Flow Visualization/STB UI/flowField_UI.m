@@ -2,30 +2,111 @@ classdef flowField_UI < handle
 properties (Constant, Access = private)
     ACTIVE_COLOR = [0.3010 0.7450 0.9330];
     INACTIVE_COLOR = [1 1 1];
-    TRIM_Y_BOUNDS = [-2.26 2]; % roughly -0.15 to 0.15 m
-    TRIM_Z_BOUNDS = [-2.36 2.55]; % roughly -0.2 to 0.2 m
-    MIRROR_CENTER_Y = -2.26;
+    Q_ISO_RANGE = [0.005 0.1];  % Q isovalue slider range (negated by "+/-")
+    Q_ISO_DEFAULT = 0.05;       % Q isovalue slider default
+    % Tag on the 3D plot's stroke lines / shading / labels (Label Stroke),
+    % so they can be found and removed without touching the isosurface
+    STROKE_TAG = "stroke_label_3D";
+    % "Card Style" on the 3D plot (lit isosurface, red-green diverging
+    % colormap, dark background, no axes). Purely cosmetic and fully
+    % reversible: the original look is stored on the axes when the style
+    % is applied and restored when it is turned off.
+    CARD_TAG = "card_style_3D";             % tag on the card style's lights
+    CARD_BG = [0.035 0.055 0.11];           % deep navy background
+    % lights relative to the camera: [azimuth elevation] (deg), and colours
+    CARD_LIGHT_POS = [35 30; -75 5];        % warm key light, cool fill light
+    CARD_LIGHT_COLOR = [1 0.95 0.86; 0.40 0.46 0.58];
+    % colormap anchors, negative -> zero -> positive (e.g. ω_x < 0 green,
+    % ω_x > 0 red): pine green, cream, cranberry
+    CARD_CMAP_ANCHORS = [0.05 0.33 0.20; 0.30 0.60 0.40; 0.93 0.89 0.78; ...
+                         0.85 0.30 0.30; 0.60 0.05 0.13];
+    % "Remove Small" default: hide isosurface pieces with fewer
+    % triangles than this % of the largest piece (0 = keep everything)
+    REMOVE_SMALL_DEFAULT = 2;
+    % Derived variable: lift integrand from the wake, computed on the fly
+    % from stored fields (term1 in get_wake_lift: -U .* y .* -vortX, with y
+    % measured from the mirror centerline)
+    LIFT_WX_VAR = "lift (U y ω_x)"; % name shown in the variable dropdown
+    LIFT_WX_FIELD = "lift_wx_field"; % internal name, not stored in files
+    % Extrapolated minus measured velocity on the field of view, saved in
+    % the phase-avg _integral file by the Helmholtz extrapolation
+    % (calc_secondary_vals_common). Plotted on their own grid
+    % (y_B_fov, z_B_fov), time avg / movie only.
+    EXTRAP_DIFF_VARS = ["u: extrap - meas", "v: extrap - meas", "w: extrap - meas"];
+    EXTRAP_DIFF_FIELDS = ["velX_B_diff", "velY_B_diff", "velZ_B_diff"];
+    % Trim bounds and mirror centerline for each flapper source mode.
+    % The active set is copied into trim_y_bounds / trim_z_bounds /
+    % mirror_center_y by set_trim_settings_for_source_mode().
+    OLD_FLAPPER_TRIM_Y_BOUNDS = [-2.26 2]; % roughly -0.15 to 0.15 m
+    OLD_FLAPPER_TRIM_Z_BOUNDS = [-2.36 2.55]; % roughly -0.2 to 0.2 m
+    OLD_FLAPPER_MIRROR_CENTER_Y = -2.26;
+    NEW_FLAPPER_TRIM_Y_BOUNDS = [-2.4 2.8];
+    NEW_FLAPPER_TRIM_Z_BOUNDS = [-2.9 3.1];
+    NEW_FLAPPER_MIRROR_CENTER_Y = -2.06;
     secondary_vars = ["Q_x","Q_y","Q_z","|Q|","div",...
         "KE", "power"];
-    KNOWN_DOWNSTREAM_TYPES = ["flexible";"UP_one_flexible";"UP_two_flexible"];
-    KNOWN_DISTANCE_LABELS = ["x = 0.9m";"x = 1.3m";"x = 1.7m"];
+    OLD_FLAPPER_SOURCE_MODE = "old flapper";
+    NEW_FLAPPER_SOURCE_MODE = "new flapper";
+    TURBINE_SOURCE_MODE = "turbine";
+    OLD_FLAPPER_DOWNSTREAM_TYPES = ["flexible";"UP_one_flexible";"UP_two_flexible"];
+    OLD_FLAPPER_DISTANCE_LABELS = ["x = 0.9m";"x = 1.3m";"x = 1.7m"];
+    NEW_FLAPPER_DOWNSTREAM_TYPES = ["x1";"x2";"x3";"x4";"x5";"MPS"];
+    NEW_FLAPPER_DISTANCE_LABELS = ["x1";"x2";"x3";"x4";"x5";"MPS"];
+    % Streamwise separation (m) between the robot and the imaging plane,
+    % used for the convection phase shift (same values as phaseAvg_UI).
+    % Entries line up with OLD_/NEW_FLAPPER_DOWNSTREAM_TYPES. Set an entry
+    % to NaN if unknown (no shift applied).
+    OLD_FLAPPER_DOWNSTREAM_DISTS = [0.9; 0.9 + 0.37; 0.9 + 2*0.37]; % flexible, UP_one, UP_two
+    NEW_FLAPPER_DOWNSTREAM_DISTS = [0.9 - 2*0.37; 0.9 - 0.37; 0.9; 0.9 + 0.37; 0.9 + 2*0.37; 1.0]; % x1-x5, MPS
+    CONV_SPEED = 4; % m/s, convection speed of the wake
 end
 
 properties
     % Display and dataset selection
-    mon_num;
     file_path;
+    phase_avg_file_path;
+    time_avg_file_path;
     file_suffix;
     source_mode;
     source_modes;
+    trim_y_bounds;    % active trim/mirror settings, set per source mode
+    trim_z_bounds;
+    mirror_center_y;
     case_name;
     case_name_list;
     flapper_case_name_list;
     turbine_case_name_list;
+    phase_flapper_case_name_list;
+    phase_old_flapper_case_name_list;
+    phase_new_flapper_case_name_list;
+    phase_turbine_case_name_list;
+    time_flapper_case_name_list;
+    time_old_flapper_case_name_list;
+    time_new_flapper_case_name_list;
+    time_turbine_case_name_list;
+    % file stems (no _hr / _RPCA) per source, for the case list of the
+    % selected downstream position
+    phase_old_flapper_stems;
+    phase_new_flapper_stems;
+    time_old_flapper_stems;
+    time_new_flapper_stems;
+    phase_avg_case_ids;
+    time_avg_case_ids;
+    phase_avg_RPCA_file_path;   % optional subfolder phase_avg\RPCA\
+    phase_avg_main_case_ids;    % case ids found directly in phase_avg\
+    phase_avg_RPCA_case_ids;    % case ids found in phase_avg\RPCA\ (must end in _RPCA)
     current_downstream_type;
     downstream_types;
     distance_labels;
     downstream_type_by_distance;
+    old_flapper_downstream_types;
+    old_flapper_distance_labels;
+    old_flapper_downstream_type_by_distance;
+    new_flapper_downstream_types;
+    new_flapper_distance_labels;
+    new_flapper_downstream_type_by_distance;
+    RPCA;
+    HR;    % harmonic regression files (_hr, from bools.harmonic_reg)
 
     num_bins;
     frame_ind;
@@ -41,8 +122,17 @@ properties
     hist_vars;
     freq_vars;
     force_vars;
+    section_vars;     % "time avg: section avg" plot: number of y sections
+    section_count;    %   the selected one (section_dropdown)
+    section_force_vars; % forces it can break down (wake forces minus the omega_y lift terms)
+    section_dropdown;
+    frozen_vars;      % "frozen flow" plot: slab dw/dx vs (1/U) dw/dt
+    frozen_label_dict;
+    frozen_clims;
+    frozen_clim_dict;
 
     variable_name_dict;
+    time_avg_var_name_dict;
     label_dict;
 
     std_var_name_dict;
@@ -75,115 +165,291 @@ properties
     slider;
     play_button;
     iso_slider;
+    iso_sign_button;   % "+/-": flips the Q isovalue slider to negative values
+    iso_value_label;   % "Q isovalue:" label above the slider
     
     % 3D plot settings
     plot_hold_bool;
     iso_val;
+    iso_neg;           % true: Q isovalue slider uses negative values (shear dominated, Q < 0)
     iso_var;
     iso_var_list;
     mirror_bool;
     filter_bool;
     trim_bool;
     num_cycles;
+    % 3D plot x-axis in convective units (x/c = U t / c) instead of t/T
+    conv_units_bool;
+    % x/c per unit of t/T on the current 3D plot (U / (f L) * (N-1)/N),
+    % used to switch the x-axis units without redrawing
+    conv_scale;
+    % shift the 3D plot's phase by the wake's convection time from the
+    % robot to the imaging plane, so all cases start at the same wing phase
+    conv_shift;
+    % with conv_shift, shift the 3D plot further so the upstroke is
+    % centred instead of the downstroke ("+/-" button, see
+    % get_stroke_flip_bins)
+    stroke_flip;
+    % inputs of the last 3D plot, so "+/-" can shift the surface without a
+    % full redraw (see shift_3D_surface); ext = cached surface over one
+    % extra wingbeat, built on the first "+/-" press
+    surf_3D;
+    % processed iso variable (Q) and isosurface of the last 3D plot, with
+    % the settings they depend on (key), so changing only the colour
+    % variable doesn't reload Q or recompute the isosurface
+    geom_3D;
+    % mark stroke reversals on the 3D plot (2D views showing the x-axis)
+    label_stroke;
+    % stroke reversals for the current 3D plot, [] if unavailable:
+    % top / bottom (bin, 1-based, conv-shifted frame), N (bins),
+    % frame_shift (bins the plot is shifted by on top of the conv shift)
+    stroke_3D;
+    % "Card Style" toggle for the 3D plot (see CARD_TAG)
+    card_style;
+    % plot panel background before the card style darkened it, [] if the
+    % panel isn't darkened (the panel outlives the axes, so it is kept here)
+    card_panel_color;
+    % "Remove Small": hide small disconnected isosurface pieces, those with
+    % fewer triangles than remove_small_pct % of the largest piece
+    remove_small_bool;
+    remove_small_pct;
     extrapolate_bool;
+    full_section_bool; % with Extrapolate: show the whole test section, not just the field of view
     floor_bool;
     thresh;
+    q_mask_bool;
+    q_mask_thresh;
+    % 3D plot uncertainty mask: hide points whose wingbeat-averaged total
+    % uncertainty (uncTot_phase_avg, nondimensional) exceeds
+    % unc_mask_thresh percent of the freestream speed
+    unc_mask_bool;
+    unc_mask_thresh;
+    % 3D plot "Fix Limits": hold the y and z axis limits (y/c, z/c) at
+    % fix_ylim / fix_zlim so cases can be compared on the same axes;
+    % fix_lims_set is true once limits were entered or taken from a plot
+    fix_lims_bool;
+    fix_ylim;
+    fix_zlim;
+    fix_lims_set;
 end
 
 methods
     % Constructor Function
     % Defines constants and default values for parameters
-    function obj = flowField_UI(mon_num, file_path)
-        obj.mon_num = mon_num;
+    function obj = flowField_UI(file_path)
         obj.case_name = "";
         obj.variable_name = "";
-        obj.file_path = file_path + "Processed Results\";
+        obj.phase_avg_file_path = file_path + "Processed Results\phase_avg\";
+        obj.time_avg_file_path = file_path + "Processed Results\time_avg\";
+        obj.phase_avg_RPCA_file_path = obj.phase_avg_file_path + "RPCA\";
+        obj.file_path = obj.phase_avg_file_path;
         obj.source_modes = strings(0);
         obj.source_mode = "";
+        obj.RPCA = false;
+        obj.HR = false;
 
         obj.num_bins = 5;
         obj.frame_ind = 1;
         obj.play = false;
 
-        obj.plot_types = ["time avg","phase avg: movie", "phase std: movie", "phase avg: 3D plot",...
-            "image wingbeat phase", "wingbeat frequency","wake forces","phase avg: planar avg"];
+        obj.plot_types = ["time avg of phase avg","phase avg: movie", "time avg of phase std","phase std: movie", "phase avg: 3D plot",...
+            "image wingbeat phase", "wingbeat frequency","wake forces","phase avg: planar avg",...
+            "time avg: section avg", "frozen flow"];
+        obj.plot_type = obj.plot_types(1);
         obj.plot_hold_bool = false;
         obj.iso_var_list = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
                             "Q_x","Q_y","Q_z","|Q|", "helicity",...
                             "du/dx","du/dy","du/dz","dv/dx","dv/dy",...
-                            "dv/dz","dw/dx","dw/dy","dw/dz"];
+                            "dv/dz","dw/dx","dw/dy","dw/dz",...
+                            "<Qx> inst", "<Qy> inst", "<Qz> inst", "<Q> inst"];
         obj.iso_var = "|Q|";
-        obj.iso_val = 0.05;
-        % obj.iso_val = -0.05;
+        obj.iso_val = obj.Q_ISO_DEFAULT;
+        obj.iso_neg = false;
         obj.mirror_bool = false;
         obj.filter_bool = false;
         obj.num_cycles = 1;
+        obj.conv_units_bool = false;
+        obj.conv_scale = [];
+        obj.conv_shift = false;
+        obj.stroke_flip = false;
+        obj.surf_3D = [];
+        obj.geom_3D = [];
+        obj.label_stroke = false;
+        obj.stroke_3D = [];
+        obj.card_style = false;
+        obj.card_panel_color = [];
+        obj.remove_small_bool = false;
+        obj.remove_small_pct = obj.REMOVE_SMALL_DEFAULT;
+        obj.unc_mask_bool = false;
+        obj.unc_mask_thresh = 4; % % of freestream
+        obj.fix_lims_bool = false;
+        obj.fix_ylim = [-5 5];
+        obj.fix_zlim = [-3 3];
+        obj.fix_lims_set = false;
         obj.trim_bool = true;
         obj.extrapolate_bool = false;
+        obj.full_section_bool = false;
         obj.floor_bool = false;
         obj.thresh = 0.1;
-
-        files = dir(obj.file_path + "*.mat");
+        obj.q_mask_bool = false;
+        obj.q_mask_thresh = 0.025;
 
         obj.file_suffix = "_phase_avg";
 
-        phase_avg_stems = obj.get_phase_avg_stems(files);
-        turbine_stems = phase_avg_stems(contains(phase_avg_stems, "turbine"));
-        flapper_stems = phase_avg_stems(~contains(phase_avg_stems, "turbine"));
+        phase_avg_files = dir(obj.phase_avg_file_path + "*.mat");
+        time_avg_files = dir(obj.time_avg_file_path + "*.mat");
 
-        [obj.downstream_types, obj.distance_labels] = obj.get_available_downstream_options(flapper_stems);
-        if isempty(obj.downstream_types)
-            obj.current_downstream_type = "";
-            obj.downstream_type_by_distance = containers.Map('KeyType', 'char', 'ValueType', 'char');
-        else
-            obj.current_downstream_type = obj.downstream_types(1);
-            obj.downstream_type_by_distance = containers.Map(obj.distance_labels, obj.downstream_types);
-        end
+        phase_avg_stems = obj.get_file_stems(phase_avg_files, "_phase_avg");
+        time_avg_stems = obj.get_file_stems(time_avg_files, "_time_avg");
 
-        obj.flapper_case_name_list = obj.get_flapper_case_names(flapper_stems);
-        obj.turbine_case_name_list = obj.get_turbine_case_names(turbine_stems);
+        % RPCA phase averages may also live in a phase_avg\RPCA\ subfolder.
+        % Only files named *_RPCA_phase_avg.mat are used as RPCA cases.
+        obj.phase_avg_main_case_ids = phase_avg_stems;
+        rpca_files = dir(obj.phase_avg_RPCA_file_path + "*.mat");
+        obj.phase_avg_RPCA_case_ids = obj.get_file_stems(rpca_files, "_RPCA_phase_avg") + "_RPCA";
+        phase_avg_stems = unique([phase_avg_stems, obj.phase_avg_RPCA_case_ids], 'stable');
+        obj.phase_avg_case_ids = phase_avg_stems;
+        obj.time_avg_case_ids = time_avg_stems;
+
+        % _hr / _RPCA cases are picked with the HR / RPCA buttons, so they
+        % aren't listed separately
+        phase_avg_display_stems = unique(obj.strip_variant_suffix(phase_avg_stems), 'stable');
+        time_avg_display_stems = unique(obj.strip_variant_suffix(time_avg_stems), 'stable');
+
+        turbine_stems = phase_avg_display_stems(contains(phase_avg_display_stems, "turbine"));
+        flapper_stems = phase_avg_display_stems(~contains(phase_avg_display_stems, "turbine"));
+        time_turbine_stems = time_avg_display_stems(contains(time_avg_display_stems, "turbine"));
+        time_flapper_stems = time_avg_display_stems(~contains(time_avg_display_stems, "turbine"));
+
+        old_flapper_stems = obj.get_old_flapper_stems(flapper_stems);
+        new_flapper_stems = obj.get_new_flapper_stems(flapper_stems);
+        time_old_flapper_stems = obj.get_old_flapper_stems(time_flapper_stems);
+        time_new_flapper_stems = obj.get_new_flapper_stems(time_flapper_stems);
+        obj.phase_old_flapper_stems = old_flapper_stems;
+        obj.phase_new_flapper_stems = new_flapper_stems;
+        obj.time_old_flapper_stems = time_old_flapper_stems;
+        obj.time_new_flapper_stems = time_new_flapper_stems;
+
+        [obj.old_flapper_downstream_types, obj.old_flapper_distance_labels] = ...
+            obj.get_available_downstream_options([old_flapper_stems, time_old_flapper_stems], obj.OLD_FLAPPER_SOURCE_MODE);
+        obj.old_flapper_downstream_type_by_distance = ...
+            obj.build_downstream_type_map(obj.old_flapper_distance_labels, obj.old_flapper_downstream_types);
+        [obj.new_flapper_downstream_types, obj.new_flapper_distance_labels] = ...
+            obj.get_available_downstream_options([new_flapper_stems, time_new_flapper_stems], obj.NEW_FLAPPER_SOURCE_MODE);
+        obj.new_flapper_downstream_type_by_distance = ...
+            obj.build_downstream_type_map(obj.new_flapper_distance_labels, obj.new_flapper_downstream_types);
+
+        obj.phase_old_flapper_case_name_list = obj.get_flapper_case_names(...
+            old_flapper_stems, obj.old_flapper_downstream_types, ...
+            obj.old_flapper_distance_labels, obj.OLD_FLAPPER_SOURCE_MODE);
+        obj.phase_new_flapper_case_name_list = obj.get_flapper_case_names(...
+            new_flapper_stems, obj.new_flapper_downstream_types, ...
+            obj.new_flapper_distance_labels, obj.NEW_FLAPPER_SOURCE_MODE);
+        obj.phase_flapper_case_name_list = unique([obj.phase_old_flapper_case_name_list, obj.phase_new_flapper_case_name_list], 'stable');
+        obj.phase_turbine_case_name_list = obj.get_turbine_case_names(turbine_stems);
+        obj.time_old_flapper_case_name_list = obj.get_flapper_case_names(...
+            time_old_flapper_stems, obj.old_flapper_downstream_types, ...
+            obj.old_flapper_distance_labels, obj.OLD_FLAPPER_SOURCE_MODE);
+        obj.time_new_flapper_case_name_list = obj.get_flapper_case_names(...
+            time_new_flapper_stems, obj.new_flapper_downstream_types, ...
+            obj.new_flapper_distance_labels, obj.NEW_FLAPPER_SOURCE_MODE);
+        obj.time_flapper_case_name_list = unique([obj.time_old_flapper_case_name_list, obj.time_new_flapper_case_name_list], 'stable');
+        obj.time_turbine_case_name_list = obj.get_turbine_case_names(time_turbine_stems);
         obj.source_modes = obj.get_available_source_modes();
         if isempty(obj.source_modes)
-            error("No STB phase-average files found in %s. Expected *_phase_avg.mat files for Calimero or turbine data.", obj.file_path)
+            error("No STB average files found. Expected *_phase_avg.mat files in %s or *_time_avg.mat files in %s.", obj.phase_avg_file_path, obj.time_avg_file_path)
         end
         obj.source_mode = obj.source_modes(1);
-        if obj.source_mode == "turbine"
-            obj.case_name_list = obj.turbine_case_name_list;
-        else
-            obj.case_name_list = obj.flapper_case_name_list;
-        end
+        obj.set_downstream_options_for_source_mode(obj.source_mode);
+        obj.set_trim_settings_for_source_mode(obj.source_mode);
+        obj.case_name_list = obj.get_case_name_list_for_active_plot_type();
+        obj.flapper_case_name_list = unique([...
+            obj.get_case_name_list(obj.OLD_FLAPPER_SOURCE_MODE, obj.plot_type), ...
+            obj.get_case_name_list(obj.NEW_FLAPPER_SOURCE_MODE, obj.plot_type)], 'stable');
+        obj.turbine_case_name_list = obj.get_case_name_list(obj.TURBINE_SOURCE_MODE, obj.plot_type);
 
         obj.movie_3D_avg_vars = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
-                    "Q_x","Q_y","Q_z","|Q|","u_unc","v_unc","w_unc","|unc|","helicity", "# particles",...
+                    "Q_x","Q_y","Q_z","|Q|","u_unc","v_unc","w_unc","|unc|",...
+                    "u'u'", "v'v'", "w'w'","u'v'","u'w'","v'w'","helicity", "# particles",...
                     "du/dx","du/dy","du/dz","dv/dx","dv/dy","dv/dz","dw/dx","dw/dy","dw/dz",...
                     "div", "KE", "power"];
         movie_3D_avg_values = ["u_phase_avg","v_phase_avg","w_phase_avg","Utot_phase_avg",...
         "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg","vortTot_phase_avg",...
         "Qx","Qy","Qz","Q","uncU_phase_avg","uncV_phase_avg","uncW_phase_avg",...
-        "uncTot_phase_avg","hel_phase_avg", "numP_phase_avg",...
+        "uncTot_phase_avg","uu_stress","vv_stress","ww_stress","uv_stress",...
+        "uw_stress","vw_stress","hel_phase_avg", "numP_phase_avg",...
         "dudx_phase_avg","dudy_phase_avg","dudz_phase_avg",...
         "dvdx_phase_avg","dvdy_phase_avg","dvdz_phase_avg",...
         "dwdx_phase_avg","dwdy_phase_avg","dwdz_phase_avg",...
+        "div", "KE_diff_field", "power_field"];
+        time_avg_values = ["mean_u","mean_v","mean_w","mean_Utot",...
+        "mean_vortX","mean_vortY","mean_vortZ","mean_vortTot",...
+        "Qx","Qy","Qz","Q","mean_uncU","mean_uncV","mean_uncW",...
+        "mean_uncTot","mean_uu_stress","mean_vv_stress","mean_ww_stress",...
+        "mean_uv_stress","mean_uw_stress","mean_vw_stress","mean_hel",...
+        "mean_numP","mean_dudx","mean_dudy","mean_dudz",...
+        "mean_dvdx","mean_dvdy","mean_dvdz",...
+        "mean_dwdx","mean_dwdy","mean_dwdz",...
         "div", "KE_diff_field", "power_field"];
         
         obj.movie_3D_std_vars = [obj.movie_3D_avg_vars(1:8) obj.movie_3D_avg_vars(13:end)];
         movie_3D_std_values = [movie_3D_avg_values(1:8) movie_3D_avg_values(13:end)];
         movie_3D_std_values = strrep(movie_3D_std_values,"avg","std");
+        % divergence std: per-frame divergence std saved in the main file
+        % by phase_avg_STB (bools.div_std = true)
+        movie_3D_std_values(obj.movie_3D_std_vars == "div") = "div_phase_std";
+
+        % Derived variables (computed in update_plot, not loaded directly).
+        % Appended after the std list is built since they have no std field.
+        obj.movie_3D_avg_vars(end+1) = obj.LIFT_WX_VAR;
+        movie_3D_avg_values(end+1) = obj.LIFT_WX_FIELD;
+        time_avg_values(end+1) = obj.LIFT_WX_FIELD;
+        % Q computed per frame, then averaged (saved in the main
+        % phase / time average files by phase_avg_STB / time_avg_STB)
+        % (names avoid "Q_x" etc. so they load from the main file, not
+        % the _integral file like the secondary_vars)
+        obj.movie_3D_avg_vars = [obj.movie_3D_avg_vars, "<Qx> inst", "<Qy> inst", "<Qz> inst", "<Q> inst"];
+        movie_3D_avg_values = [movie_3D_avg_values, "Qx_inst_avg", "Qy_inst_avg", "Qz_inst_avg", "Q_inst_avg"];
+        time_avg_values = [time_avg_values, "Qx_inst_avg", "Qy_inst_avg", "Qz_inst_avg", "Q_inst_avg"];
+        obj.movie_3D_avg_vars = [obj.movie_3D_avg_vars, obj.EXTRAP_DIFF_VARS];
+        movie_3D_avg_values = [movie_3D_avg_values, obj.EXTRAP_DIFF_FIELDS];
+        time_avg_values = [time_avg_values, obj.EXTRAP_DIFF_FIELDS]; % not in time-avg files
+        % frame-to-frame standard deviation of that Q within each bin
+        % (phase_avg_STB with bools.Q_inst = true)
+        obj.movie_3D_std_vars = [obj.movie_3D_std_vars, "<Qx> inst", "<Qy> inst", "<Qz> inst", "<Q> inst"];
+        movie_3D_std_values = [movie_3D_std_values, "Qx_inst_std", "Qy_inst_std", "Qz_inst_std", "Q_inst_std"];
         % ["u_phase_std","v_phase_std","w_phase_std","Utot_phase_std",...
         % "vortX_phase_std","vortY_phase_std","vortZ_phase_std","vortTot_phase_std",...
         % "uncU_phase_std","uncV_phase_std","uncW_phase_std","uncTot_phase_std","hel_phase_std", "numP_phase_std"];
 
-        obj.hist_vars = ["bin counts","bin SD","distribution"];
-        hist_vals = ["bin_count", "bin_std","tick_frame_pos"];
-        hist_labels = ["Number of frames per bin", "Phase variability per bin (% cycle)","Number of frames per tick"];
+        % "phase variability": range of phase within each bin as % of the
+        % bin width (bin_std from findBestNumBins2, see frame_to_bin)
+        % "bin placement": centroid of the frames in each bin minus the bin
+        % centre, % of bin width (+ = late in bin)
+        obj.hist_vars = ["bin counts","phase variability","distribution","bin placement"];
+        hist_vals = ["bin_count", "bin_phase_var","tick_frame_pos","bin_placement"];
+        hist_labels = ["Number of frames per bin", "Phase variability per bin (% bin width)",...
+            "Number of frames per tick", "Centroid offset from bin centre (% bin width)"];
 
         obj.freq_vars = ["frequency","bin counts", "bin SD"];
         freq_vals = ["phase_avg_speed", "bin_count_speed", "bin_std_speed"];
         freq_labels = ["Wingbeat Frequency (Hz)", "Number of samples per bin", "Phase variability per bin (% cycle)"];
 
-        obj.force_vars = ["lift_vort", "lift_vel", "drag_vort", "drag_vel"];
-        force_vals = ["lift", "lift_vel", "drag", "drag_vel"];
-        force_labels = ["Lift (N)", "Lift (N)", "Drag (N)", "Drag (N)"];
+        % Vorticity-based estimates come back from get_wake_lift as a
+        % struct of terms, so each entry names the field to plot
+        % (get_PIV_force resolves the dotted path).
+        obj.force_vars = ["lift_vort", "lift_vort: ω_x term", "lift_vort: ω_y term", "lift_vort: ω_y term (edge)", "lift_vort: ω_x term (taper)", "lift_vort: vel diff term", ...
+            "lift_vel", ...
+            "drag_vort", "drag_vort: ω_y term", "drag_vort: ω_z term", "drag_vort: bernoulli term", ...
+            "drag_vel"];
+        force_vals = ["lift.tot", "lift.vortX", "lift.vortY", "lift.vortY_edge", "lift.vortX_taper", "lift.vel_diff", ...
+            "lift_vel", ...
+            "drag.tot", "drag.vortY", "drag.vortZ", "drag.bernoulli", ...
+            "drag_vel"];
+        force_labels = ["Lift (N)", "Lift, ω_x term (N)", "Lift, ω_y term (N)", "Lift, ω_y term, with edge terms (N)", "Lift, ω_x term, tapered (N)", "Lift, vel diff term (N)", ...
+            "Lift (N)", ...
+            "Drag (N)", "Drag, ω_y term (N)", "Drag, ω_z term (N)", "Drag, bernoulli term (N)", ...
+            "Drag (N)"];
 
         obj.var_name_list = obj.movie_3D_avg_vars;
         obj.mean_clims = [-1.1, -0.9;...
@@ -198,12 +464,18 @@ methods
                       0, 0.1;...
                       0, 0.1;...
                       0, 0.1;...
-                      0, 0.03;...
-                      0, 0.03;...
-                      0, 0.03;...
-                      0, 0.03;...
+                      0, 0.04;...
+                      0, 0.04;...
+                      0, 0.04;...
+                      0, 0.04;...
+                      0, 0.01;...
+                      0, 0.01;...
+                      0, 0.01;...
+                      0, 0.005;...
+                      0, 0.005;...
+                      0, 0.005;...
                       -1, 1;...
-                      0, 75;
+                      0, 150;
                       -0.1, 0.1;
                       -1, 1;
                       -1, 1;
@@ -213,23 +485,37 @@ methods
                       -0.2, 0.2;
                       -1, 1;
                       -1, 1;
-                      -0.3, 0.3;
+                      -0.1, 0.1;
                       0, 0.1;
-                      0, 0.1];
+                      0, 0.1;
+                      -20, 20;... % lift (U y ω_x), dimensional (m^2/s^2)
+                      0, 0.1;...  % <Qx> inst
+                      0, 0.1;...  % <Qy> inst
+                      0, 0.1;...  % <Qz> inst
+                      0, 0.1;...  % <Q> inst
+                      -0.05, 0.05;... % u: extrap - meas
+                      -0.05, 0.05;... % v: extrap - meas
+                      -0.05, 0.05];   % w: extrap - meas
 
         % for std plots
-        obj.std_clims = [0, 0.1;...
-                     0, 0.1;...
-                      0, 0.1;...
-                      0, 0.1;...
-                      0, 1;...
-                      0, 1;...
-                      0, 1;...
-                      0, 1;...
+        obj.std_clims = [0, 0.05;...
+                     0, 0.05;...
+                      0, 0.05;...
+                      0, 0.05;...
+                      0, 0.5;...
+                      0, 0.5;...
+                      0, 0.5;...
+                      0, 0.5;...
                       0, 0.02;...
                       0, 0.02;...
                       0, 0.02;...
                       0, 0.02;...
+                      -1, 1;...%
+                      -1, 1;...
+                      -1, 1;...
+                      -1, 1;...
+                      -1, 1;...
+                      -1, 1;...% no std saved for Re stress
                       -1, 1;...
                       0, 50;
                       -1, 1;
@@ -241,29 +527,33 @@ methods
                       -1, 1;
                       -1, 1;
                       -1, 1;
-                      -1, 1;
+                      0, 1;
                       0, 0.1;
-                      0, 0.1];
+                      0, 0.1;
+                      0, 0.1;...  % σ(Qx) inst
+                      0, 0.1;...  % σ(Qy) inst
+                      0, 0.1;...  % σ(Qz) inst
+                      0, 0.1];    % σ(Q) inst
 
         obj.mean_clim_dict = obj.build_clim_dict(obj.movie_3D_avg_vars, obj.mean_clims);
         obj.std_clim_dict = obj.build_clim_dict(obj.movie_3D_std_vars, obj.std_clims);
         obj.clims = obj.mean_clims;
         obj.clim_dict = obj.mean_clim_dict;
         obj.clim_scale = 2;
-        movie_3D_avg_labels = ["\boldmath$\frac{u c}{U_{\infty}}$",...
-                            "\boldmath$\frac{v c}{U_{\infty}}$",...
-                            "\boldmath$\frac{w c}{U_{\infty}}$",...
-                            "\boldmath$\frac{U c}{U_{\infty}}$",...
+        movie_3D_avg_labels = ["\boldmath$\frac{u}{U_{\infty}}$",...
+                            "\boldmath$\frac{v}{U_{\infty}}$",...
+                            "\boldmath$\frac{w}{U_{\infty}}$",...
+                            "\boldmath$\frac{U}{U_{\infty}}$",...
                             "\boldmath$\frac{\omega_x c}{U_{\infty}}$",...
                             "\boldmath$\frac{\omega_y c}{U_{\infty}}$",...
                             "\boldmath$\frac{\omega_z c}{U_{\infty}}$",...
                             "\boldmath$\frac{\omega c}{U_{\infty}}$",...
                             "","","","",...
-                            "\boldmath$\frac{u c}{U_{\infty}}$",...
-                            "\boldmath$\frac{v c}{U_{\infty}}$",...
-                            "\boldmath$\frac{w c}{U_{\infty}}$",...
-                            "\boldmath$\frac{U c}{U_{\infty}}$",...
-                            "","count",...
+                            "\boldmath$\frac{u}{U_{\infty}}$",...
+                            "\boldmath$\frac{v}{U_{\infty}}$",...
+                            "\boldmath$\frac{w}{U_{\infty}}$",...
+                            "\boldmath$\frac{U}{U_{\infty}}$",...
+                            "u'u'","v'v'","w'w'","u'v'","u'w'","v'w'" "","count",...
                             "\boldmath$\frac{\partial u}{\partial x} \frac{c}{U_{\infty}}$",...
                             "\boldmath$\frac{\partial u}{\partial y} \frac{c}{U_{\infty}}$",...
                             "\boldmath$\frac{\partial u}{\partial z} \frac{c}{U_{\infty}}$",...
@@ -276,11 +566,26 @@ methods
                             "\boldmath$\nabla \cdot u \frac{c}{U_{\infty}}$",...
                             "KE","power"];
         movie_3D_std_labels = [movie_3D_avg_labels(1:8) movie_3D_avg_labels(13:end)];
+        movie_3D_std_labels = [movie_3D_std_labels,...
+            "\boldmath$\sigma_{Q_x} \frac{c^2}{U_{\infty}^2}$",...
+            "\boldmath$\sigma_{Q_y} \frac{c^2}{U_{\infty}^2}$",...
+            "\boldmath$\sigma_{Q_z} \frac{c^2}{U_{\infty}^2}$",...
+            "\boldmath$\sigma_{Q} \frac{c^2}{U_{\infty}^2}$"];
+        movie_3D_avg_labels(end+1) = "\boldmath$U_{\infty}\, y\, \omega_x \; (\mathrm{m^2/s^2})$";
+        movie_3D_avg_labels = [movie_3D_avg_labels,...
+            "\boldmath$\langle Q_x \rangle \frac{c^2}{U_{\infty}^2}$",...
+            "\boldmath$\langle Q_y \rangle \frac{c^2}{U_{\infty}^2}$",...
+            "\boldmath$\langle Q_z \rangle \frac{c^2}{U_{\infty}^2}$",...
+            "\boldmath$\langle Q \rangle \frac{c^2}{U_{\infty}^2}$",...
+            "$(u_{extrap} - u_{meas}) \; / \; U$",...
+            "$(v_{extrap} - v_{meas}) \; / \; U$",...
+            "$(w_{extrap} - w_{meas}) \; / \; U$"];
 
         keys = cellstr(obj.movie_3D_avg_vars);
         values = movie_3D_avg_values;
         labels = movie_3D_avg_labels;
         obj.variable_name_dict = containers.Map(keys, values);
+        obj.time_avg_var_name_dict = containers.Map(keys, time_avg_values);
         obj.label_dict = containers.Map(keys, labels);
 
         std_keys = cellstr(obj.movie_3D_std_vars);
@@ -295,8 +600,25 @@ methods
         obj.freq_var_name_dict = containers.Map(freq_keys, freq_vals);
         obj.freq_label_dict = containers.Map(freq_keys, freq_labels);
 
+        % Frozen-flow check of the slab-normal derivative (centre plane):
+        % movies of each estimate, then pointwise rms ratio / correlation
+        % over the wingbeat. All nondimensional like dwdx_phase_avg.
+        obj.frozen_vars = ["dw/dx (slab)", "(1/U) dw/dt", "rms ratio", "correlation over phase"];
+        obj.section_vars = ["5 sections", "3 sections", "10 sections", "20 sections", "every column"];
+        obj.section_count = obj.section_vars(1);
+        frozen_labels = ["\boldmath$\frac{\partial w}{\partial x}\frac{c}{U_{\infty}}$", ...
+            "\boldmath$\frac{1}{U}\frac{\partial w}{\partial t}\frac{c}{U_{\infty}}$", ...
+            "\boldmath$\frac{\mathrm{rms}(\partial_x w)}{\mathrm{rms}(\partial_t w / U)}$", ...
+            "\boldmath$\rho$"];
+        obj.frozen_clims = [-0.2 0.2; -0.2 0.2; 0 1.5; -1 1];
+        obj.frozen_label_dict = containers.Map(cellstr(obj.frozen_vars), frozen_labels);
+        obj.frozen_clim_dict = obj.build_clim_dict(obj.frozen_vars, obj.frozen_clims);
+
         force_keys = cellstr(obj.force_vars);
         obj.force_var_name_dict = containers.Map(force_keys, force_vals);
+        % the omega_y lift terms are time integrals of a rate, not plane
+        % integrals, so they can't be split across the plane
+        obj.section_force_vars = obj.force_vars(~ismember(force_vals, ["lift.vortY", "lift.vortY_edge"]));
         obj.force_label_dict = containers.Map(force_keys, force_labels);
 
         keys_B = cellstr(movie_3D_avg_values(1:3));
@@ -307,235 +629,573 @@ methods
     % Builds figure with all UI elements and defines all callback
     % functions to be used when user clicks on UI elements
     function dynamic_plotting(obj)
-        % Create a GUI figure with a grid layout
-        [option_panel, plot_panel, screen_size] = setupFig(obj.mon_num);
         pause(1.8) % wait until GUI opened
+        % Create a GUI figure with layout managers so controls stay
+        % reachable as the window or monitor size changes.
+        [option_panel, plot_panel, ~] = setupFig();
+        option_panel.AutoResizeChildren = true;
+        if isprop(option_panel, "Scrollable")
+            option_panel.Scrollable = "on";
+        end
+        pause(1) % wait until GUI opened
 
-        screen_height = screen_size(4);
-        unit_height = round(0.03*screen_height);
+        sidebar_grid = uigridlayout(option_panel, [15, 1]);
+        sidebar_grid.ColumnWidth = {'1x'};
+        sidebar_grid.RowHeight = {30, 30, 30, 30, 30, 30, 35, 30, 30, 30, 30, 30, 30, 0, 30};
+        sidebar_grid.Padding = [10 10 10 10];
+        sidebar_grid.RowSpacing = 6;
+        if isprop(sidebar_grid, "Scrollable")
+            sidebar_grid.Scrollable = "on";
+        end
 
-        source_dropdown_y = screen_height*0.85 - 30;
-        source_dropdown = uidropdown(option_panel);
-        source_dropdown.Position = [10 source_dropdown_y 180 30];
+        plot_grid = uigridlayout(plot_panel, [3, 1]);
+        plot_grid.ColumnWidth = {'1x'};
+        plot_grid.RowHeight = {'1x', 45, 40};
+        plot_grid.Padding = [10 10 10 10];
+        plot_grid.RowSpacing = 6;
+
+        plot_area_panel = uipanel(plot_grid);
+        plot_area_panel.Layout.Row = 1;
+        plot_area_panel.Layout.Column = 1;
+        plot_area_panel.BorderType = "none";
+
+        source_dropdown = uidropdown(sidebar_grid);
+        source_dropdown.Layout.Row = 1;
+        source_dropdown.Layout.Column = 1;
         source_dropdown.Items = obj.source_modes;
         source_dropdown.Value = obj.source_mode;
-        source_dropdown.ValueChangedFcn = @(src, event) source_change(src, event, plot_panel);
+        source_dropdown.ValueChangedFcn = @(src, event) source_change(src, event, plot_area_panel);
 
         % Dropdown box for which cases axes to display
-        distance_dropdown_y = source_dropdown_y - 35;
-        distance_dropdown = uidropdown(option_panel);
-        distance_dropdown.Position = [10 distance_dropdown_y 180 30];
-        if isempty(obj.distance_labels)
-            distance_dropdown.Items = "No Calimero data";
-            distance_dropdown.Value = "No Calimero data";
-            distance_dropdown.Visible = "off";
-            distance_dropdown.Enable = "off";
-        else
-            distance_dropdown.Items = obj.distance_labels;
-            distance_dropdown.Value = obj.distance_labels(1);
-            if obj.source_mode == "turbine"
-                distance_dropdown.Visible = "off";
-            end
-        end
-        distance_dropdown.ValueChangedFcn = @(src, event) distance_change(src, event, plot_panel);
+        distance_dropdown = uidropdown(sidebar_grid);
+        distance_dropdown.Layout.Row = 2;
+        distance_dropdown.Layout.Column = 1;
+        distance_dropdown.ValueChangedFcn = @(src, event) distance_change(src, event, plot_area_panel);
+        refresh_distance_dropdown();
 
-        case_dropdown_y = distance_dropdown_y - 35;
-        case_dropdown = uidropdown(option_panel);
-        case_dropdown.Position = [10 case_dropdown_y 180 30];
+        case_dropdown = uidropdown(sidebar_grid);
+        case_dropdown.Layout.Row = 3;
+        case_dropdown.Layout.Column = 1;
         case_dropdown.Items = obj.case_name_list;
-        obj.case_name = case_dropdown.Value; % use current value in box
-        case_dropdown.ValueChangedFcn = @(src, event) case_change(src, event, plot_panel);
+        obj.case_name = string(case_dropdown.Value); % use current value in box
+        case_dropdown.ValueChangedFcn = @(src, event) case_change(src, event, plot_area_panel);
 
-        plot_type_dropdown_y = case_dropdown_y - 35;
-        plot_type_dropdown = uidropdown(option_panel);
-        plot_type_dropdown.Position = [10 plot_type_dropdown_y 180 30];
-        plot_type_dropdown.Items = obj.plot_types;
+        % RPCA and HR (harmonic regression) buttons share a row
+        variant_grid = uigridlayout(sidebar_grid, [1, 2]);
+        variant_grid.Layout.Row = 4;
+        variant_grid.Layout.Column = 1;
+        variant_grid.ColumnWidth = {'1x', '1x'};
+        variant_grid.RowHeight = {'1x'};
+        variant_grid.Padding = [0 0 0 0];
+        variant_grid.ColumnSpacing = 8;
+
+        rpca_button = uibutton(variant_grid, "state");
+        rpca_button.Layout.Row = 1;
+        rpca_button.Layout.Column = 1;
+        rpca_button.Text = "RPCA";
+        rpca_button.FontSize = 18;
+        rpca_button.BackgroundColor = obj.get_button_color(obj.RPCA);
+        rpca_button.ValueChangedFcn = @(src, event) RPCA_change(src, event, plot_area_panel);
+
+        hr_button = uibutton(variant_grid, "state");
+        hr_button.Layout.Row = 1;
+        hr_button.Layout.Column = 2;
+        hr_button.Text = "HR";
+        hr_button.FontSize = 18;
+        hr_button.Tooltip = "Harmonic regression files (_hr)";
+        hr_button.BackgroundColor = obj.get_button_color(obj.HR);
+        hr_button.ValueChangedFcn = @(src, event) HR_change(src, event, plot_area_panel);
+
+        plot_type_dropdown = uidropdown(sidebar_grid);
+        plot_type_dropdown.Layout.Row = 5;
+        plot_type_dropdown.Layout.Column = 1;
+        plot_type_dropdown.Items = obj.get_available_plot_types_for_current_case();
         obj.plot_type = plot_type_dropdown.Value; % use current value in box
-        plot_type_dropdown.ValueChangedFcn = @(src, event) type_change(src, event, plot_panel);
+        plot_type_dropdown.ValueChangedFcn = @(src, event) type_change(src, event, plot_area_panel);
 
         % Dropdown box for which variables to display
-        variable_dropdown_y = plot_type_dropdown_y - 35;
-        obj.var_dropdown = uidropdown(option_panel);
-        obj.var_dropdown.Position = [10 variable_dropdown_y 180 30];
+        obj.var_dropdown = uidropdown(sidebar_grid);
+        obj.var_dropdown.Layout.Row = 6;
+        obj.var_dropdown.Layout.Column = 1;
         obj.var_dropdown.Items = obj.var_name_list;
         obj.variable_name = obj.var_dropdown.Value; % use current value in box
-        obj.var_dropdown.ValueChangedFcn = @(src, event) variable_change(src, event, plot_panel);
+        obj.var_dropdown.ValueChangedFcn = @(src, event) variable_change(src, event, plot_area_panel);
 
-        clim_y = variable_dropdown_y - 35;
-        obj.clim_slider = uislider(option_panel,"range");
-        obj.clim_slider.Position = [10 clim_y 180 3];
+        obj.clim_slider = uislider(sidebar_grid, "range");
+        obj.clim_slider.Layout.Row = 7;
+        obj.clim_slider.Layout.Column = 1;
         clim_center = mean(obj.clims(1,:));
         clim_range = (obj.clim_scale/2)*diff(obj.clims(1,:));
         obj.clim_slider.Limits = [clim_center - clim_range, clim_center + clim_range];
         obj.clim_slider.Value = obj.clims(1,:);
-        obj.clim_slider.ValueChangedFcn = @(src, event) clim_change(src, event, plot_panel);
+        obj.clim_slider.ValueChangedFcn = @(src, event) clim_change(src, event, plot_area_panel);
 
-        trim_button_y = clim_y - 70;
-        trim_button = uibutton(option_panel,"state");
+        % Number of y sections for "time avg: section avg" (shares the
+        % colour-limit slider's row; only one of them is shown)
+        obj.section_dropdown = uidropdown(sidebar_grid);
+        obj.section_dropdown.Layout.Row = 7;
+        obj.section_dropdown.Layout.Column = 1;
+        obj.section_dropdown.Items = obj.section_vars;
+        obj.section_dropdown.Value = obj.section_count;
+        obj.section_dropdown.Visible = "off";
+        obj.section_dropdown.ValueChangedFcn = @(src, event) section_count_change(src, event, plot_area_panel);
+
+        trim_button = uibutton(sidebar_grid, "state");
+        trim_button.Layout.Row = 8;
+        trim_button.Layout.Column = 1;
         trim_button.Value = true;
         trim_button.Text = "Trim";
         trim_button.FontSize = 18;
-        trim_button.Position = [30 trim_button_y 120 unit_height];
         trim_button.BackgroundColor = obj.ACTIVE_COLOR;
-        trim_button.ValueChangedFcn = @(src, event) trim_change(src, event, plot_panel);
+        trim_button.ValueChangedFcn = @(src, event) trim_change(src, event, plot_area_panel);
 
-        mirror_button_y = trim_button_y - 40;
-        mirror_button = uibutton(option_panel,"state");
+        mirror_button = uibutton(sidebar_grid, "state");
+        mirror_button.Layout.Row = 9;
+        mirror_button.Layout.Column = 1;
         mirror_button.Text = "Mirror";
         mirror_button.FontSize = 18;
-        mirror_button.Position = [30 mirror_button_y 120 unit_height];
         mirror_button.BackgroundColor = obj.INACTIVE_COLOR;
-        mirror_button.ValueChangedFcn = @(src, event) mirror_change(src, event, plot_panel);
+        mirror_button.ValueChangedFcn = @(src, event) mirror_change(src, event, plot_area_panel);
 
-        filter_button_y = mirror_button_y - 35;
-        filter_button = uibutton(option_panel,"state");
+        filter_button = uibutton(sidebar_grid, "state");
+        filter_button.Layout.Row = 10;
+        filter_button.Layout.Column = 1;
         filter_button.Text = "Filter";
         filter_button.FontSize = 18;
-        filter_button.Position = [30 filter_button_y 120 unit_height];
         filter_button.BackgroundColor = obj.INACTIVE_COLOR;
-        filter_button.ValueChangedFcn = @(src, event) filter_change(src, event, plot_panel);
+        filter_button.ValueChangedFcn = @(src, event) filter_change(src, event, plot_area_panel);
 
-        extrapolate_button_y = filter_button_y - 35;
-        extrapolate_button = uibutton(option_panel,"state");
+        % Extrapolate (velocity from the vorticity, on the field of view)
+        % and Full Section (the same over the whole test section, only
+        % available while Extrapolate is on) share a row
+        extrap_grid = uigridlayout(sidebar_grid, [1, 2]);
+        extrap_grid.Layout.Row = 11;
+        extrap_grid.Layout.Column = 1;
+        extrap_grid.ColumnWidth = {'1x', '1x'};
+        extrap_grid.RowHeight = {'1x'};
+        extrap_grid.Padding = [0 0 0 0];
+        extrap_grid.ColumnSpacing = 8;
+
+        extrapolate_button = uibutton(extrap_grid, "state");
+        extrapolate_button.Layout.Row = 1;
+        extrapolate_button.Layout.Column = 1;
         extrapolate_button.Text = "Extrapolate";
-        extrapolate_button.FontSize = 18;
-        extrapolate_button.Position = [30 extrapolate_button_y 120 unit_height];
+        extrapolate_button.FontSize = 14;
         extrapolate_button.BackgroundColor = obj.INACTIVE_COLOR;
-        extrapolate_button.ValueChangedFcn = @(src, event) extrapolate_change(src, event, plot_panel);
+        extrapolate_button.ValueChangedFcn = @(src, event) extrapolate_change(src, event, plot_area_panel);
 
-        floor_button_y = extrapolate_button_y - 35;
-        floor_button = uibutton(option_panel,"state");
+        full_section_button = uibutton(extrap_grid, "state");
+        full_section_button.Layout.Row = 1;
+        full_section_button.Layout.Column = 2;
+        full_section_button.Text = "Full Section";
+        full_section_button.FontSize = 14;
+        full_section_button.BackgroundColor = obj.INACTIVE_COLOR;
+        full_section_button.Enable = "off"; % until Extrapolate is on
+        full_section_button.ValueChangedFcn = @(src, event) full_section_change(src, event, plot_area_panel);
+        % Extrapolate forces mirroring (helm_decomp mirrors the wake), so
+        % the Mirror button is switched on and locked while it is active.
+        % This remembers what Mirror was before, to restore it afterwards.
+        mirror_before_extrapolate = obj.mirror_bool;
+
+        % Noise Floor and its threshold share a row
+        floor_grid = uigridlayout(sidebar_grid, [1, 2]);
+        floor_grid.Layout.Row = 12;
+        floor_grid.Layout.Column = 1;
+        floor_grid.ColumnWidth = {'1x', 64};
+        floor_grid.RowHeight = {'1x'};
+        floor_grid.Padding = [0 0 0 0];
+        floor_grid.ColumnSpacing = 8;
+
+        floor_button = uibutton(floor_grid, "state");
+        floor_button.Layout.Row = 1;
+        floor_button.Layout.Column = 1;
         floor_button.Text = "Noise Floor";
-        floor_button.FontSize = 18;
-        floor_button.Position = [30 floor_button_y 120 unit_height];
+        floor_button.FontSize = 14;
         floor_button.BackgroundColor = obj.INACTIVE_COLOR;
-        floor_button.ValueChangedFcn = @(src, event) floor_change(src, event, plot_panel);
+        floor_button.ValueChangedFcn = @(src, event) floor_change(src, event, plot_area_panel);
 
-        edit1_y = floor_button_y - 35;
-        floor_field = uieditfield(option_panel, 'numeric');
+        floor_field = uieditfield(floor_grid, 'numeric');
+        floor_field.Layout.Row = 1;
+        floor_field.Layout.Column = 2;
+        floor_field.HorizontalAlignment = 'center';
         floor_field.Value = obj.thresh;
-        floor_field.Position = [20 edit1_y 160 unit_height];
-        floor_field.ValueChangedFcn = @(src, event) thresh_change(src, event, plot_panel);
+        floor_field.ValueChangedFcn = @(src, event) thresh_change(src, event, plot_area_panel);
 
-        panel_width = plot_panel.Position(3);
-        frame_slider_width = panel_width * (3/4);
-        frame_slider_x = (panel_width - frame_slider_width)/2; % end of right monitor around 1690
-        frame_slider_y = 0.05*screen_height;
-        obj.slider = uislider(plot_panel);
-        obj.slider.Position = [frame_slider_x frame_slider_y frame_slider_width 3];
+        % Q-mask and its threshold share a row
+        q_mask_grid = uigridlayout(sidebar_grid, [1, 2]);
+        q_mask_grid.Layout.Row = 13;
+        q_mask_grid.Layout.Column = 1;
+        q_mask_grid.ColumnWidth = {'1x', 64};
+        q_mask_grid.RowHeight = {'1x'};
+        q_mask_grid.Padding = [0 0 0 0];
+        q_mask_grid.ColumnSpacing = 8;
+
+        q_mask_button = uibutton(q_mask_grid, "state");
+        q_mask_button.Layout.Row = 1;
+        q_mask_button.Layout.Column = 1;
+        q_mask_button.Text = "Q-mask";
+        q_mask_button.FontSize = 14;
+        q_mask_button.BackgroundColor = obj.INACTIVE_COLOR;
+        q_mask_button.ValueChangedFcn = @(src, event) q_mask_change(src, event, plot_area_panel);
+
+        q_mask_field = uieditfield(q_mask_grid, 'numeric');
+        q_mask_field.Layout.Row = 1;
+        q_mask_field.Layout.Column = 2;
+        q_mask_field.HorizontalAlignment = 'center';
+        q_mask_field.Value = obj.q_mask_thresh;
+        q_mask_field.ValueChangedFcn = @(src, event) q_mask_thresh_change(src, event, plot_area_panel);
+
+        obj.slider = uislider(plot_grid);
+        obj.slider.Layout.Row = 2;
+        obj.slider.Layout.Column = 1;
         obj.slider.Limits = [1 obj.num_bins];
         obj.slider.Value = obj.frame_ind;
         obj.slider.MajorTicks = 1:5:obj.num_bins;
         obj.slider.MinorTicks = 1:obj.num_bins;
-        obj.slider.ValueChangedFcn = @(src, event) frame_change(src, event, plot_panel);
+        obj.slider.ValueChangedFcn = @(src, event) frame_change(src, event, plot_area_panel);
 
-        play_button_y = frame_slider_y + 50;
-        obj.play_button = uibutton(plot_panel,"state");
+        obj.play_button = uibutton(plot_grid, "state");
+        obj.play_button.Layout.Row = 3;
+        obj.play_button.Layout.Column = 1;
         obj.play_button.Text = "Play";
         obj.play_button.FontSize = 18;
-        obj.play_button.Position = [30 play_button_y 120 unit_height];
         obj.play_button.BackgroundColor = obj.INACTIVE_COLOR;
-        obj.play_button.ValueChangedFcn = @(src, event) playStop_change(src, event, plot_panel);
+        obj.play_button.ValueChangedFcn = @(src, event) playStop_change(src, event, plot_area_panel);
 
-        param_panel_height = 380;
-        param_panel_width = 180;
-        param_panel_y = edit1_y - 10 - param_panel_height;
-        obj.param_panel = uipanel(option_panel);
+        obj.param_panel = uipanel(sidebar_grid);
+        obj.param_panel.Layout.Row = 14;
+        obj.param_panel.Layout.Column = 1;
         obj.param_panel.Visible = "off";
         obj.param_panel.Title = "3D Plot Parameters";
         obj.param_panel.TitlePosition = 'centertop';
-        obj.param_panel.Position = [10 param_panel_y param_panel_width param_panel_height];
 
-        l1_y = param_panel_height - 50;
-        l1_x = 55;
-        l1_w = 70;
-        l1 = uilabel(obj.param_panel);
-        l1.HorizontalAlignment = 'center';
-        l1.Position = [l1_x l1_y l1_w unit_height];
-        l1.Text = 'Q isovalue:';
+        param_grid = uigridlayout(obj.param_panel, [15, 1]);
+        param_grid.ColumnWidth = {'1x'};
+        % isovalue, iso variable, views, fixed y / z limits, x-axis /
+        % shift / stroke labels, Remove Small, Unc Mask, number of
+        % wingbeats, Card Style
+        param_grid.RowHeight = {22, 55, 30, 50, 18, 24, 52, 30, 30, 30, 30, 30, 22, 55, 30};
+        param_grid.Padding = [10 8 10 8];
+        param_grid.RowSpacing = 6;
 
-        iso_slider_y = l1_y - 5;
-        iso_slider_w = param_panel_width - 2*10;
-        obj.iso_slider = uislider(obj.param_panel);
-        obj.iso_slider.Position = [5 iso_slider_y iso_slider_w 3];
-        obj.iso_slider.Limits = [0.005 0.1];
-        % obj.iso_slider.Limits = [-0.1 -0.005];
-        obj.iso_slider.Value = obj.iso_val;
-        obj.iso_slider.MajorTicks = 0:0.025:0.1; % 0:0.05:0.5
-        obj.iso_slider.MinorTicks = 0.005:0.005:0.1; % 0.01:0.01:0.5
-        % obj.iso_slider.MajorTicks = -0.1:0.025:0; % 0:0.05:0.5
-        % obj.iso_slider.MinorTicks = -0.1:0.005:0.005; % 0.01:0.01:0.5
-        obj.iso_slider.ValueChangedFcn = @(src, event) iso_change(src, event, plot_panel);
+        % Label with a "+/-" button beside it that flips the Q isovalue
+        % slider between positive (vortex cores, Q > 0) and negative
+        % (strain/shear dominated, Q < 0) values over the same range
+        iso_header_grid = uigridlayout(param_grid, [1, 2]);
+        iso_header_grid.Layout.Row = 1;
+        iso_header_grid.Layout.Column = 1;
+        iso_header_grid.ColumnWidth = {'1x', 44};
+        iso_header_grid.RowHeight = {'1x'};
+        iso_header_grid.Padding = [0 0 0 0];
+        iso_header_grid.ColumnSpacing = 4;
+
+        obj.iso_value_label = uilabel(iso_header_grid);
+        obj.iso_value_label.Layout.Row = 1;
+        obj.iso_value_label.Layout.Column = 1;
+        obj.iso_value_label.HorizontalAlignment = 'center';
+        obj.iso_value_label.Text = 'Q isovalue:';
+
+        obj.iso_sign_button = uibutton(iso_header_grid, "state");
+        obj.iso_sign_button.Layout.Row = 1;
+        obj.iso_sign_button.Layout.Column = 2;
+        obj.iso_sign_button.Text = "+/-";
+        obj.iso_sign_button.Value = obj.iso_neg;
+        obj.iso_sign_button.BackgroundColor = obj.get_button_color(obj.iso_neg);
+        obj.iso_sign_button.Tooltip = "Flip the Q isovalue to negative values (Q < 0: strain/shear dominated flow)";
+        obj.iso_sign_button.ValueChangedFcn = @(src, event) iso_sign_change(src, event, plot_area_panel);
+
+        obj.iso_slider = uislider(param_grid);
+        obj.iso_slider.Layout.Row = 2;
+        obj.iso_slider.Layout.Column = 1;
+        obj.iso_slider.ValueChangedFcn = @(src, event) iso_change(src, event, plot_area_panel);
+        obj.set_Q_iso_slider(false);
 
         % Dropdown box for which variables to display
-        iso_var_dropdown_y = iso_slider_y - 70;
-        iso_var_dropdown = uidropdown(obj.param_panel);
-        iso_var_dropdown.Position = [30 iso_var_dropdown_y 120 30];
+        iso_var_dropdown = uidropdown(param_grid);
+        iso_var_dropdown.Layout.Row = 3;
+        iso_var_dropdown.Layout.Column = 1;
         iso_var_dropdown.Items = obj.iso_var_list;
         iso_var_dropdown.Value = obj.iso_var;
-        iso_var_dropdown.ValueChangedFcn = @(src, event) iso_var_change(src, event, plot_panel);
+        iso_var_dropdown.ValueChangedFcn = @(src, event) iso_var_change(src, event, plot_area_panel);
 
-        l2_y = iso_var_dropdown_y - 35;
-        l2 = uilabel(obj.param_panel);
+        l2 = uilabel(param_grid);
+        l2.Layout.Row = 13;
+        l2.Layout.Column = 1;
         l2.HorizontalAlignment = 'center';
-        l2.Position = [30 l2_y 120 unit_height];
         l2.Text = 'Number of Wingbeats';
 
-        num_cycles_slider_y = l2_y - 10;
-        num_cycles_slider = uislider(obj.param_panel);
-        num_cycles_slider.Position = [30 num_cycles_slider_y 120 3];
+        num_cycles_slider = uislider(param_grid);
+        num_cycles_slider.Layout.Row = 14;
+        num_cycles_slider.Layout.Column = 1;
         num_cycles_slider.Limits = [1 5];
         num_cycles_slider.Value = obj.num_cycles;
         num_cycles_slider.MajorTicks = 1:5;
         num_cycles_slider.MinorTicks = [];
-        num_cycles_slider.ValueChangedFcn = @(src, event) num_cycles_change(src, event, plot_panel);
+        num_cycles_slider.ValueChangedFcn = @(src, event) num_cycles_change(src, event, plot_area_panel);
 
-        view_button_group_y = num_cycles_slider_y - 120;
+        % Fix Limits: hold the y and z axes at the limits typed beside it,
+        % so different cases are drawn on the same axes. Turning it on the
+        % first time fills the boxes with the current plot's limits.
+        lims_grid = uigridlayout(param_grid, [2, 4]);
+        lims_grid.Layout.Row = 7;
+        lims_grid.Layout.Column = 1;
+        lims_grid.ColumnWidth = {'1x', 14, 44, 44};
+        lims_grid.RowHeight = {'1x', '1x'};
+        lims_grid.Padding = [0 0 0 0];
+        lims_grid.RowSpacing = 4;
+        lims_grid.ColumnSpacing = 3;
+
+        fix_lims_button = uibutton(lims_grid, "state");
+        fix_lims_button.Layout.Row = [1 2];
+        fix_lims_button.Layout.Column = 1;
+        fix_lims_button.Text = "Fix Limits";
+        fix_lims_button.FontSize = 14;
+        fix_lims_button.Value = obj.fix_lims_bool;
+        fix_lims_button.BackgroundColor = obj.get_button_color(obj.fix_lims_bool);
+        fix_lims_button.Tooltip = "Hold the y/c and z/c axis limits at the values beside it (x is always 0 to 1 in t/T). Off: limits follow the data";
+        fix_lims_button.ValueChangedFcn = @(src, event) fix_lims_change(src, event, plot_area_panel);
+
+        lim_names = ["y", "z"];
+        lim_sides = ["lower", "upper"];
+        lim_fields = gobjects(2, 2);
+        for lim_row = 1:2
+            lim_label = uilabel(lims_grid);
+            lim_label.Layout.Row = lim_row;
+            lim_label.Layout.Column = 2;
+            lim_label.Text = lim_names(lim_row);
+            lim_label.HorizontalAlignment = 'right';
+            for lim_col = 1:2
+                lim_f = uieditfield(lims_grid, "numeric");
+                lim_f.Layout.Row = lim_row;
+                lim_f.Layout.Column = 2 + lim_col;
+                lim_f.HorizontalAlignment = 'center';
+                lim_f.ValueDisplayFormat = '%.3g';
+                if lim_row == 1
+                    lim_f.Value = obj.fix_ylim(lim_col);
+                else
+                    lim_f.Value = obj.fix_zlim(lim_col);
+                end
+                lim_f.Tooltip = lim_names(lim_row) + "/c " + lim_sides(lim_col) + " limit (Fix Limits)";
+                lim_f.ValueChangedFcn = @(src, event) fix_lims_value_change(src, event, plot_area_panel);
+                lim_fields(lim_row, lim_col) = lim_f;
+            end
+        end
+
+        % x-axis as wingbeat time (t/T) or convective distance (x/c = U t / c)
+        conv_units_button = uibutton(param_grid, "state");
+        conv_units_button.Layout.Row = 8;
+        conv_units_button.Layout.Column = 1;
+        conv_units_button.Text = "x-axis: t/T";
+        conv_units_button.FontSize = 16;
+        conv_units_button.Value = obj.conv_units_bool;
+        conv_units_button.BackgroundColor = obj.INACTIVE_COLOR;
+        conv_units_button.Tooltip = "Toggle the 3D plot x-axis between wingbeat time t/T and convective units x/c = U t / c";
+        conv_units_button.ValueChangedFcn = @(src, event) conv_units_change(src, event, plot_area_panel);
+
+        % Phase shift by the convection time from the robot to the imaging
+        % plane (same as phaseAvg_UI's Convection Shift button), and next
+        % to it "+/-": a further half wingbeat, so the upstroke is centred
+        % instead of the downstroke
+        conv_shift_grid = uigridlayout(param_grid, [1, 2]);
+        conv_shift_grid.Layout.Row = 9;
+        conv_shift_grid.Layout.Column = 1;
+        conv_shift_grid.ColumnWidth = {'1x', 32};
+        conv_shift_grid.RowHeight = {'1x'};
+        conv_shift_grid.Padding = [0 0 0 0];
+        conv_shift_grid.ColumnSpacing = 4;
+
+        conv_shift_button = uibutton(conv_shift_grid, "state");
+        conv_shift_button.Layout.Row = 1;
+        conv_shift_button.Layout.Column = 1;
+        conv_shift_button.Text = "Convection Shift";
+        conv_shift_button.FontSize = 12;
+        conv_shift_button.Value = obj.conv_shift;
+        conv_shift_button.BackgroundColor = obj.get_button_color(obj.conv_shift);
+        conv_shift_button.Tooltip = "Phase shift the 3D plot by the convection time from the robot to the imaging plane, so cases at different frequencies start at the same wing phase";
+        conv_shift_button.ValueChangedFcn = @(src, event) conv_shift_change(src, event, plot_area_panel);
+
+        stroke_flip_button = uibutton(conv_shift_grid, "state");
+        stroke_flip_button.Layout.Row = 1;
+        stroke_flip_button.Layout.Column = 2;
+        stroke_flip_button.Text = "+/-";
+        stroke_flip_button.FontSize = 12;
+        stroke_flip_button.Value = obj.stroke_flip;
+        stroke_flip_button.Enable = obj.conv_shift;
+        stroke_flip_button.BackgroundColor = obj.get_button_color(obj.stroke_flip);
+        stroke_flip_button.Tooltip = "Off: downstroke centred. On: shifted so the upstroke is centred instead (shift from the stroke reversals in the wing position, since the strokes differ in length). Requires Convection Shift";
+        stroke_flip_button.ValueChangedFcn = @(src, event) stroke_flip_change(src, event, plot_area_panel);
+
+        % Stroke reversal lines, downstroke shading and up/downstroke
+        % labels; drawn only in the 2D views that show the x-axis
+        % (+/-yz, +/-xz). Needs the convection shift, like phaseAvg_UI.
+        label_stroke_button = uibutton(param_grid, "state");
+        label_stroke_button.Layout.Row = 10;
+        label_stroke_button.Layout.Column = 1;
+        label_stroke_button.Text = "Label Stroke";
+        label_stroke_button.FontSize = 16;
+        label_stroke_button.Value = obj.label_stroke;
+        label_stroke_button.Enable = obj.conv_shift;
+        label_stroke_button.BackgroundColor = obj.get_button_color(obj.label_stroke);
+        label_stroke_button.Tooltip = "Mark stroke reversals (from the phase-averaged wing position) and label upstroke / downstroke in the +/-yz and +/-xz views. Requires Convection Shift";
+        label_stroke_button.ValueChangedFcn = @(src, event) label_stroke_change(src, event, plot_area_panel);
+
         % View buttons rotate the current 3D axes without redrawing data.
-        view_button_group = uibuttongroup(obj.param_panel, ...
-            'Position', [30 view_button_group_y 124 2*(unit_height+5)], ...
-            'BorderType', 'none', ...
-            'BackgroundColor', option_panel.BackgroundColor, ...
-            'SelectionChangedFcn', @(bg, event) view_change_handler(event, plot_panel));
-        
-        % Dimensions for buttons relative to the group
-        view_button_width = 32;
-        view_button_spacing = (120 - 3*view_button_width)/2;
-        pad = 2;
-        view_button_row_spacing = (unit_height+5);
-        uitogglebutton(view_button_group, 'Text', '+xy', 'Position', [pad pad+view_button_row_spacing view_button_width unit_height], 'BackgroundColor', obj.INACTIVE_COLOR);
-        uitogglebutton(view_button_group, 'Text', '+yz', 'Position', [pad + view_button_width + view_button_spacing pad+view_button_row_spacing view_button_width unit_height], 'BackgroundColor', obj.INACTIVE_COLOR);
-        uitogglebutton(view_button_group, 'Text', '+xz', 'Position', [pad + 2*(view_button_width + view_button_spacing) pad+view_button_row_spacing view_button_width unit_height], 'BackgroundColor', obj.INACTIVE_COLOR);
-        uitogglebutton(view_button_group, 'Text', '-xy', 'Position', [pad pad view_button_width unit_height], 'BackgroundColor', obj.INACTIVE_COLOR);
-        uitogglebutton(view_button_group, 'Text', '-yz', 'Position', [pad + view_button_width + view_button_spacing pad view_button_width unit_height], 'BackgroundColor', obj.INACTIVE_COLOR);
-        uitogglebutton(view_button_group, 'Text', '-xz', 'Position', [pad + 2*(view_button_width + view_button_spacing) pad view_button_width unit_height], 'BackgroundColor', obj.INACTIVE_COLOR);
+        view_grid = uigridlayout(param_grid, [2, 3]);
+        view_grid.Layout.Row = 4;
+        view_grid.Layout.Column = 1;
+        view_grid.RowHeight = {'1x', '1x'};
+        view_grid.ColumnWidth = {'1x', '1x', '1x'};
+        view_grid.Padding = [0 0 0 0];
+        view_grid.RowSpacing = 4;
+        view_grid.ColumnSpacing = 4;
 
-        save_button_y = 0.05*screen_height;
-        save_button = uibutton(option_panel,"state");
+        view_labels = ["+xy", "+yz", "+xz"; "-xy", "-yz", "-xz"];
+        for view_row = 1:2
+            for view_col = 1:3
+                view_button = uibutton(view_grid);
+                view_button.Layout.Row = view_row;
+                view_button.Layout.Column = view_col;
+                view_button.Text = view_labels(view_row, view_col);
+                view_button.BackgroundColor = obj.INACTIVE_COLOR;
+                view_button.ButtonPushedFcn = @(src, event) view_change_handler(src.Text, plot_area_panel);
+            end
+        end
+
+        % Isometric views from above: camera along (+/-1, +/-1, 1); button
+        % text is the sign of the camera's x, y, z.
+        iso_label = uilabel(param_grid);
+        iso_label.Layout.Row = 5;
+        iso_label.Layout.Column = 1;
+        iso_label.HorizontalAlignment = 'center';
+        iso_label.Text = 'Iso views';
+
+        iso_grid = uigridlayout(param_grid, [1, 4]);
+        iso_grid.Layout.Row = 6;
+        iso_grid.Layout.Column = 1;
+        iso_grid.RowHeight = {'1x'};
+        iso_grid.ColumnWidth = {'1x', '1x', '1x', '1x'};
+        iso_grid.Padding = [0 0 0 0];
+        iso_grid.RowSpacing = 4;
+        iso_grid.ColumnSpacing = 4;
+
+        iso_labels = ["+++", "-++", "--+", "+-+"];
+        for iso_row = 1
+            for iso_col = 1:4
+                iso_button = uibutton(iso_grid);
+                iso_button.Layout.Row = iso_row;
+                iso_button.Layout.Column = iso_col;
+                iso_button.Text = iso_labels(iso_row, iso_col);
+                iso_button.BackgroundColor = obj.INACTIVE_COLOR;
+                iso_button.Tooltip = "Isometric view, camera at (x, y, z) signs " + iso_labels(iso_row, iso_col);
+                iso_button.ButtonPushedFcn = @(src, event) view_change_handler(src.Text, plot_area_panel);
+            end
+        end
+
+        % Cosmetic "card" look: lighting, red-green diverging colormap
+        % (best with ω_x as the colour variable), dark background, axes
+        % hidden. Turning it off restores the plot exactly as it was.
+        card_style_button = uibutton(param_grid, "state");
+        card_style_button.Layout.Row = 15;
+        card_style_button.Layout.Column = 1;
+        card_style_button.Text = "Card Style";
+        card_style_button.FontSize = 16;
+        card_style_button.Value = obj.card_style;
+        card_style_button.BackgroundColor = obj.get_button_color(obj.card_style);
+        card_style_button.Tooltip = "Lit isosurface, red-green colormap symmetric about zero (choose ω_x as the variable), dark background and no axes. Off restores the original look";
+        card_style_button.ValueChangedFcn = @(src, event) card_style_change(src, event, plot_area_panel);
+
+        % Remove Small: hide small disconnected pieces of the isosurface
+        % (speckle), threshold as % of the largest piece
+        small_grid = uigridlayout(param_grid, [1, 3]);
+        small_grid.Layout.Row = 11;
+        small_grid.Layout.Column = 1;
+        small_grid.ColumnWidth = {'1x', 46, 14};
+        small_grid.RowHeight = {'1x'};
+        small_grid.Padding = [0 0 0 0];
+        small_grid.ColumnSpacing = 3;
+
+        remove_small_button = uibutton(small_grid, "state");
+        remove_small_button.Layout.Row = 1;
+        remove_small_button.Layout.Column = 1;
+        remove_small_button.Text = "Remove Small";
+        remove_small_button.FontSize = 16;
+        remove_small_button.Value = obj.remove_small_bool;
+        remove_small_button.BackgroundColor = obj.get_button_color(obj.remove_small_bool);
+        remove_small_button.Tooltip = "Hide small disconnected pieces of the isosurface. Only hides triangles; the data are unchanged";
+        remove_small_button.ValueChangedFcn = @(src, event) remove_small_change(src, event, plot_area_panel);
+
+        remove_small_field = uieditfield(small_grid, "numeric");
+        remove_small_field.Layout.Row = 1;
+        remove_small_field.Layout.Column = 2;
+        remove_small_field.Limits = [0 100];
+        remove_small_field.Value = obj.remove_small_pct;
+        remove_small_field.HorizontalAlignment = 'center';
+        remove_small_field.Tooltip = "Remove Small: hide isosurface pieces with fewer triangles than this % of the largest piece";
+        remove_small_field.ValueChangedFcn = @(src, event) remove_small_pct_change(src, event, plot_area_panel);
+
+        remove_small_label = uilabel(small_grid);
+        remove_small_label.Layout.Row = 1;
+        remove_small_label.Layout.Column = 3;
+        remove_small_label.Text = '%';
+
+        % Uncertainty mask: hide the isosurface where the wingbeat-averaged
+        % total uncertainty is above the threshold (% of freestream)
+        unc_grid = uigridlayout(param_grid, [1, 3]);
+        unc_grid.Layout.Row = 12;
+        unc_grid.Layout.Column = 1;
+        unc_grid.ColumnWidth = {'1x', 46, 14};
+        unc_grid.RowHeight = {'1x'};
+        unc_grid.Padding = [0 0 0 0];
+        unc_grid.ColumnSpacing = 3;
+
+        unc_mask_button = uibutton(unc_grid, "state");
+        unc_mask_button.Layout.Row = 1;
+        unc_mask_button.Layout.Column = 1;
+        unc_mask_button.Text = "Unc Mask";
+        unc_mask_button.FontSize = 16;
+        unc_mask_button.Value = obj.unc_mask_bool;
+        unc_mask_button.BackgroundColor = obj.get_button_color(obj.unc_mask_bool);
+        unc_mask_button.Tooltip = "Hide the isosurface where the total uncertainty, averaged over the wingbeat, is above this % of the freestream speed. Display only: the data and other calculations are unchanged";
+        unc_mask_button.ValueChangedFcn = @(src, event) unc_mask_change(src, event, plot_area_panel);
+
+        unc_mask_field = uieditfield(unc_grid, "numeric");
+        unc_mask_field.Layout.Row = 1;
+        unc_mask_field.Layout.Column = 2;
+        unc_mask_field.Limits = [0 Inf];
+        unc_mask_field.Value = obj.unc_mask_thresh;
+        unc_mask_field.HorizontalAlignment = 'center';
+        unc_mask_field.Tooltip = "Uncertainty mask threshold, % of the freestream speed";
+        unc_mask_field.ValueChangedFcn = @(src, event) unc_mask_thresh_change(src, event, plot_area_panel);
+
+        unc_mask_label = uilabel(unc_grid);
+        unc_mask_label.Layout.Row = 1;
+        unc_mask_label.Layout.Column = 3;
+        unc_mask_label.Text = '%';
+
+        save_button = uibutton(sidebar_grid, "state");
+        save_button.Layout.Row = 15;
+        save_button.Layout.Column = 1;
         save_button.Text = "Save Figure";
         save_button.FontSize = 18;
-        save_button.Position = [30 save_button_y 120 unit_height];
         save_button.BackgroundColor = obj.INACTIVE_COLOR;
-        save_button.ValueChangedFcn = @(src, event) save_figure(src, event, plot_panel);
+        save_button.ValueChangedFcn = @(src, event) save_figure(src, event, plot_area_panel);
 
         % Set up plot titles and axes
-        obj.update_plot(plot_panel);
+        set_param_panel_visibility(strcmp(obj.plot_type, obj.plot_types(5)));
+        obj.set_section_controls();
+        obj.update_plot(plot_area_panel);
 
         % Callbacks are nested so each handler mutates this handle object.
 
         function source_change(src, ~, plot_panel)
+            previous_plot_type = obj.plot_type;
             obj.source_mode = src.Value;
-            if obj.source_mode == "turbine"
-                distance_dropdown.Visible = "off";
-                obj.case_name_list = obj.turbine_case_name_list;
-            else
-                distance_dropdown.Visible = "on";
-                obj.current_downstream_type = obj.downstream_type_by_distance(distance_dropdown.Value);
-                obj.case_name_list = obj.flapper_case_name_list;
-            end
+            obj.set_trim_settings_for_source_mode(obj.source_mode);
+            refresh_distance_dropdown();
 
-            case_dropdown.Items = obj.case_name_list;
-            obj.case_name = case_dropdown.Value;
+            refresh_case_dropdown();
+            refresh_plot_type_dropdown();
+            refresh_variable_dropdown(previous_plot_type);
 
             % Force frame slider back to 1 since not all datasets have the
             % same number of frames
@@ -546,7 +1206,11 @@ methods
         end
 
         function distance_change(src, ~, plot_panel)
-            obj.current_downstream_type = obj.downstream_type_by_distance(src.Value);
+            previous_plot_type = obj.plot_type;
+            obj.current_downstream_type = string(obj.downstream_type_by_distance(char(src.Value)));
+            refresh_case_dropdown();
+            refresh_plot_type_dropdown();
+            refresh_variable_dropdown(previous_plot_type);
 
             % Force frame slider back to 1 since not all datasets have the
             % same number of frames
@@ -557,10 +1221,43 @@ methods
         end
 
         function case_change(src, ~, plot_panel)
-            obj.case_name = src.Value;
+            previous_plot_type = obj.plot_type;
+            obj.case_name = string(src.Value);
+            refresh_plot_type_dropdown();
+            refresh_variable_dropdown(previous_plot_type);
 
             % Force frame slider back to 1 since not all datasets have the
             % same number of frames
+            obj.frame_ind = 1;
+            obj.slider.Value = obj.frame_ind;
+
+            obj.update_plot(plot_panel);
+        end
+
+        function RPCA_change(src, ~, plot_panel)
+            previous_plot_type = obj.plot_type;
+            obj.RPCA = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.RPCA);
+
+            refresh_case_dropdown();
+            refresh_plot_type_dropdown();
+            refresh_variable_dropdown(previous_plot_type);
+
+            obj.frame_ind = 1;
+            obj.slider.Value = obj.frame_ind;
+
+            obj.update_plot(plot_panel);
+        end
+
+        function HR_change(src, ~, plot_panel)
+            previous_plot_type = obj.plot_type;
+            obj.HR = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.HR);
+
+            refresh_case_dropdown();
+            refresh_plot_type_dropdown();
+            refresh_variable_dropdown(previous_plot_type);
+
             obj.frame_ind = 1;
             obj.slider.Value = obj.frame_ind;
 
@@ -573,35 +1270,9 @@ methods
             obj.plot_type = src.Value;
             obj.plot_hold_bool = false;
 
-            movie_like_plots = obj.plot_types([1 2 4 8]);
-            plot_family_changed = ~(ismember(previous_plot_type, movie_like_plots) && ...
-                ismember(obj.plot_type, movie_like_plots));
-
-            if plot_family_changed
-                if strcmp(obj.plot_type, obj.plot_types(3))
-                    obj.var_name_list = obj.movie_3D_std_vars;
-                elseif strcmp(obj.plot_type, obj.plot_types(5))
-                    obj.var_name_list = obj.hist_vars;
-                elseif strcmp(obj.plot_type, obj.plot_types(6))
-                    obj.var_name_list = obj.freq_vars;
-                elseif strcmp(obj.plot_type, obj.plot_types(7))
-                    obj.var_name_list = obj.force_vars;
-                else
-                    obj.var_name_list = obj.movie_3D_avg_vars;
-                end
-                obj.var_dropdown.Items = obj.var_name_list;
-                obj.variable_name = obj.var_dropdown.Value;
-            end
-
-            obj.set_active_color_limit_set();
-
-            obj.update_color_limit_slider();
-
-            if strcmp(obj.plot_type, obj.plot_types(4))
-                obj.param_panel.Visible = "on";
-            else
-                obj.param_panel.Visible = "off";
-            end
+            refresh_case_dropdown();
+            refresh_plot_type_dropdown();
+            refresh_variable_dropdown(previous_plot_type);
 
             obj.update_plot(plot_panel);
         end
@@ -613,12 +1284,131 @@ methods
             obj.update_plot(plot_panel);
         end
 
-        function clim_change(src, ~, plot_panel)
+        function refresh_distance_dropdown()
+            obj.set_downstream_options_for_source_mode(obj.source_mode);
+            if isempty(obj.distance_labels)
+                distance_dropdown.Items = "No downstream data";
+                distance_dropdown.Value = "No downstream data";
+                distance_dropdown.Enable = "off";
+            else
+                distance_dropdown.Items = obj.distance_labels;
+                distance_dropdown.Value = obj.distance_labels(1);
+                distance_dropdown.Enable = "on";
+                obj.current_downstream_type = string(obj.downstream_type_by_distance(char(distance_dropdown.Value)));
+            end
+            set_distance_dropdown_visibility();
+        end
+
+        function refresh_case_dropdown()
+            obj.case_name_list = obj.get_case_name_list_for_active_plot_type();
+            if isempty(obj.case_name_list) && obj.plot_type ~= obj.plot_types(1)
+                obj.plot_type = obj.plot_types(1);
+                obj.case_name_list = obj.get_case_name_list_for_active_plot_type();
+            end
+
+            case_dropdown.Items = obj.case_name_list;
+            if ~any(obj.case_name_list == obj.case_name)
+                obj.case_name = string(case_dropdown.Value);
+            else
+                case_dropdown.Value = obj.case_name;
+            end
+        end
+
+        function refresh_plot_type_dropdown()
+            available_plot_types = obj.get_available_plot_types_for_current_case();
+            plot_type_dropdown.Items = available_plot_types;
+            if ~any(available_plot_types == obj.plot_type)
+                obj.plot_type = available_plot_types(1);
+            end
+            plot_type_dropdown.Value = obj.plot_type;
+        end
+
+        function refresh_variable_dropdown(previous_plot_type)
+            phase_avg_plots = obj.plot_types([1 2 5 9]);
+            phase_std_plots = obj.plot_types([3 4]);
+            same_phase_avg_family = ismember(previous_plot_type, phase_avg_plots) && ...
+                ismember(obj.plot_type, phase_avg_plots);
+            same_phase_std_family = ismember(previous_plot_type, phase_std_plots) && ...
+                ismember(obj.plot_type, phase_std_plots);
+            plot_family_changed = ~(same_phase_avg_family || same_phase_std_family);
+
+            if plot_family_changed
+                if ismember(obj.plot_type, phase_std_plots)
+                    obj.var_name_list = obj.movie_3D_std_vars;
+                elseif strcmp(obj.plot_type, obj.plot_types(6))
+                    obj.var_name_list = obj.hist_vars;
+                elseif strcmp(obj.plot_type, obj.plot_types(7))
+                    obj.var_name_list = obj.freq_vars;
+                elseif strcmp(obj.plot_type, obj.plot_types(8))
+                    obj.var_name_list = obj.force_vars;
+                elseif strcmp(obj.plot_type, obj.plot_types(10))
+                    obj.var_name_list = obj.section_force_vars;
+                elseif strcmp(obj.plot_type, obj.plot_types(11))
+                    obj.var_name_list = obj.frozen_vars;
+                else
+                    obj.var_name_list = obj.movie_3D_avg_vars;
+                end
+                obj.var_dropdown.Items = obj.var_name_list;
+                obj.variable_name = obj.var_dropdown.Value;
+            end
+
+            obj.set_active_color_limit_set();
+            obj.update_color_limit_slider();
+
+            set_param_panel_visibility(strcmp(obj.plot_type, obj.plot_types(5)));
+            obj.set_section_controls();
+        end
+
+        function section_count_change(src, ~, plot_panel)
+            obj.section_count = string(src.Value);
+            obj.update_plot(plot_panel);
+        end
+
+        function set_distance_dropdown_visibility()
+            is_visible = obj.is_flapper_source_mode(obj.source_mode) && ~isempty(obj.distance_labels);
+            row_heights = sidebar_grid.RowHeight;
+            if is_visible
+                distance_dropdown.Visible = "on";
+                row_heights{2} = 30;
+            else
+                distance_dropdown.Visible = "off";
+                row_heights{2} = 0;
+            end
+            sidebar_grid.RowHeight = row_heights;
+        end
+
+        function set_param_panel_visibility(is_visible)
+            row_heights = sidebar_grid.RowHeight;
+            if is_visible
+                obj.param_panel.Visible = "on";
+                row_heights{14} = 689;
+            else
+                obj.param_panel.Visible = "off";
+                row_heights{14} = 0;
+            end
+            sidebar_grid.RowHeight = row_heights;
+        end
+
+        function clim_change(src, event, plot_panel)
             ticks = obj.clim_slider.MinorTicks;
 
-            % ensure that slider snapped to minor tick value
-            newMin = interp1(ticks, ticks, src.Value(1), 'nearest', 'extrap');
-            newMax = interp1(ticks, ticks, src.Value(2), 'nearest', 'extrap');
+            % ensure that slider snapped to minor tick value. Only the
+            % thumb that moved is snapped, so dragging the upper limit
+            % can't shift the lower one (e.g. off 0 when 0 isn't a tick).
+            newMin = src.Value(1);
+            newMax = src.Value(2);
+            if ~isempty(ticks)
+                if newMin ~= event.PreviousValue(1)
+                    newMin = interp1(ticks, ticks, newMin, 'nearest', 'extrap');
+                end
+                if newMax ~= event.PreviousValue(2)
+                    newMax = interp1(ticks, ticks, newMax, 'nearest', 'extrap');
+                end
+            end
+            if newMin >= newMax
+                newMin = event.PreviousValue(1);
+                newMax = event.PreviousValue(2);
+            end
             
             % Update the slider to the snapped positions
             src.Value = [newMin, newMax];
@@ -666,9 +1456,35 @@ methods
             obj.update_plot(plot_panel);
         end
 
+        % "+/-": flip the Q isovalue between positive and negative values,
+        % keeping its magnitude
+        function iso_sign_change(src, ~, plot_panel)
+            obj.iso_neg = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.iso_neg);
+            obj.set_Q_iso_slider(true);
+            obj.update_plot(plot_panel);
+        end
+
         % User selected new desired isosurface variable for 3D plot
         function iso_var_change(src, ~, plot_panel)
             obj.iso_var = src.Value;
+
+            % Q variants (Q_x, Q_y, Q_z, |Q|, <Q> inst ...) all use the
+            % fixed Q range and default, in the current +/- sign
+            if obj.is_Q_iso_var(obj.iso_var)
+                obj.iso_sign_button.Enable = "on";
+                obj.set_Q_iso_slider(false);
+                obj.update_plot(plot_panel);
+                return
+            end
+
+            % other variables: range from their colour limits, and the
+            % +/- flip doesn't apply
+            obj.iso_neg = false;
+            obj.iso_sign_button.Value = false;
+            obj.iso_sign_button.BackgroundColor = obj.get_button_color(false);
+            obj.iso_sign_button.Enable = "off";
+            obj.iso_value_label.Text = 'Isovalue:';
 
             new_limits = obj.get_color_limits(obj.iso_var);
             range_width = new_limits(2) - new_limits(1);
@@ -721,11 +1537,40 @@ methods
             if (src.Value)
                 obj.extrapolate_bool = true;
                 src.BackgroundColor = obj.ACTIVE_COLOR;
+
+                % Extrapolation always mirrors the wake: show Mirror as on
+                % and lock it until Extrapolate is turned off
+                mirror_before_extrapolate = obj.mirror_bool;
+                obj.mirror_bool = true;
+                mirror_button.Value = true;
+                mirror_button.BackgroundColor = obj.ACTIVE_COLOR;
+                mirror_button.Enable = "off";
+
+                full_section_button.Enable = "on";
             else
                 obj.extrapolate_bool = false;
                 src.BackgroundColor = obj.INACTIVE_COLOR;
+
+                % Full Section only applies to extrapolated data
+                obj.full_section_bool = false;
+                full_section_button.Value = false;
+                full_section_button.BackgroundColor = obj.INACTIVE_COLOR;
+                full_section_button.Enable = "off";
+
+                % Give Mirror back to the user in the state it was in
+                obj.mirror_bool = mirror_before_extrapolate;
+                mirror_button.Value = mirror_before_extrapolate;
+                mirror_button.BackgroundColor = obj.get_button_color(mirror_before_extrapolate);
+                mirror_button.Enable = "on";
             end
 
+            obj.update_plot(plot_panel);
+        end
+
+        function full_section_change(src, ~, plot_panel)
+            obj.full_section_bool = src.Value && obj.extrapolate_bool;
+            src.Value = obj.full_section_bool;
+            src.BackgroundColor = obj.get_button_color(obj.full_section_bool);
             obj.update_plot(plot_panel);
         end
 
@@ -746,9 +1591,24 @@ methods
             obj.update_plot(plot_panel);
         end
 
-        function view_change_handler(event, plot_panel)
-            selected_text = event.NewValue.Text;
+        function q_mask_change(src, ~, plot_panel)
+            if (src.Value)
+                obj.q_mask_bool = true;
+                src.BackgroundColor = obj.ACTIVE_COLOR;
+            else
+                obj.q_mask_bool = false;
+                src.BackgroundColor = obj.INACTIVE_COLOR;
+            end
 
+            obj.update_plot(plot_panel);
+        end
+
+        function q_mask_thresh_change(src, ~, plot_panel)
+            obj.q_mask_thresh = src.Value;
+            obj.update_plot(plot_panel);
+        end
+
+        function view_change_handler(selected_text, plot_panel)
             ax = findobj(plot_panel.Children, 'Type', 'axes');
             
             switch selected_text
@@ -764,7 +1624,15 @@ methods
                     view(ax, [-1 0 0])
                 case "-yz"
                     view(ax, [0 -1 0])
+                otherwise
+                    % isometric: text is the sign of camera x, y, z
+                    if strlength(selected_text) == 3 && all(ismember(char(selected_text), '+-'))
+                        view(ax, 1 - 2 * (char(selected_text) == '-'))
+                    end
             end
+
+            % stroke labels only show in the views that show the x-axis
+            obj.draw_stroke_labels_3D(ax);
         end
 
         function save_figure(~, ~, plot_panel)
@@ -773,7 +1641,18 @@ methods
 
             filename = "saved_figure.fig";
             fignew = figure('Visible','off'); % Invisible figure
-            copyobj([ax cb], fignew);
+            % copyobj can't copy axes with two y axes (yyaxis, e.g. the
+            % section avg plot), so those are rebuilt side by side
+            is_yy = arrayfun(@(a) numel(a.YAxis) > 1, ax);
+            if any(~is_yy) || ~isempty(cb)
+                copyobj([ax(~is_yy); cb(:)], fignew);
+            end
+            for a = ax(is_yy)'
+                obj.copy_yyaxis_axes(a, fignew);
+            end
+            if ~isempty(obj.card_panel_color)
+                fignew.Color = obj.CARD_BG; % card style: dark around the axes too
+            end
             set(fignew,'CreateFcn','set(gcbf,''Visible'',''on'')'); % Make it visible upon loading
             savefig(fignew,filename);
             delete(fignew);
@@ -785,6 +1664,185 @@ methods
 
             obj.num_cycles = src.Value;
             obj.update_plot(plot_panel);
+        end
+
+        function conv_units_change(src, ~, plot_panel)
+            obj.conv_units_bool = src.Value;
+            if obj.conv_units_bool
+                src.Text = "x-axis: x/c = U t / c";
+                src.BackgroundColor = obj.ACTIVE_COLOR;
+            else
+                src.Text = "x-axis: t/T";
+                src.BackgroundColor = obj.INACTIVE_COLOR;
+            end
+
+            % The two axes differ only by a constant factor, so rescale the
+            % existing isosurface in place (keeps the current view and
+            % avoids reloading the data). Redraw only if there's no 3D plot.
+            ax = findobj(plot_panel.Children, 'Type', 'axes');
+            p = obj.find_isosurface_patch(ax);
+            if obj.plot_type ~= obj.plot_types(5) || ~isscalar(ax) || ~isscalar(p) || isempty(obj.conv_scale)
+                obj.plot_hold_bool = false;
+                obj.update_plot(plot_panel);
+                return
+            end
+
+            if obj.conv_units_bool
+                scale = obj.conv_scale;
+            else
+                scale = 1 / obj.conv_scale;
+            end
+            p.Vertices(:,1) = p.Vertices(:,1) * scale;
+            ax.XLim = ax.XLim * scale;
+
+            if obj.conv_units_bool
+                xlabel(ax, "x/c = U t / c", FontSize=16)
+                daspect(ax, [1 1 1]) % true shapes: all axes in chords
+            else
+                xlabel(ax, "t/T", FontSize=16)
+                ax.DataAspectRatioMode = 'auto';
+            end
+            obj.draw_stroke_labels_3D(ax); % redraw in the new units
+        end
+
+        function conv_shift_change(src, ~, plot_panel)
+            obj.conv_shift = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.conv_shift);
+
+            % Label Stroke follows Convection Shift (as in phaseAvg_UI): on
+            % when it is turned on, off and disabled when it is turned off
+            obj.label_stroke = obj.conv_shift;
+            label_stroke_button.Value = obj.label_stroke;
+            label_stroke_button.Enable = obj.conv_shift;
+            label_stroke_button.BackgroundColor = obj.get_button_color(obj.label_stroke);
+
+            % +/- (centred stroke) only means something in the wing phase,
+            % so it needs the convection shift too; reset when it goes off
+            if ~obj.conv_shift
+                obj.stroke_flip = false;
+                stroke_flip_button.Value = false;
+            end
+            stroke_flip_button.Enable = obj.conv_shift;
+            stroke_flip_button.BackgroundColor = obj.get_button_color(obj.stroke_flip);
+
+            if obj.plot_type == obj.plot_types(5)
+                obj.update_plot(plot_panel);
+            end
+        end
+
+        function stroke_flip_change(src, ~, plot_panel)
+            obj.stroke_flip = src.Value && obj.conv_shift;
+            src.Value = obj.stroke_flip;
+            src.BackgroundColor = obj.get_button_color(obj.stroke_flip);
+            if obj.plot_type ~= obj.plot_types(5)
+                return
+            end
+            % only the phase changes, so move the existing surface instead
+            % of reloading and recomputing it; full redraw if that can't
+            % be done (e.g. while playing)
+            ax = findobj(plot_panel.Children, 'Type', 'axes');
+            if ~obj.shift_3D_surface(ax)
+                obj.update_plot(plot_panel);
+            else
+                obj.apply_remove_small(ax); % filter the shifted surface
+            end
+        end
+
+        function label_stroke_change(src, ~, plot_panel)
+            obj.label_stroke = src.Value && obj.conv_shift;
+            src.Value = obj.label_stroke;
+            src.BackgroundColor = obj.get_button_color(obj.label_stroke);
+            % stroke reversals are already loaded with the 3D plot, so
+            % just add / remove the labels on the current axes
+            ax = findobj(plot_panel.Children, 'Type', 'axes');
+            obj.draw_stroke_labels_3D(ax);
+        end
+
+        function card_style_change(src, ~, plot_panel)
+            obj.card_style = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.card_style);
+            % restyle the current 3D plot in place, no reload or redraw
+            ax = findobj(plot_panel.Children, 'Type', 'axes');
+            if obj.card_style
+                if obj.plot_type == obj.plot_types(5)
+                    obj.apply_card_style(ax);
+                end
+            else
+                obj.remove_card_style(ax);
+                obj.restore_card_panel(plot_panel);
+            end
+        end
+
+        function fix_lims_change(src, ~, plot_panel)
+            obj.fix_lims_bool = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.fix_lims_bool);
+            ax = findobj(plot_panel.Children, 'Type', 'axes');
+            if obj.fix_lims_bool && ~obj.fix_lims_set && isscalar(ax) && obj.plot_type == obj.plot_types(5)
+                % first use: start from the current plot's limits
+                obj.fix_ylim = round(ax.YLim, 2);
+                obj.fix_zlim = round(ax.ZLim, 2);
+                obj.fix_lims_set = true;
+                set_lim_fields();
+            end
+            if obj.plot_type == obj.plot_types(5)
+                obj.apply_fixed_lims(ax);
+            end
+        end
+
+        function fix_lims_value_change(~, ~, plot_panel)
+            ylim_new = [lim_fields(1,1).Value, lim_fields(1,2).Value];
+            zlim_new = [lim_fields(2,1).Value, lim_fields(2,2).Value];
+            if ylim_new(1) >= ylim_new(2) || zlim_new(1) >= zlim_new(2)
+                set_lim_fields(); % lower must be below upper: undo
+                return
+            end
+            obj.fix_ylim = ylim_new;
+            obj.fix_zlim = zlim_new;
+            obj.fix_lims_set = true;
+            if obj.fix_lims_bool && obj.plot_type == obj.plot_types(5)
+                ax = findobj(plot_panel.Children, 'Type', 'axes');
+                obj.apply_fixed_lims(ax);
+            end
+        end
+
+        function set_lim_fields()
+            lim_fields(1,1).Value = obj.fix_ylim(1);
+            lim_fields(1,2).Value = obj.fix_ylim(2);
+            lim_fields(2,1).Value = obj.fix_zlim(1);
+            lim_fields(2,2).Value = obj.fix_zlim(2);
+        end
+
+        function unc_mask_change(src, ~, plot_panel)
+            obj.unc_mask_bool = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.unc_mask_bool);
+            if obj.plot_type == obj.plot_types(5)
+                obj.update_plot(plot_panel); % new isosurface, same view
+            end
+        end
+
+        function unc_mask_thresh_change(src, ~, plot_panel)
+            obj.unc_mask_thresh = src.Value;
+            if obj.unc_mask_bool && obj.plot_type == obj.plot_types(5)
+                obj.update_plot(plot_panel);
+            end
+        end
+
+        function remove_small_change(src, ~, plot_panel)
+            obj.remove_small_bool = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.remove_small_bool);
+            % filter (or restore) the current surface in place
+            if obj.plot_type == obj.plot_types(5)
+                ax = findobj(plot_panel.Children, 'Type', 'axes');
+                obj.apply_remove_small(ax);
+            end
+        end
+
+        function remove_small_pct_change(src, ~, plot_panel)
+            obj.remove_small_pct = src.Value;
+            if obj.remove_small_bool && obj.plot_type == obj.plot_types(5)
+                ax = findobj(plot_panel.Children, 'Type', 'axes');
+                obj.apply_remove_small(ax);
+            end
         end
 
         function frame_change(src, ~, plot_panel)
@@ -799,46 +1857,973 @@ methods
 end
 
 methods (Access = private)
-    function phase_avg_stems = get_phase_avg_stems(obj, files)
+    function file_stems = get_file_stems(~, files, suffix)
         file_names = string({files.name});
-        phase_avg_files = endsWith(file_names, obj.file_suffix + ".mat");
-        phase_avg_stems = erase(file_names(phase_avg_files), obj.file_suffix + ".mat");
+        avg_files = endsWith(file_names, suffix + ".mat");
+        file_stems = erase(file_names(avg_files), suffix + ".mat");
     end
 
-    function [downstream_types, distance_labels] = get_available_downstream_options(obj, flapper_stems)
+    function tf = is_Q_iso_var(~, iso_var)
+        tf = contains(string(iso_var), "Q");
+    end
+
+    % Q isovalue slider: the fixed range Q_ISO_RANGE (0.005 to 0.1), or the
+    % same range negated when obj.iso_neg is set (shear dominated, Q < 0).
+    % keep_magnitude keeps the current |isovalue| (used by "+/-");
+    % otherwise the slider goes to the default (+/-0.05).
+    function set_Q_iso_slider(obj, keep_magnitude)
+        lims = obj.Q_ISO_RANGE;
+        major = 0:0.025:lims(2);
+        minor = lims(1):0.005:lims(2);
+        if keep_magnitude
+            mag = min(max(abs(obj.iso_val), lims(1)), lims(2));
+        else
+            mag = obj.Q_ISO_DEFAULT;
+        end
+
+        if obj.iso_neg
+            lims = -fliplr(lims);
+            major = -fliplr(major);
+            minor = -fliplr(minor);
+            obj.iso_val = -mag;
+            obj.iso_value_label.Text = 'Q isovalue (Q < 0):';
+        else
+            obj.iso_val = mag;
+            obj.iso_value_label.Text = 'Q isovalue:';
+        end
+
+        obj.iso_slider.Limits = lims;
+        obj.iso_slider.MajorTicks = major;
+        obj.iso_slider.MinorTicks = minor;
+        obj.iso_slider.Value = obj.iso_val;
+    end
+
+    % File stems are <case>[_hr][_RPCA] (phase_avg_STB adds _hr to the
+    % version name, then _RPCA). These strip / add the suffixes.
+    function stems = strip_variant_suffix(~, stems)
+        stems = regexprep(string(stems), "_RPCA$", "");
+        stems = regexprep(stems, "_hr$", "");
+    end
+
+    function case_id = with_variant_suffix(obj, case_id)
+        case_id = obj.strip_variant_suffix(case_id);
+        if strlength(case_id) == 0
+            return
+        end
+        if obj.HR
+            case_id = case_id + "_hr";
+        end
+        if obj.RPCA
+            case_id = case_id + "_RPCA";
+        end
+    end
+
+    function tf = has_case_id(obj, case_ids, case_id)
+        tf = any(string(case_ids) == obj.with_variant_suffix(case_id));
+    end
+
+    % Indices of the measured (original) field of view on the extrapolated
+    % grid (y_B, z_B). Newer files save that region's grid (y_B_fov,
+    % z_B_fov). For older ones: extrapolation (helm_decomp) trims the
+    % measured plane with default_trim_bounds (trim_vel_field), mirrors it
+    % about the centreline and centres it, by index, in a larger zero-padded
+    % grid; the same steps are repeated here. [] if it can't be found.
+    function [iy, iz] = get_extrap_fov_indices(~, d)
+        iy = []; iz = [];
+        if ~all(isfield(d, {'y_B', 'z_B'}))
+            return
+        end
+        y_arr = d.y_B(:,1);
+        z_arr = d.z_B(1,:);
+        Ny = numel(y_arr);
+        Nz = numel(z_arr);
+        if Ny < 2 || Nz < 2
+            return
+        end
+
+        if all(isfield(d, {'y_B_fov', 'z_B_fov'}))
+            [~, y_first] = min(abs(y_arr - d.y_B_fov(1,1)));
+            [~, z_first] = min(abs(z_arr - d.z_B_fov(1,1)));
+            num_y = size(d.y_B_fov, 1);
+            num_z = size(d.y_B_fov, 2);
+        elseif all(isfield(d, {'y', 'z'}))
+            bounds = default_trim_bounds();
+            y_meas = d.y(1,:,1);
+            z_meas = squeeze(d.z(1,1,:));
+            y_keep = y_meas(y_meas > bounds.ybounds(1) & y_meas < bounds.ybounds(2));
+            num_y = 2*sum(y_keep >= bounds.y_cen) - 1; % mirrored, centreline once
+            num_z = sum(z_meas > bounds.zbounds(1) & z_meas < bounds.zbounds(2));
+            y_first = floor((Ny - num_y) / 2) + 1;      % index placement in helm_decomp
+            z_first = floor((Nz - num_z) / 2) + 1;
+        else
+            return
+        end
+        if num_y < 1 || num_z < 1
+            return
+        end
+        iy = max(y_first, 1) : min(y_first + num_y - 1, Ny);
+        iz = max(z_first, 1) : min(z_first + num_z - 1, Nz);
+    end
+
+    % Outline the measured (original) field of view on a Full Section
+    % extrapolated plot with a black dashed box, at the outer edges of the
+    % measured cells
+    function draw_original_fov_box(obj, ax, d)
+        [iy, iz] = obj.get_extrap_fov_indices(d);
+        if isempty(iy) || isempty(iz)
+            return
+        end
+        y_arr = d.y_B(:,1);
+        z_arr = d.z_B(1,:);
+        dy = abs(y_arr(2) - y_arr(1));
+        dz = abs(z_arr(2) - z_arr(1));
+        y_lims = [min(y_arr(iy([1 end]))) - dy/2, max(y_arr(iy([1 end]))) + dy/2];
+        z_lims = [min(z_arr(iz([1 end]))) - dz/2, max(z_arr(iz([1 end]))) + dz/2];
+
+        hold(ax, 'on')
+        plot(ax, y_lims([1 2 2 1 1]), z_lims([1 1 2 2 1]), 'k--', ...
+            'LineWidth', 1.5, 'HandleVisibility', 'off', 'Tag', "original_fov_box");
+    end
+
+    function color = get_button_color(obj, is_active)
+        if is_active
+            color = obj.ACTIVE_COLOR;
+        else
+            color = obj.INACTIVE_COLOR;
+        end
+    end
+
+    function tf = is_flapper_source_mode(obj, source_mode)
+        tf = source_mode == obj.OLD_FLAPPER_SOURCE_MODE || source_mode == obj.NEW_FLAPPER_SOURCE_MODE;
+    end
+
+    function old_flapper_stems = get_old_flapper_stems(obj, flapper_stems)
+        flapper_stems = string(flapper_stems);
+        old_flapper_stems = flapper_stems(~obj.is_new_flapper_stem(flapper_stems));
+    end
+
+    function new_flapper_stems = get_new_flapper_stems(obj, flapper_stems)
+        flapper_stems = string(flapper_stems);
+        new_flapper_stems = flapper_stems(obj.is_new_flapper_stem(flapper_stems));
+    end
+
+    function mask = is_new_flapper_stem(obj, stems)
+        stems = string(stems);
+        mask = false(size(stems));
+        for i = 1:length(obj.NEW_FLAPPER_DOWNSTREAM_TYPES)
+            downstream_type = obj.NEW_FLAPPER_DOWNSTREAM_TYPES(i);
+            mask = mask | stems == downstream_type | startsWith(stems, downstream_type + "_");
+        end
+    end
+
+    function set_downstream_options_for_source_mode(obj, source_mode)
+        [obj.downstream_types, obj.distance_labels, obj.downstream_type_by_distance] = ...
+            obj.get_downstream_options_for_source_mode(source_mode);
+        if isempty(obj.downstream_types)
+            obj.current_downstream_type = "";
+        else
+            obj.current_downstream_type = obj.downstream_types(1);
+        end
+    end
+
+    % The 3D plot's isosurface patch (not the Label Stroke shading)
+    function p = find_isosurface_patch(obj, ax)
+        p = findobj(ax, 'Type', 'patch', '-not', 'Tag', obj.STROKE_TAG);
+    end
+
+    % "Card Style" for the 3D plot: lights the isosurface, recolours it
+    % with a red-green colormap symmetric about zero, darkens the
+    % background and hides the axes and colorbar. Everything it changes is
+    % saved first (axes appdata "card_style_orig", panel colour in
+    % obj.card_panel_color) so remove_card_style puts it back exactly.
+    % Safe to call repeatedly, e.g. after every redraw.
+    function apply_card_style(obj, ax)
+        if isempty(ax) || ~isscalar(ax) || ~isvalid(ax)
+            return
+        end
+        p = obj.find_isosurface_patch(ax);
+        if isempty(p)
+            return
+        end
+        panel = ax.Parent;
+        cb = findall(panel, 'Type', 'colorbar');
+
+        patch_props = {'FaceLighting', 'AmbientStrength', 'DiffuseStrength', ...
+            'SpecularStrength', 'SpecularExponent', 'SpecularColorReflectance'};
+        ax_props = {'Color', 'XColor', 'YColor', 'ZColor', 'Box', ...
+            'XGrid', 'YGrid', 'ZGrid', 'CLimMode'};
+
+        S = [];
+        if isappdata(ax, 'card_style_orig')
+            S = getappdata(ax, 'card_style_orig');
+        end
+        if isempty(S)
+            % first time on this axes: save the original look
+            S.patch = p;
+            S.patch_props = patch_props;
+            S.patch_vals = get(p, patch_props);
+            S.ax_props = ax_props;
+            S.ax_vals = get(ax, ax_props);
+            S.title_visible = ax.Title.Visible;
+            S.cmap = ax.Colormap;
+            S.clim = ax.CLim;
+            S.card_cmap = [];
+            S.card_clim = [];
+            S.cb = cb(:);
+            S.cb_visible = visibility(cb);
+            % lights are placed relative to the camera, so re-aim them
+            % whenever the view changes (view buttons or mouse rotation);
+            % added once per axes, they do nothing while the style is off
+            if ~isappdata(ax, 'card_style_listeners')
+                for prop = ["View", "CameraPosition"]
+                    try
+                        addlistener(ax, prop, 'PostSet', @(~, ~) obj.aim_card_lights(ax));
+                    catch
+                    end
+                end
+                setappdata(ax, 'card_style_listeners', true);
+            end
+        else
+            % redraw on the same axes: setColorBar may have reset the
+            % colormap / limits, so save those again unless they are still
+            % the card style's own
+            if ~isequal(ax.Colormap, S.card_cmap)
+                S.cmap = ax.Colormap;
+            end
+            if ~isequal(ax.CLim, S.card_clim)
+                S.clim = ax.CLim;
+            end
+            % colorbars already saved keep their original visibility;
+            % only new ones are added
+            keep = isvalid(S.cb);
+            old_cb = S.cb(keep);
+            old_vis = S.cb_visible(keep);
+            is_new = arrayfun(@(h) ~any(h == old_cb), cb);
+            new_cb = cb(is_new);
+            S.cb = [old_cb(:); new_cb(:)];
+            S.cb_visible = [old_vis(:); visibility(new_cb)];
+        end
+
+        % surface: soft satin highlights
+        set(p, 'FaceLighting', 'gouraud', 'AmbientStrength', 0.35, ...
+            'DiffuseStrength', 0.75, 'SpecularStrength', 0.55, ...
+            'SpecularExponent', 18, 'SpecularColorReflectance', 0.6);
+
+        % lights (replaced, never duplicated)
+        delete(findall(ax, 'Type', 'light', 'Tag', obj.CARD_TAG));
+        for k = 1:size(obj.CARD_LIGHT_POS, 1)
+            lgt = light(ax, 'Color', obj.CARD_LIGHT_COLOR(k, :), 'Tag', obj.CARD_TAG, ...
+                'HandleVisibility', 'off', 'UserData', k); % k: row of CARD_LIGHT_POS
+            camlight(lgt, obj.CARD_LIGHT_POS(k, 1), obj.CARD_LIGHT_POS(k, 2));
+        end
+
+        % colours symmetric about zero so zero sits on the cream centre
+        S.card_cmap = obj.card_colormap(256);
+        ax.Colormap = S.card_cmap;
+        c = max(abs(S.clim));
+        if c > 0
+            S.card_clim = [-c c];
+            ax.CLim = S.card_clim;
+        end
+
+        % dark, quiet background with no axes, labels, title or colorbar
+        set(ax, 'Color', obj.CARD_BG, 'XColor', 'none', 'YColor', 'none', ...
+            'ZColor', 'none', 'Box', 'off', 'XGrid', 'off', 'YGrid', 'off', 'ZGrid', 'off');
+        ax.Title.Visible = 'off';
+        set(S.cb, 'Visible', 'off');
+        if isempty(obj.card_panel_color)
+            obj.card_panel_color = panel.BackgroundColor;
+        end
+        panel.BackgroundColor = obj.CARD_BG;
+
+        setappdata(ax, 'card_style_orig', S);
+
+        function vis = visibility(h)
+            if isempty(h)
+                vis = cell(0, 1);
+            else
+                vis = get(h(:), {'Visible'});
+            end
+        end
+    end
+
+    % Undo apply_card_style on this axes (no-op if it was never applied)
+    function remove_card_style(obj, ax)
+        if isempty(ax) || ~isscalar(ax) || ~isvalid(ax) || ~isappdata(ax, 'card_style_orig')
+            return
+        end
+        S = getappdata(ax, 'card_style_orig');
+        delete(findall(ax, 'Type', 'light', 'Tag', obj.CARD_TAG));
+        keep = isvalid(S.patch);
+        if any(keep)
+            set(S.patch(keep), S.patch_props, S.patch_vals(keep, :));
+        end
+        set(ax, S.ax_props, S.ax_vals);
+        ax.Title.Visible = S.title_visible;
+        ax.Colormap = S.cmap;
+        ax.CLim = S.clim;
+        if strcmp(S.ax_vals{strcmp(S.ax_props, 'CLimMode')}, 'auto')
+            ax.CLimMode = 'auto';
+        end
+        keep = isvalid(S.cb);
+        if any(keep)
+            set(S.cb(keep), {'Visible'}, S.cb_visible(keep));
+        end
+        rmappdata(ax, 'card_style_orig');
+    end
+
+    % Give the plot panel its original background back
+    function restore_card_panel(obj, plot_panel)
+        if ~isempty(obj.card_panel_color) && isvalid(plot_panel)
+            plot_panel.BackgroundColor = obj.card_panel_color;
+        end
+        obj.card_panel_color = [];
+    end
+
+    % Keep the card style's lights at the same place relative to the camera
+    function aim_card_lights(obj, ax)
+        if ~isvalid(ax)
+            return
+        end
+        lgts = findall(ax, 'Type', 'light', 'Tag', obj.CARD_TAG);
+        for lgt = lgts(:)'
+            k = lgt.UserData;
+            camlight(lgt, obj.CARD_LIGHT_POS(k, 1), obj.CARD_LIGHT_POS(k, 2));
+        end
+    end
+
+    % "Fix Limits" on the 3D plot: y and z axes held at fix_ylim / fix_zlim
+    % (y/c, z/c), or back to automatic limits when off. The stroke labels
+    % are drawn to the axis limits, so they are redrawn too.
+    function apply_fixed_lims(obj, ax)
+        if isempty(ax) || ~isscalar(ax) || ~isvalid(ax)
+            return
+        end
+        if obj.fix_lims_bool
+            ylim(ax, obj.fix_ylim);
+            zlim(ax, obj.fix_zlim);
+        else
+            % stroke labels span the old limits; remove them first so the
+            % automatic limits follow the data only
+            delete(findall(ax, 'Tag', obj.STROKE_TAG));
+            ax.YLimMode = 'auto';
+            ax.ZLimMode = 'auto';
+        end
+        obj.draw_stroke_labels_3D(ax);
+    end
+
+    % "Remove Small" on the 3D plot's isosurface: with remove_small_bool
+    % on, hide pieces smaller than remove_small_pct % of the largest; off,
+    % put them back. Only Faces changes (Vertices and colours stay, so the
+    % x-axis units switch still works). The full faces are kept in the
+    % patch's appdata; if the patch's faces aren't the filtered ones (new
+    % surface, "+/-" shift) they are the full surface. Safe to call
+    % repeatedly, e.g. after every redraw.
+    function apply_remove_small(obj, ax)
+        if isempty(ax) || ~isscalar(ax) || ~isvalid(ax)
+            return
+        end
+        p = obj.find_isosurface_patch(ax);
+        if ~isscalar(p)
+            return
+        end
+        R = struct('faces_full', [], 'faces_kept', []);
+        if isappdata(p, 'remove_small')
+            R = getappdata(p, 'remove_small');
+        end
+        if isempty(R.faces_kept) || ~isequal(p.Faces, R.faces_kept)
+            R.faces_full = p.Faces;   % current faces are the full surface
+        end
+        if obj.remove_small_bool
+            R.faces_kept = obj.despeckle_faces(R.faces_full, obj.remove_small_pct);
+            p.Faces = R.faces_kept;
+            setappdata(p, 'remove_small', R);
+        else
+            p.Faces = R.faces_full;
+            if isappdata(p, 'remove_small')
+                rmappdata(p, 'remove_small');
+            end
+        end
+    end
+
+    % Faces of the triangle mesh without its small connected pieces: a
+    % piece is kept if it has at least min_pct % as many triangles as the
+    % largest piece. Pieces are found from shared vertices (isosurface
+    % output shares vertices between neighbouring triangles).
+    function faces = despeckle_faces(~, faces, min_pct)
+        if isempty(faces) || min_pct <= 0
+            return
+        end
+        n_verts = max(faces(:));
+        G = graph([faces(:,1); faces(:,2); faces(:,3)], ...
+                  [faces(:,2); faces(:,3); faces(:,1)], [], n_verts);
+        piece = conncomp(G);                      % piece of each vertex
+        face_piece = piece(faces(:,1));           % piece of each triangle
+        n_faces = accumarray(face_piece(:), 1);   % triangles per piece
+        keep_piece = n_faces >= min_pct / 100 * max(n_faces);
+        faces = faces(keep_piece(face_piece), :);
+    end
+
+    % Diverging pine green -> cream -> cranberry colormap, n levels
+    function cmap = card_colormap(obj, n)
+        anchors = obj.CARD_CMAP_ANCHORS;
+        cmap = interp1(linspace(0, 1, size(anchors, 1)), anchors, linspace(0, 1, n));
+    end
+
+    % Stroke reversals for the 3D plot from the phase-averaged wing
+    % position (max = top of the stroke, upstroke -> downstroke; min =
+    % bottom, downstroke -> upstroke), in flow bins. [] if not saved.
+    function S = get_stroke_info_3D(obj, file_base, num_bins)
+        S = [];
+        integral_file = file_base + "_integral.mat";
+        wing_pos = [];
+        if isfile(integral_file)
+            vars = who("-file", integral_file);
+            if ismember("phase_avg_wing_pos", vars)
+                d = load(integral_file, "phase_avg_wing_pos");
+                wing_pos = d.phase_avg_wing_pos(:)';
+            end
+        end
+        if isempty(wing_pos)
+            if obj.label_stroke
+                disp("No wing position for " + obj.get_current_case_id() + ", stroke not labeled")
+            end
+            return
+        end
+
+        N_w = length(wing_pos);
+        [~, i_top] = max(wing_pos);
+        [~, i_bottom] = min(wing_pos);
+        % same bin <-> phase convention as phaseAvg_UI (bin i at i/N), so
+        % rescale if the wing position has a different number of bins
+        S.top = i_top * num_bins / N_w;
+        S.bottom = i_bottom * num_bins / N_w;
+        S.N = num_bins;
+        S.frame_shift = 0;
+    end
+
+    % Everything the 3D plot's iso variable (after trim / mirror / filter)
+    % and isosurface depend on, i.e. all plot settings except the colour
+    % variable and colour limits
+    function key = get_3D_geometry_key(obj, use_extrapolated_data)
+        % file modification times too, so a reprocessed case isn't reused
+        file_base = string(obj.get_current_file_base());
+        stamps = strings(1, 2);
+        files = file_base + [".mat", "_integral.mat"];
+        for k = 1:2
+            info = dir(files(k));
+            if ~isempty(info)
+                stamps(k) = sprintf("%.10f", info(1).datenum);
+            end
+        end
+        parts = [file_base, stamps, string(obj.iso_var), ...
+            sprintf("%.10g", obj.iso_val), string(obj.num_cycles), ...
+            string(obj.conv_units_bool), string(obj.trim_bool), ...
+            mat2str(obj.trim_y_bounds), mat2str(obj.trim_z_bounds), ...
+            string(obj.mirror_bool), mat2str(obj.mirror_center_y), ...
+            string(obj.filter_bool), string(use_extrapolated_data), ...
+            string(obj.frame_ind), string(obj.conv_shift), string(obj.stroke_flip), ...
+            string(obj.unc_mask_bool), sprintf("%.10g", obj.unc_mask_thresh)];
+        key = strjoin(parts, "|");
+    end
+
+    % Re-phase the current 3D plot for a new "+/-" setting without
+    % reloading or recomputing it for the shift. A circular shift of the
+    % periodic wake is the same as sliding the plotted window along it, so
+    % the isosurface is computed once over one extra wingbeat (unshifted,
+    % cached) and then just translated along x, with the axes limits
+    % clipping it to the plotted wingbeats. Returns false if the plot
+    % can't be updated this way (caller does a full redraw).
+    function ok = shift_3D_surface(obj, ax)
+        ok = false;
+        S3 = obj.surf_3D;
+        if obj.play || isempty(S3) || isempty(ax) || ~isscalar(ax) || ~isvalid(ax)
+            return
+        end
+        p = obj.find_isosurface_patch(ax);
+        if ~isscalar(p)
+            return
+        end
+
+        params = S3.params;
+        N = params.num_bins;
+        n = params.num_cycles;
+
+        if isempty(S3.ext)
+            params_ext = params;
+            params_ext.num_cycles = n + 1;
+            params_ext.shift = 0;
+            [xl_ext, s_ext, c_ext] = stack_vortices_3D(S3.y, S3.z, S3.val, S3.Q, S3.cycle_freq, params_ext);
+            S3.ext = struct('vertices', s_ext.vertices, 'faces', s_ext.faces, 'cdata', c_ext, ...
+                'dz', xl_ext(2) / ((n + 1) * N - 1)); % bin spacing on the x-axis
+            obj.surf_3D = S3;
+        end
+
+        flip_bins = 0;
+        if obj.conv_shift && obj.stroke_flip
+            flip_bins = obj.get_stroke_flip_bins(N);
+        end
+        shift = mod(S3.base_shift + flip_bins, N);
+
+        % plotted bin k holds original bin k - shift (circshift), which is
+        % bin k - shift + N of the unshifted extended surface
+        verts = S3.ext.vertices;
+        verts(:,1) = verts(:,1) + (shift - N) * S3.ext.dz;
+
+        % drop faces entirely outside the plotted window (the axes clip
+        % the ones crossing its ends)
+        xl = S3.xlims;
+        fx = reshape(verts(S3.ext.faces, 1), size(S3.ext.faces));
+        keep = any(fx >= xl(1), 2) & any(fx <= xl(2), 2);
+
+        p.Vertices = verts;
+        p.Faces = S3.ext.faces(keep, :);
+        p.FaceVertexCData = S3.ext.cdata;
+        p.Clipping = 'on';
+        xlim(ax, xl)
+
+        obj.set_stroke_frame_shift(S3.base_shift - S3.conv_shift_bins + flip_bins);
+        obj.draw_stroke_labels_3D(ax);
+        ok = true;
+    end
+
+    % Bins to shift the 3D plot by so the middle of the upstroke lands
+    % where the middle of the downstroke is without the shift. The strokes
+    % differ in length, so this comes from the stroke reversals in the
+    % wing position (downstroke: top -> bottom, upstroke: bottom -> top);
+    % half a wingbeat if the wing position isn't saved.
+    function flip_bins = get_stroke_flip_bins(obj, num_bins)
+        S = obj.stroke_3D;
+        if isempty(S)
+            flip_bins = round(num_bins / 2);
+            disp("No wing position for " + obj.get_current_case_id() + ", upstroke centred assuming equal strokes")
+            return
+        end
+        N = S.N;
+        down_len = mod(S.bottom - S.top, N);
+        up_len = N - down_len;
+        down_mid = S.top + down_len / 2;
+        up_mid = S.bottom + up_len / 2;
+        flip_bins = round(mod(down_mid - up_mid, N));
+        disp(sprintf("Downstroke %.0f%% / upstroke %.0f%% of the wingbeat: upstroke centred with a %d / %d bin shift", ...
+            100 * down_len / N, 100 * up_len / N, flip_bins, N))
+    end
+
+    function set_stroke_frame_shift(obj, frame_shift)
+        if ~isempty(obj.stroke_3D)
+            obj.stroke_3D.frame_shift = frame_shift;
+        end
+    end
+
+    % Whether the 3D axes is in a view that shows the x-axis edge on:
+    % looking along y (+/-yz: az = 0 or 180, el = 0) or along z (+/-xz:
+    % el = +/-90)
+    function [along_y, along_z, az, el] = get_stroke_view(~, ax)
+        [az, el] = view(ax);
+        tol = 0.5; % deg
+        along_y = abs(el) < tol && abs(mod(az + tol, 180) - tol) < tol;
+        along_z = abs(abs(el) - 90) < tol;
+    end
+
+    % Remove the stroke labels as soon as the 3D view is rotated away from
+    % a supported view (mouse rotation, or any other view change). The
+    % listeners live as long as the axes. View and CameraPosition are
+    % both watched since which one interactive rotation sets depends on
+    % the MATLAB version; if a property can't be listened to, the labels
+    % are still cleared at the next plot refresh.
+    function add_stroke_view_listeners(obj, ax)
+        for prop = ["View", "CameraPosition"]
+            try
+                addlistener(ax, prop, 'PostSet', @(~, ~) obj.clear_stroke_labels_if_rotated(ax));
+            catch
+            end
+        end
+    end
+
+    function clear_stroke_labels_if_rotated(obj, ax)
+        if ~isvalid(ax)
+            return
+        end
+        labels = findall(ax, 'Tag', obj.STROKE_TAG);
+        if isempty(labels)
+            return
+        end
+        [along_y, along_z] = obj.get_stroke_view(ax);
+        if ~along_y && ~along_z
+            delete(labels);
+        end
+    end
+
+    % Black lines at the stroke reversals, light gray shading over the
+    % downstroke and "upstroke" / "downstroke" text, on the 3D plot. Only
+    % drawn in the 2D views that show the x-axis (looking along y: +/-yz,
+    % or along z: +/-xz); removed in any other view. Lines and text go on
+    % the face of the plot box nearest the camera, the shading on the far
+    % face (behind the isosurface).
+    function draw_stroke_labels_3D(obj, ax)
+        if isempty(ax) || ~isscalar(ax) || ~isvalid(ax)
+            return
+        end
+        % findall: the labels have HandleVisibility off, so findobj misses them
+        delete(findall(ax, 'Tag', obj.STROKE_TAG));
+
+        S = obj.stroke_3D;
+        if ~obj.label_stroke || ~obj.conv_shift || isempty(S) || obj.plot_type ~= obj.plot_types(5)
+            return
+        end
+
+        [along_y, along_z, az, el] = obj.get_stroke_view(ax);
+        if ~along_y && ~along_z
+            return
+        end
+        % camera direction (from target) and screen-up for MATLAB's view
+        cam = [sind(az)*cosd(el), -cosd(az)*cosd(el), sind(el)];
+        up = [-sind(az)*sind(el), cosd(az)*sind(el), cosd(el)];
+
+        xl = ax.XLim; yl = ax.YLim; zl = ax.ZLim;
+
+        % reversal positions in wingbeat phase [0, 1) of the plotted data:
+        % bin k (1-based) is plotted at index mod(k - 1 + frame_shift, N)
+        N = S.N;
+        to_phase = @(k) mod(k - 1 + S.frame_shift, N) / N;
+        p_top = to_phase(S.top);
+        p_bottom = to_phase(S.bottom);
+
+        % one wingbeat on the x-axis (stack_vortices_3D: N bins span
+        % (N-1)/(N-1) = 1, so a full period is N/(N-1))
+        period = N / (N - 1);
+        if obj.conv_units_bool
+            period = period * obj.conv_scale;
+        end
+
+        cycles = -1:obj.num_cycles;
+        down = clip_intervals([p_top + cycles; p_bottom + cycles + (p_bottom < p_top)]' * period);
+        up_iv = clip_intervals([p_bottom + cycles; p_top + cycles + (p_top < p_bottom)]' * period);
+        rev_x = [p_top + cycles, p_bottom + cycles] * period;
+        rev_x = rev_x(rev_x >= xl(1) & rev_x <= xl(2));
+
+        if along_y
+            near = yl(1 + (cam(2) > 0)); far = yl(2 - (cam(2) > 0));
+        else
+            near = zl(1 + (cam(3) > 0)); far = zl(2 - (cam(3) > 0));
+        end
+
+        % downstroke shading on the far face
+        for k = 1:size(down, 1)
+            xs = down(k, [1 2 2 1]);
+            if along_y
+                h = patch(ax, xs, far * ones(1,4), zl([1 1 2 2]), [0.8 0.8 0.8]);
+            else
+                h = patch(ax, xs, yl([1 1 2 2]), far * ones(1,4), [0.8 0.8 0.8]);
+            end
+            h.FaceAlpha = 0.35;
+            h.EdgeColor = 'none';
+            style(h)
+        end
+
+        % reversal lines on the near face
+        for t = rev_x
+            if along_y
+                h = line(ax, [t t], [near near], zl);
+            else
+                h = line(ax, [t t], yl, [near near]);
+            end
+            h.Color = 'k';
+            h.LineWidth = 1.5;
+            style(h)
+        end
+
+        % labels near the top of the screen, same font as the axis labels
+        if along_y
+            v_lim = zl; v_up = up(3);
+        else
+            v_lim = yl; v_up = up(2);
+        end
+        if v_up >= 0
+            v_text = v_lim(2) - 0.03 * diff(v_lim);
+        else
+            v_text = v_lim(1) + 0.03 * diff(v_lim);
+        end
+        add_labels(down, "downstroke");
+        add_labels(up_iv, "upstroke");
+
+        function add_labels(intervals, label)
+            for m = 1:size(intervals, 1)
+                if diff(intervals(m,:)) < 0.06 * period % too narrow for text
+                    continue
+                end
+                x_mid = mean(intervals(m,:));
+                if along_y
+                    h_t = text(ax, x_mid, near, v_text, label);
+                else
+                    h_t = text(ax, x_mid, v_text, near, label);
+                end
+                h_t.HorizontalAlignment = "center";
+                h_t.VerticalAlignment = "top";
+                h_t.FontName = ax.XLabel.FontName;
+                h_t.FontSize = ax.XLabel.FontSize;
+                h_t.Interpreter = ax.XLabel.Interpreter;
+                h_t.Color = "k";
+                h_t.Clipping = "on";
+                style(h_t)
+            end
+        end
+
+        function iv = clip_intervals(iv)
+            iv(:,1) = max(iv(:,1), xl(1));
+            iv(:,2) = min(iv(:,2), xl(2));
+            iv = iv(iv(:,2) > iv(:,1), :);
+        end
+
+        function style(h)
+            h.Tag = obj.STROKE_TAG;
+            h.HandleVisibility = 'off';
+            h.PickableParts = 'none';
+        end
+    end
+
+    % Streamwise distance (m) from the robot to the imaging plane for the
+    % current case, NaN if unknown (e.g. turbine cases)
+    function dist = get_downstream_dist(obj)
+        dist = NaN;
+        downstream_type = string(obj.current_downstream_type);
+        if obj.source_mode == obj.OLD_FLAPPER_SOURCE_MODE
+            idx = find(obj.OLD_FLAPPER_DOWNSTREAM_TYPES == downstream_type, 1);
+            if ~isempty(idx)
+                dist = obj.OLD_FLAPPER_DOWNSTREAM_DISTS(idx);
+            end
+        elseif obj.source_mode == obj.NEW_FLAPPER_SOURCE_MODE
+            idx = find(obj.NEW_FLAPPER_DOWNSTREAM_TYPES == downstream_type, 1);
+            if ~isempty(idx)
+                dist = obj.NEW_FLAPPER_DOWNSTREAM_DISTS(idx);
+            end
+        end
+    end
+
+    % Number of phase bins to circshift phase-averaged data by so that it
+    % lines up with the wing phase at the robot (convection time from the
+    % robot to the imaging plane as a fraction of a wingbeat). Same shift
+    % as phaseAvg_UI applies to its flow curves. 0 if the shift is off or
+    % the distance is unknown.
+    function shift_bins = get_conv_shift_bins(obj, cycle_freq, num_bins)
+        shift_bins = 0;
+        if ~obj.conv_shift
+            return
+        end
+
+        dist = obj.get_downstream_dist();
+        if isnan(dist)
+            disp("No downstream distance defined for " + obj.get_current_case_id() + ", not shifted")
+            return
+        end
+
+        conv_time = dist / obj.CONV_SPEED;
+        shift = conv_time * cycle_freq; % shift as a portion of a cycle
+        shift_bins = round(shift * num_bins);
+        disp("Shifted " + obj.get_current_case_id() + " by: " + shift_bins + " / " + num_bins + ...
+            " (" + dist + " m downstream)")
+    end
+
+    function A = nan_safe_medfilt(~, A)
+        % medfilt2/medfilt3 have undefined behaviour with NaN input: NaNs
+        % spread through the volume and results differ run to run, which
+        % slices isosurfaces at random places. Fill NaNs with their nearest
+        % neighbours before filtering, then restore them afterwards.
+        nan_mask = isnan(A);
+        if any(nan_mask, "all")
+            for dim = 1:ndims(A)
+                A = fillmissing(A, "nearest", dim);
+            end
+            A(isnan(A)) = 0; % only reached if an entire array is NaN
+        end
+
+        if ismatrix(A)
+            A = medfilt2(A);
+        else
+            A = medfilt3(A);
+        end
+
+        A(nan_mask) = NaN;
+    end
+
+    function set_trim_settings_for_source_mode(obj, source_mode)
+        % Old flapper uses its own set; new flapper and turbine share the
+        % new-flapper set (turbine previously used these same values).
+        if source_mode == obj.OLD_FLAPPER_SOURCE_MODE
+            obj.trim_y_bounds = obj.OLD_FLAPPER_TRIM_Y_BOUNDS;
+            obj.trim_z_bounds = obj.OLD_FLAPPER_TRIM_Z_BOUNDS;
+            obj.mirror_center_y = obj.OLD_FLAPPER_MIRROR_CENTER_Y;
+        else
+            obj.trim_y_bounds = obj.NEW_FLAPPER_TRIM_Y_BOUNDS;
+            obj.trim_z_bounds = obj.NEW_FLAPPER_TRIM_Z_BOUNDS;
+            obj.mirror_center_y = obj.NEW_FLAPPER_MIRROR_CENTER_Y;
+        end
+    end
+
+    function [downstream_types, distance_labels, downstream_type_by_distance] = get_downstream_options_for_source_mode(obj, source_mode)
+        if source_mode == obj.OLD_FLAPPER_SOURCE_MODE
+            downstream_types = obj.old_flapper_downstream_types;
+            distance_labels = obj.old_flapper_distance_labels;
+            downstream_type_by_distance = obj.old_flapper_downstream_type_by_distance;
+        elseif source_mode == obj.NEW_FLAPPER_SOURCE_MODE
+            downstream_types = obj.new_flapper_downstream_types;
+            distance_labels = obj.new_flapper_distance_labels;
+            downstream_type_by_distance = obj.new_flapper_downstream_type_by_distance;
+        else
+            downstream_types = strings(0, 1);
+            distance_labels = strings(0, 1);
+            downstream_type_by_distance = obj.build_downstream_type_map(distance_labels, downstream_types);
+        end
+    end
+
+    function downstream_type_by_distance = build_downstream_type_map(~, distance_labels, downstream_types)
+        if isempty(distance_labels)
+            downstream_type_by_distance = containers.Map('KeyType', 'char', 'ValueType', 'char');
+        else
+            downstream_type_by_distance = containers.Map(cellstr(distance_labels), cellstr(downstream_types));
+        end
+    end
+
+    function [downstream_types, distance_labels] = get_available_downstream_options(obj, flapper_stems, source_mode)
         downstream_types = strings(0, 1);
         distance_labels = strings(0, 1);
 
-        for i = 1:length(obj.KNOWN_DOWNSTREAM_TYPES)
-            downstream_type = obj.KNOWN_DOWNSTREAM_TYPES(i);
-            if any(startsWith(flapper_stems, downstream_type + "_"))
+        [known_downstream_types, known_distance_labels] = obj.get_known_downstream_options(source_mode);
+        for i = 1:length(known_downstream_types)
+            downstream_type = known_downstream_types(i);
+            matching_stems = obj.get_downstream_stems_for_type(flapper_stems, downstream_type, source_mode);
+            if ~isempty(matching_stems)
                 downstream_types(end + 1, 1) = downstream_type;
-                distance_labels(end + 1, 1) = obj.KNOWN_DISTANCE_LABELS(i);
+                distance_labels(end + 1, 1) = known_distance_labels(i);
             end
+        end
+    end
+
+    function [downstream_types, distance_labels] = get_known_downstream_options(obj, source_mode)
+        if source_mode == obj.OLD_FLAPPER_SOURCE_MODE
+            downstream_types = obj.OLD_FLAPPER_DOWNSTREAM_TYPES;
+            distance_labels = obj.OLD_FLAPPER_DISTANCE_LABELS;
+        elseif source_mode == obj.NEW_FLAPPER_SOURCE_MODE
+            downstream_types = obj.NEW_FLAPPER_DOWNSTREAM_TYPES;
+            distance_labels = obj.NEW_FLAPPER_DISTANCE_LABELS;
+        else
+            downstream_types = strings(0, 1);
+            distance_labels = strings(0, 1);
+        end
+    end
+
+    function matching_stems = get_downstream_stems_for_type(obj, flapper_stems, downstream_type, source_mode)
+        flapper_stems = string(flapper_stems);
+        prefix = downstream_type + "_";
+        mask = flapper_stems == downstream_type | startsWith(flapper_stems, prefix);
+
+        if source_mode == obj.OLD_FLAPPER_SOURCE_MODE && downstream_type == obj.OLD_FLAPPER_DOWNSTREAM_TYPES(1)
+            mask = mask | obj.is_legacy_default_distance_stem(flapper_stems);
+        end
+
+        matching_stems = flapper_stems(mask);
+    end
+
+    function mask = is_legacy_default_distance_stem(obj, stems)
+        stems = string(stems);
+        mask = ~obj.starts_with_any_downstream_type(stems, obj.OLD_FLAPPER_DOWNSTREAM_TYPES) & ...
+               ~obj.is_new_flapper_stem(stems);
+    end
+
+    function mask = starts_with_any_downstream_type(~, stems, downstream_types)
+        stems = string(stems);
+        mask = false(size(stems));
+        for i = 1:length(downstream_types)
+            downstream_type = downstream_types(i);
+            mask = mask | stems == downstream_type | startsWith(stems, downstream_type + "_");
         end
     end
 
     function source_modes = get_available_source_modes(obj)
         source_modes = strings(0);
 
-        if ~isempty(obj.flapper_case_name_list)
-            source_modes(end + 1) = "flapper";
+        if ~isempty(obj.phase_old_flapper_case_name_list) || ~isempty(obj.time_old_flapper_case_name_list)
+            source_modes(end + 1) = obj.OLD_FLAPPER_SOURCE_MODE;
         end
 
-        if ~isempty(obj.turbine_case_name_list)
-            source_modes(end + 1) = "turbine";
+        if ~isempty(obj.phase_new_flapper_case_name_list) || ~isempty(obj.time_new_flapper_case_name_list)
+            source_modes(end + 1) = obj.NEW_FLAPPER_SOURCE_MODE;
+        end
+
+        if ~isempty(obj.phase_turbine_case_name_list) || ~isempty(obj.time_turbine_case_name_list)
+            source_modes(end + 1) = obj.TURBINE_SOURCE_MODE;
         end
     end
 
-    function case_names = get_flapper_case_names(obj, phase_avg_stems)
+    % Cases for the dropdown: for the flappers, only those at the selected
+    % downstream position
+    function case_names = get_case_name_list_for_active_plot_type(obj)
+        case_names = obj.get_case_name_list(obj.source_mode, obj.plot_type, obj.current_downstream_type);
+    end
+
+    % downstream_type (optional): only cases at that downstream position
+    % (flapper sources); omitted or "" lists every position
+    function case_names = get_case_name_list(obj, source_mode, plot_type, downstream_type)
+        if nargin >= 4 && strlength(string(downstream_type)) > 0 && obj.is_flapper_source_mode(source_mode)
+            if source_mode == obj.NEW_FLAPPER_SOURCE_MODE
+                phase_stems = obj.phase_new_flapper_stems;
+                time_stems = obj.time_new_flapper_stems;
+            else
+                phase_stems = obj.phase_old_flapper_stems;
+                time_stems = obj.time_old_flapper_stems;
+            end
+            downstream_type = string(downstream_type);
+            [known_types, known_labels] = obj.get_known_downstream_options(source_mode);
+            label = known_labels(known_types == downstream_type);
+            phase_case_names = obj.get_flapper_case_names(phase_stems, downstream_type, label, source_mode);
+            time_case_names = obj.get_flapper_case_names(time_stems, downstream_type, label, source_mode);
+        elseif source_mode == obj.TURBINE_SOURCE_MODE
+            phase_case_names = obj.phase_turbine_case_name_list;
+            time_case_names = obj.time_turbine_case_name_list;
+        elseif source_mode == obj.NEW_FLAPPER_SOURCE_MODE
+            phase_case_names = obj.phase_new_flapper_case_name_list;
+            time_case_names = obj.time_new_flapper_case_name_list;
+        else
+            phase_case_names = obj.phase_old_flapper_case_name_list;
+            time_case_names = obj.time_old_flapper_case_name_list;
+        end
+
+        % time averaged (0 Hz) cases have "time avg of phase avg" and the
+        % section plot only
+        if plot_type == obj.plot_types(1) || plot_type == obj.plot_types(10)
+            case_names = unique([phase_case_names, time_case_names], 'stable');
+        else
+            case_names = phase_case_names;
+        end
+    end
+
+    function case_names = get_flapper_case_names(obj, phase_avg_stems, downstream_types, distance_labels, source_mode)
         case_names = strings(0);
-        for i = 1:length(obj.downstream_types)
-            downstream_type = obj.downstream_types(i);
+
+        for i = 1:length(downstream_types)
+            downstream_type = downstream_types(i);
             prefix = downstream_type + "_";
-            matching_stems = phase_avg_stems(startsWith(phase_avg_stems, prefix));
-            case_names = [case_names, extractAfter(matching_stems, prefix)];
+            matching_stems = phase_avg_stems(phase_avg_stems == downstream_type | startsWith(phase_avg_stems, prefix));
+            if source_mode == obj.OLD_FLAPPER_SOURCE_MODE && ...
+                    i <= length(distance_labels) && distance_labels(i) == obj.OLD_FLAPPER_DISTANCE_LABELS(1)
+                matching_stems = unique([matching_stems, phase_avg_stems(obj.is_legacy_default_distance_stem(phase_avg_stems))], 'stable');
+            end
+            case_names = [case_names, obj.get_case_names_from_stems(matching_stems, downstream_type)];
         end
         case_names = unique(case_names, 'stable');
+    end
+
+    function case_names = get_case_names_from_stems(~, stems, downstream_type)
+        case_names = strings(size(stems));
+        prefix = downstream_type + "_";
+
+        for i = 1:length(stems)
+            if stems(i) == downstream_type || ~startsWith(stems(i), prefix)
+                case_names(i) = stems(i);
+            else
+                case_names(i) = extractAfter(stems(i), prefix);
+            end
+        end
     end
 
     function case_names = get_turbine_case_names(~, phase_avg_stems)
@@ -854,19 +2839,66 @@ methods (Access = private)
     end
 
     function case_id = get_current_case_id(obj)
-        if obj.source_mode == "turbine"
-            if startsWith(obj.case_name, "turbine")
-                case_id = obj.case_name;
+        case_name = string(obj.case_name);
+        current_downstream_type = string(obj.current_downstream_type);
+
+        if obj.source_mode == obj.TURBINE_SOURCE_MODE
+            if startsWith(case_name, "turbine")
+                base_case_id = case_name;
             else
-                case_id = "turbine_" + obj.case_name;
+                base_case_id = "turbine_" + case_name;
             end
         else
-            case_id = obj.current_downstream_type + "_" + obj.case_name;
+            if obj.plot_type == obj.plot_types(1) && obj.has_case_id(obj.time_avg_case_ids, case_name)
+                base_case_id = case_name;
+            elseif current_downstream_type == case_name && ...
+                    (obj.has_case_id(obj.phase_avg_case_ids, case_name) || obj.has_case_id(obj.time_avg_case_ids, case_name))
+                base_case_id = case_name;
+            elseif strlength(case_name) == 0
+                base_case_id = current_downstream_type;
+            else
+                base_case_id = current_downstream_type + "_" + case_name;
+            end
         end
+
+        case_id = obj.with_variant_suffix(base_case_id);
     end
 
     function file_base = get_current_file_base(obj)
-        file_base = obj.file_path + obj.get_current_case_id() + obj.file_suffix;
+        if obj.is_time_avg_file_selected()
+            file_base = obj.time_avg_file_path + obj.get_current_case_id() + "_time_avg";
+        else
+            case_id = obj.get_current_case_id();
+            if ~any(obj.phase_avg_main_case_ids == case_id) && any(obj.phase_avg_RPCA_case_ids == case_id)
+                file_base = obj.phase_avg_RPCA_file_path + case_id + "_phase_avg";
+            else
+                file_base = obj.phase_avg_file_path + case_id + "_phase_avg";
+            end
+        end
+    end
+
+    function tf = current_case_has_phase_avg(obj)
+        tf = any(obj.phase_avg_case_ids == obj.get_current_case_id());
+    end
+
+    function tf = current_case_has_time_avg(obj)
+        tf = any(obj.time_avg_case_ids == obj.get_current_case_id());
+    end
+
+    function tf = is_time_avg_file_selected(obj)
+        tf = obj.plot_type == obj.plot_types(1) && obj.current_case_has_time_avg();
+    end
+
+    function plot_types = get_available_plot_types_for_current_case(obj)
+        if obj.is_time_avg_file_selected() || ~obj.current_case_has_phase_avg()
+            plot_types = obj.plot_types(1);
+            % the section plot also works on time averaged (0 Hz) files
+            if obj.current_case_has_time_avg()
+                plot_types(end+1) = obj.plot_types(10);
+            end
+        else
+            plot_types = obj.plot_types;
+        end
     end
 
     % Update the active plot after a selection or display setting changes.
@@ -875,88 +2907,192 @@ methods (Access = private)
 
         % Reuse the existing 3D patch when only its surface data changes.
         if obj.plot_hold_bool
-            p = findobj(ax, 'Type', 'patch');
+            p = obj.find_isosurface_patch(ax);
         else
             delete(ax);
         end
 
         plot_idx = find(obj.plot_types == obj.plot_type);
+        if plot_idx ~= 5
+            % card style is only for the 3D plot; other plots get the
+            % normal panel background back (their axes are new anyway)
+            obj.restore_card_panel(plot_panel);
+        end
+        using_time_avg_file = obj.is_time_avg_file_selected();
+        use_extrapolated_data = obj.extrapolate_bool && ~using_time_avg_file;
+        % extrapolated - measured velocity: stored on the field of view grid
+        % of the extrapolation, so it is loaded like the extrapolated data
+        is_extrap_diff = any(obj.variable_name == obj.EXTRAP_DIFF_VARS) && ismember(plot_idx, [1, 2, 5, 9]);
+        if is_extrap_diff
+            if using_time_avg_file || ~ismember(plot_idx, [1, 2])
+                delete(findobj(plot_panel.Children, 'Type', 'axes'));
+                ax = axes(plot_panel);
+                text(ax, 0.5, 0.5, "Extrapolated - measured is only available for phase averages " + ...
+                    "(time avg of phase avg / phase avg: movie)", 'HorizontalAlignment', 'center', FontSize=14);
+                axis(ax, 'off');
+                obj.plot_hold_bool = false;
+                return
+            end
+            use_extrapolated_data = true;
+        end
+        q_mask_enabled = obj.q_mask_bool && ismember(plot_idx, [1, 2]) && ~use_extrapolated_data;
+        q_mask_var_name = "Q";
 
         cur_secondary_vars = {};
 
-        if ismember(plot_idx, [1, 2, 4, 8])
-            var_name = obj.variable_name_dict(obj.variable_name);
-            var_clims = obj.get_color_limits(obj.variable_name);
+        if plot_idx == 10
+            obj.plot_section_force(plot_panel);
+            return
+        end
 
-            if obj.extrapolate_bool
-                var_name = obj.dict_B(var_name);
-                vars = {"L","U","num_bins","cycle_freq"};
-                cur_secondary_vars = {"z_B","y_B"};
+        if plot_idx == 11
+            obj.plot_frozen_flow(plot_panel);
+            return
+        end
+
+        if ismember(plot_idx, [1, 2, 5, 9])
+            if using_time_avg_file
+                var_name = obj.time_avg_var_name_dict(obj.variable_name);
+                vars = {"L","U","z","y"};
             else
+                var_name = obj.variable_name_dict(obj.variable_name);
                 vars = {"L","U","num_bins","cycle_freq","z","y"};
             end
+            var_clims = obj.get_color_limits(obj.variable_name);
 
-            if contains(obj.variable_name, obj.secondary_vars) || obj.extrapolate_bool
+            if is_extrap_diff
+                % already the _integral field name (EXTRAP_DIFF_FIELDS)
+                vars = {"L","U","num_bins","cycle_freq"};
+                cur_secondary_vars = {"z_B_fov","y_B_fov"};
+            elseif use_extrapolated_data
+                var_name = obj.dict_B(var_name);
+                % measured y/z are only needed to outline the original
+                % field of view on the extrapolated grid (files processed
+                % before y_B_fov / z_B_fov were saved)
+                vars = {"L","U","num_bins","cycle_freq","y","z"};
+                cur_secondary_vars = {"z_B","y_B"};
+            end
+
+            if strcmp(var_name, obj.LIFT_WX_FIELD)
+                % derived field: load the stored fields it is built from
+                vars = [vars, obj.get_lift_wx_inputs(using_time_avg_file)];
+            elseif contains(obj.variable_name, obj.secondary_vars) || use_extrapolated_data
                 cur_secondary_vars{end+1} = var_name;
             else
                 vars{end+1} = var_name;
             end
-        end
-        
-        if plot_idx == 4 || plot_idx == 8 % 3D plot
-            iso_var_name = obj.variable_name_dict(obj.iso_var);
 
-            if contains(obj.iso_var, obj.secondary_vars)
-                cur_secondary_vars{end+1} = iso_var_name;
-            else
-                vars{end+1} = iso_var_name;
+            if q_mask_enabled && ~any(strcmp(string(cur_secondary_vars), q_mask_var_name))
+                cur_secondary_vars{end+1} = q_mask_var_name;
             end
         elseif plot_idx == 3
             var_name = obj.std_var_name_dict(obj.variable_name);
             var_clims = obj.get_color_limits(obj.variable_name);
 
             vars = {"L","U","num_bins","cycle_freq","z","y",var_name};
-        elseif plot_idx == 5
+        end
+        
+        geom_hit = false;
+        if plot_idx == 5 || plot_idx == 9 % 3D plot or planar average
+            iso_var_name = obj.variable_name_dict(obj.iso_var);
+
+            % 3D plot: the iso variable and isosurface don't depend on the
+            % colour variable, so reuse them if nothing they depend on
+            % changed
+            if plot_idx == 5
+                geom_key = obj.get_3D_geometry_key(use_extrapolated_data);
+                geom_hit = ~isempty(obj.geom_3D) && obj.geom_3D.key == geom_key;
+            end
+
+            if geom_hit
+                % already processed, not loaded again
+            elseif contains(obj.iso_var, obj.secondary_vars)
+                cur_secondary_vars{end+1} = iso_var_name;
+            else
+                vars{end+1} = iso_var_name;
+            end
+            if plot_idx == 5 && ~geom_hit && obj.unc_mask_bool && ~use_extrapolated_data
+                vars{end+1} = "uncTot_phase_avg";
+            end
+        elseif plot_idx == 4
+            var_name = obj.std_var_name_dict(obj.variable_name);
+            var_clims = obj.get_color_limits(obj.variable_name);
+
+            vars = {"L","U","num_bins","cycle_freq","z","y",var_name};
+        elseif plot_idx == 6
             var_name = obj.hist_var_name_dict(obj.variable_name);
 
             vars = {var_name};
-            if (obj.variable_name == obj.hist_vars(3))
+            if (obj.variable_name == obj.hist_vars(2))
+                vars{end+1} = "phase_res";
+            elseif (obj.variable_name == obj.hist_vars(3))
                 x_var_name = "full_cycle";
                 vars{end+1} = x_var_name;
+                vars{end+1} = "bin_ind_arr"; % which bin each frame went to
             end
-        elseif plot_idx == 6
+        elseif plot_idx == 7
             var_name = obj.freq_var_name_dict(obj.variable_name);
 
-            vars = {var_name};
+            vars = {};
+            cur_secondary_vars = {var_name};
             if obj.variable_name == obj.freq_vars(1)
                 x_var_name = "norm_time_speed";
                 cur_secondary_vars{end+1} = x_var_name;
                 std_name = "phase_std_speed";
                 cur_secondary_vars{end+1} = std_name;
             end
-        elseif plot_idx == 7
+        elseif plot_idx == 8
+            % get_PIV_force loads its own data, so nothing is loaded here
             var_name = obj.force_var_name_dict(obj.variable_name);
-            vars = {"L","U","y","z","u_phase_avg","w_phase_avg",...
-                "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg"};
         end
 
         if strlength(obj.case_name) == 0
             return
         end
 
+        if ~obj.current_case_has_phase_avg() && ~obj.current_case_has_time_avg()
+            return
+        end
+
         full_file_path = obj.get_current_file_base();
 
-        if ~isempty(cur_secondary_vars)
+        % field of view of the extrapolation (newer files), for the crop / box
+        if use_extrapolated_data && ~is_extrap_diff && ismember(plot_idx, [1, 2])
+            integral_vars = who('-file', full_file_path + "_integral.mat");
+            if all(ismember({'y_B_fov', 'z_B_fov'}, integral_vars))
+                cur_secondary_vars = [cur_secondary_vars, {"y_B_fov", "z_B_fov"}];
+            end
+        end
+        if is_extrap_diff
+            integral_vars = who('-file', full_file_path + "_integral.mat");
+            if ~ismember(char(var_name), integral_vars)
+                delete(findobj(plot_panel.Children, 'Type', 'axes'));
+                ax = axes(plot_panel);
+                text(ax, 0.5, 0.5, string(var_name) + " is not in this file: reprocess the case", ...
+                    'HorizontalAlignment', 'center', Interpreter='none', FontSize=14);
+                axis(ax, 'off');
+                obj.plot_hold_bool = false;
+                return
+            end
+        end
+
+        if plot_idx == 8
+            % wake forces: data is loaded by get_PIV_force below
+        elseif ~isempty(cur_secondary_vars)
             d1 = load(full_file_path + "_integral.mat", cur_secondary_vars{:});
+            if ~isempty(vars)
             d2 = load(full_file_path + ".mat", vars{:});
     
             % Combine by converting to cell arrays of names/values and back to struct
             d = cell2struct([struct2cell(d1); struct2cell(d2)], [fieldnames(d1); fieldnames(d2)], 1);
+            else
+                d = d1;
+            end
         else
             d = load(full_file_path + ".mat", vars{:});
         end
 
-        if plot_idx == 2 || plot_idx == 3 || plot_idx == 4
+        if plot_idx == 2 || plot_idx == 4 || plot_idx == 5
             obj.slider.Visible = "on";
             obj.play_button.Visible = "on";
             % Adjust slider for number of bins
@@ -971,27 +3107,67 @@ methods (Access = private)
             obj.play_button.Visible = "off";
         end
 
-        if plot_idx ~= 7
-            val = d.(var_name);
+        if ismember(plot_idx, [1, 2, 5, 9]) && strcmp(var_name, obj.LIFT_WX_FIELD)
+            d.(var_name) = obj.compute_lift_wx_field(d, using_time_avg_file);
         end
 
-        if ismember(plot_idx, [1, 2, 3, 4, 8])
-            if obj.extrapolate_bool
+        if plot_idx ~= 8
+            if ~isfield(d, var_name)
+                error("flowField_UI:missingVariable",...
+                    "%s is not in the processed file for %s. Reprocess the case (Q*_inst fields need bools.Q_inst = true, div_phase_std needs bools.div_std = true).",...
+                    var_name, obj.case_name)
+            end
+            val = d.(var_name);
+            planeIdx = (size(val,1) + 1) / 2;
+        end
+
+        if q_mask_enabled
+            q_mask_val = d.(q_mask_var_name);
+        end
+
+        if ismember(plot_idx, [1, 2, 3, 4, 5, 9])
+            if is_extrap_diff
+                y = d.y_B_fov;
+                z = d.z_B_fov;
+                val = permute(val, [2 3 1]); % time dimension moved
+            elseif use_extrapolated_data
                 y = d.y_B;
                 z = d.z_B;
                 val = permute(val, [2 3 1]); % time dimension moved
                 if contains(var_name, "X")
                     val = val - 1; % add back freestream
                 end
+                % Extrapolate alone: only the original field of view
+                % (velocity from the vorticity there); Full Section: all
+                if ~obj.full_section_bool && ismember(plot_idx, [1, 2])
+                    [iy_fov, iz_fov] = obj.get_extrap_fov_indices(d);
+                    if ~isempty(iy_fov)
+                        y = y(iy_fov, iz_fov);
+                        z = z(iy_fov, iz_fov);
+                        val = val(iy_fov, iz_fov, :);
+                    end
+                end
+            elseif using_time_avg_file
+                y = squeeze(d.y(planeIdx,:,:));
+                z = squeeze(d.z(planeIdx,:,:));
+                val = squeeze(val(planeIdx,:,:));
+                if q_mask_enabled
+                    q_mask_val = squeeze(q_mask_val(planeIdx,:,:));
+                end
             else
-                y = squeeze(d.y(3,:,:));
-                z = squeeze(d.z(3,:,:));
-                val = squeeze(val(3,:,:,:));
+                y = squeeze(d.y(planeIdx,:,:));
+                z = squeeze(d.z(planeIdx,:,:));
+                val = squeeze(val(planeIdx,:,:,:));
+                if q_mask_enabled
+                    q_mask_val = squeeze(q_mask_val(planeIdx,:,:,:));
+                end
             end
 
             params.U = d.U;
 
-            if min(var_clims) < -1
+            if strcmp(var_name, obj.LIFT_WX_FIELD)
+                params.zero = 0; % signed field centred on zero
+            elseif min(var_clims) < -1
                 params.zero = -1;
             elseif min(var_clims) < 0.5
                 params.zero = 0;
@@ -999,29 +3175,48 @@ methods (Access = private)
                 params.zero = 1;
             end
     
-            if plot_idx == 4
+            cFlip = false;
+            if plot_idx == 5
                 if any(contains(["v","ω_z","ω_x"],obj.variable_name))
                     cFlip = true;
-                else
-                    cFlip = false;
                 end
             end
 
-            if obj.trim_bool && ~obj.extrapolate_bool
-                y_idx = find(y(:,1) > obj.TRIM_Y_BOUNDS(1) & y(:,1) < obj.TRIM_Y_BOUNDS(2));
-                z_idx = find(z(1,:) > obj.TRIM_Z_BOUNDS(1) & z(1,:) < obj.TRIM_Z_BOUNDS(2));
+            if obj.trim_bool && ~use_extrapolated_data
+                y_idx = find(y(:,1) > obj.trim_y_bounds(1) & y(:,1) < obj.trim_y_bounds(2));
+                z_idx = find(z(1,:) > obj.trim_z_bounds(1) & z(1,:) < obj.trim_z_bounds(2));
                 
                 y = y(y_idx, z_idx);
                 z = z(y_idx, z_idx);
-                val = val(y_idx,z_idx,:);
+                if using_time_avg_file
+                    val = val(y_idx,z_idx);
+                    if q_mask_enabled
+                        q_mask_val = q_mask_val(y_idx,z_idx);
+                    end
+                else
+                    val = val(y_idx,z_idx,:);
+                    if q_mask_enabled
+                        q_mask_val = q_mask_val(y_idx,z_idx,:);
+                    end
+                end
             end
-            if obj.mirror_bool && ~obj.extrapolate_bool
+            if obj.mirror_bool && ~use_extrapolated_data
                 % Mirror across the centerline to reconstruct the opposite side of the wake.
-                y_idx_m = find(y(:,1) > obj.MIRROR_CENTER_Y);
+                y_idx_m = find(y(:,1) > obj.mirror_center_y);
                 
                 y = y(y_idx_m, :);
                 z = z(y_idx_m, :);
-                val = val(y_idx_m,:,:);
+                if using_time_avg_file
+                    val = val(y_idx_m,:);
+                    if q_mask_enabled
+                        q_mask_val = q_mask_val(y_idx_m,:);
+                    end
+                else
+                    val = val(y_idx_m,:,:);
+                    if q_mask_enabled
+                        q_mask_val = q_mask_val(y_idx_m,:,:);
+                    end
+                end
                 
                 % Shift so the mirror center is the origin.
                 y = y - min(y, [], "all");
@@ -1030,38 +3225,83 @@ methods (Access = private)
                 y_add = flip(-y(2:end,:),1);
                 z_add = flip(z(2:end,:),1);
                 if cFlip
-                    val_add = flip(-val(2:end,:,:),1);
+                    if using_time_avg_file
+                        val_add = flip(-val(2:end,:),1);
+                    else
+                        val_add = flip(-val(2:end,:,:),1);
+                    end
                 else
-                    val_add = flip(val(2:end,:,:),1);
+                    if using_time_avg_file
+                        val_add = flip(val(2:end,:),1);
+                    else
+                        val_add = flip(val(2:end,:,:),1);
+                    end
                 end
                 y = [y_add; y];
                 z = [z_add; z];
                 val = [val_add; val]; 
+                if q_mask_enabled
+                    if using_time_avg_file
+                        q_mask_val_add = flip(q_mask_val(2:end,:),1);
+                    else
+                        q_mask_val_add = flip(q_mask_val(2:end,:,:),1);
+                    end
+                    q_mask_val = [q_mask_val_add; q_mask_val];
+                end
             end
 
             if obj.filter_bool
-                val = medfilt3(val);
+                val = obj.nan_safe_medfilt(val);
+                if q_mask_enabled
+                    q_mask_val = obj.nan_safe_medfilt(q_mask_val);
+                end
             end
 
             if obj.floor_bool
                 val(val < (params.zero + obj.thresh) & val > (params.zero - obj.thresh)) = params.zero;
             end
+
+            if q_mask_enabled && plot_idx == 2
+                val(q_mask_val <= obj.q_mask_thresh) = NaN;
+            end
         end
 
-        if plot_idx == 4 || plot_idx == 8
+        if geom_hit
+            Q = obj.geom_3D.Q;
+        elseif plot_idx == 5 || plot_idx == 9
             Q = d.(iso_var_name);
-            Q = squeeze(Q(3,:,:,:));
+            Q = squeeze(Q(planeIdx,:,:,:));
 
             if obj.trim_bool
                 Q = Q(y_idx,z_idx,:);
             end
-            if obj.mirror_bool
+            if obj.mirror_bool && ~use_extrapolated_data
                 Q = Q(y_idx_m,:,:);
                 Q_add = flip(Q(2:end,:,:),1);
                 Q = [Q_add; Q];
             end
             if obj.filter_bool
-                Q = medfilt3(Q);
+                Q = obj.nan_safe_medfilt(Q);
+            end
+
+            % Uncertainty mask (3D plot only, display only). Masked points
+            % get the median of the iso variable (its background value, ~0
+            % for Q) rather than NaN, so no isosurface forms there and
+            % surfaces crossing the mask edge are closed off cleanly.
+            if plot_idx == 5 && obj.unc_mask_bool && ~use_extrapolated_data
+                unc = squeeze(mean(d.uncTot_phase_avg(planeIdx,:,:,:), 4, "omitnan"));
+                if obj.trim_bool
+                    unc = unc(y_idx, z_idx);
+                end
+                if obj.mirror_bool
+                    unc = unc(y_idx_m, :);
+                    unc = [flip(unc(2:end,:), 1); unc];
+                end
+                mask = unc > obj.unc_mask_thresh / 100 | isnan(unc);
+                mask3 = repmat(mask, 1, 1, size(Q, 3));
+                Q(mask3) = median(Q(~mask3), "omitnan");
+                fprintf("Uncertainty mask: %.1f%% of points hidden (unc > %g%% of U)\n", ...
+                    100 * mean(mask(:)), obj.unc_mask_thresh);
             end
         end
         
@@ -1071,23 +3311,50 @@ methods (Access = private)
         end
 
         switch plot_idx
-        case {1,2,4}
+        case {1,2,5}
             params.cb_lab = obj.label_dict(obj.variable_name);
-        case 3
+        case {3,4}
             params.cb_lab = obj.std_label_dict(obj.variable_name);
         end
 
         if plot_idx == 1
             params.clims = var_clims;
 
+            if using_time_avg_file
+                mean_val = val;
+                if q_mask_enabled
+                    q_mask_plot_val = q_mask_val;
+                end
+            else
+                mean_val = mean(val,3);
+                if q_mask_enabled
+                    q_mask_plot_val = mean(q_mask_val,3);
+                end
+            end
+
+            if q_mask_enabled
+                mean_val(q_mask_plot_val <= obj.q_mask_thresh) = NaN;
+            end
+
+            PIV_plot(y, z, mean_val, params, ax);
+            if use_extrapolated_data && ~is_extrap_diff && obj.full_section_bool
+                obj.draw_original_fov_box(ax, d);
+            end
+        elseif plot_idx == 3
+            params.clims = var_clims;
+
             mean_val = mean(val,3);
             PIV_plot(y, z, mean_val, params, ax);
-        elseif plot_idx == 2 || plot_idx == 3
+        elseif plot_idx == 2 || plot_idx == 4
 
         params.clims = var_clims;
 
         val_tr = val(:,:,obj.frame_ind);
         h = PIV_plot(y, z, val_tr, params, ax);
+        if use_extrapolated_data && ~is_extrap_diff && obj.full_section_bool && plot_idx == 2
+            % drawn once; playing only updates the contour's ZData
+            obj.draw_original_fov_box(ax, d);
+        end
         t = title(ax, ["Bin number: " + obj.frame_ind], FontSize=18);
 
         while obj.play && (obj.frame_ind < obj.num_bins)
@@ -1111,28 +3378,63 @@ methods (Access = private)
             obj.frame_ind = 0; % reset for next loop iteration
             end
         end
-        elseif plot_idx == 4
+        elseif plot_idx == 5
             params.num_bins = d.num_bins;
             params.clims = var_clims;
             params.movie = false;
             params.L = d.L;
-            params.shift = obj.frame_ind - 1;
+            conv_shift_bins = obj.get_conv_shift_bins(d.cycle_freq, d.num_bins);
+
+            % Stroke reversals (Label Stroke and "+/-"). The wing position
+            % is measured at the robot, so it only lines up with the flow
+            % once the convection shift is applied.
+            obj.stroke_3D = [];
+            if obj.conv_shift
+                obj.stroke_3D = obj.get_stroke_info_3D(full_file_path, d.num_bins);
+            end
+
+            % "+/-": shift so the upstroke is centred where the downstroke
+            % is otherwise. It moves the flow and the wing phase together,
+            % so unlike the convection shift it is part of the stroke
+            % labels' shift too.
+            stroke_flip_bins = 0;
+            if obj.conv_shift && obj.stroke_flip
+                stroke_flip_bins = obj.get_stroke_flip_bins(d.num_bins);
+            end
+            params.shift = obj.frame_ind - 1 + conv_shift_bins + stroke_flip_bins;
             params.isoValue = obj.iso_val; % 0.05
             params.num_cycles = obj.num_cycles;
+            params.conv_units = obj.conv_units_bool;
+            % stack_vortices_3D's t/T axis is the convective axis divided by
+            % its maximum, U * (N-1) / (f N) / L
+            obj.conv_scale = d.U * (d.num_bins - 1) / (d.cycle_freq * d.num_bins * d.L);
 
+            if geom_hit
+                params.surface = obj.geom_3D.surface; % only recolour it
+            end
             [xlims, surface_data, color_data] = stack_vortices_3D(y, z, val, Q, d.cycle_freq, params);
+            params.surface = []; % frames while playing need their own surface
+            obj.geom_3D = struct('key', geom_key, 'surface', surface_data, 'Q', Q);
             setColorBar(ax, params)
             xlim(ax,xlims) % otherwise when plotting multiple wingbeats awkward extra space added
+
+            % kept so "+/-" can shift this plot without a full redraw
+            obj.surf_3D = struct('y', y, 'z', z, 'val', val, 'Q', Q, ...
+                'cycle_freq', d.cycle_freq, 'params', params, 'xlims', xlims, ...
+                'base_shift', obj.frame_ind - 1 + conv_shift_bins, ...
+                'conv_shift_bins', conv_shift_bins, 'ext', []);
 
             while obj.play && (obj.frame_ind < obj.num_bins)
                 obj.frame_ind = obj.frame_ind + 1;
                 obj.slider.Value = obj.frame_ind;
-                params.shift = obj.frame_ind;
+                params.shift = obj.frame_ind - 1 + conv_shift_bins + stroke_flip_bins; % same as the slider (frame 1 = no shift)
         
                 [~, surface_data, color_data] = stack_vortices_3D(y, z, val, Q, d.cycle_freq, params);
                 p.Vertices = surface_data.vertices;
                 p.Faces = surface_data.faces;
                 p.FaceVertexCData = color_data;
+                obj.set_stroke_frame_shift(params.shift - conv_shift_bins);
+                obj.draw_stroke_labels_3D(ax);
         
                 pause(0.1);
 
@@ -1147,19 +3449,58 @@ methods (Access = private)
                 p.FaceVertexCData = color_data;
             else
                 plot_3D(ax, surface_data, color_data, params);
+                obj.add_stroke_view_listeners(ax);
                 obj.plot_hold_bool = true;
             end
-        elseif plot_idx == 5
+            obj.apply_fixed_lims(ax);
+            obj.set_stroke_frame_shift(params.shift - conv_shift_bins);
+            obj.draw_stroke_labels_3D(ax);
+            obj.apply_remove_small(ax);
+            if obj.card_style
+                % setColorBar above reset the colormap / colour limits, so
+                % re-apply (also styles a freshly created axes)
+                obj.apply_card_style(ax);
+            end
+        elseif plot_idx == 6
             if (obj.variable_name == obj.hist_vars(3))
-                histogram(ax, val, d.(x_var_name))
+                if isfield(d, "bin_ind_arr")
+                    obj.plot_tick_distribution(ax, val, d.(x_var_name), d.bin_ind_arr);
+                else
+                    histogram(ax, val, d.(x_var_name))
+                end
                 xlabel(ax, "Tick number", FontSize=16)
                 ylabel(ax, obj.hist_label_dict(obj.variable_name), FontSize=16)
             else
-                bar(ax, val)
+                if obj.variable_name == obj.hist_vars(1) % bin counts
+                    bar(ax, val)
+                else % per-bin values, not counts: points joined by a line
+                    h = plot(ax, val, '-o', 'MarkerSize', 4);
+                    h.MarkerFaceColor = h.Color; % filled markers
+                    xlim(ax, [0.5, numel(val) + 0.5])
+                end
                 xlabel(ax, "Bin number", FontSize=16)
                 ylabel(ax, obj.hist_label_dict(obj.variable_name), FontSize=16)
+                if obj.variable_name == obj.hist_vars(2) % phase variability
+                    % resolution = best achievable variability (one DAQ
+                    % sample / encoder pulse), both as % of the bin width
+                    hold(ax, 'on')
+                    yline(ax, d.phase_res, '--k', 'resolution', ...
+                        'LabelHorizontalAlignment', 'left', 'HandleVisibility', 'off');
+                    cap_note = obj.cap_outlier_bars(ax, val);
+                    title_str = string(sprintf("Phase variability: mean %.2f%% of bin, resolution %.2f%% of bin", ...
+                        mean(val, "omitnan"), d.phase_res));
+                    if strlength(cap_note) > 0
+                        title_str = [title_str; cap_note];
+                    end
+                    title(ax, title_str, FontSize=14)
+                elseif obj.variable_name == obj.hist_vars(4) % bin placement
+                    hold(ax, 'on')
+                    yline(ax, 0, '-k', 'HandleVisibility', 'off');
+                    title(ax, sprintf("Bin placement: mean %+.2f%%, mean |offset| %.2f%% of bin (+ = late in bin)", ...
+                        mean(val, "omitnan"), mean(abs(val), "omitnan")), FontSize=14)
+                end
             end
-        elseif plot_idx == 6
+        elseif plot_idx == 7
             if (obj.variable_name == obj.freq_vars(1))
                 phase_avg_speed = val;
                 phase_std_speed = d.(std_name);
@@ -1191,18 +3532,18 @@ methods (Access = private)
                 xlabel(ax, "Bin number", FontSize=16)
                 ylabel(ax, obj.freq_label_dict(obj.variable_name), FontSize=16)
             end
-        elseif plot_idx == 7
+        elseif plot_idx == 8
             avg_type = 1;
             norm_bool = false;
             case_id = obj.get_current_case_id();
-            val = get_PIV_force(full_file_path, case_id, var_name, avg_type, norm_bool);
+            val = get_PIV_force(full_file_path, case_id, var_name, avg_type, norm_bool, default_trim_bounds());
 
             plot(ax, val)
             hold(ax, "on")
             yline(ax, mean(val))
             xlabel(ax, "Time", FontSize=16)
             ylabel(ax, obj.force_label_dict(obj.variable_name), FontSize=16)
-        elseif plot_idx == 8
+        elseif plot_idx == 9
             val(Q <= 0.025) = NaN;
 
             mean_val = squeeze(mean(val, [1 2], "omitnan"));
@@ -1217,6 +3558,423 @@ methods (Access = private)
         end
     end
 
+    % Show the section-count dropdown instead of the colour-limit slider
+    % for the "time avg: section avg" plot
+    function set_section_controls(obj)
+        is_section = obj.plot_type == obj.plot_types(10);
+        if is_section
+            obj.section_dropdown.Visible = "on";
+            obj.clim_slider.Visible = "off";
+        else
+            obj.section_dropdown.Visible = "off";
+            obj.clim_slider.Visible = "on";
+        end
+    end
+
+    % "time avg: section avg" plot type: where across the span a wake
+    % force comes from. The variable dropdown picks the force (the same
+    % list as "wake forces", minus the omega_y lift terms, which are time
+    % integrals rather than plane integrals); the dropdown under it picks
+    % how many vertical slices of the field of view (equal widths in y).
+    % Each bar is the cycle-averaged force from its slice, so the bars add
+    % up to the total, e.g. for lift.vortX = 2*rho*U * int int y*omega_x,
+    % noise at large y (weighted heavily) shows up as large or erratic
+    % outer bars. The line (right axis) is the force per unit span, the
+    % integrand integrated over z, column by column.
+    %
+    % The integrand comes from get_PIV_force / get_wake_lift (third
+    % output), so the field, trim (default_trim_bounds), dimensions and
+    % formula are exactly those of the "wake forces" plot, and the total
+    % equals that plot's cycle mean. Computed live, nothing reprocessed.
+    function plot_section_force(obj, plot_panel)
+        obj.slider.Visible = "off";
+        obj.play_button.Visible = "off";
+        if strlength(obj.case_name) == 0 || ~ismember(obj.variable_name, obj.section_force_vars)
+            return
+        end
+        % phase averaged file if there is one, else the time averaged file
+        % (0 Hz cases): mean_* fields, freestream U and rho = 1.225, as in
+        % timeAvg_UI. For a time average the nonlinear terms (lift_vel,
+        % vel diff, bernoulli, drag_vel) use the mean velocity, not the
+        % mean of the per-frame products.
+        case_id = obj.get_current_case_id();
+        if obj.current_case_has_phase_avg()
+            file_base = obj.get_current_file_base(); % phase_avg\ (or its RPCA\ subfolder)
+            avg_type = 1;
+            avg_label = "Time averaged";
+        elseif obj.current_case_has_time_avg()
+            file_base = obj.time_avg_file_path + case_id + "_time_avg";
+            avg_type = 0;
+            avg_label = "Time averaged (0 Hz file)";
+        else
+            return
+        end
+
+        ax = axes(plot_panel);
+        force_var = obj.force_var_name_dict(char(obj.variable_name));
+        [~, ~, I] = get_PIV_force(file_base, case_id, force_var, avg_type, false, default_trim_bounds());
+        if isempty(I.field)
+            text(ax, 0.5, 0.5, string(obj.variable_name) + " is not a plane integral", ...
+                'HorizontalAlignment', 'center', FontSize=16);
+            axis(ax, 'off');
+            return
+        end
+
+        % cycle average (bins weighted equally, like the wake forces mean)
+        field = mean(I.field, 3, "omitnan");   % N/m^2, [ny nz]
+        y_nd = I.y(:);                          % y/c from the centreline
+        y = y_nd * I.L;                         % m
+        z = I.z(:) * I.L;
+
+        % force per unit span of each column, N/m
+        dL_dy = trapz(z, field, 2);
+        nan_cols = sum(isnan(dL_dy));
+
+        % trapz weights along y, so the slices add up to trapz over y
+        dy = diff(y);
+        w = ([dy; 0] + [0; dy]) / 2;
+        col_lift = w .* dL_dy;                  % N, each column's share
+        total = sum(col_lift, "omitnan");       % = cycle mean in "wake forces"
+
+        % slices: equal widths in y ("every column": one per column)
+        n_sec = sscanf(char(obj.section_count), '%d');
+        if isempty(n_sec)
+            edges = [y_nd(1) - (y_nd(2) - y_nd(1))/2; ...
+                     (y_nd(1:end-1) + y_nd(2:end))/2; ...
+                     y_nd(end) + (y_nd(end) - y_nd(end-1))/2];
+            sec_lift = col_lift;
+        else
+            edges = linspace(y_nd(1), y_nd(end), n_sec + 1)';
+            sec_idx = discretize(y_nd, edges);
+            sec_lift = accumarray(sec_idx, col_lift, [n_sec 1], @(v) sum(v, "omitnan"), 0);
+        end
+        n = numel(edges) - 1;
+
+        % bars as patches so each spans its slice exactly
+        yyaxis(ax, 'left')
+        hold(ax, 'on')
+        c = ax.ColorOrder(1, :);
+        for k = 1:n
+            patch(ax, [edges(k) edges(k+1) edges(k+1) edges(k)], [0 0 sec_lift(k) sec_lift(k)], c, ...
+                'FaceAlpha', 0.5, 'EdgeColor', c);
+        end
+        if n <= 20 && abs(total) > 0
+            for k = 1:n
+                if sec_lift(k) >= 0, va = 'bottom'; else, va = 'top'; end
+                text(ax, (edges(k) + edges(k+1))/2, sec_lift(k), sprintf("%.0f%%", 100*sec_lift(k)/total), ...
+                    'HorizontalAlignment', 'center', 'VerticalAlignment', va, FontSize=12);
+            end
+        end
+        yline(ax, 0, '-k', 'HandleVisibility', 'off');
+        force_label = obj.force_label_dict(char(obj.variable_name));   % e.g. "Lift, ω_x term (N)"
+        ylabel(ax, erase(force_label, " (N)") + " from section (N)", FontSize=16)
+        lim_l = obj.zero_based_limits(sec_lift);
+
+        yyaxis(ax, 'right')
+        plot(ax, y_nd, dL_dy, '-', 'LineWidth', 1.5);
+        ylabel(ax, "per unit span (N/m)", FontSize=16)
+        lim_r = obj.zero_based_limits(dL_dy);
+
+        % same zero height on both axes
+        [lim_l, lim_r] = obj.align_zero_limits(lim_l, lim_r);
+        yyaxis(ax, 'left');  ylim(ax, lim_l);
+        yyaxis(ax, 'right'); ylim(ax, lim_r);
+        yyaxis(ax, 'left');
+
+        xlim(ax, [edges(1), edges(end)])
+        xlabel(ax, "y/c (from centreline)", FontSize=16)
+        title_str = string(sprintf("%s %s: %.4f N total, %d sections", ...
+            avg_label, string(obj.variable_name), total, n));
+        if nan_cols > 0
+            title_str = title_str + sprintf(" (%d NaN columns left out)", nan_cols);
+        end
+        title(ax, title_str, FontSize=16, Interpreter="none") % names contain "_"
+    end
+
+    % Copy an axes with left and right y axes (yyaxis) into fig, which
+    % copyobj doesn't support: copies each side's plotted objects, limits
+    % and labels into a new yyaxis axes at the same position
+    function dst = copy_yyaxis_axes(~, src, fig)
+        dst = axes(fig, 'Units', src.Units, 'Position', src.Position, 'FontSize', src.FontSize);
+        sides = ["left", "right"];
+        for k = 1:2
+            yyaxis(src, sides(k));
+            yyaxis(dst, sides(k));
+            hold(dst, 'on');
+            if ~isempty(src.Children)
+                copyobj(flipud(src.Children), dst);
+            end
+            ylim(dst, ylim(src));
+            dst.YAxis(k).Color = src.YAxis(k).Color;
+            ylabel(dst, src.YLabel.String, 'FontSize', src.YLabel.FontSize, ...
+                'Interpreter', src.YLabel.Interpreter);
+        end
+        yyaxis(src, 'left');
+        yyaxis(dst, 'left');
+        xlim(dst, xlim(src));
+        xlabel(dst, src.XLabel.String, 'FontSize', src.XLabel.FontSize, 'Interpreter', src.XLabel.Interpreter);
+        title(dst, src.Title.String, 'FontSize', src.Title.FontSize, 'Interpreter', src.Title.Interpreter);
+        box(dst, src.Box);
+    end
+
+    % [lo hi] covering the data and zero, padded 10%
+    function lim = zero_based_limits(~, v)
+        lo = min([0; v(:)], [], "omitnan");
+        hi = max([0; v(:)], [], "omitnan");
+        if hi == lo, hi = lo + 1; end
+        pad = 0.1 * (hi - lo);
+        lim = [lo - pad*(lo < 0), hi + pad*(hi > 0)];
+    end
+
+    % Stretch two [lo hi] ranges so zero sits at the same height on both
+    function [a, b] = align_zero_limits(~, a, b)
+        fa = -a(1) / diff(a);   % fraction of the axis below zero
+        fb = -b(1) / diff(b);
+        f = max(fa, fb);
+        if f >= 1 - 1e-6
+            a(2) = 0.05*diff(a); b(2) = 0.05*diff(b);   % all negative
+            return
+        end
+        % lower the bottom of the axis with less below zero
+        if fa < f, a(1) = -f/(1 - f) * a(2); end
+        if fb < f, b(1) = -f/(1 - f) * b(2); end
+    end
+
+    % "frozen flow" plot type: compares the slab-normal derivative dw/dx on
+    % the centre plane with the frozen-flow estimate (1/U) dw/dt from the
+    % phase series (x points upstream, so dw/dx = (1/U) dw/dt). Both are
+    % nondimensional, (L/U) * derivative, like dwdx_phase_avg. Same check
+    % as helper functions/slab_derivative_map.m.
+    function plot_frozen_flow(obj, plot_panel)
+        if strlength(obj.case_name) == 0 || ~obj.current_case_has_phase_avg()
+            return
+        end
+        file = obj.get_current_file_base() + ".mat";
+        have = who('-file', file);
+
+        ax = axes(plot_panel);
+        if ~all(ismember({'dwdx_phase_avg', 'w_phase_avg'}, have))
+            text(ax, 0.5, 0.5, "dwdx\_phase\_avg or w\_phase\_avg not in this file", ...
+                'HorizontalAlignment', 'center', FontSize=16);
+            axis(ax, 'off');
+            obj.slider.Visible = "off"; obj.play_button.Visible = "off";
+            return
+        end
+
+        vars = {"L", "U", "num_bins", "cycle_freq", "y", "z", "dwdx_phase_avg", "w_phase_avg"};
+        if ismember('U_act', have), vars{end+1} = "U_act"; end
+        if ismember('bin_placement', have), vars{end+1} = "bin_placement"; end
+        d = load(file, vars{:});
+        U_conv = d.U;
+        if isfield(d, 'U_act'), U_conv = d.U_act * d.U; end
+
+        nb = size(d.w_phase_avg, 4);
+        placement = [];
+        if isfield(d, 'bin_placement'), placement = d.bin_placement; end
+        period = 1 / d.cycle_freq;
+        tb = bin_times(nb, period, placement);   % actual (mean-phase) bin times
+        planeIdx = (size(d.w_phase_avg, 1) + 1) / 2;
+        y = squeeze(d.y(planeIdx,:,:));
+        z = squeeze(d.z(planeIdx,:,:));
+        dwdx = squeeze(d.dwdx_phase_avg(planeIdx,:,:,:));
+        w    = squeeze(d.w_phase_avg(planeIdx,:,:,:));
+        for k = 1:nb
+            dwdx(:,:,k) = fill3D(dwdx(:,:,k));
+            w(:,:,k)    = fill3D(w(:,:,k));
+        end
+        dwdt_U = periodic_ddt(w, tb, period, 3) * (d.L / U_conv);
+
+        if obj.trim_bool
+            y_idx = find(y(:,1) > obj.trim_y_bounds(1) & y(:,1) < obj.trim_y_bounds(2));
+            z_idx = find(z(1,:) > obj.trim_z_bounds(1) & z(1,:) < obj.trim_z_bounds(2));
+            y = y(y_idx, z_idx);  z = z(y_idx, z_idx);
+            dwdx = dwdx(y_idx, z_idx, :);  dwdt_U = dwdt_U(y_idx, z_idx, :);
+        end
+
+        params.U = d.U;
+        params.zero = 0;
+        params.clims = obj.get_color_limits(obj.variable_name);
+        params.cb_lab = obj.frozen_label_dict(char(obj.variable_name));
+
+        is_movie = ismember(obj.variable_name, obj.frozen_vars(1:2));
+        if is_movie
+            obj.slider.Visible = "on";
+            obj.play_button.Visible = "on";
+            if d.num_bins ~= obj.num_bins
+                obj.num_bins = d.num_bins;
+                obj.slider.Limits = [1 d.num_bins];
+                obj.slider.MajorTicks = 1:5:d.num_bins;
+                obj.slider.MinorTicks = 1:d.num_bins;
+            end
+            obj.frame_ind = min(max(obj.frame_ind, 1), obj.num_bins);
+            if obj.variable_name == obj.frozen_vars(1)
+                val = dwdx;
+            else
+                val = dwdt_U;
+            end
+
+            h = PIV_plot(y, z, val(:,:,obj.frame_ind), params, ax);
+            t = title(ax, "Bin number: " + obj.frame_ind, FontSize=18);
+            while obj.play && (obj.frame_ind < obj.num_bins)
+                obj.frame_ind = obj.frame_ind + 1;
+                obj.slider.Value = obj.frame_ind;
+                tmp = val(:,:,obj.frame_ind);
+                tmp(tmp < params.clims(1)) = params.clims(1);
+                tmp(tmp > params.clims(2)) = params.clims(2);
+                set(h, 'ZData', tmp);
+                set(t, 'String', "Bin number: " + obj.frame_ind);
+                drawnow;
+                pause(0.05);
+                if obj.frame_ind == obj.num_bins
+                    obj.frame_ind = 0; % reset for next loop iteration
+                end
+            end
+            return
+        end
+
+        obj.slider.Visible = "off";
+        obj.play_button.Visible = "off";
+        a = dwdx   - mean(dwdx, 3, 'omitnan');
+        b = dwdt_U - mean(dwdt_U, 3, 'omitnan');
+        if obj.variable_name == obj.frozen_vars(3)
+            val = std(a, 0, 3, 'omitnan') ./ std(b, 0, 3, 'omitnan');
+        else
+            val = sum(a.*b, 3, 'omitnan') ./ sqrt(sum(a.^2, 3, 'omitnan') .* sum(b.^2, 3, 'omitnan'));
+        end
+        PIV_plot(y, z, val, params, ax);
+        title(ax, string(obj.variable_name) + sprintf(" (median %.2f)", median(val(:), 'omitnan')), FontSize=18);
+    end
+
+    function plot_tick_distribution(~, ax, ticks, edges, bin_ind)
+        % Histogram of frame encoder ticks, coloured by the phase bin each
+        % frame was averaged into (alternating colours), with dotted lines
+        % at the boundaries between neighbouring bins. Bins are assigned on
+        % a time-based phase in frame_to_bin, so their extent in ticks is
+        % taken from the frames themselves; overlapping neighbours mean
+        % frames at the same tick ended up in different bins.
+        ticks = double(ticks(:));
+        bin_ind = double(bin_ind(:));
+        valid = isfinite(ticks) & isfinite(bin_ind) & bin_ind > 0;
+        edges = double(edges(:))';
+        centers = (edges(1:end-1) + edges(2:end)) / 2;
+        P = edges(end) - edges(1); % ticks per cycle
+
+        is_odd = mod(bin_ind, 2) == 1;
+        c_odd = histcounts(ticks(valid & is_odd), edges);
+        c_even = histcounts(ticks(valid & ~is_odd), edges);
+
+        hold(ax, 'on')
+        b = bar(ax, centers, [c_odd(:), c_even(:)], 1, 'stacked', 'EdgeColor', 'none');
+        b(1).FaceColor = [0 0.4470 0.7410];
+        b(2).FaceColor = [0.8500 0.3250 0.0980];
+        b(1).DisplayName = "odd bins";
+        b(2).DisplayName = "even bins";
+
+        % tick extent of each bin (unwrapped across the 0 / P seam)
+        num_bins = max(bin_ind(valid));
+        lo = NaN(1, num_bins);
+        hi = NaN(1, num_bins);
+        for k = 1:num_bins
+            t = ticks(valid & bin_ind == k);
+            if isempty(t)
+                continue
+            end
+            if max(t) - min(t) > P/2
+                t(t < P/2) = t(t < P/2) + P;
+            end
+            lo(k) = min(t);
+            hi(k) = max(t);
+        end
+
+        % boundary between bin k and the next bin: midway between the last
+        % tick of k and the first tick of k+1
+        boundaries = NaN(1, num_bins);
+        num_overlap = 0;
+        for k = 1:num_bins
+            k_next = mod(k, num_bins) + 1;
+            if isnan(hi(k)) || isnan(lo(k_next))
+                continue
+            end
+            next_lo = lo(k_next);
+            while next_lo < hi(k) - P/2
+                next_lo = next_lo + P; % next bin starts after the seam
+            end
+            if next_lo < hi(k)
+                num_overlap = num_overlap + 1;
+            end
+            boundaries(k) = mod((hi(k) + next_lo) / 2, P);
+        end
+        boundaries = boundaries(isfinite(boundaries));
+        xline(ax, boundaries, ':', 'Color', [0.25 0.25 0.25], 'HandleVisibility', 'off');
+
+        xlim(ax, [edges(1), edges(end)])
+        legend(ax, 'Location', 'best')
+        title(ax, sprintf("%d bins (dotted: bin boundaries), %d of %d neighbouring bins overlap in ticks",...
+            num_bins, num_overlap, num_bins), FontSize=12)
+    end
+
+    function note = cap_outlier_bars(~, ax, val)
+        % Limit the y-axis to 2x the mean so the spread of the typical bins
+        % is visible; bars above that are marked with their value. Returns
+        % a note for the title ("" if nothing was capped).
+        note = "";
+        val = double(val(:))';
+        cap = 2 * mean(val, "omitnan");
+        if ~(cap > 0) || max(val) <= cap
+            return
+        end
+
+        ylim(ax, [0, cap])
+        outliers = find(val > cap);
+        hold(ax, 'on')
+        plot(ax, outliers, 0.97 * cap * ones(size(outliers)), 'v',...
+            'MarkerFaceColor', [0.85 0.1 0.1], 'MarkerEdgeColor', [0.85 0.1 0.1],...
+            'HandleVisibility', 'off');
+        for k = outliers
+            text(ax, k, 0.92 * cap, sprintf('%.3g', val(k)),...
+                'HorizontalAlignment', 'center', 'VerticalAlignment', 'top',...
+                'FontSize', 10, 'Color', [0.85 0.1 0.1]);
+        end
+        note = sprintf("y-axis limited to 2x mean; %d bin(s) above (value shown)", numel(outliers));
+    end
+
+    function inputs = get_lift_wx_inputs(~, using_time_avg_file)
+        % Stored fields needed for the derived lift field, on top of the
+        % y, U and L already loaded for every 2D/3D plot
+        if using_time_avg_file
+            inputs = {"mean_vortX"};
+        else
+            inputs = {"U_act","vortX_phase_avg"};
+        end
+    end
+
+    function field = compute_lift_wx_field(obj, d, using_time_avg_file)
+        % Lift integrand from the wake, matching term1 in get_wake_lift:
+        %   term1 = -U .* y .* -vortX
+        % with y and vortX made dimensional the same way (y*L, vortX*U/L)
+        % and the same speed get_PIV_force passes in (U_act*U for phase
+        % averages, U for time averages). Integrating 2*rho*term1 over the
+        % y-z plane gives the lift.vortX value. Units: m^2/s^2.
+        %
+        % y is measured from the mirror centerline, as in the stored force
+        % calculation (calc_secondary_vals_common -> prepare_STB_wake_field
+        % -> trim_vel_field subtracts y_cen before get_wake_lift).
+        if using_time_avg_file
+            speed = d.U;
+            vortX = d.mean_vortX;
+        else
+            speed = d.U_act * d.U;
+            vortX = d.vortX_phase_avg;
+        end
+
+        y = (d.y - obj.mirror_center_y) * d.L;
+        vortX = vortX / (d.L / speed);
+
+        % y is [x y z]; phase averaged vortX has a trailing bin dimension,
+        % so implicit expansion applies y to every bin
+        field = -speed .* y .* -vortX;
+    end
+
     function clim_dict = build_clim_dict(~, var_names, clim_values)
         keys = cellstr(var_names);
         values = mat2cell(clim_values, ones(1, size(clim_values, 1)), size(clim_values, 2));
@@ -1224,9 +3982,12 @@ methods (Access = private)
     end
 
     function set_active_color_limit_set(obj)
-        if strcmp(obj.plot_type, obj.plot_types(3))
+        if ismember(obj.plot_type, obj.plot_types([3 4]))
             obj.clims = obj.std_clims;
             obj.clim_dict = obj.std_clim_dict;
+        elseif obj.plot_type == obj.plot_types(11)
+            obj.clims = obj.frozen_clims;
+            obj.clim_dict = obj.frozen_clim_dict;
         else
             obj.clims = obj.mean_clims;
             obj.clim_dict = obj.mean_clim_dict;
@@ -1258,7 +4019,9 @@ methods (Access = private)
             obj.clims(var_idx,:) = new_clims;
         end
 
-        if strcmp(obj.plot_type, obj.plot_types(3))
+        if obj.plot_type == obj.plot_types(11)
+            obj.frozen_clims = obj.update_clim_matrix(obj.frozen_vars, obj.frozen_clims, var_name, new_clims);
+        elseif ismember(obj.plot_type, obj.plot_types([3 4]))
             obj.std_clims = obj.update_clim_matrix(obj.movie_3D_std_vars, obj.std_clims, var_name, new_clims);
             if isKey(obj.std_clim_dict, key)
                 obj.std_clim_dict(key) = new_clims;

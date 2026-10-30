@@ -1,66 +1,112 @@
 function file_path = get_PIV_paths(PIV_case_name)
+    % file_path = get_PIV_paths(PIV_case_name): path to the case's data
+    % case_names = get_PIV_paths(): list of all available case names
     % Setup Base Configuration
-    drive = "Y:\"; 
+    % drive = "Y:\";
+    drive = "F:\"; 
     base_dir = drive + "VC7 Data\";
+    month_1 = "February\";
+    month_2 = "August\";
+    month_3 = "September\";
     
     % Standard processing suffixes
     BIN = "\Binning_48x48x48_75%ov_ord=0";
+    BIN2 = "\Binning_48x48x48_75%ov_ord=1";
 
     % Define the Mapping (Case Name -> Subpath)
     % This is now much easier to read and edit.
     map = {
-        'UP_two_flexible_10deg_0Hz',  "UP_two_flexible_10deg_0Hz" + BIN
-        'UP_two_flexible_10deg_2Hz',  "UP_two_flexible_10deg_2Hz" + BIN
-        'UP_two_flexible_10deg_4Hz',  "UP_two_flexible_10deg_4Hz" + BIN
-        'UP_two_flexible_10deg_6Hz',  "UP_two_flexible_10deg_6Hz" + BIN
-        'UP_two_flexible_10deg_8Hz',  "UP_two_flexible_10deg_8Hz" + BIN
+        'UP_two_flexible_10deg_0Hz',  month_1 + "UP_two_flexible_10deg_0Hz" + BIN
+        'UP_two_flexible_10deg_2Hz',  month_1 + "UP_two_flexible_10deg_2Hz" + BIN
+        'UP_two_flexible_10deg_4Hz',  month_1 + "UP_two_flexible_10deg_4Hz" + BIN
+        'UP_two_flexible_10deg_6Hz',  month_1 + "UP_two_flexible_10deg_6Hz" + BIN
+        'UP_two_flexible_10deg_8Hz',  month_1 + "UP_two_flexible_10deg_8Hz" + BIN
 
-        'UP_two_flexible_20deg_2Hz',  "UP_two_flexible_20deg_2Hz" + BIN
-        'UP_two_flexible_20deg_4Hz',  "UP_two_flexible_20deg_4Hz" + BIN
-        'UP_two_flexible_20deg_6Hz',  "UP_two_flexible_20deg_6Hz" + BIN
-        'UP_two_flexible_20deg_8Hz',  "UP_two_flexible_20deg_8Hz" + BIN
+        'UP_two_flexible_20deg_2Hz',  month_1 + "UP_two_flexible_20deg_2Hz" + BIN
+        'UP_two_flexible_20deg_4Hz',  month_1 + "UP_two_flexible_20deg_4Hz" + BIN
+        'UP_two_flexible_20deg_6Hz',  month_1 + "UP_two_flexible_20deg_6Hz" + BIN
+        'UP_two_flexible_20deg_8Hz',  month_1 + "UP_two_flexible_20deg_8Hz" + BIN
 
-        'UP_two_flexible_30deg_2Hz',  "UP_two_flexible_30deg_2Hz" + BIN
-        'UP_two_flexible_30deg_4Hz',  "UP_two_flexible_30deg_4Hz" + BIN
-        'UP_two_flexible_30deg_6Hz',  "UP_two_flexible_30deg_6Hz" + BIN
+        'UP_two_flexible_30deg_2Hz',  month_1 + "UP_two_flexible_30deg_2Hz" + BIN
+        'UP_two_flexible_30deg_4Hz',  month_1 + "UP_two_flexible_30deg_4Hz" + BIN
+        'UP_two_flexible_30deg_6Hz',  month_1 + "UP_two_flexible_30deg_6Hz" + BIN
 
-        'UP_two_body',  "UP_two_body" + BIN
+        'UP_two_body',  month_1 + "UP_two_body" + BIN
 
-        'UP_one_flexible_10deg_2Hz',  "UP_one_flexible_10deg_2Hz" + BIN
-        'UP_one_flexible_10deg_4Hz',  "UP_one_flexible_10deg_4Hz" + BIN
-        'UP_one_flexible_10deg_6Hz',  "UP_one_flexible_10deg_6Hz" + BIN
-        'UP_one_flexible_10deg_8Hz',  "UP_one_flexible_10deg_8Hz" + BIN
+        'UP_one_flexible_10deg_2Hz',  month_1 + "UP_one_flexible_10deg_2Hz" + BIN
+        'UP_one_flexible_10deg_4Hz',  month_1 + "UP_one_flexible_10deg_4Hz" + BIN
+        'UP_one_flexible_10deg_6Hz',  month_1 + "UP_one_flexible_10deg_6Hz" + BIN
+        'UP_one_flexible_10deg_8Hz',  month_1 + "UP_one_flexible_10deg_8Hz" + BIN
 
-        'UP_one_flexible_20deg_2Hz',  "UP_one_flexible_20deg_2Hz" + BIN
-        'UP_one_flexible_20deg_4Hz',  "UP_one_flexible_20deg_4Hz" + BIN
-        'UP_one_flexible_20deg_6Hz',  "UP_one_flexible_20deg_6Hz" + BIN
-        'UP_one_flexible_20deg_8Hz',  "UP_one_flexible_20deg_8Hz" + BIN
+        'UP_one_flexible_20deg_2Hz',  month_1 + "UP_one_flexible_20deg_2Hz" + BIN
+        'UP_one_flexible_20deg_4Hz',  month_1 + "UP_one_flexible_20deg_4Hz" + BIN
+        'UP_one_flexible_20deg_6Hz',  month_1 + "UP_one_flexible_20deg_6Hz" + BIN
+        'UP_one_flexible_20deg_8Hz',  month_1 + "UP_one_flexible_20deg_8Hz" + BIN
 
-        'UP_one_flexible_30deg_2Hz',  "UP_one_flexible_30deg_2Hz" + BIN
-        'UP_one_flexible_30deg_4Hz',  "UP_one_flexible_30deg_4Hz" + BIN
-        'UP_one_flexible_30deg_6Hz',  "UP_one_flexible_30deg_6Hz" + BIN
+        'UP_one_flexible_30deg_2Hz',  month_1 + "UP_one_flexible_30deg_2Hz" + BIN
+        'UP_one_flexible_30deg_4Hz',  month_1 + "UP_one_flexible_30deg_4Hz" + BIN
+        'UP_one_flexible_30deg_6Hz',  month_1 + "UP_one_flexible_30deg_6Hz" + BIN
         
-        'flexible_10deg_0Hz',         "flexible_10deg_0Hz" + BIN
-        'flexible_10deg_2Hz',         "flexible_10deg_2Hz" + BIN
-        'flexible_10deg_4Hz',         "flexible_10deg_4Hz" + BIN
-        'flexible_10deg_6Hz',         "flexible_10deg_6Hz" + BIN
-        'flexible_10deg_8Hz',         "flexible_10deg_8Hz" + BIN
+        'flexible_10deg_0Hz',         month_1 + "flexible_10deg_0Hz" + BIN
+        'flexible_10deg_2Hz',         month_1 + "flexible_10deg_2Hz" + BIN
+        'flexible_10deg_4Hz',         month_1 + "flexible_10deg_4Hz" + BIN
+        'flexible_10deg_6Hz',         month_1 + "flexible_10deg_6Hz" + BIN
+        'flexible_10deg_8Hz',         month_1 + "flexible_10deg_8Hz" + BIN
         
-        'flexible_20deg_2Hz',         "flexible_20deg_2Hz" + BIN
-        'flexible_20deg_4Hz',         "flexible_20deg_4Hz" + BIN
-        'flexible_20deg_6Hz',         "flexible_20deg_6Hz" + BIN
-        'flexible_20deg_8Hz',         "flexible_20deg_8Hz" + BIN
+        'flexible_20deg_2Hz',         month_1 + "flexible_20deg_2Hz" + BIN
+        'flexible_20deg_4Hz',         month_1 + "flexible_20deg_4Hz" + BIN
+        'flexible_20deg_6Hz',         month_1 + "flexible_20deg_6Hz" + BIN
+        'flexible_20deg_8Hz',         month_1 + "flexible_20deg_8Hz" + BIN
         
-        'flexible_30deg_2Hz',         "flexible_30deg_2Hz" + BIN
-        'flexible_30deg_4Hz',         "flexible_30deg_4Hz" + BIN
-        'flexible_30deg_6Hz',         "flexible_30deg_6Hz" + BIN
+        'flexible_30deg_2Hz',         month_1 + "flexible_30deg_2Hz" + BIN
+        'flexible_30deg_4Hz',         month_1 + "flexible_30deg_4Hz" + BIN
+        'flexible_30deg_6Hz',         month_1 + "flexible_30deg_6Hz" + BIN
         
-        'body',                       "body" + BIN
-        'ring',                       "ring" + BIN
-        'turbine_S',                    "turbine_6ms_S" + BIN
-        'turbine_S_ext',                "turbine_6ms_S_ext" + BIN
-        'turbine_F_ext'               "turbine_6ms_F_ext" + BIN
+        'body',                       month_1 + "body" + BIN
+        'ring',                       month_1 + "ring" + BIN
+        'turbine_S',                  month_1 + "turbine_6ms_S" + BIN
+        'turbine_S_ext',              month_1 + "turbine_6ms_S_ext" + BIN
+        'turbine_F_ext'               month_1 + "turbine_6ms_F_ext" + BIN
+
+        'x5_NACA',                    month_2 + "x5_NACA" + BIN
+        'x5_NACA_refined',            month_2 + "x5_NACA_refined" + BIN
+        'x5_wings_20deg_0Hz',         month_2 + "x5_wings_20deg_0Hz" + BIN
+        'x5_wings_20deg_6Hz',         month_2 + "x5_wings_20deg_6Hz" + BIN
+        'x5_wings_20deg_6Hz_v2',         month_2 + "x5_wings_20deg_6Hz_v2" + BIN
+        'x5_wings_20deg_6Hz_v3',         month_2 + "x5_wings_20deg_6Hz_v3" + BIN
+
+        'MPS_wings_20deg_2Hz',         month_3 + "MPS_wings_20deg_2Hz" + BIN2
+        'MPS_wings_20deg_4Hz',         month_3 + "MPS_wings_20deg_4Hz" + BIN2
+        'MPS_wings_20deg_6Hz',         month_3 + "MPS_wings_20deg_6Hz" + BIN2
+        'MPS_wings_20deg_8Hz',         month_3 + "MPS_wings_20deg_8Hz" + BIN2
+
+        'x2_wings_20deg_2Hz',         month_3 + "x2_wings_20deg_2Hz" + BIN2
+        'x2_wings_20deg_4Hz',         month_3 + "x2_wings_20deg_4Hz" + BIN2
+        'x2_wings_20deg_6Hz',         month_3 + "x2_wings_20deg_6Hz" + BIN2
+        'x2_wings_20deg_8Hz',         month_3 + "x2_wings_20deg_8Hz" + BIN2
+
+        'x3_ring',         month_3 + "x3_ring" + BIN2
+        'x3_NACA',         month_3 + "x3_NACA" + BIN2
+        'x3_wings_10deg_2Hz',         month_3 + "x3_wings_10deg_2Hz" + BIN2
+        'x3_wings_10deg_4Hz',         month_3 + "x3_wings_10deg_4Hz" + BIN2
+        'x3_wings_10deg_6Hz',         month_3 + "x3_wings_10deg_6Hz" + BIN2
+        'x3_wings_10deg_8Hz',         month_3 + "x3_wings_10deg_8Hz" + BIN2
+        'x3_body_20deg_0Hz',         month_3 + "x3_body_20deg_0Hz" + BIN2
+        'x3_wings_20deg_0Hz',         month_3 + "x3_wings_20deg_0Hz" + BIN2
+        'x3_wings_20deg_2Hz',         month_3 + "x3_wings_20deg_2Hz" + BIN2
+        'x3_wings_20deg_4Hz',         month_3 + "x3_wings_20deg_4Hz" + BIN2
+        'x3_wings_20deg_6Hz',         month_3 + "x3_wings_20deg_6Hz" + BIN2
+        'x3_wings_20deg_8Hz',         month_3 + "x3_wings_20deg_8Hz" + BIN2
+        'x3_wings_30deg_2Hz',         month_3 + "x3_wings_30deg_2Hz" + BIN2
+        'x3_wings_30deg_4Hz',         month_3 + "x3_wings_30deg_4Hz" + BIN2
+        'x3_wings_30deg_6Hz',         month_3 + "x3_wings_30deg_6Hz" + BIN2
     };
+
+    % Called with no input: return every available case name
+    if nargin == 0
+        file_path = string(map(:,1));
+        return
+    end
 
     % Convert to Map and Retrieve
     PIV_dict = containers.Map(map(:,1), map(:,2));

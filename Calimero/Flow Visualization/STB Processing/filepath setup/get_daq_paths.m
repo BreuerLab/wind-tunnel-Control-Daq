@@ -1,17 +1,65 @@
 function [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name)
     % Define the base directory shortcuts to keep paths readable
-    base_rg = 'R:\ENG_Breuer_Shared\rgissler\Calimero Force Data\STB Final\';
+    base_old = 'R:\ENG_Breuer_Shared\rgissler\Calimero Force Data\STB Final\';
     base_group = 'R:\ENG_Breuer_Shared\group\Wind turbine\Turbine_STB\Turbine_STB_02_17_2026\DAQ Data\Final Data\';
 
-    % Map experimental dates to their specific subfolders
-    d11 = [base_rg, 'STB_02_11_2026\data\experiment data\'];
-    d12 = [base_rg, 'STB_02_12_2026\data\experiment data\'];
-    d15 = [base_rg, 'STB_02_15_2026\data\experiment data\'];
+    base_new = 'R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\STB Revamped\';
 
+    base_new_v2 = 'R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\STB Revamped v2\';
+
+    % Map experimental dates to their specific subfolders
+    d11 = [base_old, 'STB_02_11_2026\data\experiment data\'];
+    d12 = [base_old, 'STB_02_12_2026\data\experiment data\'];
+    d15 = [base_old, 'STB_02_15_2026\data\experiment data\'];
+    d21 = [base_new, 'x1\daq data\experiment data\'];
+    d22 = [base_new, 'x2\daq data\experiment data\'];
+    d23 = [base_new, 'x3\daq data\experiment data\'];
+    d24 = [base_new, 'x4\daq data\experiment data\'];
+    d25 = [base_new, 'x5\daq data\experiment data\'];
+
+    d30 = [base_new_v2, 'MPS Testing Sept\daq data\experiment data\'];
+    d32 = [base_new_v2, 'x2\daq data\experiment data\'];
+    d33 = [base_new_v2, 'x3\daq data\experiment data\'];
+    
     % Create an organized lookup structure
     % Format: cases.(alias) = {filename, path}
     cases = struct();
     
+    % cases.x5_wings_20deg_0Hz = {'x5_flexible_20_4m.s_10deg_0Hz_2026_08_16_19_25_04_experiment_2026_08_16_19_26_20.mat',d25};
+    % cases.x5_wings_20deg_6Hz = {'x5_flexible_20_4m.s_10deg_6Hz_2026_08_16_20_01_59_experiment_2026_08_16_20_04_20.mat',d25};
+    % cases.x5_wings_20deg_6Hz_v2 = {'x5_flexible_20_4m.s_10deg_6Hz_2026_08_16_20_01_59_experiment_2026_08_16_20_04_20.mat',d25};
+    % cases.x5_wings_20deg_6Hz_v3 = {'x5_flexible_20_4m.s_10deg_6Hz_2026_08_16_20_01_59_experiment_2026_08_16_20_04_20.mat',d25};
+
+    cases.MPS_wings_20deg_2Hz = {'MPS_wings_20_4m.s_10deg_2Hz_2026_09_27_09_21_50_experiment_2026_09_27_09_24_14.mat',d30};
+    cases.MPS_wings_20deg_4Hz = {'MPS_wings_20_4m.s_10deg_4Hz_2026_09_27_09_39_30_experiment_2026_09_27_09_41_24.mat',d30};
+    cases.MPS_wings_20deg_6Hz = {'MPS_wings_20_4m.s_10deg_6Hz_2026_09_27_09_52_47_experiment_2026_09_27_09_54_32.mat',d30};
+    cases.MPS_wings_20deg_8Hz = {'MPS_wings_20_4m.s_10deg_8Hz_2026_09_27_10_02_37_experiment_2026_09_27_10_04_24.mat',d30};
+
+    cases.x2_wings_20deg_0Hz = {'x2_wings_20_4m.s_10deg_0Hz_2026_10_01_15_49_18_experiment_2026_10_01_15_50_36.mat',d32};
+    cases.x2_wings_20deg_2Hz = {'x2_wings_20_4m.s_10deg_2Hz_2026_10_01_15_57_43_experiment_2026_10_01_15_59_58.mat',d32};
+    cases.x2_wings_20deg_4Hz = {'x2_wings_20_4m.s_10deg_4Hz_2026_10_01_16_07_17_experiment_2026_10_01_16_09_12.mat',d32};
+    cases.x2_wings_20deg_6Hz = {'x2_wings_20_4m.s_10deg_6Hz_2026_10_01_16_16_01_experiment_2026_10_01_16_17_45.mat',d32};
+    cases.x2_wings_20deg_8Hz = {'x2_wings_20_4m.s_10deg_8Hz_2026_10_01_16_27_29_experiment_2026_10_01_16_29_17.mat',d32};
+
+    cases.x3_ring = {'x3_ring_30_4m.s_10deg_0Hz_2026_09_28_12_44_11_experiment_2026_09_28_12_45_15.mat',d33};
+    cases.x3_NACA = {'x3_NACA_30_4m.s_10deg_0Hz_2026_09_28_12_37_44_experiment_2026_09_28_12_38_48.mat',d33};
+
+    cases.x3_wings_10deg_2Hz = {'x3_wings_10_4m.s_10deg_2Hz_2026_09_28_10_24_52_experiment_2026_09_28_10_27_14.mat',d33};
+    cases.x3_wings_10deg_4Hz = {'x3_wings_10_4m.s_10deg_4Hz_2026_09_28_10_33_21_experiment_2026_09_28_10_35_13.mat',d33};
+    cases.x3_wings_10deg_6Hz = {'x3_wings_10_4m.s_10deg_6Hz_2026_09_28_10_44_32_experiment_2026_09_28_10_46_19.mat',d33};
+    cases.x3_wings_10deg_8Hz = {'x3_wings_10_4m.s_10deg_8Hz_2026_09_28_10_52_47_experiment_2026_09_28_10_54_32.mat',d33};
+
+    cases.x3_body_20deg_0Hz = {'x3_body_20_4m.s_10deg_0Hz_2026_09_28_09_52_23_experiment_2026_09_28_09_53_39.mat',d33};
+    cases.x3_wings_20deg_0Hz = {'x3_wings_20_4m.s_10deg_0Hz_2026_09_28_08_53_47_experiment_2026_09_28_08_55_05.mat',d33};
+    cases.x3_wings_20deg_2Hz = {'x3_wings_20_4m.s_10deg_2Hz_2026_09_28_08_58_56_experiment_2026_09_28_09_01_18.mat',d33};
+    cases.x3_wings_20deg_4Hz = {'x3_wings_20_4m.s_10deg_4Hz_2026_09_28_09_08_17_experiment_2026_09_28_09_10_11.mat',d33};
+    cases.x3_wings_20deg_6Hz = {'x3_wings_20_4m.s_10deg_6Hz_2026_09_28_09_19_30_experiment_2026_09_28_09_21_16.mat',d33};
+    cases.x3_wings_20deg_8Hz = {'x3_wings_20_4m.s_10deg_8Hz_2026_09_28_09_28_32_experiment_2026_09_28_09_30_19.mat',d33};
+    
+    cases.x3_wings_30deg_2Hz = {'x3_wings_30_4m.s_10deg_2Hz_2026_09_28_11_50_15_experiment_2026_09_28_11_52_40.mat',d33};
+    cases.x3_wings_30deg_4Hz = {'x3_wings_30_4m.s_10deg_4Hz_2026_09_28_12_01_09_experiment_2026_09_28_12_03_01.mat',d33};
+    cases.x3_wings_30deg_6Hz = {'x3_wings_30_4m.s_10deg_6Hz_2026_09_28_12_09_14_experiment_2026_09_28_12_10_58.mat',d33};
+
     % Feb 15th Data
     cases.UP_two_flexible_10deg_2Hz = {'UP_two_PIV_flexible_10_4m.s_10deg_2Hz_2026-02-15 13-19-51_experiment_2026_02_15_13_21_12.mat', d15};
     cases.UP_two_flexible_10deg_4Hz = {'UP_two_PIV_flexible_10_4m.s_10deg_4Hz_2026-02-15 13-48-19_experiment_2026_02_15_13_49_41.mat', d15};

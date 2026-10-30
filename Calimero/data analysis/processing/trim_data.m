@@ -1,4 +1,15 @@
-function trimmed_results = trim_data(results, rec_wingbeats, num_wingbeats)
+function [trimmed_results, core_idx] = trim_data(results, rec_wingbeats, num_wingbeats, pad_samples)
+% Trims the recording to the num_wingbeats steady wingbeats, dropping the
+% acceleration and padding wingbeats at either end.
+%
+% Optional pad_samples: keep up to this many extra samples on each side of
+% the steady wingbeats (limited to the data available). Filters can then
+% be run on the padded data so their start-up / end transients fall in the
+% padding rather than on the wingbeats being analysed. core_idx gives the
+% rows of trimmed_results holding just the steady wingbeats.
+if nargin < 4
+    pad_samples = 0;
+end
 
 OC_pulse_step = 4; % in ticks
 pulsesPerStep = 18432 / OC_pulse_step;
@@ -40,7 +51,11 @@ end
 
 disp("Num values before trim: " + length(trimmmed_results(1:startIdx,:)))
 disp("Num values after trim: " + length(trimmmed_results(endIdx:end,:)))
-trimmed_results = trimmmed_results(startIdx:endIdx,:);
+pad_samples = round(pad_samples);
+padStart = max(1, startIdx - pad_samples);
+padEnd = min(size(trimmmed_results, 1), endIdx + pad_samples);
+trimmed_results = trimmmed_results(padStart:padEnd,:);
+core_idx = (startIdx - padStart + 1):(endIdx - padStart + 1);
 
 % time = beat_idx / rate;
 % pos = linspace(0,rec_wingbeats, length(beat_idx));
@@ -93,7 +108,7 @@ trimmed_results = trimmmed_results(startIdx:endIdx,:);
 % ylabel("Wingbeat Frequency (Hz)")
 
 % if trigger malfunctioned, alert user that data was not trimmed
-if (length(results) == length(trimmed_results))
+if (length(results) == length(core_idx))
     disp("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
     disp("--------------Data was not trimmed.---------------")
     disp("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
