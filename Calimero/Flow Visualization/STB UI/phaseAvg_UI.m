@@ -675,7 +675,9 @@ methods
                 obj.sel_type = string(obj.distance_type_dict(char(src.Value)));
             end
 
-            [obj.sel_amp, obj.sel_freq] = obj.get_first_selection(obj.sel_type);
+            % keep the selected amplitude / frequency when the new
+            % position has that case
+            obj.keep_selection_for_type();
             obj.update_frequency_dropdown(freq_dropdown);
             obj.update_amp_dropdown(amp_dropdown);
             obj.update_version_dropdown(version_dropdown);
@@ -1097,6 +1099,37 @@ methods (Access = private)
 
         amp = obj.available_selections{first_index, 2};
         freq = obj.available_selections{first_index, 3};
+    end
+
+    % After the position (type) changes: keep the selected amplitude and
+    % frequency if the new type has that case. If only the amplitude (or
+    % only the frequency) exists there, keep it and take the first
+    % available value of the other; otherwise start from the type's first
+    % case. "all" (-1) is kept when the type has any case.
+    function keep_selection_for_type(obj)
+        prev_amp = obj.sel_amp;
+        prev_freq = obj.sel_freq;
+        all_amps = obj.get_amp_options(obj.sel_type, -1);
+        if isempty(all_amps)
+            [obj.sel_amp, obj.sel_freq] = obj.get_first_selection(obj.sel_type);
+            return
+        end
+
+        if prev_amp == -1 || ismember(prev_amp, all_amps)
+            freqs = obj.get_freq_options(obj.sel_type, prev_amp);
+            if prev_freq == -1 || ismember(prev_freq, freqs)
+                return % case exists: keep both
+            end
+            obj.sel_freq = freqs(1); % keep the amplitude
+            return
+        end
+
+        amps = obj.get_amp_options(obj.sel_type, prev_freq);
+        if prev_freq ~= -1 && ~isempty(amps)
+            obj.sel_amp = amps(1); % keep the frequency
+            return
+        end
+        [obj.sel_amp, obj.sel_freq] = obj.get_first_selection(obj.sel_type);
     end
 
     function version = get_first_version(obj, selected_type, selected_amp, selected_freq)
