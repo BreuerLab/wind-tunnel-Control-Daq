@@ -37,7 +37,7 @@ sessions = [
     "F:\Force Measurements\10 deg body\4 m.s\body_2026_09_27"
     "F:\Force Measurements\20 deg body\4 m.s\body_2026_09_27"
     "F:\Force Measurements\30 deg body\4 m.s\body_2026_09_27"
-    "F:\Force Measurements\NACA"   % NACA 0012 wing (static)
+    "F:\Force Measurements\NACA\4 m.s\NACA_2026_09_27"   % NACA 0012 wing (static)
     ];
 % a type's folder (like NACA above) is searched for its session folder(s)
 sessions = find_lc_sessions(sessions);
