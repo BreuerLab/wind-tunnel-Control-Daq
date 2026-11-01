@@ -133,6 +133,9 @@ properties
     % which steady case to subtract: "ring", "body", or "gliding"
     PIV_sub_case;
     force_sub;
+    % boolean, shade +/- 1 standard deviation (wingbeat-to-wingbeat, from
+    % wingbeat_std_forces*) around load cell curves
+    load_cell_std;
     RPCA;
     HR;    % harmonic regression files (_hr, from bools.harmonic_reg)
     load_cell_force_var;
@@ -207,6 +210,7 @@ methods
         obj.PIV_sub = false;
         obj.PIV_sub_case = "ring";
         obj.force_sub = false;
+        obj.load_cell_std = true;
         obj.RPCA = false;
         obj.HR = false;
         obj.load_cell_force_var = "wingbeat_avg_forces_smoothest";
@@ -529,9 +533,9 @@ methods
         load_cell_panel.TitlePosition = 'centertop';
         load_cell_panel.Visible = "off";
 
-        load_cell_grid = uigridlayout(load_cell_panel, [3, 1]);
+        load_cell_grid = uigridlayout(load_cell_panel, [4, 1]);
         load_cell_grid.ColumnWidth = {'1x'};
-        load_cell_grid.RowHeight = {22, 25, 30};
+        load_cell_grid.RowHeight = {22, 25, 30, 30};
         load_cell_grid.Padding = [10 8 10 8];
         load_cell_grid.RowSpacing = 4;
 
@@ -556,6 +560,16 @@ methods
         b7.FontSize = 18;
         b7.BackgroundColor = [1 1 1];
         b7.ValueChangedFcn = @(src, event) force_sub_change(src, event, plot_panel);
+
+        % shaded +/- 1 SD band around the load cell curves
+        lc_std_button = uibutton(load_cell_grid, "state");
+        lc_std_button.Layout.Row = 4;
+        lc_std_button.Layout.Column = 1;
+        lc_std_button.Text = "+/- 1 SD";
+        lc_std_button.FontSize = 18;
+        lc_std_button.Value = obj.load_cell_std;
+        lc_std_button.BackgroundColor = obj.get_button_color(obj.load_cell_std);
+        lc_std_button.ValueChangedFcn = @(src, event) load_cell_std_change(src, event, plot_panel);
 
         load_cell_toggle.ValueChangedFcn = @(src, event) load_cell_toggle_change(src, event, load_cell_panel);
 
@@ -777,6 +791,12 @@ methods
             obj.update_plot(plot_panel);
         end
 
+        function load_cell_std_change(src, ~, plot_panel)
+            obj.load_cell_std = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.load_cell_std);
+            obj.update_plot(plot_panel);
+        end
+
         function calc_change(src, ~, plot_panel)
             obj.calc_bool = src.Value;
             src.BackgroundColor = obj.get_button_color(obj.calc_bool);
@@ -807,7 +827,7 @@ methods
             row_heights = sidebar_grid.RowHeight;
             if src.Value
                 load_cell_panel.Visible = "on";
-                row_heights{12} = 125;
+                row_heights{12} = 159;
             else
                 load_cell_panel.Visible = "off";
                 row_heights{12} = 0;
@@ -1701,9 +1721,14 @@ methods (Access = private)
     % (e.g. upstream cases). time is the wingbeat phase (t/T) of each
     % sample, taken from the 'frames' saved with the processed load cell
     % data; falls back to a periodic grid (0:n-1)/n if frames wasn't saved.
-    function [signal, time] = get_load_cell_var_signal(obj, var_name, type, amp, freq)
+    % signal_std is the standard deviation across wingbeats at each sample
+    % (wingbeat_std_forces*); empty if it wasn't saved or can't be formed
+    % (electric power: V and I are correlated, so their per-row SDs don't
+    % give the SD of V*I).
+    function [signal, time, signal_std] = get_load_cell_var_signal(obj, var_name, type, amp, freq)
         signal = [];
         time = [];
+        signal_std = [];
         if contains(type, "UP")
             disp("No load cell data for upstream case " + type)
             return
@@ -1712,7 +1737,7 @@ methods (Access = private)
         var_name_F = obj.load_cell_force_var;
 
         try
-            [signal, time] = get_force(obj.get_force_path(type), type, amp, freq, idx, var_name_F);
+            [signal, time, signal_std] = get_force(obj.get_force_path(type), type, amp, freq, idx, var_name_F);
         catch ME
             if ~startsWith(ME.identifier, "get_force:")
                 rethrow(ME)
@@ -1720,17 +1745,19 @@ methods (Access = private)
             disp(ME.message + " - not plotted")
             signal = [];
             time = [];
+            signal_std = [];
             return
         end
         if quantity == "electric power" && size(signal, 1) == 2
             signal = signal(1,:) .* signal(2,:); % V x mA = mW
+            signal_std = [];
         end
 
         if obj.force_sub && ismember(quantity, ["drag", "lift", "pitch"])
             % same-amplitude body case (get_body_force falls back to 20 deg
             % only when there is no body data at this amplitude)
             try
-                body_signal = get_body_force(obj.get_force_path(type), type, amp, freq, idx, var_name_F);
+                [body_signal, body_std] = get_body_force(obj.get_force_path(type), type, amp, freq, idx, var_name_F);
             catch ME
                 if ~startsWith(ME.identifier, "get_force:")
                     rethrow(ME)
@@ -1738,20 +1765,36 @@ methods (Access = private)
                 disp(ME.message + " - no body case, not plotted")
                 signal = [];
                 time = [];
+                signal_std = [];
                 return
             end
             if numel(body_signal) ~= numel(signal)
                 % e.g. older files saved with a different number of frames
                 body_signal = interp1(linspace(0, 1, numel(body_signal)), double(body_signal(:)'),...
                     linspace(0, 1, numel(signal)), 'pchip');
+                if ~isempty(body_std)
+                    body_std = interp1(linspace(0, 1, numel(body_std)), double(body_std(:)'),...
+                        linspace(0, 1, numel(signal)), 'pchip');
+                end
             end
             signal = signal - reshape(body_signal, size(signal));
+            % wing and body cases are separate, independent trials, so
+            % their variances add
+            if ~isempty(signal_std) && numel(body_std) == numel(signal_std)
+                signal_std = sqrt(signal_std.^2 + reshape(body_std, size(signal_std)).^2);
+            else
+                signal_std = [];
+            end
         end
         signal = double(signal(:)');
+        signal_std = double(signal_std(:)');
 
         n = length(signal);
         if length(time) ~= n
             time = (0:n-1) / n;
+        end
+        if length(signal_std) ~= n
+            signal_std = [];
         end
     end
 
@@ -1843,6 +1886,35 @@ methods (Access = private)
         end
     end
 
+    % Shaded region from var - sd to var + sd in a lighter version of the
+    % curve colour. Opaque, so it is sent to the back of the axes: every
+    % curve's line then stays visible above every band. Not in the legend.
+    function band = draw_std_band(obj, ax, time, var, sd, original_color)
+        time = time(:)';
+        var = var(:)';
+        sd = sd(:)';
+        lower_vals = var - sd;
+        upper_vals = var + sd;
+
+        xconf = [time, time(end:-1:1)];
+        yconf = [upper_vals, lower_vals(end:-1:1)];
+
+        band = fill(ax, xconf, yconf, obj.get_light_color(original_color));
+        band.HandleVisibility = 'off';
+        band.EdgeColor = 'none';
+        uistack(band, 'bottom');
+    end
+
+    % Linearly interpolate between the original colour and white
+    function lighter_color = get_light_color(obj, original_color)
+        if isstring(original_color) || ischar(original_color)
+            original_color = obj.hex_to_rgb(original_color);
+        end
+        fade_amount = 0.7; % 0 = no change, 1 = completely white
+        white = [1, 1, 1];
+        lighter_color = (1 - fade_amount) * original_color + fade_amount * white;
+    end
+
     function rgb = hex_to_rgb(~, hex_color)
         hex_color = char(hex_color);
         if startsWith(hex_color, '#')
@@ -1921,7 +1993,7 @@ methods (Access = private)
         aligned_curves = struct('val', {}, 'time', {}, 'index', {},...
                                 'plot_idx', {}, 'cur_sel', {},...
                                 'legend_entry', {}, 'line_style', {},...
-                                'marker', {}, 'y_axis', {});
+                                'marker', {}, 'y_axis', {}, 'std', {});
 
         % ----------------------------------------
 
@@ -1962,13 +2034,21 @@ methods (Access = private)
                 if ismember(lc_key, plotted_lc_vars)
                     continue
                 end
-                [var, time] = obj.get_load_cell_var_signal(obj.active_names(index), type, amp, freq);
+                [var, time, var_std] = obj.get_load_cell_var_signal(obj.active_names(index), type, amp, freq);
                 if isempty(var)
                     continue
                 end
+                if ~obj.load_cell_std
+                    var_std = [];
+                elseif isempty(var_std)
+                    disp("No wingbeat SD for " + obj.active_names(index) + " (" + cur_sel + "), no band plotted")
+                end
                 plotted_lc_vars(end+1) = lc_key;
                 var = circshift(var, round(flip_frac * length(var))); % "+/-"
-                var = obj.subtract_signal_mean(var);
+                if ~isempty(var_std)
+                    var_std = circshift(var_std, round(flip_frac * length(var_std)));
+                end
+                var = obj.subtract_signal_mean(var); % SD unchanged by a constant offset
                 % time: saved wingbeat phase (frames) of each sample; the
                 % circshift above moves the signal along this fixed grid
 
@@ -1982,11 +2062,13 @@ methods (Access = private)
                         'legend_entry', obj.get_aligned_legend_entry(cur_sel, index),...
                         'line_style', "",...
                         'marker', "",...
-                        'y_axis', "");
+                        'y_axis', "",...
+                        'std', var_std);
                 end
 
                 if ~align_plot_bool
-                    obj.plot_data(ax, ax_target, time, var, index, dual_plot, j, cur_sel, color_params, ylabs);
+                    lc_options = struct('std', var_std);
+                    obj.plot_data(ax, ax_target, time, var, index, dual_plot, j, cur_sel, color_params, ylabs, lc_options);
                 end
                 continue
             end
@@ -2172,7 +2254,8 @@ methods (Access = private)
                     'legend_entry', obj.get_aligned_legend_entry(cur_sel, index),...
                     'line_style', "",...
                     'marker', obj.get_piv_force_marker(index),...
-                    'y_axis', "");
+                    'y_axis', "",...
+                    'std', []);
             end
 
             if ~align_plot_bool
@@ -2207,12 +2290,21 @@ methods (Access = private)
             time_pad = [time - 1, time, time + 1];
             var_pad = [var, var, var];
             aligned_curves(i).val = interp1(time_pad, var_pad, time_interp, 'pchip');
+            if ~isempty(aligned_curves(i).std)
+                sd = aligned_curves(i).std(:)';
+                sd = sd(order);
+                sd = sd(keep);
+                aligned_curves(i).std = interp1(time_pad, [sd, sd, sd], time_interp, 'pchip');
+            end
             aligned_curves(i).time = time_interp;
         end
 
         lags = zeros(1,length(aligned_curves)-1);
         for i = 2:length(aligned_curves)
         [aligned_curves(i).val, lags(i-1)] = align_signals(aligned_curves(1).val, aligned_curves(i).val);
+        if ~isempty(aligned_curves(i).std)
+            aligned_curves(i).std = circshift(aligned_curves(i).std, lags(i-1)); % same shift as val
+        end
         end
 
         disp(lags)
@@ -2229,6 +2321,7 @@ methods (Access = private)
             plot_options.line_style = aligned_curves(i).line_style;
             plot_options.marker = aligned_curves(i).marker;
             plot_options.y_axis = aligned_curves(i).y_axis;
+            plot_options.std = aligned_curves(i).std;
             obj.plot_data(ax, ax_target, aligned_curves(i).time, aligned_curves(i).val,...
                           aligned_curves(i).index, dual_plot, aligned_curves(i).plot_idx,...
                           aligned_curves(i).cur_sel, color_params, ylabs, plot_options); % ylabel_one, ylabel_two
@@ -2417,6 +2510,7 @@ methods (Access = private)
         has_line_style = isfield(plot_options, 'line_style') && strlength(string(plot_options.line_style)) > 0;
         has_marker = isfield(plot_options, 'marker') && strlength(string(plot_options.marker)) > 0;
         has_y_axis = isfield(plot_options, 'y_axis') && strlength(string(plot_options.y_axis)) > 0;
+        has_std = isfield(plot_options, 'std') && numel(plot_options.std) == numel(var);
 
         [amp, type, freq] = parse_name(cur_sel);
         % Get color for this case name
@@ -2498,6 +2592,14 @@ methods (Access = private)
             line_h.DisplayName = legend_entry;
             line_h.Color = original_color;
             line_h.LineWidth = 2;
+
+            % shaded +/- 1 SD band, on the same y-axis side as the line
+            % (still the active yyaxis side after the plot calls above)
+            if has_std
+                obj.draw_std_band(ax, time, var, plot_options.std, original_color);
+                obj.draw_std_band(ax_target, time, var, plot_options.std, original_color);
+                disp(legend_entry + ", mean SD: " + mean(plot_options.std, "omitnan"))
+            end
             % if contains(type, "UP")
             %     line.LineStyle = "--";
             % end

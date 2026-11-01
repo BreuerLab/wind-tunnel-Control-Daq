@@ -1,4 +1,4 @@
-function [force, frames] = get_force(path, type, amp, freq, idx, var_name_F, time_stamp)
+function [force, frames, force_std] = get_force(path, type, amp, freq, idx, var_name_F, time_stamp)
     % Loads the wingbeat-averaged load cell force for a given case.
     %
     % Optional time_stamp (e.g. "2026_09_27_14_11_38"): load that repeat of
@@ -9,6 +9,12 @@ function [force, frames] = get_force(path, type, amp, freq, idx, var_name_F, tim
     % force, read from the 'frames' variable saved alongside var_name_F
     % (e.g. wingbeat_avg_forces_smoothest -> frames_smoothest). Empty if no
     % matching frames variable was saved.
+    %
+    % Optional third output: the standard deviation across wingbeats at
+    % each sample (same rows as force), read from the wingbeat_std_forces
+    % variable saved alongside var_name_F (e.g. wingbeat_avg_forces_smoothest
+    % -> wingbeat_std_forces_smoothest, computed in wingbeat_transformation).
+    % Empty if no matching std variable was saved.
     %
     % Two folder conventions are supported:
     %   old flapper: <path>\<type>_<amp>deg\4 m.s\<dated folder>\processed data\
@@ -105,6 +111,17 @@ function [force, frames] = get_force(path, type, amp, freq, idx, var_name_F, tim
         if frames_name ~= string(var_name_F) && ismember(char(frames_name), file_vars)
             f = load(force_path + force_filename, frames_name);
             frames = double(f.(frames_name)(:)');
+        end
+    end
+
+    if nargout > 2
+        force_std = [];
+        std_name = replace(string(var_name_F), "wingbeat_avg_forces", "wingbeat_std_forces");
+        if std_name ~= string(var_name_F) && ismember(char(std_name), file_vars)
+            s = load(force_path + force_filename, std_name);
+            if size(s.(std_name), 1) >= max(idx)
+                force_std = s.(std_name)(idx,:);
+            end
         end
     end
 end
