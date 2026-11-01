@@ -230,6 +230,11 @@ properties
     % unc_mask_thresh percent of the freestream speed
     unc_mask_bool;
     unc_mask_thresh;
+    % 2D plots (time avg / movie of phase avg and phase std): thin black
+    % isolines of the wingbeat-averaged total uncertainty at
+    % unc_contour_levels percent of the freestream speed
+    unc_contour_bool;
+    unc_contour_levels;
     % 3D plot "Fix Limits": hold the y and z axis limits (y/c, z/c) at
     % fix_ylim / fix_zlim so cases can be compared on the same axes;
     % fix_lims_set is true once limits were entered or taken from a plot
@@ -292,6 +297,8 @@ methods
         obj.remove_small_pct = obj.REMOVE_SMALL_DEFAULT;
         obj.unc_mask_bool = false;
         obj.unc_mask_thresh = 4; % % of freestream
+        obj.unc_contour_bool = false;
+        obj.unc_contour_levels = 1:4; % % of freestream
         obj.fix_lims_bool = false;
         obj.fix_ylim = [-5 5];
         obj.fix_zlim = [-3 3];
@@ -665,9 +672,9 @@ methods
         end
         pause(1) % wait until GUI opened
 
-        sidebar_grid = uigridlayout(option_panel, [15, 1]);
+        sidebar_grid = uigridlayout(option_panel, [16, 1]);
         sidebar_grid.ColumnWidth = {'1x'};
-        sidebar_grid.RowHeight = {30, 30, 30, 30, 30, 30, 35, 30, 30, 30, 30, 30, 30, 0, 30};
+        sidebar_grid.RowHeight = {30, 30, 30, 30, 30, 30, 35, 30, 30, 30, 30, 30, 30, 0, 30, 30};
         sidebar_grid.Padding = [10 10 10 10];
         sidebar_grid.RowSpacing = 6;
         if isprop(sidebar_grid, "Scrollable")
@@ -1206,7 +1213,21 @@ methods
         save_button.BackgroundColor = obj.INACTIVE_COLOR;
         save_button.ValueChangedFcn = @(src, event) save_figure(src, event, plot_area_panel);
 
+        % Uncertainty isolines on the 2D plots (types 1-4), like Unc Mask
+        % for the 3D plot
+        unc_contour_button = uibutton(sidebar_grid, "state");
+        unc_contour_button.Layout.Row = 16;
+        unc_contour_button.Layout.Column = 1;
+        unc_contour_button.Text = "Unc Contours";
+        unc_contour_button.FontSize = 16;
+        unc_contour_button.Value = obj.unc_contour_bool;
+        unc_contour_button.BackgroundColor = obj.get_button_color(obj.unc_contour_bool);
+        unc_contour_button.Tooltip = "Black isolines of the total uncertainty averaged over the wingbeat, at " + ...
+            strjoin(string(obj.unc_contour_levels), ", ") + " % of the freestream speed";
+        unc_contour_button.ValueChangedFcn = @(src, event) unc_contour_change(src, event, plot_area_panel);
+
         % Set up plot titles and axes
+        set_unc_contour_visibility();
         set_param_panel_visibility(strcmp(obj.plot_type, obj.plot_types(5)));
         obj.set_section_controls();
         obj.update_plot(plot_area_panel);
@@ -1382,6 +1403,7 @@ methods
             obj.update_color_limit_slider();
 
             set_param_panel_visibility(strcmp(obj.plot_type, obj.plot_types(5)));
+            set_unc_contour_visibility();
             obj.set_section_controls();
         end
 
@@ -1401,6 +1423,26 @@ methods
                 row_heights{2} = 0;
             end
             sidebar_grid.RowHeight = row_heights;
+        end
+
+        % Unc Contours: only for time avg of phase avg, phase avg: movie,
+        % time avg of phase std and phase std: movie
+        function set_unc_contour_visibility()
+            row_heights = sidebar_grid.RowHeight;
+            if ismember(obj.plot_type, obj.plot_types(1:4))
+                unc_contour_button.Visible = "on";
+                row_heights{16} = 30;
+            else
+                unc_contour_button.Visible = "off";
+                row_heights{16} = 0;
+            end
+            sidebar_grid.RowHeight = row_heights;
+        end
+
+        function unc_contour_change(src, ~, plot_panel)
+            obj.unc_contour_bool = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.unc_contour_bool);
+            obj.update_plot(plot_panel);
         end
 
         function set_param_panel_visibility(is_visible)
@@ -2651,6 +2693,29 @@ methods (Access = private)
             " (" + dist + " m downstream)")
     end
 
+    % Thin black isolines of the wingbeat-averaged total uncertainty
+    % (nondimensional, fraction of U) at unc_contour_levels percent,
+    % labelled in %. The colour limits of the plot are kept.
+    function draw_unc_contours(obj, ax, y, z, unc_field)
+        if isempty(unc_field) || ~isequal(size(unc_field), size(y))
+            return
+        end
+        cl = ax.CLim;
+        hold(ax, 'on');
+        [C, hc] = contour(ax, y, z, 100 * unc_field, obj.unc_contour_levels, ...
+            'LineColor', 'k', 'LineWidth', 0.6);
+        hc.Tag = "unc_contours";
+        if ~isempty(C)
+            clabel(C, hc, 'FontSize', 9, 'Color', 'k', 'LabelSpacing', 400);
+            try
+                hc.LabelFormat = '%g%%'; % labels as 1%, 2%, ... (R2022b+)
+            catch
+            end
+        end
+        hold(ax, 'off');
+        ax.CLim = cl;
+    end
+
     function A = nan_safe_medfilt(~, A)
         % medfilt2/medfilt3 have undefined behaviour with NaN input: NaNs
         % spread through the volume and results differ run to run, which
@@ -3060,6 +3125,20 @@ methods (Access = private)
             vars = {"L","U","num_bins","cycle_freq","z","y",var_name};
         end
         
+        % Unc Contours: wingbeat-averaged total uncertainty (not on the
+        % extrapolated grid, which has no uncertainty)
+        draw_unc_contours = obj.unc_contour_bool && ismember(plot_idx, 1:4) && ~use_extrapolated_data;
+        if draw_unc_contours
+            if using_time_avg_file
+                unc_var_name = "mean_uncTot";
+            else
+                unc_var_name = "uncTot_phase_avg";
+            end
+            if ~any(strcmp(string(vars), unc_var_name))
+                vars{end+1} = unc_var_name;
+            end
+        end
+
         geom_hit = false;
         if plot_idx == 5 || plot_idx == 9 % 3D plot or planar average
             iso_var_name = obj.variable_name_dict(obj.iso_var);
@@ -3336,6 +3415,28 @@ methods (Access = private)
             end
         end
 
+        % uncertainty for the isolines, trimmed / mirrored like the plotted
+        % field and averaged over the wingbeat
+        unc_field = [];
+        if draw_unc_contours
+            if isfield(d, unc_var_name)
+                unc_field = d.(unc_var_name);
+                unc_field = squeeze(unc_field(planeIdx,:,:,:));
+                if ~ismatrix(unc_field)
+                    unc_field = mean(unc_field, 3, "omitnan");
+                end
+                if obj.trim_bool
+                    unc_field = unc_field(y_idx, z_idx);
+                end
+                if obj.mirror_bool
+                    unc_field = unc_field(y_idx_m, :);
+                    unc_field = [flip(unc_field(2:end,:), 1); unc_field];
+                end
+            else
+                fprintf("Unc Contours: %s not in this file\n", unc_var_name);
+            end
+        end
+
         if geom_hit
             Q = obj.geom_3D.Q;
         elseif plot_idx == 5 || plot_idx == 9
@@ -3410,11 +3511,13 @@ methods (Access = private)
             if use_extrapolated_data && ~is_extrap_diff && obj.full_section_bool
                 obj.draw_original_fov_box(ax, d);
             end
+            obj.draw_unc_contours(ax, y, z, unc_field);
         elseif plot_idx == 3
             params.clims = var_clims;
 
             mean_val = mean(val,3);
             PIV_plot(y, z, mean_val, params, ax);
+            obj.draw_unc_contours(ax, y, z, unc_field);
         elseif plot_idx == 2 || plot_idx == 4
 
         params.clims = var_clims;
@@ -3426,6 +3529,8 @@ methods (Access = private)
             obj.draw_original_fov_box(ax, d);
         end
         t = title(ax, ["Bin number: " + obj.frame_ind], FontSize=18);
+        % time averaged, so the isolines stay put while the movie plays
+        obj.draw_unc_contours(ax, y, z, unc_field);
 
         while obj.play && (obj.frame_ind < obj.num_bins)
             obj.frame_ind = obj.frame_ind + 1;
