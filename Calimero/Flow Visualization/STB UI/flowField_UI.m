@@ -131,6 +131,8 @@ properties
     section_vars;     % "time avg: section avg" plot: number of y sections
     section_count;    %   the selected one (section_dropdown)
     section_force_vars; % forces it can break down (wake forces minus the omega_y lift terms)
+    section_flow_vars;  % flow variables it can average by section (velocities, vorticity)
+    section_plot_vars;  % the variable list it shows: section_force_vars then section_flow_vars
     section_dropdown;
     frozen_vars;      % "frozen flow" plot: slab dw/dx vs (1/U) dw/dt
     frozen_label_dict;
@@ -652,6 +654,10 @@ methods
         % the omega_y lift terms are time integrals of a rate, not plane
         % integrals, so they can't be split across the plane
         obj.section_force_vars = obj.force_vars(~ismember(force_vals, ["lift.vortY", "lift.vortY_edge"]));
+        % flow variables: averaged over each section instead of summed
+        % (names, fields and labels from the movie_3D_avg lists)
+        obj.section_flow_vars = ["u", "v", "w", "ω_x", "ω_y", "ω_z"];
+        obj.section_plot_vars = [obj.section_force_vars, obj.section_flow_vars];
         obj.force_label_dict = containers.Map(force_keys, force_labels);
 
         keys_B = cellstr(movie_3D_avg_values(1:3));
@@ -1389,7 +1395,7 @@ methods
                 elseif strcmp(obj.plot_type, obj.plot_types(8))
                     obj.var_name_list = obj.force_vars;
                 elseif strcmp(obj.plot_type, obj.plot_types(10))
-                    obj.var_name_list = obj.section_force_vars;
+                    obj.var_name_list = obj.section_plot_vars;
                 elseif strcmp(obj.plot_type, obj.plot_types(11))
                     obj.var_name_list = obj.frozen_vars;
                 else
@@ -3761,10 +3767,20 @@ methods (Access = private)
     % output), so the field, trim (default_trim_bounds), dimensions and
     % formula are exactly those of the "wake forces" plot, and the total
     % equals that plot's cycle mean. Computed live, nothing reprocessed.
+    %
+    % Flow variables (u, v, w, ω_x, ω_y, ω_z) go to plot_section_flow,
+    % which averages over each section instead of summing.
     function plot_section_force(obj, plot_panel)
         obj.slider.Visible = "off";
         obj.play_button.Visible = "off";
-        if strlength(obj.case_name) == 0 || ~ismember(obj.variable_name, obj.section_force_vars)
+        if strlength(obj.case_name) == 0
+            return
+        end
+        if ismember(obj.variable_name, obj.section_flow_vars)
+            obj.plot_section_flow(plot_panel);
+            return
+        end
+        if ~ismember(obj.variable_name, obj.section_force_vars)
             return
         end
         % phase averaged file if there is one, else the time averaged file
@@ -3812,18 +3828,9 @@ methods (Access = private)
         total = sum(col_lift, "omitnan");       % = cycle mean in "wake forces"
 
         % slices: equal widths in y ("every column": one per column)
-        n_sec = sscanf(char(obj.section_count), '%d');
-        if isempty(n_sec)
-            edges = [y_nd(1) - (y_nd(2) - y_nd(1))/2; ...
-                     (y_nd(1:end-1) + y_nd(2:end))/2; ...
-                     y_nd(end) + (y_nd(end) - y_nd(end-1))/2];
-            sec_lift = col_lift;
-        else
-            edges = linspace(y_nd(1), y_nd(end), n_sec + 1)';
-            sec_idx = discretize(y_nd, edges);
-            sec_lift = accumarray(sec_idx, col_lift, [n_sec 1], @(v) sum(v, "omitnan"), 0);
-        end
+        [edges, sec_idx] = obj.get_section_edges(y_nd);
         n = numel(edges) - 1;
+        sec_lift = accumarray(sec_idx, col_lift, [n 1], @(v) sum(v, "omitnan"), 0);
 
         % bars as patches so each spans its slice exactly
         yyaxis(ax, 'left')
@@ -3864,6 +3871,161 @@ methods (Access = private)
             title_str = title_str + sprintf(" (%d NaN columns left out)", nan_cols);
         end
         title(ax, title_str, FontSize=16, Interpreter="none") % names contain "_"
+    end
+
+    % Section edges along y (y/c) for the selected section count: equal
+    % widths between the first and last column, or one section per column
+    % ("every column"). sec_idx is each column's section.
+    function [edges, sec_idx] = get_section_edges(obj, y_nd)
+        y_nd = y_nd(:);
+        n_sec = sscanf(char(obj.section_count), '%d');
+        if isempty(n_sec)
+            edges = [y_nd(1) - (y_nd(2) - y_nd(1))/2; ...
+                     (y_nd(1:end-1) + y_nd(2:end))/2; ...
+                     y_nd(end) + (y_nd(end) - y_nd(end-1))/2];
+            sec_idx = (1:numel(y_nd))';
+        else
+            edges = linspace(y_nd(1), y_nd(end), n_sec + 1)';
+            sec_idx = discretize(y_nd, edges);
+        end
+    end
+
+    % "time avg: section avg" for a flow variable (u, v, w, ω_x, ω_y,
+    % ω_z): the cycle-averaged field on the same trimmed plane as the
+    % force version (trim_vel_field with default_trim_bounds, or the old
+    % flapper bounds), so the sections line up with the force plot. Each
+    % bar is the area-weighted mean of the variable over its section
+    % (trapz weights in y and z), the line is the z-average of each column
+    % and the dashed line the mean over the whole plane. Same
+    % nondimensional units as the 2D plots (u/U, ω c/U).
+    %
+    % Points with high uncertainty (bounds.unc_mask, as in the forces)
+    % and missing points are left out of the averages rather than filled.
+    function plot_section_flow(obj, plot_panel)
+        case_id = obj.get_current_case_id();
+        if obj.current_case_has_phase_avg()
+            file_base = obj.get_current_file_base();
+            var_name = obj.variable_name_dict(char(obj.variable_name));
+            unc_name = "uncTot_phase_avg";
+            avg_label = "Time averaged";
+        elseif obj.current_case_has_time_avg()
+            file_base = obj.get_case_dir("time", case_id) + case_id + "_time_avg";
+            var_name = obj.time_avg_var_name_dict(char(obj.variable_name));
+            unc_name = "mean_uncTot";
+            avg_label = "Time averaged (0 Hz file)";
+        else
+            return
+        end
+
+        file_name = file_base + ".mat";
+        file_vars = string(who('-file', file_name));
+        if ~ismember(var_name, file_vars)
+            obj.show_missing_variable(plot_panel, var_name);
+            return
+        end
+        load_vars = {'y', 'z', char(var_name)};
+        has_unc = ismember(unc_name, file_vars);
+        if has_unc
+            load_vars{end+1} = char(unc_name);
+        end
+        d = load(file_name, load_vars{:});
+
+        % same trim as get_PIV_force
+        [~, file_stem] = fileparts(file_base);
+        bounds = old_flapper_compat("trim_bounds_for", file_stem, default_trim_bounds());
+        [y_tr, z_tr, val] = trim_vel_field(d.y, d.z, d.(var_name), bounds);
+        field = mean(val, 3, "omitnan");   % cycle average, bins weighted equally, [ny nz]
+
+        n_masked = 0;
+        if has_unc && isfield(bounds, 'unc_mask') && ~isempty(bounds.unc_mask) && bounds.unc_mask > 0
+            [~, ~, unc] = trim_vel_field(d.y, d.z, d.(unc_name), bounds);
+            unc_t = mean(unc, 3, "omitnan");
+            mask = unc_t > bounds.unc_mask | isnan(unc_t);
+            n_masked = nnz(mask & ~isnan(field));
+            field(mask) = NaN;
+        end
+
+        ax = axes(plot_panel);
+        y_nd = y_tr(:, 1);   % y/c from the centreline
+        z_nd = z_tr(1, :).';
+        if numel(y_nd) < 2 || numel(z_nd) < 2 || all(isnan(field), "all")
+            text(ax, 0.5, 0.5, "No data in the trimmed plane", 'HorizontalAlignment', 'center', FontSize=16);
+            axis(ax, 'off');
+            return
+        end
+
+        % trapz weights, so a mean is (trapz over y and z) / area
+        trap_w = @(x) ([diff(x); 0] + [0; diff(x)]) / 2;
+        A = trap_w(y_nd) * trap_w(z_nd).';   % area of each point, (y/c)(z/c)
+        good = ~isnan(field);
+        A(~good) = 0;
+        f0 = field;
+        f0(~good) = 0;
+        col_sum = sum(A .* f0, 2);
+        col_area = sum(A, 2);
+        col_mean = col_sum ./ col_area;       % z-average of each column (NaN if empty)
+        plane_mean = sum(col_sum) / sum(col_area);
+
+        [edges, sec_idx] = obj.get_section_edges(y_nd);
+        n = numel(edges) - 1;
+        sec_mean = accumarray(sec_idx, col_sum, [n 1]) ./ accumarray(sec_idx, col_area, [n 1]);
+
+        % axis from zero, unless the values sit far from it (e.g. u ~ -1)
+        vals = [sec_mean; col_mean];
+        lo = min(vals, [], "omitnan");
+        hi = max(vals, [], "omitnan");
+        if lo > 0 && lo > (hi - lo) || hi < 0 && -hi > (hi - lo)
+            span = max(hi - lo, 1e-3 * max(abs([lo hi])));
+            lim = [lo - 0.15*span, hi + 0.15*span];
+            if hi < 0, base = lim(2); else, base = lim(1); end
+        else
+            lim = obj.zero_based_limits(vals);
+            base = 0;
+        end
+
+        hold(ax, 'on')
+        c = ax.ColorOrder(1, :);
+        h_bar = gobjects(0);
+        for k = 1:n
+            if isnan(sec_mean(k)), continue, end
+            h = patch(ax, [edges(k) edges(k+1) edges(k+1) edges(k)], [base base sec_mean(k) sec_mean(k)], c, ...
+                'FaceAlpha', 0.5, 'EdgeColor', c);
+            if isempty(h_bar), h_bar = h; else, h.HandleVisibility = 'off'; end
+        end
+        if n <= 20
+            for k = 1:n
+                if isnan(sec_mean(k)), continue, end
+                if sec_mean(k) >= base, va = 'bottom'; else, va = 'top'; end
+                text(ax, (edges(k) + edges(k+1))/2, sec_mean(k), sprintf("%.3g", sec_mean(k)), ...
+                    'HorizontalAlignment', 'center', 'VerticalAlignment', va, FontSize=12);
+            end
+        end
+        h_col = plot(ax, y_nd, col_mean, '-', 'Color', ax.ColorOrder(2, :), 'LineWidth', 1.5);
+        h_mean = yline(ax, plane_mean, '--k', 'LineWidth', 1);
+        if base == 0
+            yline(ax, 0, '-k', 'HandleVisibility', 'off');
+        end
+        legend(ax, [h_bar, h_col, h_mean], ["section mean", "column mean (over z)", "plane mean"], ...
+            'Location', 'best', FontSize=12);
+        ylim(ax, lim)
+        xlim(ax, [edges(1), edges(end)])
+        box(ax, 'on')
+        xlabel(ax, "y/c (from centreline)", FontSize=16)
+        ylabel(ax, obj.label_dict(char(obj.variable_name)), FontSize=16, Interpreter="latex")
+
+        title_str = string(sprintf("%s %s: plane mean %.4g, %d sections", ...
+            avg_label, string(obj.variable_name), plane_mean, n));
+        notes = strings(0);
+        if n_masked > 0
+            notes(end+1) = sprintf("%d high-uncertainty points left out", n_masked);
+        end
+        if base ~= 0
+            notes(end+1) = "axis not from zero";
+        end
+        if ~isempty(notes)
+            title_str = title_str + " (" + strjoin(notes, ", ") + ")";
+        end
+        title(ax, title_str, FontSize=16, Interpreter="none")
     end
 
     % Copy an axes with left and right y axes (yyaxis) into fig, which
