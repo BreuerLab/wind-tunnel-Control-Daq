@@ -1814,24 +1814,21 @@ classdef timeAvg_UI < handle
                         errs(j) = 0;
                     else
                         avg_type = 1;
-                        d = load(filepath, "U", "L", "U_act", "rho_act", "bin_std");
+                        d = load(filepath, "U", "L", "U_act", "rho_act");
                         F = load(secondary_filepath, "freq_avg");
                         measured_freqs(j) = mean(F.freq_avg);
-                        % gain = 0.01;
-                        % gain = 0.001;
-                        errs(j) = mean(d.bin_std);
-                        % errs(j) = 0;
                         wind_speed = d.U;
                         density = d.rho_act;
                         area = d.L * d.L * 3 * 2;
                         wind_speed_acts(j) = d.U_act * d.U;
-                        % errs(j) = 0.2 / length(d.bin_std);
                     end
+                    is_live = false;
 
                     if obj.is_load_cell_var(force_var)
                         var = obj.get_load_cell_signal(force_var, type, amp, freq, false);
                     elseif (obj.calc_bool && obj.is_piv_force_variable(force_var)) || obj.is_tavg_force_var(force_var)
                         [var, err] = get_PIV_force(filepath, name, force_var, avg_type, obj.y_norm, obj.trim_bounds);
+                        is_live = true;
 
                         if obj.PIV_sub
                             [bod_filepath, ~] = obj.get_PIV_sub_file_paths(type, amp);
@@ -1870,6 +1867,26 @@ classdef timeAvg_UI < handle
 
                     % Calculate mean force and store in array for plotting
                     vals(j) = obj.reduce_signal(var);
+
+                    % Error bar: standard error of the plotted mean (random
+                    % uncertainty only; see get_mean_se)
+                    if ~obj.is_load_cell_var(force_var)
+                        se = obj.get_mean_se(force_var, filepath, secondary_filepath, freq, name);
+                        if is_live && obj.y_norm
+                            se = se / obj.get_force_norm_factor(filepath, freq);
+                        end
+                        if obj.PIV_sub && se > 0
+                            % difference of two independent means: their
+                            % variances add
+                            [bod_filepath, bod_secondary_filepath] = obj.get_PIV_sub_file_paths(type, amp);
+                            bod_se = obj.get_mean_se(force_var, bod_filepath, bod_secondary_filepath, 0, "PIV sub case");
+                            if is_live && obj.y_norm
+                                bod_se = bod_se / obj.get_force_norm_factor(bod_filepath, 0);
+                            end
+                            se = hypot(se, bod_se);
+                        end
+                        errs(j) = se;
+                    end
                     if show_repeats
                         v = obj.get_load_cell_repeat_values(force_var, type, amp, freq);
                         rep_j = [rep_j, repmat(j, 1, length(v))];
@@ -1878,16 +1895,8 @@ classdef timeAvg_UI < handle
                     disp(j + " of " + num_points + " complete")
                 end
 
-                % Calculate gain based on range of values
-                finite_vals = vals(isfinite(vals));
-                if isempty(finite_vals)
-                    gain = 0;
-                else
-                    gain = range(finite_vals)/2;
-                end
-                errs = gain * errs;
                 if obj.is_load_cell_var(force_var)
-                    errs(:) = 0; % the bin spread is an STB quantity
+                    errs(:) = 0; % no load cell error bars yet
                 end
 
                 if info.x_axis_type == "wingbeat frequency" && obj.x_norm
@@ -2699,6 +2708,137 @@ classdef timeAvg_UI < handle
 
         % Reduce a signal (PIV or load cell) to one value per point
         % according to the selected operation
+        % Standard error (random uncertainty) of the plotted mean of a
+        % force or flow variable, for its error bar. 0 if there is none.
+        %
+        % Phase averaged cases: the plotted value is the mean of the N_b
+        % bin values, so SE = sqrt(sum(SE_b.^2)) / N_b with SE_b the
+        % standard error of bin b (bins hold separate frames, so treated
+        % as independent):
+        %   forces: SE_b = (frame-to-frame SD of the BA force in bin b,
+        %           *_before_std) / sqrt(bin_count(b))
+        %   u/v/w avg: SE_b = u_avg_se(b), the plane average of the
+        %           per-point SE (calc_secondary_vals_common)
+        % 0 Hz cases: the saved SE of the time average (*_before_se,
+        % u_avg_se). Frames are assumed independent (STB frame interval
+        % long compared with the flow's correlation time).
+        %
+        % Forces from the averaged field (plain and TA forces) use the SE
+        % of their BA version: to first order (delta method) the force of
+        % the mean field and the mean of the per-frame forces have the same
+        % random error. Forces with no BA version ((u avg), vortY, edge /
+        % taper, extrapolated) and other flow variables get no bar. Only
+        % for the "mean" operation (range / rmse: no bar yet).
+        function se = get_mean_se(obj, var_name, filepath, secondary_filepath, freq, case_name)
+            se = 0;
+            if obj.operation ~= "mean"
+                return
+            end
+            var_name = string(var_name);
+            if ismember(var_name, ["u_avg", "v_avg", "w_avg"])
+                se_name = var_name + "_se";
+                files = [secondary_filepath, filepath];
+                combine_bins = freq ~= 0;
+            else
+                ba_name = obj.get_ba_force_name(var_name);
+                if ba_name == ""
+                    return
+                end
+                if freq == 0
+                    se_name = replace(ba_name, "_before_avg", "_before_se");
+                    combine_bins = false;
+                else
+                    se_name = replace(ba_name, "_before_avg", "_before_std");
+                    combine_bins = true;
+                end
+                files = [filepath, secondary_filepath];
+            end
+            files = files(isfile(files));
+            se_vals = [];
+            for f = 1:numel(files)
+                parts = split(se_name, ".");
+                if ~ismember(char(parts(1)), who('-file', files(f)))
+                    continue
+                end
+                d = load(files(f), parts(1));
+                se_vals = d.(parts(1));
+                for k = 2:numel(parts)
+                    if isstruct(se_vals) && isfield(se_vals, parts(k))
+                        se_vals = se_vals.(parts(k));
+                    else
+                        se_vals = [];
+                        break
+                    end
+                end
+                if ~isempty(se_vals)
+                    break
+                end
+            end
+            if isempty(se_vals) || isstruct(se_vals)
+                disp("No " + se_name + " saved for " + case_name + " (older processing) - no error bar")
+                return
+            end
+            se_vals = double(se_vals(:));
+
+            % BA force SD per bin -> SE per bin
+            if combine_bins && endsWith(extractBefore(se_name + ".", "."), "_before_std")
+                c = load(filepath, "bin_count");
+                n = double(c.bin_count(:));
+                if numel(n) ~= numel(se_vals)
+                    disp("bin_count does not match " + se_name + " for " + case_name + " - no error bar")
+                    return
+                end
+                se_vals = se_vals ./ sqrt(n);
+            end
+
+            if combine_bins
+                se = sqrt(sum(se_vals.^2, "omitnan")) / numel(se_vals);
+            else
+                se = se_vals(1);
+            end
+            if ~isfinite(se)
+                se = 0;
+            end
+        end
+
+        % BA counterpart of a force variable ("" if it has none):
+        % lift.vortX / lift_tavg.vortX -> lift_before_avg.vortX,
+        % lift_vel / lift_vel_tavg -> lift_vel_before_avg
+        function ba_name = get_ba_force_name(obj, var_name)
+            ba_name = "";
+            var_name = string(var_name);
+            category = obj.get_var_category(var_name);
+            if category == "BA: force"
+                ba_name = var_name;
+            elseif ismember(category, ["force", "TA: force"])
+                base = replace(var_name, "_tavg", "");
+                if ismember(base, ["lift_vel", "drag_vel"])
+                    ba_name = base + "_before_avg";
+                elseif startsWith(base, ["lift.", "drag."]) && ...
+                        ~ismember(base, ["lift.vortY", "lift.vortY_edge", "lift.vortX_taper"])
+                    ba_name = replace(base, ".", "_before_avg.");
+                end
+            end
+        end
+
+        % Factor get_PIV_force divides by when normalizing (y_norm)
+        function factor = get_force_norm_factor(~, filepath, freq)
+            if freq == 0
+                d = load(filepath, "L");
+                density = 1.225;
+                U_act = 1;
+                w = who('-file', filepath);
+                if ismember('U_act', w)
+                    u = load(filepath, "U_act"); U_act = u.U_act;
+                end
+            else
+                d = load(filepath, "L", "U_act", "rho_act");
+                density = d.rho_act;
+                U_act = d.U_act;
+            end
+            factor = 0.5 * density * d.L^2 * U_act^2;
+        end
+
         function val = reduce_signal(obj, signal)
             signal = signal(:);
             switch obj.operation

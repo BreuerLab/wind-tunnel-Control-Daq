@@ -50,6 +50,15 @@ else
     disp("No vorticity of the averaged velocity in this file; lift_uavg / drag_uavg skipped")
 end
 
+% standard error of u, v, w at each point (only in files processed after
+% it was added), for u_avg_se etc. below
+has_se = isfield(config, 'uSeField') && isfield(D, config.uSeField);
+if has_se
+    trim_source.u_se = D.(config.uSeField);
+    trim_source.v_se = D.(config.vSeField);
+    trim_source.w_se = D.(config.wSeField);
+end
+
 % TURNED OFF TEMPORARILY SINCE NOT SUPPORTED BY TIME AVERAGE
 % trim_source.uu = D.(config.uuField);
 % trim_source.vv = D.(config.vvField);
@@ -172,6 +181,15 @@ S.div = D.(config.dudxField) + D.(config.dvdyField) + D.(config.dwdzField);
 S.u_avg = squeeze(mean(T.u, [1, 2]));
 S.v_avg = squeeze(mean(T.v, [1, 2]));
 S.w_avg = squeeze(mean(T.w, [1, 2]));
+% Standard error of the planar averages above (per bin): the plane
+% average of the per-point SE. Neighbouring points are correlated (STB
+% binning), so this treats them as fully correlated - an upper bound;
+% assuming independence would divide by sqrt(points) and be too small.
+if has_se
+    S.u_avg_se = squeeze(mean(T.u_se, [1, 2], "omitnan"));
+    S.v_avg_se = squeeze(mean(T.v_se, [1, 2], "omitnan"));
+    S.w_avg_se = squeeze(mean(T.w_se, [1, 2], "omitnan"));
+end
 S.vortX_avg = squeeze(mean(T.vortX, [1, 2]));
 S.vortY_avg = squeeze(mean(T.vortY, [1, 2]));
 S.vortZ_avg = squeeze(mean(T.vortZ, [1, 2]));

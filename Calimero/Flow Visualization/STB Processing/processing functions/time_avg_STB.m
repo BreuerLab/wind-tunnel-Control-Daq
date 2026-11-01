@@ -75,7 +75,7 @@ function S = time_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, n
     % ----- Combine the workers' running sums -----
     accs = accs(~cellfun(@isempty, accs)); % workers left without a chunk
     x = accs{1}.x; y = accs{1}.y; z = accs{1}.z;
-    sums = accs{1}.sum; counts = accs{1}.n;
+    sums = accs{1}.sum; counts = accs{1}.n; sumsqs = accs{1}.sumsq;
     if calc_Q_inst
         Q_sums = accs{1}.Q_sum; Q_n = accs{1}.Q_n;
     end
@@ -84,6 +84,9 @@ function S = time_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, n
         for f = 1:length(fields)
             sums{f} = sums{f} + accs{g}.sum{f};
             counts{f} = counts{f} + accs{g}.n{f};
+        end
+        for f = 1:numel(sumsqs)
+            sumsqs{f} = sumsqs{f} + accs{g}.sumsq{f};
         end
         if calc_Q_inst
             for k = 1:4
@@ -101,7 +104,18 @@ function S = time_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, n
     for f = 1:length(fields)
         S.(['mean_' fields{f}]) = sums{f} ./ counts{f};
     end
-    clear sums counts
+    % Standard error of the time-averaged u, v, w at each point:
+    % frame-to-frame SD (turbulence + measurement noise) / sqrt(frames with
+    % data there). Used for the error bars in timeAvg_UI (u_avg_se etc.,
+    % calc_secondary_vals_common).
+    se_names = {'se_u', 'se_v', 'se_w'};
+    for f = 1:numel(sumsqs)
+        n_f = counts{f};
+        var_f = (sumsqs{f} - n_f .* S.(['mean_' fields{f}]).^2) ./ (n_f - 1);
+        var_f(n_f < 2) = NaN;
+        S.(se_names{f}) = sqrt(max(var_f, 0)) ./ sqrt(n_f);
+    end
+    clear sums counts sumsqs
 
     % per-frame lift / drag terms, put back in frame order
     lift_fields = fieldnames(accs{1}.lift);
@@ -167,6 +181,20 @@ function S = time_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, n
     S.lift_vel_before_avg = mean(lift_vel_frames, "omitnan");
     S.drag_vel_before_avg = mean(drag_vel_frames, "omitnan");
 
+    % Standard error of each BA mean: frame-to-frame SD / sqrt(frames),
+    % same nesting (*_before_se). Used for the error bars in timeAvg_UI.
+    lift_before_se = struct();
+    for f = 1:length(lift_fields)
+        lift_before_se.(lift_fields{f}) = std_error(lift_frames.(lift_fields{f}));
+    end
+    drag_before_se = struct();
+    for f = 1:length(drag_fields)
+        drag_before_se.(drag_fields{f}) = std_error(drag_frames.(drag_fields{f}));
+    end
+    S.lift_before_se = lift_before_se; S.drag_before_se = drag_before_se;
+    S.lift_vel_before_se = std_error(lift_vel_frames);
+    S.drag_vel_before_se = std_error(drag_vel_frames);
+
     % Save the entire structure
     t0 = tic;
     save_STB_struct(save_path, S, bools);
@@ -212,6 +240,8 @@ if isempty(acc)
     grid_size = [size(x,1), size(x,2), size(x,3)];
     acc.sum = repmat({zeros(grid_size)}, 1, length(fields));
     acc.n = repmat({zeros(grid_size)}, 1, length(fields));
+    % sums of squares of u, v, w (fields 1-3) for their standard error
+    acc.sumsq = repmat({zeros(grid_size)}, 1, 3);
     acc.frames = [];
     acc.lift = struct(); acc.drag = struct();
     acc.lift_vel = []; acc.drag_vel = [];
@@ -242,6 +272,9 @@ for f = 1:length(fields)
     valid = ~isnan(data{f});
     acc.sum{f} = acc.sum{f} + sum(data{f}, 4, "omitnan");
     acc.n{f} = acc.n{f} + sum(valid, 4);
+end
+for f = 1:numel(acc.sumsq)
+    acc.sumsq{f} = acc.sumsq{f} + sum(data{f}.^2, 4, "omitnan");
 end
 acc.t.stats = acc.t.stats + toc(t0);
 
@@ -279,6 +312,13 @@ for k = 1:numel(names)
         out.(names{k}) = v;
     end
 end
+end
+
+% Standard error of the mean of a row of per-frame values (NaNs skipped)
+function se = std_error(vals)
+n = sum(isfinite(vals));
+se = std(vals, 0, "omitnan") / sqrt(n);
+if n < 2, se = NaN; end
 end
 
 function t = add_times(t, t2)

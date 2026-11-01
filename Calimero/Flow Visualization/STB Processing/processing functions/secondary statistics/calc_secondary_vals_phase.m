@@ -65,6 +65,18 @@ end
 
 config.length = D.L;
 
+% Standard error of the phase-averaged u, v, w at each point: the
+% frame-to-frame SD within the bin / sqrt(frames in the bin)
+if isfield(D, 'u_phase_std') && isfield(D, 'bin_count')
+    n_frames = reshape(sqrt(double(D.bin_count)), 1, 1, 1, []);
+    D.u_phase_se = D.u_phase_std ./ n_frames;
+    D.v_phase_se = D.v_phase_std ./ n_frames;
+    D.w_phase_se = D.w_phase_std ./ n_frames;
+    config.uSeField = 'u_phase_se';
+    config.vSeField = 'v_phase_se';
+    config.wSeField = 'w_phase_se';
+end
+
 S = calc_secondary_vals_common(D, config, bounds);
 
 % copy over data from phase averaged kinematics and power

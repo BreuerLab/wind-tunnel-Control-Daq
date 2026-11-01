@@ -34,6 +34,11 @@ config.speed = D.U;
 config.length = D.L;
 config.density = D.rho;
 
+% standard error of mean_u etc. at each point (time_avg_STB)
+config.uSeField = 'se_u';
+config.vSeField = 'se_v';
+config.wSeField = 'se_w';
+
 S = calc_secondary_vals_common(D, config, bounds);
 
 % Save the entire structure
