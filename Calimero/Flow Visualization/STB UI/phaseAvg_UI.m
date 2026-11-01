@@ -133,9 +133,10 @@ properties
     % which steady case to subtract: "ring", "body", or "gliding"
     PIV_sub_case;
     force_sub;
-    % boolean, shade +/- 1 standard deviation (wingbeat-to-wingbeat, from
-    % wingbeat_std_forces*) around load cell curves
-    load_cell_std;
+    % boolean, shade +/- 1 standard deviation around the curves that have
+    % one: load cell (wingbeat-to-wingbeat, wingbeat_std_forces*) and BA
+    % PIV forces (frame-to-frame within each bin, *_before_std)
+    std_band;
     RPCA;
     HR;    % harmonic regression files (_hr, from bools.harmonic_reg)
     load_cell_force_var;
@@ -210,7 +211,7 @@ methods
         obj.PIV_sub = false;
         obj.PIV_sub_case = "ring";
         obj.force_sub = false;
-        obj.load_cell_std = true;
+        obj.std_band = true;
         obj.RPCA = false;
         obj.HR = false;
         obj.load_cell_force_var = "wingbeat_avg_forces_smoothest";
@@ -533,9 +534,9 @@ methods
         load_cell_panel.TitlePosition = 'centertop';
         load_cell_panel.Visible = "off";
 
-        load_cell_grid = uigridlayout(load_cell_panel, [4, 1]);
+        load_cell_grid = uigridlayout(load_cell_panel, [3, 1]);
         load_cell_grid.ColumnWidth = {'1x'};
-        load_cell_grid.RowHeight = {22, 25, 30, 30};
+        load_cell_grid.RowHeight = {22, 25, 30};
         load_cell_grid.Padding = [10 8 10 8];
         load_cell_grid.RowSpacing = 4;
 
@@ -561,16 +562,6 @@ methods
         b7.BackgroundColor = [1 1 1];
         b7.ValueChangedFcn = @(src, event) force_sub_change(src, event, plot_panel);
 
-        % shaded +/- 1 SD band around the load cell curves
-        lc_std_button = uibutton(load_cell_grid, "state");
-        lc_std_button.Layout.Row = 4;
-        lc_std_button.Layout.Column = 1;
-        lc_std_button.Text = "+/- 1 SD";
-        lc_std_button.FontSize = 18;
-        lc_std_button.Value = obj.load_cell_std;
-        lc_std_button.BackgroundColor = obj.get_button_color(obj.load_cell_std);
-        lc_std_button.ValueChangedFcn = @(src, event) load_cell_std_change(src, event, plot_panel);
-
         load_cell_toggle.ValueChangedFcn = @(src, event) load_cell_toggle_change(src, event, load_cell_panel);
 
         b77 = uibutton(sidebar_grid, "state");
@@ -581,13 +572,31 @@ methods
         b77.BackgroundColor = [1 1 1];
         b77.ValueChangedFcn = @(src, event) calc_change(src, event, plot_panel);
 
-        b88 = uibutton(sidebar_grid, "state");
-        b88.Layout.Row = 14;
+        align_std_grid = uigridlayout(sidebar_grid, [1, 2]);
+        align_std_grid.Layout.Row = 14;
+        align_std_grid.Layout.Column = 1;
+        align_std_grid.ColumnWidth = {'1x', '1x'};
+        align_std_grid.RowHeight = {'1x'};
+        align_std_grid.Padding = [0 0 0 0];
+        align_std_grid.ColumnSpacing = 6;
+
+        b88 = uibutton(align_std_grid, "state");
+        b88.Layout.Row = 1;
         b88.Layout.Column = 1;
         b88.Text = "Align";
         b88.FontSize = 18;
         b88.BackgroundColor = [1 1 1];
         b88.ValueChangedFcn = @(src, event) align_change(src, event, plot_panel);
+
+        % shaded +/- 1 SD band around load cell and BA PIV force curves
+        std_button = uibutton(align_std_grid, "state");
+        std_button.Layout.Row = 1;
+        std_button.Layout.Column = 2;
+        std_button.Text = "+/- 1 SD";
+        std_button.FontSize = 18;
+        std_button.Value = obj.std_band;
+        std_button.BackgroundColor = obj.get_button_color(obj.std_band);
+        std_button.ValueChangedFcn = @(src, event) std_band_change(src, event, plot_panel);
 
         y_mean_grid = uigridlayout(sidebar_grid, [1, 2]);
         y_mean_grid.Layout.Row = 15;
@@ -791,9 +800,9 @@ methods
             obj.update_plot(plot_panel);
         end
 
-        function load_cell_std_change(src, ~, plot_panel)
-            obj.load_cell_std = src.Value;
-            src.BackgroundColor = obj.get_button_color(obj.load_cell_std);
+        function std_band_change(src, ~, plot_panel)
+            obj.std_band = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.std_band);
             obj.update_plot(plot_panel);
         end
 
@@ -827,7 +836,7 @@ methods
             row_heights = sidebar_grid.RowHeight;
             if src.Value
                 load_cell_panel.Visible = "on";
-                row_heights{12} = 159;
+                row_heights{12} = 125;
             else
                 load_cell_panel.Visible = "off";
                 row_heights{12} = 0;
@@ -1513,6 +1522,32 @@ methods (Access = private)
     end
 
     % True if a .mat file holds the variable (for "a.b" names, the struct a)
+    % Frame-to-frame SD within each bin of a BA force (saved by
+    % phase_avg_STB as *_before_std next to *_before_avg, same nesting),
+    % as a row like the plotted curve. Empty if the file predates it.
+    % PIV Body Sub needs no change: it subtracts a time-averaged value, a
+    % constant, which leaves the SD as it is.
+    function var_std = get_ba_force_std(obj, file_path, var_name, n, cur_sel)
+        var_std = [];
+        std_name = replace(string(var_name), "_before_avg", "_before_std");
+        if ~obj.file_has_var(file_path, std_name)
+            disp("No BA SD (" + std_name + ") saved for " + cur_sel + ...
+                " - reprocess with phase_avg_STB for a band")
+            return
+        end
+        top_name = std_name;
+        if contains(std_name, ".")
+            top_name = extractBefore(std_name, ".");
+        end
+        d = load(file_path, top_name);
+        var_std = eval("d." + std_name);
+        if numel(var_std) ~= n
+            var_std = [];
+            return
+        end
+        var_std = double(var_std(:)');
+    end
+
     function tf = file_has_var(~, file, var_name)
         var_name = string(var_name);
         if contains(var_name, ".")
@@ -1757,7 +1792,7 @@ methods (Access = private)
             % same-amplitude body case (get_body_force falls back to 20 deg
             % only when there is no body data at this amplitude)
             try
-                [body_signal, body_std] = get_body_force(obj.get_force_path(type), type, amp, freq, idx, var_name_F);
+                body_signal = get_body_force(obj.get_force_path(type), type, amp, freq, idx, var_name_F);
             catch ME
                 if ~startsWith(ME.identifier, "get_force:")
                     rethrow(ME)
@@ -1772,19 +1807,10 @@ methods (Access = private)
                 % e.g. older files saved with a different number of frames
                 body_signal = interp1(linspace(0, 1, numel(body_signal)), double(body_signal(:)'),...
                     linspace(0, 1, numel(signal)), 'pchip');
-                if ~isempty(body_std)
-                    body_std = interp1(linspace(0, 1, numel(body_std)), double(body_std(:)'),...
-                        linspace(0, 1, numel(signal)), 'pchip');
-                end
             end
             signal = signal - reshape(body_signal, size(signal));
-            % wing and body cases are separate, independent trials, so
-            % their variances add
-            if ~isempty(signal_std) && numel(body_std) == numel(signal_std)
-                signal_std = sqrt(signal_std.^2 + reshape(body_std, size(signal_std)).^2);
-            else
-                signal_std = [];
-            end
+            % the body's mean curve is subtracted, a fixed curve, so the
+            % wingbeat-to-wingbeat SD is the wing case's, unchanged
         end
         signal = double(signal(:)');
         signal_std = double(signal_std(:)');
@@ -2038,7 +2064,7 @@ methods (Access = private)
                 if isempty(var)
                     continue
                 end
-                if ~obj.load_cell_std
+                if ~obj.std_band
                     var_std = [];
                 elseif isempty(var_std)
                     disp("No wingbeat SD for " + obj.active_names(index) + " (" + cur_sel + "), no band plotted")
@@ -2078,6 +2104,8 @@ methods (Access = private)
             secondary_file_path = file_base + "_integral.mat";
 
             var_name = obj.active_names(index);
+            % frame-to-frame SD within each bin, BA forces only
+            var_std = [];
 
             if obj.is_force_index(index) && obj.calc_bool && ...
                     ~ismember(var_name, obj.stored_only_force_names)
@@ -2109,6 +2137,9 @@ methods (Access = private)
                         d2 = load(file_path, var_name);
                     end
                     var = eval("d2." + var_name);
+                    if obj.std_band
+                        var_std = obj.get_ba_force_std(file_path, var_name, numel(var), cur_sel);
+                    end
                 else
                 if contains(var_name, ".")
                     abbrv_name = extractBefore(var_name, ".");
@@ -2200,6 +2231,7 @@ methods (Access = private)
                     shift_bins = round(shift*length(var));
                     var = circshift(var, shift_bins);
                     placement_pct = circshift(placement_pct, shift_bins);
+                    var_std = circshift(var_std, shift_bins);
                     disp("Shifted " + cur_sel + " by: " + shift_bins + " / " + length(var) + ...
                         " (" + dist + " m downstream)")
                 end
@@ -2218,6 +2250,7 @@ methods (Access = private)
             if phase_offset ~= 0
                 var = circshift(var, round(phase_offset*length(var)));
                 placement_pct = circshift(placement_pct, round(phase_offset*length(var)));
+                var_std = circshift(var_std, round(phase_offset*length(var)));
                 disp("Shifted STB curve for " + cur_sel + " by " + phase_offset + " cycles (old_flapper_compat)")
             end
 
@@ -2225,6 +2258,7 @@ methods (Access = private)
             flip_bins = round(flip_frac * length(var));
             var = circshift(var, flip_bins);
             placement_pct = circshift(placement_pct, flip_bins);
+            var_std = circshift(var_std, flip_bins);
 
             norm_bool = false;
             if norm_bool
@@ -2242,6 +2276,9 @@ methods (Access = private)
                 time(wrapped) = time(wrapped) - 1;
                 [time, order] = sort(time);
                 var = var(order);
+                if ~isempty(var_std)
+                    var_std = var_std(order);
+                end
             end
 
             if align_plot_bool
@@ -2255,11 +2292,12 @@ methods (Access = private)
                     'line_style', "",...
                     'marker', obj.get_piv_force_marker(index),...
                     'y_axis', "",...
-                    'std', []);
+                    'std', var_std);
             end
 
             if ~align_plot_bool
-            obj.plot_data(ax, ax_target, time, var, index, dual_plot, j, cur_sel, color_params, ylabs); % ylabel_one, ylabel_two
+            obj.plot_data(ax, ax_target, time, var, index, dual_plot, j, cur_sel, color_params, ylabs,...
+                          struct('std', var_std)); % ylabel_one, ylabel_two
             end
         end
         end

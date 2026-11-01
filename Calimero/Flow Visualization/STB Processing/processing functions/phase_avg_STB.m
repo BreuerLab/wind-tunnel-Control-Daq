@@ -137,6 +137,11 @@ drag_before_avg = struct();
 % velocity-only lift (u*w) and drag (get_wake_lift with vort_bool false)
 lift_vel_before_avg = zeros(1,num_bins);
 drag_vel_before_avg = zeros(1,num_bins);
+% frame-to-frame standard deviation of the BA forces within each bin
+lift_before_std = struct();
+drag_before_std = struct();
+lift_vel_before_std = zeros(1,num_bins);
+drag_vel_before_std = zeros(1,num_bins);
 fields = get_STB_processing_fields();
 
 % Optional outputs (default on if the caller didn't set them)
@@ -249,9 +254,11 @@ if ~bools.turbine
     drag_fields = fieldnames(R{1}.drag);
     for f = 1:length(lift_fields)
         lift_before_avg.(lift_fields{f}) = zeros(1,num_bins);
+        lift_before_std.(lift_fields{f}) = zeros(1,num_bins);
     end
     for f = 1:length(drag_fields)
         drag_before_avg.(drag_fields{f}) = zeros(1,num_bins);
+        drag_before_std.(drag_fields{f}) = zeros(1,num_bins);
     end
 end
 
@@ -288,12 +295,16 @@ for i = 1:num_bins
     if ~bools.turbine
         for f = 1:length(lift_fields)
             lift_before_avg.(lift_fields{f})(i) = B.lift.(lift_fields{f});
+            lift_before_std.(lift_fields{f})(i) = B.lift_std.(lift_fields{f});
         end
         for f = 1:length(drag_fields)
             drag_before_avg.(drag_fields{f})(i) = B.drag.(drag_fields{f});
+            drag_before_std.(drag_fields{f})(i) = B.drag_std.(drag_fields{f});
         end
         lift_vel_before_avg(i) = B.lift_vel;
         drag_vel_before_avg(i) = B.drag_vel;
+        lift_vel_before_std(i) = B.lift_vel_std;
+        drag_vel_before_std(i) = B.drag_vel_std;
     end
 
     t_stage.import = t_stage.import + B.t.import;
@@ -305,7 +316,8 @@ clear R B
 
 % Harmonic regression: replace the bin averages with the fitted fields at
 % the bin centres, so everything downstream (secondary values, phaseAvg_UI)
-% works unchanged. std, Reynolds stresses and Q_inst stay per bin.
+% works unchanged. std, Reynolds stresses and Q_inst stay per bin (so do
+% the BA force SDs, *_before_std: the scatter of the frames in each bin).
 if hr.on
 t0 = tic;
 phi_centres = bin_offset + ((1:num_bins) - 0.5) / num_bins;
@@ -367,6 +379,9 @@ if ~bools.turbine
 % before-averaging (BA) forces: computed per frame, then averaged per bin
 S.lift_before_avg = lift_before_avg; S.drag_before_avg = drag_before_avg;
 S.lift_vel_before_avg = lift_vel_before_avg; S.drag_vel_before_avg = drag_vel_before_avg;
+% their frame-to-frame standard deviation within each bin (same nesting)
+S.lift_before_std = lift_before_std; S.drag_before_std = drag_before_std;
+S.lift_vel_before_std = lift_vel_before_std; S.drag_vel_before_std = drag_vel_before_std;
 end
 
 % Save the entire structure
@@ -454,21 +469,27 @@ if ~opts.turbine
     [lift_vel_vals, drag_vel_vals] = get_wake_lift(speed, L, F, false, rho_act);
     clear F
 
+    % SD: frame-to-frame scatter of the per-frame values (each frame's
+    % value averaged over any other dimensions first, see per_frame)
+    n = B.bin_count;
     lift_fields = fieldnames(lift_vals);
     for f = 1:length(lift_fields)
         cur_vals = lift_vals.(lift_fields{f});
         B.lift.(lift_fields{f}) = mean(cur_vals(:), "omitnan");
+        B.lift_std.(lift_fields{f}) = std(per_frame(cur_vals, n), 0, "omitnan");
     end
     drag_fields = fieldnames(drag_vals);
     for f = 1:length(drag_fields)
         cur_vals = drag_vals.(drag_fields{f});
         B.drag.(drag_fields{f}) = mean(cur_vals(:), "omitnan");
+        B.drag_std.(drag_fields{f}) = std(per_frame(cur_vals, n), 0, "omitnan");
     end
     B.lift_vel = mean(lift_vel_vals(:), "omitnan");
     B.drag_vel = mean(drag_vel_vals(:), "omitnan");
+    B.lift_vel_std = std(per_frame(lift_vel_vals, n), 0, "omitnan");
+    B.drag_vel_std = std(per_frame(drag_vel_vals, n), 0, "omitnan");
 
     if use_hr
-        n = B.bin_count;
         B.frames.phi = reshape(bin_frame_pos, 1, []);
         for f = 1:length(lift_fields)
             B.frames.vals.lift.(lift_fields{f}) = per_frame(lift_vals.(lift_fields{f}), n);
