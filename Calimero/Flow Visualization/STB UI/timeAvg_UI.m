@@ -387,9 +387,9 @@ classdef timeAvg_UI < handle
                 option_panel.Scrollable = "on";
             end
 
-            sidebar_grid = uigridlayout(option_panel, [26, 1]);
+            sidebar_grid = uigridlayout(option_panel, [27, 1]);
             sidebar_grid.ColumnWidth = {'1x'};
-            sidebar_grid.RowHeight = {30, 60, 30, 30, 30, 30, 110, 30, 30, 30, 30, 30, 30, 30,...
+            sidebar_grid.RowHeight = {30, 60, 30, 30, 30, 30, 30, 110, 30, 30, 30, 30, 30, 30, 30,...
                                       30, 25, 30, 30, 30, 30, 30, 30, 30, 30, 160, 30};
             sidebar_grid.Padding = [10 10 10 10];
             sidebar_grid.RowSpacing = 6;
@@ -397,26 +397,10 @@ classdef timeAvg_UI < handle
                 sidebar_grid.Scrollable = "on";
             end
 
-            % Old/new flapper data set and x-axis variable share the first row
-            top_grid = uigridlayout(sidebar_grid, [1, 2]);
-            top_grid.Layout.Row = 1;
-            top_grid.Layout.Column = 1;
-            top_grid.ColumnWidth = {'1x', '1x'};
-            top_grid.RowHeight = {'1x'};
-            top_grid.Padding = [0 0 0 0];
-            top_grid.ColumnSpacing = 8;
-
-            source_dropdown = uidropdown(top_grid);
-            source_dropdown.Layout.Row = 1;
-            source_dropdown.Layout.Column = 1;
-            source_dropdown.Items = obj.source_modes;
-            source_dropdown.Value = obj.source_mode;
-            source_dropdown.Tooltip = "Data set the case dropdowns list (entries already added are kept)";
-
             % Dropdown box for selecting the x-axis variable
-            x_axis_dropdown = uidropdown(top_grid);
+            x_axis_dropdown = uidropdown(sidebar_grid);
             x_axis_dropdown.Layout.Row = 1;
-            x_axis_dropdown.Layout.Column = 2;
+            x_axis_dropdown.Layout.Column = 1;
             x_axis_dropdown.Items = obj.x_axis_labels(:);
             x_axis_dropdown.Value = obj.get_x_axis_label(obj.x_axis_type);
 
@@ -446,20 +430,28 @@ classdef timeAvg_UI < handle
             obj.update_freq_range_label(freq_label);
             obj.set_freq_slider_enable(freq_slider, freq_label);
 
+            % Old/new flapper data set the case dropdowns below list
+            source_dropdown = uidropdown(sidebar_grid);
+            source_dropdown.Layout.Row = 3;
+            source_dropdown.Layout.Column = 1;
+            source_dropdown.Items = obj.source_modes;
+            source_dropdown.Value = obj.source_mode;
+            source_dropdown.Tooltip = "Data set the case dropdowns list (entries already added are kept)";
+
             % Dropdown boxes for variables held fixed while the x-axis varies
             fixed_dropdown_1 = uidropdown(sidebar_grid);
-            fixed_dropdown_1.Layout.Row = 3;
+            fixed_dropdown_1.Layout.Row = 4;
             fixed_dropdown_1.Layout.Column = 1;
 
             fixed_dropdown_2 = uidropdown(sidebar_grid);
-            fixed_dropdown_2.Layout.Row = 4;
+            fixed_dropdown_2.Layout.Row = 5;
             fixed_dropdown_2.Layout.Column = 1;
             obj.reset_fixed_variable_defaults();
             obj.update_fixed_dropdowns(fixed_dropdown_1, fixed_dropdown_2);
 
             % RPCA and HR (harmonic regression) buttons share a row
             variant_grid = uigridlayout(sidebar_grid, [1, 2]);
-            variant_grid.Layout.Row = 5;
+            variant_grid.Layout.Row = 6;
             variant_grid.Layout.Column = 1;
             variant_grid.ColumnWidth = {'1x', '1x'};
             variant_grid.RowHeight = {'1x'};
@@ -485,7 +477,7 @@ classdef timeAvg_UI < handle
 
             % Button to add entry
             entry_button_grid = uigridlayout(sidebar_grid, [1, 2]);
-            entry_button_grid.Layout.Row = 6;
+            entry_button_grid.Layout.Row = 7;
             entry_button_grid.Layout.Column = 1;
             entry_button_grid.ColumnWidth = {'1x', '1x'};
             entry_button_grid.RowHeight = {'1x'};
@@ -505,7 +497,7 @@ classdef timeAvg_UI < handle
 
             % List of cases currently displayed on the plots
             lbox = uilistbox(sidebar_grid);
-            lbox.Layout.Row = 7;
+            lbox.Layout.Row = 8;
             lbox.Layout.Column = 1;
             lbox.Items = strings(0);
 
@@ -517,7 +509,7 @@ classdef timeAvg_UI < handle
             delete_button.ButtonPushedFcn = @(src, event) removeFromList(src, event, plot_panel, lbox);
 
             clear_button = uibutton(sidebar_grid);
-            clear_button.Layout.Row = 8;
+            clear_button.Layout.Row = 9;
             clear_button.Layout.Column = 1;
             clear_button.Text = "Clear Entries";
             clear_button.FontSize = 18;
@@ -526,26 +518,26 @@ classdef timeAvg_UI < handle
 
             % Variable type filters the two variable dropdowns below
             var_type_dropdown = uidropdown(sidebar_grid);
-            var_type_dropdown.Layout.Row = 9;
+            var_type_dropdown.Layout.Row = 10;
             var_type_dropdown.Layout.Column = 1;
             var_type_dropdown.Items = ["kinematics", "flow", "force", "BA: force", "TA: force", "load cell"];
             var_type_dropdown.Value = obj.var_type;
 
             % Dropdown boxes for variable selection
             force_var_dropdown_1 = uidropdown(sidebar_grid);
-            force_var_dropdown_1.Layout.Row = 10;
+            force_var_dropdown_1.Layout.Row = 11;
             force_var_dropdown_1.Layout.Column = 1;
             force_var_dropdown_1.Items = obj.get_var_dropdown_items(obj.get_force_var_label(obj.force_var));
             force_var_dropdown_1.Value = obj.get_force_var_label(obj.force_var);
 
             force_var_dropdown_2 = uidropdown(sidebar_grid);
-            force_var_dropdown_2.Layout.Row = 11;
+            force_var_dropdown_2.Layout.Row = 12;
             force_var_dropdown_2.Layout.Column = 1;
             force_var_dropdown_2.Items = obj.get_var_dropdown_items("none");
             force_var_dropdown_2.Value = "none";
 
             force_var_dropdown_3 = uidropdown(sidebar_grid);
-            force_var_dropdown_3.Layout.Row = 12;
+            force_var_dropdown_3.Layout.Row = 13;
             force_var_dropdown_3.Layout.Column = 1;
             force_var_dropdown_3.Items = obj.get_var_dropdown_items("none");
             force_var_dropdown_3.Value = "none";
@@ -556,7 +548,7 @@ classdef timeAvg_UI < handle
             end
 
             operation_dropdown = uidropdown(sidebar_grid);
-            operation_dropdown.Layout.Row = 13;
+            operation_dropdown.Layout.Row = 14;
             operation_dropdown.Layout.Column = 1;
             operation_dropdown.Items = obj.operations;
             operation_dropdown.Tooltip = "shift: phase shift of variables 2 and 3 behind variable 1 for each case (cross-correlation of the phase-averaged signals); needs two or more variables";
@@ -565,7 +557,7 @@ classdef timeAvg_UI < handle
             % and flowField_UI): STB signals are shifted by the convection
             % time from the robot to the imaging plane, kinematics are not
             shift_grid = uigridlayout(sidebar_grid, [1, 2]);
-            shift_grid.Layout.Row = 14;
+            shift_grid.Layout.Row = 15;
             shift_grid.Layout.Column = 1;
             shift_grid.ColumnWidth = {'1x', '1x'};
             shift_grid.Padding = [0 0 0 0];
@@ -598,7 +590,7 @@ classdef timeAvg_UI < handle
             operation_dropdown.ValueChangedFcn = @(src, event) operation_change(src, event, plot_panel, [conv_shift_button, unwrap_button]);
 
             piv_sub_button = uibutton(sidebar_grid, "state");
-            piv_sub_button.Layout.Row = 15;
+            piv_sub_button.Layout.Row = 16;
             piv_sub_button.Layout.Column = 1;
             piv_sub_button.Text = "PIV Body Sub";
             piv_sub_button.FontSize = 18;
@@ -608,7 +600,7 @@ classdef timeAvg_UI < handle
             % Steady case used for the subtraction, matched to each
             % selection's downstream position (and amplitude for body/gliding)
             piv_sub_dropdown = uidropdown(sidebar_grid);
-            piv_sub_dropdown.Layout.Row = 16;
+            piv_sub_dropdown.Layout.Row = 17;
             piv_sub_dropdown.Layout.Column = 1;
             piv_sub_dropdown.Items = ["ring", "body", "gliding"];
             piv_sub_dropdown.Value = obj.PIV_sub_case;
@@ -616,7 +608,7 @@ classdef timeAvg_UI < handle
             piv_sub_dropdown.ValueChangedFcn = @(src, event) PIV_sub_case_change(src, event, plot_panel);
 
             force_sub_button = uibutton(sidebar_grid, "state");
-            force_sub_button.Layout.Row = 17;
+            force_sub_button.Layout.Row = 18;
             force_sub_button.Layout.Column = 1;
             force_sub_button.Text = "Force Body Sub";
             force_sub_button.FontSize = 18;
@@ -627,7 +619,7 @@ classdef timeAvg_UI < handle
             % Which load cell cases are plotted: frequencies without flow
             % field data (e.g. 0.1 Hz), and every repeat of each case
             lc_grid = uigridlayout(sidebar_grid, [1, 2]);
-            lc_grid.Layout.Row = 18;
+            lc_grid.Layout.Row = 19;
             lc_grid.Layout.Column = 1;
             lc_grid.Padding = [0 0 0 0];
             lc_grid.ColumnSpacing = 6;
@@ -653,7 +645,7 @@ classdef timeAvg_UI < handle
             % Which processed load cell data the load cell variables read
             % (forces, voltage, current)
             load_cell_data_dropdown = uidropdown(sidebar_grid);
-            load_cell_data_dropdown.Layout.Row = 19;
+            load_cell_data_dropdown.Layout.Row = 20;
             load_cell_data_dropdown.Layout.Column = 1;
             load_cell_data_dropdown.Items = obj.load_cell_data_labels;
             load_cell_data_dropdown.Value = obj.load_cell_data_labels(obj.load_cell_data_vars == obj.load_cell_data_var);
@@ -662,7 +654,7 @@ classdef timeAvg_UI < handle
             load_cell_data_dropdown.ValueChangedFcn = @(src, event) load_cell_data_change(src, event, plot_panel);
 
             x_norm_button = uibutton(sidebar_grid, "state");
-            x_norm_button.Layout.Row = 20;
+            x_norm_button.Layout.Row = 21;
             x_norm_button.Layout.Column = 1;
             x_norm_button.Text = "Normalize X-axis";
             x_norm_button.FontSize = 18;
@@ -670,7 +662,7 @@ classdef timeAvg_UI < handle
             x_norm_button.ValueChangedFcn = @(src, event) x_norm_change(src, event, plot_panel);
 
             y_norm_button = uibutton(sidebar_grid, "state");
-            y_norm_button.Layout.Row = 21;
+            y_norm_button.Layout.Row = 22;
             y_norm_button.Layout.Column = 1;
             y_norm_button.Text = "Normalize Y-axis";
             y_norm_button.FontSize = 18;
@@ -679,7 +671,7 @@ classdef timeAvg_UI < handle
 
             % Put the two selected variables on separate left/right y-axes
             separate_y_button = uibutton(sidebar_grid, "state");
-            separate_y_button.Layout.Row = 22;
+            separate_y_button.Layout.Row = 23;
             separate_y_button.Layout.Column = 1;
             separate_y_button.Text = "Separate Y-Axis";
             separate_y_button.FontSize = 18;
@@ -687,7 +679,7 @@ classdef timeAvg_UI < handle
             separate_y_button.ValueChangedFcn = @(src, event) separate_y_axis_change(src, event, plot_panel);
 
             diff_button = uibutton(sidebar_grid, "state");
-            diff_button.Layout.Row = 23;
+            diff_button.Layout.Row = 24;
             diff_button.Layout.Column = 1;
             diff_button.Text = "Difference";
             diff_button.FontSize = 18;
@@ -696,7 +688,7 @@ classdef timeAvg_UI < handle
             diff_button.ValueChangedFcn = @(src, event) diff_change(src, event, plot_panel);
 
             calc_button = uibutton(sidebar_grid, "state");
-            calc_button.Layout.Row = 24;
+            calc_button.Layout.Row = 25;
             calc_button.Layout.Column = 1;
             calc_button.Text = "Live Calculate";
             calc_button.FontSize = 18;
@@ -705,7 +697,7 @@ classdef timeAvg_UI < handle
             % Trim limits and center point for Live Calculate,
             % nondimensional (divided by L)
             bounds_panel = uipanel(sidebar_grid);
-            bounds_panel.Layout.Row = 25;
+            bounds_panel.Layout.Row = 26;
             bounds_panel.Layout.Column = 1;
             bounds_panel.Title = "Live Calc Bounds (y/L, z/L)";
             bounds_panel.TitlePosition = 'centertop';
@@ -767,7 +759,7 @@ classdef timeAvg_UI < handle
             calc_button.ValueChangedFcn = @(src, event) calc_change(src, event, plot_panel, bounds_fields);
 
             save_fig_button = uibutton(sidebar_grid);
-            save_fig_button.Layout.Row = 26;
+            save_fig_button.Layout.Row = 27;
             save_fig_button.Layout.Column = 1;
             save_fig_button.Text = "Save Fig";
             save_fig_button.FontSize = 18;
