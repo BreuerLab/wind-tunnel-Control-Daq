@@ -31,7 +31,10 @@ sessions = [
     "F:\Force Measurements\10 deg body\4 m.s\body_2026_09_27"
     "F:\Force Measurements\20 deg body\4 m.s\body_2026_09_27"
     "F:\Force Measurements\30 deg body\4 m.s\body_2026_09_27"
+    "F:\Force Measurements\NACA"   % NACA 0012 wing (static)
     ];
+% a type's folder (like NACA above) is searched for its session folder(s)
+sessions = find_lc_sessions(sessions);
 AoA = 10;        % deg, only files at this AoA are used
 fs_default = 15000; % DAQ rate (Hz) if a session's params have none
 smooth_s = 0.5;  % moving-average window for plotting (s)
@@ -65,7 +68,7 @@ for s = 1:length(sessions)
     sess = sessions(s);
     offsets_dir = fullfile(sess, "raw data", "offsets data");
     [~, sess_name] = fileparts(sess);
-    sess_label = extractBefore(extractAfter(sess, "Force Measurements\"), "\4 m.s") + " (" + sess_name + ")";
+    sess_label = lc_session_label(sess);
     title(axs(1, s), sess_label, Interpreter="none", FontWeight="normal")
 
     % DAQ rate from the session's experiment params (offsets recordings

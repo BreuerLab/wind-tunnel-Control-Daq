@@ -46,7 +46,10 @@ sessions = [
     "F:\Force Measurements\10 deg body\4 m.s\body_2026_09_27"
     "F:\Force Measurements\20 deg body\4 m.s\body_2026_09_27"
     "F:\Force Measurements\30 deg body\4 m.s\body_2026_09_27"
+    "F:\Force Measurements\NACA"   % NACA 0012 wing (static)
     ];
+% a type's folder (like NACA above) is searched for its session folder(s)
+sessions = find_lc_sessions(sessions);
 AoA = 10; % deg, only files at this AoA are used
 lift_row = 3; % lab frame rows: [drag; side; lift; roll; pitch; yaw]
 % offsets columns: [6 load cell channels, motor voltage, motor current, ...]
@@ -83,7 +86,7 @@ for s = 1:length(sessions)
     offsets_dir = fullfile(sess, "raw data", "offsets data");
     processed_dir = fullfile(sess, "processed data");
     [~, sess_name] = fileparts(sess);
-    sess_label = extractBefore(extractAfter(sess, "Force Measurements\"), "\4 m.s") + " (" + sess_name + ")";
+    sess_label = lc_session_label(sess);
 
     fprintf("\n================================================================\n")
     fprintf("%s\n", sess_label)
