@@ -1052,12 +1052,13 @@ methods (Access = private)
         selection_types = selection_types(strlength(selection_types) > 0);
         source_modes = strings(0, 1);
 
-        if any(~obj.is_new_flapper_type(selection_types))
-            source_modes(end + 1, 1) = obj.OLD_FLAPPER_SOURCE_MODE;
-        end
-
+        % new flapper first, so it is the default
         if any(obj.is_new_flapper_type(selection_types))
             source_modes(end + 1, 1) = obj.NEW_FLAPPER_SOURCE_MODE;
+        end
+
+        if any(~obj.is_new_flapper_type(selection_types))
+            source_modes(end + 1, 1) = obj.OLD_FLAPPER_SOURCE_MODE;
         end
     end
 

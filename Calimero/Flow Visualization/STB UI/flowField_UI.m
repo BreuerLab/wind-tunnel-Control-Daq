@@ -2769,12 +2769,13 @@ methods (Access = private)
     function source_modes = get_available_source_modes(obj)
         source_modes = strings(0);
 
-        if ~isempty(obj.phase_old_flapper_case_name_list) || ~isempty(obj.time_old_flapper_case_name_list)
-            source_modes(end + 1) = obj.OLD_FLAPPER_SOURCE_MODE;
-        end
-
+        % new flapper first, so it is the default
         if ~isempty(obj.phase_new_flapper_case_name_list) || ~isempty(obj.time_new_flapper_case_name_list)
             source_modes(end + 1) = obj.NEW_FLAPPER_SOURCE_MODE;
+        end
+
+        if ~isempty(obj.phase_old_flapper_case_name_list) || ~isempty(obj.time_old_flapper_case_name_list)
+            source_modes(end + 1) = obj.OLD_FLAPPER_SOURCE_MODE;
         end
 
         if ~isempty(obj.phase_turbine_case_name_list) || ~isempty(obj.time_turbine_case_name_list)

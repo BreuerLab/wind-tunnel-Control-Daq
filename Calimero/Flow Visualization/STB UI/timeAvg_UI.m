@@ -12,6 +12,11 @@ classdef timeAvg_UI < handle
         % fluctuation about the mean
         operations = ["mean", "range", "rmse", "shift"];
         cur_types = ["flexible";"UP_one_flexible";"UP_two_flexible"];
+        % old flapper (Feb 2026) / new flapper (Aug-Sep 2026) data sets, as
+        % in phaseAvg_UI: new flapper case types start with these prefixes
+        OLD_FLAPPER_SOURCE_MODE = "old flapper";
+        NEW_FLAPPER_SOURCE_MODE = "new flapper";
+        new_flapper_downstream_types = ["x1";"x2";"x3";"x4";"x5";"MPS"];
         x_axis_types = ["wingbeat frequency", "wingbeat amplitude", "downstream distance"];
         x_axis_labels = ["Wingbeat Frequency", "Wingbeat Amplitude", "Downstream Distance"];
         % Load cell data options (variables saved by process_trial.m). The
@@ -44,6 +49,8 @@ classdef timeAvg_UI < handle
         % data is read from that root's Force Measurements)
         data_roots;
         type_root_map;
+        source_modes; % data sets present, new flapper first
+        source_mode;  % data set the case dropdowns list
 
         % integer, 0-6, defines which force/moment axes to display
         index;
@@ -348,11 +355,23 @@ classdef timeAvg_UI < handle
             obj.plot_curves = [];
             obj.selection = strings(0);
 
+            obj.source_modes = obj.get_available_source_modes();
+            obj.source_mode = obj.source_modes(1); % new flapper when present
+
+            % label -> type for every type (both data sets)
+            all_types = obj.get_ordered_type_options(unique(string(obj.available_selections(:, 1)), 'stable'));
+            all_types = all_types(strlength(all_types) > 0);
+            all_labels = strings(length(all_types), 1);
+            for i = 1:length(all_types)
+                all_labels(i) = obj.get_type_label(all_types(i));
+            end
+            [~, first_label] = unique(all_labels, 'stable');
+            obj.distance_type_dict = containers.Map(cellstr(all_labels(first_label)), cellstr(all_types(first_label)));
+
             [selection_types, obj.distance_labels] = obj.get_available_type_options();
             obj.sel_type = selection_types(1);
             obj.sel_amp = obj.get_first_amp(obj.sel_type);
             obj.sel_freq = obj.get_first_freq(obj.sel_type, obj.sel_amp);
-            obj.distance_type_dict = containers.Map(cellstr(obj.distance_labels), cellstr(selection_types));
             obj.x_axis_type = obj.x_axis_types(1);
         end
 
@@ -378,10 +397,26 @@ classdef timeAvg_UI < handle
                 sidebar_grid.Scrollable = "on";
             end
 
+            % Old/new flapper data set and x-axis variable share the first row
+            top_grid = uigridlayout(sidebar_grid, [1, 2]);
+            top_grid.Layout.Row = 1;
+            top_grid.Layout.Column = 1;
+            top_grid.ColumnWidth = {'1x', '1x'};
+            top_grid.RowHeight = {'1x'};
+            top_grid.Padding = [0 0 0 0];
+            top_grid.ColumnSpacing = 8;
+
+            source_dropdown = uidropdown(top_grid);
+            source_dropdown.Layout.Row = 1;
+            source_dropdown.Layout.Column = 1;
+            source_dropdown.Items = obj.source_modes;
+            source_dropdown.Value = obj.source_mode;
+            source_dropdown.Tooltip = "Data set the case dropdowns list (entries already added are kept)";
+
             % Dropdown box for selecting the x-axis variable
-            x_axis_dropdown = uidropdown(sidebar_grid);
+            x_axis_dropdown = uidropdown(top_grid);
             x_axis_dropdown.Layout.Row = 1;
-            x_axis_dropdown.Layout.Column = 1;
+            x_axis_dropdown.Layout.Column = 2;
             x_axis_dropdown.Items = obj.x_axis_labels(:);
             x_axis_dropdown.Value = obj.get_x_axis_label(obj.x_axis_type);
 
@@ -475,6 +510,7 @@ classdef timeAvg_UI < handle
             lbox.Items = strings(0);
 
             x_axis_dropdown.ValueChangedFcn = @(src, event) x_axis_change(src, event, fixed_dropdown_1, fixed_dropdown_2, plot_panel, lbox, freq_slider, freq_label);
+            source_dropdown.ValueChangedFcn = @(src, event) source_change(src, event, fixed_dropdown_1, fixed_dropdown_2);
             fixed_dropdown_1.ValueChangedFcn = @(src, event) fixed_1_change(src, event, fixed_dropdown_2);
             fixed_dropdown_2.ValueChangedFcn = @(src, event) fixed_2_change(src, event);
             add_button.ButtonPushedFcn = @(src, event) addToList(src, event, plot_panel, lbox);
@@ -753,6 +789,15 @@ classdef timeAvg_UI < handle
                 obj.update_plot(plot_panel);
             end
 
+            % new data set: refill the case dropdowns from it. Entries
+            % already in the list keep their own data set.
+            function source_change(src, ~, fixed_dropdown_1, fixed_dropdown_2)
+                obj.source_mode = string(src.Value);
+                [~, obj.distance_labels] = obj.get_available_type_options();
+                obj.reset_fixed_variable_defaults();
+                obj.update_fixed_dropdowns(fixed_dropdown_1, fixed_dropdown_2);
+            end
+
             function freq_range_change(src, ~, freq_label, plot_panel)
                 % snap both ends to measured frequencies
                 new_range = obj.snap_to_available_freqs(src.Value);
@@ -1013,6 +1058,7 @@ classdef timeAvg_UI < handle
         function [selection_types, selection_labels] = get_available_type_options(obj)
             available_types = unique(string(obj.available_selections(:, 1)), 'stable');
             available_types = available_types(strlength(available_types) > 0);
+            available_types = available_types(obj.get_source_mask(available_types, obj.source_mode));
             selection_types = obj.get_ordered_type_options(available_types);
             selection_labels = strings(length(selection_types), 1);
 
@@ -1024,7 +1070,8 @@ classdef timeAvg_UI < handle
         function amps = get_amp_options(obj, selected_type)
             selection_types = string(obj.available_selections(:, 1));
             selection_amps = cell2mat(obj.available_selections(:, 2));
-            amps = unique(selection_amps(selection_types == string(selected_type)));
+            amps = unique(selection_amps(selection_types == string(selected_type) &...
+                obj.get_source_mask(selection_types, obj.source_mode)));
         end
 
         function freqs = get_freq_options(obj, selected_type, selected_amp)
@@ -1185,7 +1232,7 @@ classdef timeAvg_UI < handle
             selection_types = string(obj.available_selections(:, 1));
             selection_amps = cell2mat(obj.available_selections(:, 2));
             selection_freqs = cell2mat(obj.available_selections(:, 3));
-            mask = true(size(selection_amps));
+            mask = obj.get_source_mask(selection_types, obj.source_mode);
 
             fixed_vars = obj.get_fixed_variable_names();
             target_index = find(fixed_vars == string(variable_name), 1);
@@ -1266,7 +1313,7 @@ classdef timeAvg_UI < handle
             selection_amps = cell2mat(obj.available_selections(:, 2));
             selection_freqs = cell2mat(obj.available_selections(:, 3));
             fixed_vars = obj.get_fixed_variable_names();
-            mask = true(size(selection_amps));
+            mask = obj.get_source_mask(selection_types, obj.source_mode);
 
             for i = 1:length(fixed_vars)
                 variable_name = fixed_vars(i);
@@ -1300,6 +1347,7 @@ classdef timeAvg_UI < handle
 
                     selection_key = selection_key + "|" + variable_name + "=" + string(value);
                 end
+                selection_key = selection_key + "|source=" + obj.source_mode;
 
                 if sum(strcmp(selection_keys, selection_key)) == 0
                     selection_keys(end + 1) = selection_key;
@@ -1309,7 +1357,7 @@ classdef timeAvg_UI < handle
 
         function info = decode_selection(~, selection_key)
             parts = split(string(selection_key), "|");
-            info = struct("x_axis_type", parts(1), "type", "", "amp", NaN, "freq", NaN, "RPCA", false, "HR", false);
+            info = struct("x_axis_type", parts(1), "type", "", "amp", NaN, "freq", NaN, "RPCA", false, "HR", false, "source", "");
 
             for i = 2:length(parts)
                 variable_name = extractBefore(parts(i), "=");
@@ -1325,6 +1373,8 @@ classdef timeAvg_UI < handle
                         info.RPCA = string(value) == "true";
                     case "HR"
                         info.HR = string(value) == "true";
+                    case "source"
+                        info.source = string(value);
                 end
             end
         end
@@ -1341,6 +1391,10 @@ classdef timeAvg_UI < handle
                     label = "Distance | " + info.amp + " deg | " + info.freq + " Hz";
             end
 
+            if info.source == obj.OLD_FLAPPER_SOURCE_MODE
+                label = label + " | old flapper";
+            end
+
             if info.HR
                 label = label + " | HR";
             end
@@ -1353,6 +1407,13 @@ classdef timeAvg_UI < handle
             selection_types = string(obj.available_selections(:, 1));
             selection_amps = cell2mat(obj.available_selections(:, 2));
             selection_freqs = cell2mat(obj.available_selections(:, 3));
+            % only cases from the entry's data set
+            if strlength(info.source) > 0
+                keep = obj.get_source_mask(selection_types, info.source);
+                selection_types = selection_types(keep);
+                selection_amps = selection_amps(keep);
+                selection_freqs = selection_freqs(keep);
+            end
 
             switch info.x_axis_type
                 case "wingbeat frequency"
@@ -1390,6 +1451,36 @@ classdef timeAvg_UI < handle
                     points.amps = repmat(info.amp, 1, sum(valid_indices));
                     points.freqs = repmat(info.freq, 1, sum(valid_indices));
                     points.x_values = x_values(valid_indices)';
+            end
+        end
+
+        % Data sets present among the cases, new flapper first (default)
+        function source_modes = get_available_source_modes(obj)
+            types = string(obj.available_selections(:, 1));
+            types = types(strlength(types) > 0);
+            source_modes = strings(0, 1);
+            if any(obj.is_new_flapper_type(types))
+                source_modes(end + 1, 1) = obj.NEW_FLAPPER_SOURCE_MODE;
+            end
+            if any(~obj.is_new_flapper_type(types))
+                source_modes(end + 1, 1) = obj.OLD_FLAPPER_SOURCE_MODE;
+            end
+        end
+
+        function mask = is_new_flapper_type(obj, types)
+            types = string(types);
+            mask = false(size(types));
+            for i = 1:length(obj.new_flapper_downstream_types)
+                prefix = obj.new_flapper_downstream_types(i);
+                mask = mask | types == prefix | startsWith(types, prefix + "_");
+            end
+        end
+
+        function mask = get_source_mask(obj, types, source_mode)
+            if string(source_mode) == obj.NEW_FLAPPER_SOURCE_MODE
+                mask = obj.is_new_flapper_type(types);
+            else
+                mask = ~obj.is_new_flapper_type(types);
             end
         end
 
