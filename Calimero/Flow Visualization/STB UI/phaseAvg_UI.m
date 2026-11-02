@@ -1417,7 +1417,8 @@ methods (Access = private)
     function mask = is_new_flapper_type(obj, types, downstream_type)
         types = string(types);
         if nargin < 3
-            mask = false(size(types));
+            % position-independent cases (freestream) belong to the new set
+            mask = ismember(types, position_independent_cases());
             for i = 1:length(obj.new_flapper_downstream_types)
                 mask = mask | obj.is_new_flapper_type(types, obj.new_flapper_downstream_types(i));
             end

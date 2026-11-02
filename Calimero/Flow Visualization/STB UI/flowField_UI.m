@@ -2084,7 +2084,8 @@ methods (Access = private)
 
     function mask = is_new_flapper_stem(obj, stems)
         stems = string(stems);
-        mask = false(size(stems));
+        % position-independent cases (freestream) belong to the new set
+        mask = ismember(stems, position_independent_cases());
         for i = 1:length(obj.NEW_FLAPPER_DOWNSTREAM_TYPES)
             downstream_type = obj.NEW_FLAPPER_DOWNSTREAM_TYPES(i);
             mask = mask | stems == downstream_type | startsWith(stems, downstream_type + "_");
@@ -2887,6 +2888,16 @@ methods (Access = private)
             time_case_names = obj.time_old_flapper_case_name_list;
         end
 
+        % position-independent cases (freestream) at every new flapper
+        % position
+        if source_mode == obj.NEW_FLAPPER_SOURCE_MODE
+            pi_names = position_independent_cases();
+            phase_case_names = unique([phase_case_names, ...
+                reshape(intersect(obj.phase_new_flapper_stems, pi_names, 'stable'), 1, [])], 'stable');
+            time_case_names = unique([time_case_names, ...
+                reshape(intersect(obj.time_new_flapper_stems, pi_names, 'stable'), 1, [])], 'stable');
+        end
+
         % time averaged (0 Hz) cases have "time avg of phase avg" and the
         % section plot only
         if plot_type == obj.plot_types(1) || plot_type == obj.plot_types(10)
@@ -2948,7 +2959,9 @@ methods (Access = private)
                 base_case_id = "turbine_" + case_name;
             end
         else
-            if obj.plot_type == obj.plot_types(1) && obj.has_case_id(obj.time_avg_case_ids, case_name)
+            if ismember(case_name, position_independent_cases())
+                base_case_id = case_name; % no position prefix (freestream)
+            elseif obj.plot_type == obj.plot_types(1) && obj.has_case_id(obj.time_avg_case_ids, case_name)
                 base_case_id = case_name;
             elseif current_downstream_type == case_name && ...
                     (obj.has_case_id(obj.phase_avg_case_ids, case_name) || obj.has_case_id(obj.time_avg_case_ids, case_name))

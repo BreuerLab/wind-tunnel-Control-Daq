@@ -1461,7 +1461,8 @@ classdef timeAvg_UI < handle
 
         function mask = is_new_flapper_type(obj, types)
             types = string(types);
-            mask = false(size(types));
+            % position-independent cases (freestream) belong to the new set
+            mask = ismember(types, position_independent_cases());
             for i = 1:length(obj.new_flapper_downstream_types)
                 prefix = obj.new_flapper_downstream_types(i);
                 mask = mask | types == prefix | startsWith(types, prefix + "_");

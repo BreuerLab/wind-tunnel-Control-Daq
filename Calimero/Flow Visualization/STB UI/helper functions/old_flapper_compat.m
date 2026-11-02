@@ -5,8 +5,10 @@ function out = old_flapper_compat(query, varargin)
 % differences.
 %
 % Old flapper cases are recognised by their names: they have no new
-% flapper position prefix (x1_ ... x5_, MPS_) and aren't turbine cases,
-% e.g. "flexible_20deg_2Hz", "UP_one_flexible_10deg_4Hz", "body", "ring".
+% flapper position prefix (x1_ ... x5_, MPS_), aren't turbine cases and
+% aren't position-independent new flapper cases (position_independent_cases,
+% e.g. "freestream"), e.g. "flexible_20deg_2Hz", "UP_one_flexible_10deg_4Hz",
+% "body", "ring".
 %
 % Queries:
 %   tf = old_flapper_compat("is_old", name)
@@ -38,7 +40,8 @@ switch string(query)
         % (turbine cases also have no prefix, but aren't old flapper)
         names = string(varargin{1});
         out = arrayfun(@(n) strlength(get_downstream_prefix(n)) == 0 &&...
-            ~contains(n, "turbine", IgnoreCase=true), names);
+            ~contains(n, "turbine", IgnoreCase=true) &&...
+            ~is_position_independent(n), names);
 
     case "trim_bounds"
         out.ybounds = [-2.8 2.5];
@@ -94,4 +97,11 @@ switch string(query)
     otherwise
         error("old_flapper_compat:unknownQuery", "Unknown query %s", query)
 end
+end
+
+% name is a position-independent case (or its file name / stem, e.g.
+% freestream_time_avg.mat)
+function tf = is_position_independent(name)
+pi_names = position_independent_cases();
+tf = any(name == pi_names | startsWith(name, pi_names + "_") | startsWith(name, pi_names + "."));
 end
