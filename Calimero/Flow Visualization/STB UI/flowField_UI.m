@@ -754,7 +754,11 @@ methods
         plot_type_dropdown = uidropdown(sidebar_grid);
         plot_type_dropdown.Layout.Row = 5;
         plot_type_dropdown.Layout.Column = 1;
-        plot_type_dropdown.Items = obj.get_available_plot_types_for_current_case();
+        % Items are the shown labels, ItemsData the plot types (the labels
+        % differ for time averaged cases, see get_plot_type_labels)
+        initial_plot_types = obj.get_available_plot_types_for_current_case();
+        set(plot_type_dropdown, 'Items', obj.get_plot_type_labels(initial_plot_types), ...
+            'ItemsData', initial_plot_types);
         obj.plot_type = plot_type_dropdown.Value; % use current value in box
         plot_type_dropdown.ValueChangedFcn = @(src, event) type_change(src, event, plot_area_panel);
 
@@ -1375,7 +1379,8 @@ methods
 
         function refresh_plot_type_dropdown()
             available_plot_types = obj.get_available_plot_types_for_current_case();
-            plot_type_dropdown.Items = available_plot_types;
+            set(plot_type_dropdown, 'Items', obj.get_plot_type_labels(available_plot_types), ...
+                'ItemsData', available_plot_types);
             if ~any(available_plot_types == obj.plot_type)
                 obj.plot_type = available_plot_types(1);
             end
@@ -3047,6 +3052,17 @@ methods (Access = private)
     % (0 Hz) case: the time average file (mean / SD over all frames)
     function tf = is_time_avg_file_selected(obj)
         tf = ismember(obj.plot_type, obj.plot_types([1 3])) && obj.current_case_has_time_avg();
+    end
+
+    % Dropdown labels for plot types. A time averaged (gliding, 0 Hz) case
+    % has no phase average, so its mean and SD plots are labelled
+    % "time avg" and "time std".
+    function labels = get_plot_type_labels(obj, plot_types)
+        labels = string(plot_types);
+        if obj.current_case_has_time_avg() && ~obj.current_case_has_phase_avg()
+            labels(plot_types == obj.plot_types(1)) = "time avg";
+            labels(plot_types == obj.plot_types(3)) = "time std";
+        end
     end
 
     function plot_types = get_available_plot_types_for_current_case(obj)
