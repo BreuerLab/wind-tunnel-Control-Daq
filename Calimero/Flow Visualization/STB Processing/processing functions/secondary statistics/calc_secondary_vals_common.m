@@ -35,6 +35,13 @@ trim_source.dudy = D.(config.dudyField);
 trim_source.dudz = D.(config.dudzField);
 trim_source.dvdx = D.(config.dvdxField);
 trim_source.dwdx = D.(config.dwdxField);
+% remaining velocity gradients, for their planar averages (d*d*_avg)
+for g = ["dvdy", "dvdz", "dwdy", "dwdz"]
+    field = g + "Field";
+    if isfield(config, field) && isfield(D, config.(field))
+        trim_source.(g) = D.(config.(field));
+    end
+end
 trim_source.KE_diff = S.KE_diff_field;
 trim_source.power = S.power_field;
 trim_source.Q = Q; % trimmed like the other fields, for the Q centroid
@@ -201,9 +208,12 @@ end
 S.numP_avg = squeeze(mean(T.numP, [1, 2]));
 S.unc_avg = squeeze(mean(T.uncTot, [1, 2]));
 S.hel_avg = squeeze(mean(T.hel, [1, 2]));
-S.dudx_avg = squeeze(mean(T.dudx, [1, 2]));
-S.dvdx_avg = squeeze(mean(T.dvdx, [1, 2]));
-S.dwdx_avg = squeeze(mean(T.dwdx, [1, 2]));
+% planar averages of all nine velocity gradients (those present)
+for g = ["dudx", "dudy", "dudz", "dvdx", "dvdy", "dvdz", "dwdx", "dwdy", "dwdz"]
+    if isfield(T, g)
+        S.(g + "_avg") = squeeze(mean(T.(g), [1, 2]));
+    end
+end
 
 % TURNED OFF TEMPORARILY SINCE NOT SUPPORTED BY TIME AVERAGE
 % S.uu_avg = squeeze(mean(T.uu, [1, 2]));

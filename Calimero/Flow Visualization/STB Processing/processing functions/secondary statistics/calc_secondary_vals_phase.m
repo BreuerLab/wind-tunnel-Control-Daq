@@ -27,6 +27,8 @@ config.dvdxField = 'dvdx_phase_avg';
 config.dwdxField = 'dwdx_phase_avg';
 config.dvdyField = 'dvdy_phase_avg';
 config.dwdzField = 'dwdz_phase_avg';
+config.dvdzField = 'dvdz_phase_avg';
+config.dwdyField = 'dwdy_phase_avg';
 
 config.uuField = 'uu_stress';
 config.vvField = 'vv_stress';
