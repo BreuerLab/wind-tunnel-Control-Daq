@@ -22,9 +22,20 @@ positions = ["x3"];        % "x1"-"x5", "MPS", "UP_one", "UP_two", "" = old 0.9 
 amps = [10];               % flapping amplitude (deg)
 freqs = [2 4 6 8];         % wingbeat frequency (Hz), 0 = gliding
 sel_case_names = select_cases(get_PIV_paths(), positions, amps, freqs);
+% All cases found (every listed case and every September\<pos>\<case>
+% folder): set the three filters above to [] or uncomment this line
+% sel_case_names = get_PIV_paths();
 
-% num_images = 1200;
-num_images = 3000;
+% Number of images per case: "auto" counts the .vc7 files in each case's
+% data folder (get_PIV_paths) and uses that; a number uses it for every
+% case. Cases with no .vc7 files are skipped and logged.
+num_images = "auto";
+% num_images = 3000;
+
+% true: skip cases that already have a processed file (with the version,
+% HR and RPCA settings below) in save_filepath_local or its phase_avg\ /
+% time_avg\ subfolders
+skip_processed = false;
 
 % save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
 save_filepath_local = "F:\Processed Results\";
@@ -74,11 +85,15 @@ bools.plot = false;
 % true: keep going if a case errors and report it at the end
 continue_on_error = true;
 
+% Every run is appended to this log: the settings, each case's name, data
+% folder, number of .vc7 files / images used, status and time, so it can
+% be reviewed later which cases were processed and how
+log_file = fullfile(save_filepath_local, "processing_log.txt");
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 sel_case_names = string(sel_case_names);
-num_cases = length(sel_case_names);
-if num_cases == 0
+if isempty(sel_case_names)
     error("No cases selected")
 end
 
@@ -90,25 +105,65 @@ if ~isempty(unknown)
     error("Case(s) not in get_PIV_paths.m: %s", strjoin(unknown, ", "))
 end
 
-disp("Processing " + num_cases + " case(s): " + strjoin(sel_case_names, ", "))
+% ----- Find each case's data folder and number of .vc7 files -----
+cases = scan_cases(sel_case_names, num_images, save_filepath_local, bools, skip_processed);
+run_mask = cases.status == "queued";
+num_cases = sum(run_mask);
+
+log_line(log_file, "")
+log_line(log_file, repmat('=', 1, 78))
+log_line(log_file, "Batch started " + string(datetime("now", "Format", "yyyy-MM-dd HH:mm:ss")) + ...
+    " on " + string(getenv("COMPUTERNAME")) + " (" + string(getenv("USERNAME")) + ")")
+log_line(log_file, "Code version: " + code_version())
+log_line(log_file, "Save folder: " + save_filepath_local)
+log_line(log_file, "num_images: " + string(num_images) + ...
+    ", skip_processed: " + string(skip_processed) + ", continue_on_error: " + string(continue_on_error))
+log_line(log_file, "Settings: " + bools_to_text(bools))
+log_line(log_file, sprintf("%d case(s) selected, %d to process:", numel(cases.name), num_cases))
+for k = 1:numel(cases.name)
+    log_line(log_file, sprintf("  %-28s %6s vc7  %-9s %s", cases.name(k), ...
+        string(cases.num_vc7(k)), cases.status(k), cases.folder(k)))
+end
+
+if num_cases == 0
+    log_line(log_file, "Nothing to process")
+    error("No cases to process (see %s)", log_file)
+end
+disp("Processing " + num_cases + " case(s): " + strjoin(cases.name(run_mask), ", "))
+disp("Log: " + log_file)
 
 failed = strings(0);
 myFuncTimer = tic;
+run_idx = find(run_mask);
 for i = 1:num_cases
-    PIV_case_name = sel_case_names(i);
-    fprintf('\n===== [%d/%d] %s =====\n', i, num_cases, PIV_case_name);
+    k = run_idx(i);
+    PIV_case_name = cases.name(k);
+    case_images = cases.num_images(k);
+    fprintf('\n===== [%d/%d] %s (%d images) =====\n', i, num_cases, PIV_case_name, case_images);
     caseTimer = tic;
+    status = "done";
+    message = "";
     if continue_on_error
         try
-            process_case(PIV_case_name, save_filepath_local, num_images, bools);
+            process_case(PIV_case_name, save_filepath_local, case_images, bools);
         catch err
-            failed(end+1) = PIV_case_name;
+            failed(end+1) = PIV_case_name; %#ok<SAGROW>
+            status = "FAILED";
+            message = string(err.message);
             fprintf(2, 'FAILED %s:\n%s\n', PIV_case_name, getReport(err));
         end
     else
-        process_case(PIV_case_name, save_filepath_local, num_images, bools);
+        process_case(PIV_case_name, save_filepath_local, case_images, bools);
     end
-    fprintf('%s took %.1f minutes\n', PIV_case_name, toc(caseTimer)/60);
+    minutes = toc(caseTimer)/60;
+    fprintf('%s took %.1f minutes\n', PIV_case_name, minutes);
+    % written as each case finishes, so the log is complete up to a crash
+    log_line(log_file, sprintf("[%d/%d] %s  %s  %d images (%d vc7)  %s average  %.1f min  %s", ...
+        i, num_cases, string(datetime("now", "Format", "HH:mm:ss")), PIV_case_name, ...
+        case_images, cases.num_vc7(k), cases.avg_type(k), minutes, status))
+    if strlength(message) > 0
+        log_line(log_file, "      error: " + replace(message, newline, " "))
+    end
     close all
 end
 elapsed = toc(myFuncTimer);
@@ -116,9 +171,13 @@ elapsed = toc(myFuncTimer);
 fprintf('\nBatch took: %.1f minutes\n', elapsed/60);
 if isempty(failed)
     disp("All " + num_cases + " case(s) processed")
+    summary = sprintf("Batch finished in %.1f min: all %d case(s) processed", elapsed/60, num_cases);
 else
     disp("Failed (" + length(failed) + "): " + strjoin(failed, ", "))
+    summary = sprintf("Batch finished in %.1f min: %d of %d failed (%s)", elapsed/60, ...
+        numel(failed), num_cases, strjoin(failed, ", "));
 end
+log_line(log_file, summary)
 return
 
 % Select case names matching the given position(s), amplitude(s) and
@@ -149,6 +208,126 @@ function names = select_cases(case_names, positions, amps, freqs)
     end
 
     names = case_names(keep);
+end
+
+% Data folder, number of .vc7 files and images to use for each case, and
+% whether it will be processed ("queued") or why not
+function cases = scan_cases(names, num_images, save_folder, bools, skip_processed)
+    n = numel(names);
+    cases.name = names(:);
+    cases.folder = strings(n, 1);
+    cases.num_vc7 = zeros(n, 1);
+    cases.num_images = zeros(n, 1);
+    cases.avg_type = strings(n, 1);
+    cases.status = repmat("queued", n, 1);
+
+    % saved name suffix, as phase_avg_STB builds it
+    version = "";
+    if isfield(bools, 'version') && strlength(string(bools.version)) > 0
+        version = "_" + string(bools.version);
+    end
+    if isfield(bools, 'harmonic_reg') && bools.harmonic_reg
+        if strlength(version) > 0
+            version = version + "_hr";
+        else
+            version = "_hr";
+        end
+    end
+    if isfield(bools, 'RPCA') && bools.RPCA
+        version = version + "_RPCA";
+    end
+
+    for k = 1:n
+        name = cases.name(k);
+        if ~contains(name, "turbine") && (contains(name, "0Hz") || ~contains(name, "Hz"))
+            cases.avg_type(k) = "time"; % same rule as process_case
+        else
+            cases.avg_type(k) = "phase";
+        end
+
+        try
+            cases.folder(k) = get_PIV_paths(name);
+        catch
+            cases.status(k) = "no folder";
+            continue
+        end
+        cases.num_vc7(k) = numel(dir(fullfile(cases.folder(k), "*.vc7")));
+        if cases.num_vc7(k) == 0
+            cases.status(k) = "no vc7";
+            continue
+        end
+
+        if isstring(num_images) || ischar(num_images)
+            cases.num_images(k) = cases.num_vc7(k); % "auto"
+        else
+            cases.num_images(k) = num_images;
+            if num_images > cases.num_vc7(k)
+                cases.status(k) = "too few";
+                continue
+            end
+        end
+
+        if skip_processed
+            % new files are saved in save_folder itself; processed ones are
+            % kept in its time_avg\ / phase_avg\ (and phase_avg\RPCA\)
+            if cases.avg_type(k) == "time"
+                file = name + "_time_avg.mat";
+                dirs = [string(save_folder), fullfile(save_folder, "time_avg")];
+            else
+                file = name + version + "_phase_avg.mat";
+                dirs = [string(save_folder), fullfile(save_folder, "phase_avg"), ...
+                    fullfile(save_folder, "phase_avg", "RPCA")];
+            end
+            if any(isfile(fullfile(dirs, file)))
+                cases.status(k) = "skipped";
+            end
+        end
+    end
+end
+
+% Append one line to the processing log
+function log_line(log_file, txt)
+    fid = fopen(log_file, "a");
+    if fid < 0
+        warning("Could not write to the processing log %s", log_file)
+        return
+    end
+    fprintf(fid, "%s\n", txt);
+    fclose(fid);
+end
+
+% The bools settings as "name=value" pairs
+function txt = bools_to_text(bools)
+    names = fieldnames(bools);
+    parts = strings(numel(names), 1);
+    for k = 1:numel(names)
+        v = bools.(names{k});
+        if isstring(v) || ischar(v)
+            v =  + string(v) + ;
+        elseif isnumeric(v) || islogical(v)
+            v = string(mat2str(v));
+        else
+            v = "<" + class(v) + ">";
+        end
+        parts(k) = names{k} + "=" + v;
+    end
+    txt = strjoin(parts, ", ");
+end
+
+% Git commit of the code being run (with "+changes" if there are
+% uncommitted edits), or "unknown" if git isn't available
+function v = code_version()
+    v = "unknown";
+    repo = fileparts(mfilename('fullpath'));
+    [s1, hash] = system(sprintf('git -C "%s" rev-parse --short HEAD', repo));
+    if s1 ~= 0
+        return
+    end
+    v = strtrim(string(hash));
+    [s2, changes] = system(sprintf('git -C "%s" status --porcelain', repo));
+    if s2 == 0 && strlength(strtrim(string(changes))) > 0
+        v = v + " +changes";
+    end
 end
 
 % Number captured by the pattern's token, NaN if the name doesn't match
