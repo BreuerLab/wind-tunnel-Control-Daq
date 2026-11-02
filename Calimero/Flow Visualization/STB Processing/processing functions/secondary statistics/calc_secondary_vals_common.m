@@ -237,10 +237,20 @@ Q_pos = max(T.Q, 0);
 S.Qx_z = integrate_planar(y_arr, z_arr, z_tr .* Q_pos) ./ integrate_planar(y_arr, z_arr, Q_pos);
 S.Qx_y = integrate_planar(y_arr, z_arr, y_tr .* Q_pos) ./ integrate_planar(y_arr, z_arr, Q_pos);
 
-% Vortex stretching/tilting terms for \omega_x term
-S.wx_stretch = integrate_planar(y_arr, z_arr, T.vortX .* T.dudx);
-S.wx_tilt_y = integrate_planar(y_arr, z_arr, T.vortY .* T.dudy);
-S.wx_tilt_z = integrate_planar(y_arr, z_arr, T.vortZ .* T.dudz);
+% Vortex stretching/tilting terms of the vorticity transport equation,
+% (omega . grad) u, integrated over the plane:
+%   D(omega_i)/Dt = omega_x du_i/dx + omega_y du_i/dy + omega_z du_i/dz
+% Stretching is the term with i's own direction, the others are tilting.
+% Terms whose gradient isn't in the file (older processing) are skipped.
+transport_terms = transport_term_list();
+for k = 1:size(transport_terms, 1)
+    name = char(transport_terms{k, 1});
+    vort = char(transport_terms{k, 2});
+    grad = char(transport_terms{k, 3});
+    if isfield(T, vort) && isfield(T, grad)
+        S.(name) = integrate_planar(y_arr, z_arr, T.(vort) .* T.(grad));
+    end
+end
 
 end
 
