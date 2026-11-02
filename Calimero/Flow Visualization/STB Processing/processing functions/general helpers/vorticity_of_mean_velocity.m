@@ -1,18 +1,28 @@
-function [vortX, vortY, vortZ] = vorticity_of_mean_velocity(x, y, z, u, v, w, uncU, uncV, uncW)
+function [vortX, vortY, vortZ] = vorticity_of_mean_velocity(x, y, z, u, v, w, uncU, uncV, uncW, vortMethod)
 % Vorticity computed from an averaged (phase- or time-averaged) velocity
-% field, using the same operators loadpiv applies to each frame:
-%   - calculateVorticity (Raffel stencil) for all components and planes
-%   - centre-plane omega_y, omega_z replaced by the uncertainty-weighted
-%     WLS slab fit (vorticity_slab_wls), planes weighted by 1/sigma^2 with
-%     sigma the median averaged uncertainty of each plane
+% field, using the same operators loadpiv applies to each frame. vortMethod
+% matches loadpiv's option of the same name:
+%   - "central" (default): calculateVorticity with plain 2nd-order central
+%     differences for all components and planes
+%   - "raffel": calculateVorticity with the Raffel stencil
+%   - "wls": Raffel, then centre-plane omega_y, omega_z replaced by the
+%     uncertainty-weighted WLS slab fit (vorticity_slab_wls), planes
+%     weighted by 1/sigma^2 with sigma the median averaged uncertainty of
+%     each plane
 %
 % Vorticity is linear in velocity, so this differs from the average of the
 % per-frame vorticity only through hole filling (done after averaging here,
-% per frame there) and the per-frame WLS plane weights.
+% per frame there) and, for "wls", the per-frame WLS plane weights.
 %
 % x, y, z          grids [nx ny nz]
 % u, v, w          [nx ny nz] or [nx ny nz nBins]
 % uncU, uncV, uncW same size as u (averaged per-vector uncertainty)
+
+if nargin < 10 || isempty(vortMethod), vortMethod = "central"; end
+vortMethod = string(vortMethod);
+if vortMethod == "stencil", vortMethod = "raffel"; end
+vortStencil = "raffel";
+if vortMethod == "central", vortStencil = "central"; end
 
 vortX = NaN(size(u));
 vortY = vortX;
@@ -24,9 +34,9 @@ opts = struct('order', 2, 'i0', i0);
 
 for b = 1:size(u, 4)
     ub = u(:,:,:,b); vb = v(:,:,:,b); wb = w(:,:,:,b);
-    [wx, wy, wz] = calculateVorticity(x, y, z, ub, vb, wb);
+    [wx, wy, wz] = calculateVorticity(x, y, z, ub, vb, wb, vortStencil);
 
-    if nx >= 3
+    if vortMethod == "wls" && nx >= 3
         [wy_c, wz_c] = vorticity_slab_wls(x, y, z, ub, vb, wb, ...
             plane_sigma(uncU(:,:,:,b)), plane_sigma(uncV(:,:,:,b)), plane_sigma(uncW(:,:,:,b)), opts);
         wy(i0, :, :) = reshape(fill3D(wy_c), [1, size(wy_c)]);

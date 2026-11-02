@@ -27,9 +27,16 @@ function varargout = loadpiv(folderPIV, varargin)
 %  `D = loadpiv(folderPIV, "fovRot", 0.23)`
 %
 %  `D = loadpiv(folderPIV, "Validate", 0.4)`
-%  `D = loadpiv(folderPIV, "vortMethod", "stencil")` : centre-plane omega_y,
-%            omega_z from the 3-plane Raffel stencil instead of the default
-%            "wls" uncertainty-weighted fit across all planes
+%  `D = loadpiv(folderPIV, "vortMethod", "raffel")` : vorticity from the
+%            Raffel stencil (central difference + [1 2 1] transverse
+%            smoothing) instead of the default "central" (plain 2nd-order
+%            central differences). "wls" = Raffel plus centre-plane
+%            omega_y, omega_z from the uncertainty-weighted fit across all
+%            planes (vorticity_slab_wls).
+%  `D = loadpiv(folderPIV, "gradMethod", "4th")` : velocity gradients from
+%            the 5-point 4th-order stencil instead of the default "central"
+%            (2nd-order central differences; centre plane uses planes 2, 4)
+%  Old-style "vortMethod","stencil" is accepted and means "raffel".
 %
 %  -------------------------------------------------------------------------
 %  ### Mandatory inputs:
@@ -239,7 +246,8 @@ for frameCounter = 1:numSelectedFrames
         end
     end
 
-    frameData = extractData(rawFrame, options.numCameraField, options.vortMethod);
+    frameData = extractData(rawFrame, options.numCameraField, options.vortMethod, ...
+        options.gradMethod);
 
     if frameCounter == 1
         if frameData.dimNum > 3
@@ -368,7 +376,8 @@ options.fovCenter = [0, 0];
 options.fovRot = 0;
 options.numCameraField = 1;
 options.selectedFrames = [];
-options.vortMethod = "wls";
+options.vortMethod = "central";
+options.gradMethod = "central";
 
 skipNext = false;
 for optionIndex = 1:length(varargin)
@@ -443,10 +452,19 @@ for optionIndex = 1:length(varargin)
 
         case 'vortMethod'
             vortMethod = string(getFollowingValue(varargin, optionIndex, optionName));
-            if ~ismember(vortMethod, ["wls", "stencil"])
-                error('"vortMethod" must be "wls" or "stencil".')
+            if vortMethod == "stencil", vortMethod = "raffel"; end
+            if ~ismember(vortMethod, ["central", "raffel", "wls"])
+                error('"vortMethod" must be "central", "raffel" or "wls".')
             end
             options.vortMethod = vortMethod;
+            skipNext = true;
+
+        case 'gradMethod'
+            gradMethod = string(getFollowingValue(varargin, optionIndex, optionName));
+            if ~ismember(gradMethod, ["central", "4th"])
+                error('"gradMethod" must be "central" or "4th".')
+            end
+            options.gradMethod = gradMethod;
             skipNext = true;
 
         otherwise
@@ -502,8 +520,9 @@ function data = nanToMedian(data)
     data(isnan(data)) = med;
 end
 
-function out1 = extractData(dataStructure, numCameraField, vortMethod)
-if nargin < 3, vortMethod = "wls"; end
+function out1 = extractData(dataStructure, numCameraField, vortMethod, gradMethod)
+if nargin < 3, vortMethod = "central"; end
+if nargin < 4, gradMethod = "central"; end
 
 frame = dataStructure.Frames{numCameraField, 1};
 components = frame.Components;
@@ -616,20 +635,22 @@ uFilled = fill3D(out1.uRaw);
 vFilled = fill3D(out1.vRaw);
 wFilled = fill3D(out1.wRaw);
 
+% "wls" starts from the Raffel stencil and replaces the centre plane below
+vortStencil = "raffel";
+if vortMethod == "central", vortStencil = "central"; end
 [out1.vortXRaw, out1.vortYRaw, out1.vortZRaw] = ...
-    calculateVorticity(out1.xRaw, out1.yRaw, out1.zRaw, uFilled, vFilled, wFilled);
+    calculateVorticity(out1.xRaw, out1.yRaw, out1.zRaw, uFilled, vFilled, wFilled, vortStencil);
 
-[out1.dudx, out1.dudy, out1.dudz] = ...
-    get_gradients(out1.xRaw, out1.yRaw, out1.zRaw, uFilled);
-% du/dx: 2nd-order central difference between the planes either side, so
+% Velocity gradients. Default "central": 2nd-order central differences, so
 % the centre plane uses planes 2 and 4 only. The 5-point 4th-order stencil
-% leans on the sparse, poorly lit outermost planes and biased du/dx
-% negative in freestream data.
-out1.dudx = central_diff_2nd_x(out1.xRaw(:,1,1), uFilled);
+% ("4th") leans on the sparse, poorly lit outermost planes and biased
+% du/dx negative in freestream data.
+[out1.dudx, out1.dudy, out1.dudz] = ...
+    get_gradients(out1.xRaw, out1.yRaw, out1.zRaw, uFilled, gradMethod);
 [out1.dvdx, out1.dvdy, out1.dvdz] = ...
-    get_gradients(out1.xRaw, out1.yRaw, out1.zRaw, vFilled);
+    get_gradients(out1.xRaw, out1.yRaw, out1.zRaw, vFilled, gradMethod);
 [out1.dwdx, out1.dwdy, out1.dwdz] = ...
-    get_gradients(out1.xRaw, out1.yRaw, out1.zRaw, wFilled);
+    get_gradients(out1.xRaw, out1.yRaw, out1.zRaw, wFilled, gradMethod);
 
 out1.uncURaw = nan([sizeXY numTrimmedPlanes]);
 out1.uncVRaw = nan(size(out1.uncURaw));
@@ -700,19 +721,6 @@ unc(~isfinite(unc) | unc <= 0) = NaN;     % DaVis stores empty bins as 0
 s = median(reshape(unc, nx, []), 2, "omitnan");
 end
 
-function dudx = central_diff_2nd_x(x, u)
-    % 2nd-order central difference of u along dim 1 (x, the slab-normal
-    % direction). x is the dim-1 coordinate vector; the signed spacing keeps
-    % the same sign convention as central_diff_4th_3D. The two outermost
-    % planes are NaN.
-    h = x(2) - x(1);
-    n = size(u, 1);
-    dudx = NaN(size(u));
-    if n >= 3
-        dudx(2:n-1,:,:) = (u(3:n,:,:) - u(1:n-2,:,:)) / (2 * h);
-    end
-end
-
 function dudx = central_diff_4th_3D(x, u)
     % Calculates the 1st derivative of 3D matrix u along the dimension
     % defined by the coordinate matrix x.
@@ -751,10 +759,22 @@ function dudx = central_diff_4th_3D(x, u)
     end
 end
 
-function [dudx, dudy, dudz] = get_gradients(x, y, z, u)
+function [dudx, dudy, dudz] = get_gradients(x, y, z, u, gradMethod)
     % empty bins are NaN at this point (see emptyBins above); interpolate
     % across them, consistent with calculateVorticity
+    if nargin < 5, gradMethod = "central"; end
     u = fill3D(u);
+
+    if gradMethod == "central"
+        % 2nd-order central differences (one-sided at the edges), signed
+        % spacing so these are derivatives with respect to the coordinate
+        dudx = central_diff_2nd(u, x(2,1,1) - x(1,1,1), 1);
+        dudy = central_diff_2nd(u, y(1,2,1) - y(1,1,1), 2);
+        dudz = central_diff_2nd(u, z(1,1,2) - z(1,1,1), 3);
+        return
+    end
+
+    % gradMethod == "4th": 5-point 4th-order stencil (not used by default)
 
     % Coordinate vectors are passed WITHOUT squeeze so each keeps its
     % orientation (central_diff_4th_3D finds the dimension from it).

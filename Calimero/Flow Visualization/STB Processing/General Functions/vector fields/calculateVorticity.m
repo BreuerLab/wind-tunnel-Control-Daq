@@ -1,5 +1,27 @@
 % Compute vorticity -------------------------------------------------------
-function [omega_x, omega_y, omega_z] = calculateVorticity(xRaw,yRaw,zRaw,uRaw,vRaw,wRaw)
+function [omega_x, omega_y, omega_z] = calculateVorticity(xRaw,yRaw,zRaw,uRaw,vRaw,wRaw,method)
+% method: "central" (default) - plain 2nd-order central differences
+%                               (central_diff_2nd; one-sided at the edges),
+%                               no transverse smoothing
+%         "raffel"            - Raffel PIV-handbook stencil below (central
+%                               difference with [1 2 1] transverse smoothing)
+% Both take derivatives with respect to array index times |grid spacing|.
+if nargin < 7 || isempty(method), method = "central"; end
+
+if method == "central"
+    u = fill3D(uRaw);
+    v = fill3D(vRaw);
+    w = fill3D(wRaw);
+    dx = abs(xRaw(2,1,1) - xRaw(1,1,1));
+    dy = abs(yRaw(1,2,1) - yRaw(1,1,1));
+    dz = abs(zRaw(1,1,2) - zRaw(1,1,1));
+    omega_x = central_diff_2nd(w, dy, 2) - central_diff_2nd(v, dz, 3);
+    omega_y = central_diff_2nd(u, dz, 3) - central_diff_2nd(w, dx, 1);
+    omega_z = central_diff_2nd(v, dx, 1) - central_diff_2nd(u, dy, 2);
+    return
+elseif method ~= "raffel"
+    error('calculateVorticity: method must be "central" or "raffel".')
+end
 
 % A: ALGORITHM TAKEN FROM RAFFEL'S PIV HANDBOOK
 % 6.4 Estimation of Differential Quantities, page 195
