@@ -184,8 +184,29 @@ disp("Laser recorded firing at: " + las_rep_rate + " Hz on average")
 
 % find value of laser counter when camera trigger signal initiated
 cam_fire_idx = find(results(:,13) == 2, 1, "first");
+if isempty(cam_fire_idx)
+    error("frame_to_bin:noCameraTrigger", "No camera trigger (column 13 = 2) in %s", daq_data_filename)
+end
 laser_count_at_cam_fire = las_count(cam_fire_idx);
-disp("Laser pulses by camera fire: " + laser_count_at_cam_fire)
+pulse_counts = las_count(laser_ind); % counter value of each recorded pulse
+disp("Laser pulses by camera fire: " + laser_count_at_cam_fire + ...
+    ", " + (pulse_counts(end) - laser_count_at_cam_fire) + " pulses (images) after it")
+
+% Pulses of the processed images: the camera's images start with the first
+% pulse after the camera trigger (counter value N + 1, N = pulses by camera
+% fire), and the .vc7 files are the first num_images of them, so vc7 k is
+% pulse N + k. (Previously the last num_images pulses of the recording were
+% used, which is the same only when every recorded image was processed.)
+img_pulses = pulse_counts > laser_count_at_cam_fire & ...
+    pulse_counts <= laser_count_at_cam_fire + num_images;
+if sum(img_pulses) ~= num_images
+    error("frame_to_bin:pulseCount", ...
+        "%d images requested, but only %d laser pulses recorded after the camera trigger (pulse %d) in %s", ...
+        num_images, sum(img_pulses), laser_count_at_cam_fire, daq_data_filename)
+end
+laser_ind = laser_ind(img_pulses);
+disp("Using pulses " + (laser_count_at_cam_fire + 1) + "-" + (laser_count_at_cam_fire + num_images) + ...
+    " of " + pulse_counts(end) + " for the " + num_images + " images")
 
 % could use cycle_freq or freq_cor here, but using the measured average
 % wingbeat frequency freq_cor seems more accurate

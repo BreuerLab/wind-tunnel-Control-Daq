@@ -31,9 +31,12 @@ if nargin > 4
 % find signal value corresponding to laser pulse
 norm_signal = norm_signal(laser_ind);
 
-disp("Cropped off " + (length(norm_signal) - num_images) + " extra laser pulses from beginning")
-% crop off first few extra pulses
-norm_signal = norm_signal(end-(num_images - 1):end);
+% crop to the last num_images pulses (frame_to_bin passes exactly the
+% pulses of the images, so nothing is cropped there)
+if length(norm_signal) > num_images
+    disp("Cropped off " + (length(norm_signal) - num_images) + " extra laser pulses from beginning")
+    norm_signal = norm_signal(end-(num_images - 1):end);
+end
 end
 
 end
