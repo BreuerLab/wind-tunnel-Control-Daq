@@ -242,13 +242,21 @@ S.Qx_y = integrate_planar(y_arr, z_arr, y_tr .* Q_pos) ./ integrate_planar(y_arr
 %   D(omega_i)/Dt = omega_x du_i/dx + omega_y du_i/dy + omega_z du_i/dz
 % Stretching is the term with i's own direction, the others are tilting.
 % Terms whose gradient isn't in the file (older processing) are skipped.
+% The omega_x terms are also saved weighted by y (from the mirror
+% centreline, as in the lift integral), *_ymom: these are the sources of
+% the omega_x lift integral, int y omega_x dA, so they show how stretching
+% and tilting change the Trefftz-plane lift estimate with x.
 transport_terms = transport_term_list();
 for k = 1:size(transport_terms, 1)
     name = char(transport_terms{k, 1});
     vort = char(transport_terms{k, 2});
     grad = char(transport_terms{k, 3});
     if isfield(T, vort) && isfield(T, grad)
-        S.(name) = integrate_planar(y_arr, z_arr, T.(vort) .* T.(grad));
+        term = T.(vort) .* T.(grad);
+        S.(name) = integrate_planar(y_arr, z_arr, term);
+        if startsWith(name, "wx_")
+            S.([name '_ymom']) = integrate_planar(y_arr, z_arr, y_tr .* term);
+        end
     end
 end
 

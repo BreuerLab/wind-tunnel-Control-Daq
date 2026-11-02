@@ -34,6 +34,16 @@ properties (Constant, Access = private)
     % (y_B_fov, z_B_fov), time avg / movie only.
     EXTRAP_DIFF_VARS = ["u: extrap - meas", "v: extrap - meas", "w: extrap - meas"];
     EXTRAP_DIFF_FIELDS = ["velX_B_diff", "velY_B_diff", "velZ_B_diff"];
+    % Derived variables: stretching/tilting terms of the vorticity
+    % transport equation, omega_j du_i/dx_j, computed on the fly as the
+    % stored (nondimensional) vorticity times the stored gradient, so in
+    % units of U^2/c^2. Fields line up with transport_term_list.
+    TRANSPORT_VARS = ["ω_x du/dx", "ω_y du/dy", "ω_z du/dz", ...
+        "ω_x dv/dx", "ω_y dv/dy", "ω_z dv/dz", ...
+        "ω_x dw/dx", "ω_y dw/dy", "ω_z dw/dz"];
+    TRANSPORT_FIELDS = ["transport_wx_stretch", "transport_wx_tilt_y", "transport_wx_tilt_z", ...
+        "transport_wy_tilt_x", "transport_wy_stretch", "transport_wy_tilt_z", ...
+        "transport_wz_tilt_x", "transport_wz_tilt_y", "transport_wz_stretch"];
     % Trim bounds and mirror centerline for each flapper source mode.
     % The active set is copied into trim_y_bounds / trim_z_bounds /
     % mirror_center_y by set_trim_settings_for_source_mode().
@@ -450,6 +460,10 @@ methods
         obj.movie_3D_avg_vars = [obj.movie_3D_avg_vars, obj.EXTRAP_DIFF_VARS];
         movie_3D_avg_values = [movie_3D_avg_values, obj.EXTRAP_DIFF_FIELDS];
         time_avg_values = [time_avg_values, obj.EXTRAP_DIFF_FIELDS]; % not in time-avg files
+        % vorticity transport terms (derived, see TRANSPORT_FIELDS)
+        obj.movie_3D_avg_vars = [obj.movie_3D_avg_vars, obj.TRANSPORT_VARS];
+        movie_3D_avg_values = [movie_3D_avg_values, obj.TRANSPORT_FIELDS];
+        time_avg_values = [time_avg_values, obj.TRANSPORT_FIELDS];
         % frame-to-frame standard deviation of that Q within each bin
         % (phase_avg_STB with bools.Q_inst = true)
         obj.movie_3D_std_vars = [obj.movie_3D_std_vars, "<Qx> inst", "<Qy> inst", "<Qz> inst", "<Q> inst"];
@@ -531,7 +545,8 @@ methods
                       0, 0.1;...  % <Q> inst
                       -0.05, 0.05;... % u: extrap - meas
                       -0.05, 0.05;... % v: extrap - meas
-                      -0.05, 0.05];   % w: extrap - meas
+                      -0.05, 0.05;... % w: extrap - meas
+                      repmat([-0.5, 0.5], numel(obj.TRANSPORT_VARS), 1)]; % ω_j du_i/dx_j c^2/U^2
 
         % for std plots
         obj.std_clims = [0, 0.05;...
@@ -616,6 +631,7 @@ methods
             "$(u_{extrap} - u_{meas}) \; / \; U$",...
             "$(v_{extrap} - v_{meas}) \; / \; U$",...
             "$(w_{extrap} - w_{meas}) \; / \; U$"];
+        movie_3D_avg_labels = [movie_3D_avg_labels, obj.transport_labels()];
 
         keys = cellstr(obj.movie_3D_avg_vars);
         values = movie_3D_avg_values;
@@ -3115,6 +3131,12 @@ methods (Access = private)
             end
             use_extrapolated_data = true;
         end
+        % transport terms need the gradients, which the extrapolated
+        % (Helmholtz) field doesn't have: always the measured field
+        is_transport = any(obj.variable_name == obj.TRANSPORT_VARS);
+        if is_transport
+            use_extrapolated_data = false;
+        end
         q_mask_enabled = obj.q_mask_bool && ismember(plot_idx, [1, 2]) && ~use_extrapolated_data;
         q_mask_var_name = "Q";
 
@@ -3156,6 +3178,9 @@ methods (Access = private)
             if strcmp(var_name, obj.LIFT_WX_FIELD)
                 % derived field: load the stored fields it is built from
                 vars = [vars, obj.get_lift_wx_inputs(using_time_avg_file)];
+            elseif is_transport
+                [vort_field, grad_field] = obj.get_transport_inputs(var_name, using_time_avg_file);
+                vars = [vars, {vort_field, grad_field}];
             elseif contains(obj.variable_name, obj.secondary_vars) || use_extrapolated_data
                 cur_secondary_vars{end+1} = var_name;
             else
@@ -3309,6 +3334,12 @@ methods (Access = private)
         if ismember(plot_idx, [1, 2, 5, 9]) && strcmp(var_name, obj.LIFT_WX_FIELD)
             d.(var_name) = obj.compute_lift_wx_field(d, using_time_avg_file);
         end
+        if ismember(plot_idx, [1, 2, 5, 9]) && is_transport && ...
+                isfield(d, vort_field) && isfield(d, grad_field)
+            % omega_j du_i/dx_j (c^2/U^2); left missing when the gradient
+            % isn't saved (older processing) -> show_missing_variable
+            d.(var_name) = d.(vort_field) .* d.(grad_field);
+        end
 
         if plot_idx ~= 8
             if ~isfield(d, var_name)
@@ -3366,7 +3397,7 @@ methods (Access = private)
 
             params.U = d.U;
 
-            if strcmp(var_name, obj.LIFT_WX_FIELD)
+            if strcmp(var_name, obj.LIFT_WX_FIELD) || is_transport
                 params.zero = 0; % signed field centred on zero
             elseif min(var_clims) < -1
                 params.zero = -1;
@@ -4319,6 +4350,38 @@ methods (Access = private)
                 'FontSize', 10, 'Color', [0.85 0.1 0.1]);
         end
         note = sprintf("y-axis limited to 2x mean; %d bin(s) above (value shown)", numel(outliers));
+    end
+
+    function [vort_field, grad_field] = get_transport_inputs(obj, var_name, using_time_avg_file)
+        % Stored vorticity and gradient fields for a transport term
+        % (TRANSPORT_FIELDS -> transport_term_list)
+        terms = transport_term_list();
+        k = find(string(terms(:, 1)) == erase(string(var_name), "transport_"), 1);
+        if isempty(k)
+            error("Unknown vorticity transport term " + string(var_name))
+        end
+        vort = string(terms{k, 2});
+        grad = string(terms{k, 3});
+        if using_time_avg_file
+            vort_field = char("mean_" + vort);
+            grad_field = char("mean_" + grad);
+        else
+            vort_field = char(vort + "_phase_avg");
+            grad_field = char(grad + "_phase_avg");
+        end
+    end
+
+    function labels = transport_labels(obj)
+        % omega_j du_i/dx_j c^2/U^2 for each TRANSPORT_VARS entry
+        labels = strings(1, numel(obj.TRANSPORT_VARS));
+        for k = 1:numel(obj.TRANSPORT_VARS)
+            parts = split(obj.TRANSPORT_VARS(k), " ");   % "ω_x", "du/dx"
+            w = extractAfter(parts(1), "_");
+            uvw = extractBetween(parts(2), "d", "/");
+            dx = extractAfter(parts(2), "/d");
+            labels(k) = "\boldmath$\omega_" + w + " \frac{\partial " + uvw + ...
+                "}{\partial " + dx + "} \frac{c^2}{U_{\infty}^2}$";
+        end
     end
 
     function inputs = get_lift_wx_inputs(~, using_time_avg_file)
