@@ -19,8 +19,8 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 % Alternatively, select cases by filter. Leave a filter empty to accept
 % any value. Uncomment the line below the filters to use them.
 positions = ["x3"];        % "x1"-"x5", "MPS", "UP_one", "UP_two", "" = old 0.9 m cases (no prefix)
-amps = [30];               % flapping amplitude (deg)
-freqs = [2 4 6];         % wingbeat frequency (Hz), 0 = gliding
+amps = [10];               % flapping amplitude (deg)
+freqs = [2 4 6 8];         % wingbeat frequency (Hz), 0 = gliding
 sel_case_names = select_cases(get_PIV_paths(), positions, amps, freqs);
 
 % num_images = 1200;
@@ -43,7 +43,7 @@ bools.proc_vel = true; % false if just calculating secondary values
 % in this range (and the bin offset) with the smallest phase spread per
 % bin; it was choosing ~193 in 180-210. Fewer bins = more frames per bin
 % (less noise) but coarser phase resolution. [n n] forces n bins.
-bools.bin_range = [180 210];
+bools.bin_range = [180 200];
 
 % Version name added to the saved file names, e.g. "coarse" saves
 % x3_wings_20deg_6Hz_coarse_phase_avg.mat (and _integral.mat); phaseAvg_UI
