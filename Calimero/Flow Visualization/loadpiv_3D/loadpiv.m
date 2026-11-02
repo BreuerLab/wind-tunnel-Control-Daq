@@ -30,6 +30,12 @@ function varargout = loadpiv(folderPIV, varargin)
 %  `D = loadpiv(folderPIV, "vortMethod", "stencil")` : centre-plane omega_y,
 %            omega_z from the 3-plane Raffel stencil instead of the default
 %            "wls" uncertainty-weighted fit across all planes
+%  `D = loadpiv(folderPIV, "dudxMethod", "stencil")` : centre-plane du/dx
+%            from the 5-point 4th-order stencil across all planes instead
+%            of the default "wls" uncertainty-weighted fit across the inner
+%            planes (outermost planes dropped)
+%  `D = loadpiv(folderPIV, "dudxPlanes", 1:5)` : planes used by the "wls"
+%            du/dx fit (default [] = 2:nx-1)
 %
 %  -------------------------------------------------------------------------
 %  ### Mandatory inputs:
@@ -239,7 +245,8 @@ for frameCounter = 1:numSelectedFrames
         end
     end
 
-    frameData = extractData(rawFrame, options.numCameraField, options.vortMethod);
+    frameData = extractData(rawFrame, options.numCameraField, options.vortMethod, ...
+        options.dudxMethod, options.dudxPlanes);
 
     if frameCounter == 1
         if frameData.dimNum > 3
@@ -369,6 +376,8 @@ options.fovRot = 0;
 options.numCameraField = 1;
 options.selectedFrames = [];
 options.vortMethod = "wls";
+options.dudxMethod = "wls";
+options.dudxPlanes = [];
 
 skipNext = false;
 for optionIndex = 1:length(varargin)
@@ -449,6 +458,22 @@ for optionIndex = 1:length(varargin)
             options.vortMethod = vortMethod;
             skipNext = true;
 
+        case 'dudxMethod'
+            dudxMethod = string(getFollowingValue(varargin, optionIndex, optionName));
+            if ~ismember(dudxMethod, ["wls", "stencil"])
+                error('"dudxMethod" must be "wls" or "stencil".')
+            end
+            options.dudxMethod = dudxMethod;
+            skipNext = true;
+
+        case 'dudxPlanes'
+            dudxPlanes = getFollowingValue(varargin, optionIndex, optionName);
+            if ~isnumeric(dudxPlanes) || ~isvector(dudxPlanes) || numel(dudxPlanes) < 2
+                error('"dudxPlanes" must be a numeric vector of at least 2 plane indices.')
+            end
+            options.dudxPlanes = dudxPlanes(:)';
+            skipNext = true;
+
         otherwise
             error(['Invalid argument: "', optionName, '" for input "options."']);
     end
@@ -502,8 +527,10 @@ function data = nanToMedian(data)
     data(isnan(data)) = med;
 end
 
-function out1 = extractData(dataStructure, numCameraField, vortMethod)
+function out1 = extractData(dataStructure, numCameraField, vortMethod, dudxMethod, dudxPlanes)
 if nargin < 3, vortMethod = "wls"; end
+if nargin < 4, dudxMethod = "wls"; end
+if nargin < 5, dudxPlanes = []; end
 
 frame = dataStructure.Frames{numCameraField, 1};
 components = frame.Components;
@@ -662,6 +689,47 @@ out1.numP = permute(rotateStbVolume(out1.numP), permutationOrder);
 if out1.dimNum == 3 && vortMethod == "wls" && size(out1.uRaw, 1) >= 3
     [out1.vortYRaw, out1.vortZRaw] = slab_wls_centre_plane(out1);
 end
+
+% du/dx on the centre plane from an uncertainty-weighted fit across the
+% inner planes only (the outermost planes are sparse and biased). See
+% slab_dudx_centre_plane.
+if out1.dimNum == 3 && dudxMethod == "wls" && size(out1.uRaw, 1) >= 3
+    out1.dudx = slab_dudx_centre_plane(out1, dudxPlanes);
+end
+end
+
+function dudx = slab_dudx_centre_plane(out1, dudxPlanes)
+% Replace du/dx on the centre plane with the slope of a WLS polynomial fit
+% across the selected planes. As in slab_wls_centre_plane, each plane is
+% weighted by 1/sigma^2 with one sigma per plane (median DaVis uncertainty
+% of u), and empty bins (NaN u) get zero weight instead of being
+% hole-filled. Planes not in dudxPlanes get NaN sigma, i.e. no weight.
+% dudxPlanes = [] drops the two outermost planes (2:nx-1).
+%
+% With 3 planes a line is fitted: a quadratic through 3 points would just
+% reproduce the 2nd-order central difference and ignore the centre plane.
+% The line uses the centre plane too and still gives a (one-sided) slope
+% where one neighbouring plane has no data. With >= 5 planes, order 2.
+dudx = out1.dudx;
+nx = size(out1.uRaw, 1);
+i0 = ceil(nx / 2);
+
+if isempty(dudxPlanes)
+    planes = 2:nx-1;
+else
+    planes = dudxPlanes(dudxPlanes >= 1 & dudxPlanes <= nx);
+end
+sig = plane_sigma(out1.uncURaw);
+sig(setdiff(1:nx, planes)) = NaN;
+order = 1 + (numel(planes) >= 5);
+
+% Signed plane spacing, so the sign matches central_diff_4th_3D (which
+% the other gradients use), not |dx| as in the vorticity fit.
+h = out1.xRaw(2,1,1) - out1.xRaw(1,1,1);
+g = slab_poly_fit(out1.uRaw, sig, h, order, i0);
+
+% columns with too few usable planes come back NaN; fill like the velocities
+dudx(i0, :, :) = reshape(fill3D(g), [1, size(g)]);
 end
 
 function [vortY, vortZ] = slab_wls_centre_plane(out1)
