@@ -80,7 +80,7 @@ classdef timeAvg_UI < handle
         force_var;
         force_vars;
         PIV_sub;
-        % which steady case to subtract: "ring", "body", or "gliding"
+        % which steady case to subtract: "ring", "body", "gliding" or "freestream"
         PIV_sub_case;
         force_sub;
         % boolean, with wingbeat frequency on the x-axis plot every load
@@ -602,9 +602,9 @@ classdef timeAvg_UI < handle
             piv_sub_dropdown = uidropdown(sidebar_grid);
             piv_sub_dropdown.Layout.Row = 17;
             piv_sub_dropdown.Layout.Column = 1;
-            piv_sub_dropdown.Items = ["ring", "body", "gliding"];
+            piv_sub_dropdown.Items = ["ring", "body", "gliding", "freestream"];
             piv_sub_dropdown.Value = obj.PIV_sub_case;
-            piv_sub_dropdown.Tooltip = "Steady case subtracted (e.g. for x3_wings_20deg_4Hz: ring = x3_ring, body = x3_body_20deg_0Hz, gliding = x3_wings_20deg_0Hz)";
+            piv_sub_dropdown.Tooltip = "Steady case subtracted (e.g. for x3_wings_20deg_4Hz: ring = x3_ring, body = x3_body_20deg_0Hz, gliding = x3_wings_20deg_0Hz, freestream = freestream, the empty test section)";
             piv_sub_dropdown.ValueChangedFcn = @(src, event) PIV_sub_case_change(src, event, plot_panel);
 
             force_sub_button = uibutton(sidebar_grid, "state");
@@ -2656,6 +2656,8 @@ classdef timeAvg_UI < handle
             %   ring    -> x3_ring
             %   body    -> x3_body_20deg_0Hz
             %   gliding -> x3_wings_20deg_0Hz
+            %   freestream -> freestream (empty test section, one case for
+            %                 all positions, see position_independent_cases)
             type = string(type);
             amp = string(amp);
 
@@ -2675,6 +2677,8 @@ classdef timeAvg_UI < handle
                     else
                         case_names = type + "_" + amp + "deg_0Hz";
                     end
+                case "freestream"
+                    case_names = position_independent_cases();
                 otherwise
                     error("Unknown PIV subtraction case: %s", obj.PIV_sub_case);
             end

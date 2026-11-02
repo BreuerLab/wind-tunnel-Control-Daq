@@ -156,7 +156,7 @@ properties
     pitch_shift;
     % boolean, subtraction on or off
     PIV_sub;
-    % which steady case to subtract: "ring", "body", or "gliding"
+    % which steady case to subtract: "ring", "body", "gliding" or "freestream"
     PIV_sub_case;
     force_sub;
     % boolean, shade +/- 1 standard deviation around the curves that have
@@ -491,9 +491,9 @@ methods
         PIV_sub_dropdown = uidropdown(param_grid);
         PIV_sub_dropdown.Layout.Row = 10;
         PIV_sub_dropdown.Layout.Column = 1;
-        PIV_sub_dropdown.Items = ["ring", "body", "gliding"];
+        PIV_sub_dropdown.Items = ["ring", "body", "gliding", "freestream"];
         PIV_sub_dropdown.Value = obj.PIV_sub_case;
-        PIV_sub_dropdown.Tooltip = "Steady case subtracted (e.g. for x3_wings_20deg_4Hz: ring = x3_ring, body = x3_body_20deg_0Hz, gliding = x3_wings_20deg_0Hz)";
+        PIV_sub_dropdown.Tooltip = "Steady case subtracted (e.g. for x3_wings_20deg_4Hz: ring = x3_ring, body = x3_body_20deg_0Hz, gliding = x3_wings_20deg_0Hz, freestream = freestream, the empty test section)";
         PIV_sub_dropdown.ValueChangedFcn = @(src, event) PIV_sub_case_change(src, event, plot_panel);
 
         % Convection Shift and, next to it, "+/-": shift all curves so the
@@ -1770,6 +1770,8 @@ methods (Access = private)
         %   ring    -> x3_ring
         %   body    -> x3_body_20deg_0Hz
         %   gliding -> x3_wings_20deg_0Hz
+        %   freestream -> freestream (empty test section, one case for all
+        %                 positions, see position_independent_cases)
         type = string(type);
         amp = string(amp);
 
@@ -1784,6 +1786,8 @@ methods (Access = private)
                 case_names = [prefix + "body_" + amp + "deg_0Hz", prefix + "body"];
             case "gliding"
                 case_names = type + "_" + amp + "deg_0Hz";
+            case "freestream"
+                case_names = position_independent_cases();
             otherwise
                 error("Unknown PIV subtraction case: %s", obj.PIV_sub_case);
         end
