@@ -2,12 +2,12 @@ function [vortX, vortY, vortZ] = vorticity_of_mean_velocity(x, y, z, u, v, w, un
 % Vorticity computed from an averaged (phase- or time-averaged) velocity
 % field, using the same operators loadpiv applies to each frame. vortMethod
 % matches loadpiv's option of the same name:
-%   - "stencil" (default): calculateVorticity (Raffel stencil) for all
-%     components and planes
-%   - "wls": as "stencil", then centre-plane omega_y, omega_z replaced by the
-%     uncertainty-weighted WLS slab fit (vorticity_slab_wls), planes
-%     weighted by 1/sigma^2 with sigma the median averaged uncertainty of
-%     each plane
+%   - "stencil": calculateVorticity (Raffel stencil) for all components
+%     and planes
+%   - "wls" (default): as "stencil", then centre-plane omega_y, omega_z
+%     replaced by the uncertainty-weighted WLS slab fit
+%     (vorticity_slab_wls), planes weighted by 1/sigma^2 with sigma the
+%     median averaged uncertainty of each plane
 %
 % Vorticity is linear in velocity, so this differs from the average of the
 % per-frame vorticity only through hole filling (done after averaging here,
@@ -17,7 +17,7 @@ function [vortX, vortY, vortZ] = vorticity_of_mean_velocity(x, y, z, u, v, w, un
 % u, v, w          [nx ny nz] or [nx ny nz nBins]
 % uncU, uncV, uncW same size as u (averaged per-vector uncertainty)
 
-if nargin < 10 || isempty(vortMethod), vortMethod = "stencil"; end
+if nargin < 10 || isempty(vortMethod), vortMethod = "wls"; end
 vortMethod = string(vortMethod);
 
 vortX = NaN(size(u));
