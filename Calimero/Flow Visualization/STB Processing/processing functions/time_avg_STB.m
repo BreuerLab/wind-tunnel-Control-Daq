@@ -12,8 +12,10 @@ function S = time_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, n
     % Optional outputs (default on if the caller didn't set them)
     calc_Q_inst = ~isfield(bools, 'Q_inst') || bools.Q_inst;
     calc_vort_uavg = ~isfield(bools, 'vort_uavg') || bools.vort_uavg;
+    calc_div_std = ~isfield(bools, 'div_std') || bools.div_std;
 
     opts.calc_Q_inst = calc_Q_inst;
+    opts.calc_div_std = calc_div_std;
     opts.nondim = bools.nondim;
     opts.RPCA = bools.RPCA;
 
@@ -94,6 +96,11 @@ function S = time_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, n
             end
             Q_n = Q_n + accs{g}.Q_n;
         end
+        if calc_div_std
+            accs{1}.div_sum = accs{1}.div_sum + accs{g}.div_sum;
+            accs{1}.div_sumsq = accs{1}.div_sumsq + accs{g}.div_sumsq;
+            accs{1}.div_n = accs{1}.div_n + accs{g}.div_n;
+        end
         t_stage = add_times(t_stage, accs{g}.t);
     end
 
@@ -104,16 +111,23 @@ function S = time_avg_STB(file_path, U, L, save_filepath_local, PIV_case_name, n
     for f = 1:length(fields)
         S.(['mean_' fields{f}]) = sums{f} ./ counts{f};
     end
+    % Frame-to-frame standard deviation of every field at each point
+    % (std_u, std_vortX, ...; the time average counterpart of the
+    % *_phase_std fields of phase_avg_STB), over the frames with data there
+    for f = 1:length(fields)
+        S.(['std_' fields{f}]) = std_from_sums(sums{f}, sumsqs{f}, counts{f});
+    end
     % Standard error of the time-averaged u, v, w at each point:
     % frame-to-frame SD (turbulence + measurement noise) / sqrt(frames with
     % data there). Used for the error bars in timeAvg_UI (u_avg_se etc.,
     % calc_secondary_vals_common).
     se_names = {'se_u', 'se_v', 'se_w'};
-    for f = 1:numel(sumsqs)
-        n_f = counts{f};
-        var_f = (sumsqs{f} - n_f .* S.(['mean_' fields{f}]).^2) ./ (n_f - 1);
-        var_f(n_f < 2) = NaN;
-        S.(se_names{f}) = sqrt(max(var_f, 0)) ./ sqrt(n_f);
+    for f = 1:3
+        S.(se_names{f}) = S.(['std_' fields{f}]) ./ sqrt(counts{f});
+    end
+    % divergence of each frame's velocity field, its frame-to-frame SD
+    if calc_div_std
+        S.std_div = std_from_sums(accs{1}.div_sum, accs{1}.div_sumsq, accs{1}.div_n);
     end
     clear sums counts sumsqs
 
@@ -240,8 +254,13 @@ if isempty(acc)
     grid_size = [size(x,1), size(x,2), size(x,3)];
     acc.sum = repmat({zeros(grid_size)}, 1, length(fields));
     acc.n = repmat({zeros(grid_size)}, 1, length(fields));
-    % sums of squares of u, v, w (fields 1-3) for their standard error
-    acc.sumsq = repmat({zeros(grid_size)}, 1, 3);
+    % sums of squares of every field, for their standard deviation
+    acc.sumsq = repmat({zeros(grid_size)}, 1, length(fields));
+    if opts.calc_div_std
+        acc.div_sum = zeros(grid_size);
+        acc.div_sumsq = zeros(grid_size);
+        acc.div_n = zeros(grid_size);
+    end
     acc.frames = [];
     acc.lift = struct(); acc.drag = struct();
     acc.lift_vel = []; acc.drag_vel = [];
@@ -275,6 +294,15 @@ for f = 1:length(fields)
 end
 for f = 1:numel(acc.sumsq)
     acc.sumsq{f} = acc.sumsq{f} + sum(data{f}.^2, 4, "omitnan");
+end
+% divergence of each frame (du/dx + dv/dy + dw/dz)
+if opts.calc_div_std
+    div_frames = data{strcmp(fields, 'dudx')} + data{strcmp(fields, 'dvdy')} +...
+        data{strcmp(fields, 'dwdz')};
+    acc.div_sum = acc.div_sum + sum(div_frames, 4, "omitnan");
+    acc.div_sumsq = acc.div_sumsq + sum(div_frames.^2, 4, "omitnan");
+    acc.div_n = acc.div_n + sum(~isnan(div_frames), 4);
+    clear div_frames
 end
 acc.t.stats = acc.t.stats + toc(t0);
 
@@ -312,6 +340,15 @@ for k = 1:numel(names)
         out.(names{k}) = v;
     end
 end
+end
+
+% Sample standard deviation at each point from the running sum, sum of
+% squares and count of the frames with data there (NaN for fewer than 2)
+function sd = std_from_sums(s, sumsq, n)
+m = s ./ n;
+v = (sumsq - n .* m.^2) ./ (n - 1);
+v(n < 2) = NaN;
+sd = sqrt(max(v, 0));
 end
 
 % Standard error of the mean of a row of per-frame values (NaNs skipped)

@@ -144,6 +144,7 @@ properties
     label_dict;
 
     std_var_name_dict;
+    time_std_var_name_dict; % std variables in time average files (std_u, ...)
     std_label_dict;
 
     hist_var_name_dict;
@@ -625,6 +626,11 @@ methods
 
         std_keys = cellstr(obj.movie_3D_std_vars);
         obj.std_var_name_dict = containers.Map(std_keys, movie_3D_std_values);
+        % time average files (time_avg_STB): frame-to-frame SD over all
+        % frames, named std_<field> (u_phase_std -> std_u, div_phase_std ->
+        % std_div); others keep their names (not saved for time averages)
+        time_std_values = regexprep(movie_3D_std_values, "^(\w+)_phase_std$", "std_$1");
+        obj.time_std_var_name_dict = containers.Map(std_keys, time_std_values);
         obj.std_label_dict = containers.Map(std_keys, movie_3D_std_labels);
 
         hist_keys = cellstr(obj.hist_vars);
@@ -748,7 +754,11 @@ methods
         plot_type_dropdown = uidropdown(sidebar_grid);
         plot_type_dropdown.Layout.Row = 5;
         plot_type_dropdown.Layout.Column = 1;
-        plot_type_dropdown.Items = obj.get_available_plot_types_for_current_case();
+        % Items are the shown labels, ItemsData the plot types (the labels
+        % differ for time averaged cases, see get_plot_type_labels)
+        initial_plot_types = obj.get_available_plot_types_for_current_case();
+        set(plot_type_dropdown, 'Items', obj.get_plot_type_labels(initial_plot_types), ...
+            'ItemsData', initial_plot_types);
         obj.plot_type = plot_type_dropdown.Value; % use current value in box
         plot_type_dropdown.ValueChangedFcn = @(src, event) type_change(src, event, plot_area_panel);
 
@@ -1369,7 +1379,8 @@ methods
 
         function refresh_plot_type_dropdown()
             available_plot_types = obj.get_available_plot_types_for_current_case();
-            plot_type_dropdown.Items = available_plot_types;
+            set(plot_type_dropdown, 'Items', obj.get_plot_type_labels(available_plot_types), ...
+                'ItemsData', available_plot_types);
             if ~any(available_plot_types == obj.plot_type)
                 obj.plot_type = available_plot_types(1);
             end
@@ -2900,7 +2911,7 @@ methods (Access = private)
 
         % time averaged (0 Hz) cases have "time avg of phase avg" and the
         % section plot only
-        if plot_type == obj.plot_types(1) || plot_type == obj.plot_types(10)
+        if ismember(plot_type, obj.plot_types([1 3 10]))
             case_names = unique([phase_case_names, time_case_names], 'stable');
         else
             case_names = phase_case_names;
@@ -2961,7 +2972,7 @@ methods (Access = private)
         else
             if ismember(case_name, position_independent_cases())
                 base_case_id = case_name; % no position prefix (freestream)
-            elseif obj.plot_type == obj.plot_types(1) && obj.has_case_id(obj.time_avg_case_ids, case_name)
+            elseif ismember(obj.plot_type, obj.plot_types([1 3])) && obj.has_case_id(obj.time_avg_case_ids, case_name)
                 base_case_id = case_name;
             elseif current_downstream_type == case_name && ...
                     (obj.has_case_id(obj.phase_avg_case_ids, case_name) || obj.has_case_id(obj.time_avg_case_ids, case_name))
@@ -3037,13 +3048,30 @@ methods (Access = private)
         tf = any(obj.time_avg_case_ids == obj.get_current_case_id());
     end
 
+    % time avg of phase avg / time avg of phase std of a time averaged
+    % (0 Hz) case: the time average file (mean / SD over all frames)
     function tf = is_time_avg_file_selected(obj)
-        tf = obj.plot_type == obj.plot_types(1) && obj.current_case_has_time_avg();
+        tf = ismember(obj.plot_type, obj.plot_types([1 3])) && obj.current_case_has_time_avg();
+    end
+
+    % Dropdown labels for plot types. A time averaged (gliding, 0 Hz) case
+    % has no phase average, so its mean and SD plots are labelled
+    % "time avg" and "time std".
+    function labels = get_plot_type_labels(obj, plot_types)
+        labels = string(plot_types);
+        if obj.current_case_has_time_avg() && ~obj.current_case_has_phase_avg()
+            labels(plot_types == obj.plot_types(1)) = "time avg";
+            labels(plot_types == obj.plot_types(3)) = "time std";
+        end
     end
 
     function plot_types = get_available_plot_types_for_current_case(obj)
         if obj.is_time_avg_file_selected() || ~obj.current_case_has_phase_avg()
             plot_types = obj.plot_types(1);
+            % SD over all frames (std_* fields of the time average file)
+            if obj.current_case_has_time_avg()
+                plot_types(end+1) = obj.plot_types(3);
+            end
             % the section plot also works on time averaged (0 Hz) files
             if obj.current_case_has_time_avg()
                 plot_types(end+1) = obj.plot_types(10);
@@ -3138,10 +3166,15 @@ methods (Access = private)
                 cur_secondary_vars{end+1} = q_mask_var_name;
             end
         elseif plot_idx == 3
-            var_name = obj.std_var_name_dict(obj.variable_name);
             var_clims = obj.get_color_limits(obj.variable_name);
-
-            vars = {"L","U","num_bins","cycle_freq","z","y",var_name};
+            if using_time_avg_file
+                % SD over all frames of a time averaged (0 Hz) case
+                var_name = obj.time_std_var_name_dict(obj.variable_name);
+                vars = {"L","U","z","y",var_name};
+            else
+                var_name = obj.std_var_name_dict(obj.variable_name);
+                vars = {"L","U","num_bins","cycle_freq","z","y",var_name};
+            end
         end
         
         % Unc Contours: wingbeat-averaged total uncertainty (not on the
