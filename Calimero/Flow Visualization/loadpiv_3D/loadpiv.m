@@ -27,16 +27,14 @@ function varargout = loadpiv(folderPIV, varargin)
 %  `D = loadpiv(folderPIV, "fovRot", 0.23)`
 %
 %  `D = loadpiv(folderPIV, "Validate", 0.4)`
-%  `D = loadpiv(folderPIV, "vortMethod", "raffel")` : vorticity from the
-%            Raffel stencil (central difference + [1 2 1] transverse
-%            smoothing) instead of the default "central" (plain 2nd-order
-%            central differences). "wls" = Raffel plus centre-plane
-%            omega_y, omega_z from the uncertainty-weighted fit across all
-%            planes (vorticity_slab_wls).
+%  `D = loadpiv(folderPIV, "vortMethod", "wls")` : centre-plane omega_y,
+%            omega_z from the uncertainty-weighted fit across all planes
+%            (vorticity_slab_wls) instead of the default "stencil" (Raffel
+%            stencil, 2nd-order central differences with [1 2 1]
+%            transverse smoothing, on every plane)
 %  `D = loadpiv(folderPIV, "gradMethod", "4th")` : velocity gradients from
 %            the 5-point 4th-order stencil instead of the default "central"
 %            (2nd-order central differences; centre plane uses planes 2, 4)
-%  Old-style "vortMethod","stencil" is accepted and means "raffel".
 %
 %  -------------------------------------------------------------------------
 %  ### Mandatory inputs:
@@ -376,7 +374,7 @@ options.fovCenter = [0, 0];
 options.fovRot = 0;
 options.numCameraField = 1;
 options.selectedFrames = [];
-options.vortMethod = "central";
+options.vortMethod = "stencil";
 options.gradMethod = "central";
 
 skipNext = false;
@@ -452,9 +450,8 @@ for optionIndex = 1:length(varargin)
 
         case 'vortMethod'
             vortMethod = string(getFollowingValue(varargin, optionIndex, optionName));
-            if vortMethod == "stencil", vortMethod = "raffel"; end
-            if ~ismember(vortMethod, ["central", "raffel", "wls"])
-                error('"vortMethod" must be "central", "raffel" or "wls".')
+            if ~ismember(vortMethod, ["wls", "stencil"])
+                error('"vortMethod" must be "wls" or "stencil".')
             end
             options.vortMethod = vortMethod;
             skipNext = true;
@@ -521,7 +518,7 @@ function data = nanToMedian(data)
 end
 
 function out1 = extractData(dataStructure, numCameraField, vortMethod, gradMethod)
-if nargin < 3, vortMethod = "central"; end
+if nargin < 3, vortMethod = "stencil"; end
 if nargin < 4, gradMethod = "central"; end
 
 frame = dataStructure.Frames{numCameraField, 1};
@@ -635,11 +632,8 @@ uFilled = fill3D(out1.uRaw);
 vFilled = fill3D(out1.vRaw);
 wFilled = fill3D(out1.wRaw);
 
-% "wls" starts from the Raffel stencil and replaces the centre plane below
-vortStencil = "raffel";
-if vortMethod == "central", vortStencil = "central"; end
 [out1.vortXRaw, out1.vortYRaw, out1.vortZRaw] = ...
-    calculateVorticity(out1.xRaw, out1.yRaw, out1.zRaw, uFilled, vFilled, wFilled, vortStencil);
+    calculateVorticity(out1.xRaw, out1.yRaw, out1.zRaw, uFilled, vFilled, wFilled);
 
 % Velocity gradients. Default "central": 2nd-order central differences, so
 % the centre plane uses planes 2 and 4 only. The 5-point 4th-order stencil

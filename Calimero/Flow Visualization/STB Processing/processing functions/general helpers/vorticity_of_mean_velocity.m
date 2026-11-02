@@ -2,10 +2,9 @@ function [vortX, vortY, vortZ] = vorticity_of_mean_velocity(x, y, z, u, v, w, un
 % Vorticity computed from an averaged (phase- or time-averaged) velocity
 % field, using the same operators loadpiv applies to each frame. vortMethod
 % matches loadpiv's option of the same name:
-%   - "central" (default): calculateVorticity with plain 2nd-order central
-%     differences for all components and planes
-%   - "raffel": calculateVorticity with the Raffel stencil
-%   - "wls": Raffel, then centre-plane omega_y, omega_z replaced by the
+%   - "stencil" (default): calculateVorticity (Raffel stencil) for all
+%     components and planes
+%   - "wls": as "stencil", then centre-plane omega_y, omega_z replaced by the
 %     uncertainty-weighted WLS slab fit (vorticity_slab_wls), planes
 %     weighted by 1/sigma^2 with sigma the median averaged uncertainty of
 %     each plane
@@ -18,11 +17,8 @@ function [vortX, vortY, vortZ] = vorticity_of_mean_velocity(x, y, z, u, v, w, un
 % u, v, w          [nx ny nz] or [nx ny nz nBins]
 % uncU, uncV, uncW same size as u (averaged per-vector uncertainty)
 
-if nargin < 10 || isempty(vortMethod), vortMethod = "central"; end
+if nargin < 10 || isempty(vortMethod), vortMethod = "stencil"; end
 vortMethod = string(vortMethod);
-if vortMethod == "stencil", vortMethod = "raffel"; end
-vortStencil = "raffel";
-if vortMethod == "central", vortStencil = "central"; end
 
 vortX = NaN(size(u));
 vortY = vortX;
@@ -34,7 +30,7 @@ opts = struct('order', 2, 'i0', i0);
 
 for b = 1:size(u, 4)
     ub = u(:,:,:,b); vb = v(:,:,:,b); wb = w(:,:,:,b);
-    [wx, wy, wz] = calculateVorticity(x, y, z, ub, vb, wb, vortStencil);
+    [wx, wy, wz] = calculateVorticity(x, y, z, ub, vb, wb);
 
     if vortMethod == "wls" && nx >= 3
         [wy_c, wz_c] = vorticity_slab_wls(x, y, z, ub, vb, wb, ...
