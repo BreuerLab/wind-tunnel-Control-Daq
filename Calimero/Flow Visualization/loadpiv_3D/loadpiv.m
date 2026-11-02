@@ -33,8 +33,10 @@ function varargout = loadpiv(folderPIV, varargin)
 %            stencil, 2nd-order central differences with [1 2 1]
 %            transverse smoothing, on every plane)
 %  `D = loadpiv(folderPIV, "gradMethod", "4th")` : velocity gradients from
-%            the 5-point 4th-order stencil instead of the default "central"
-%            (2nd-order central differences; centre plane uses planes 2, 4)
+%            the 5-point 4th-order stencil instead of the default "raffel"
+%            (2nd-order central differences with [1 2 1] transverse
+%            smoothing, as in calculateVorticity; centre plane uses planes
+%            2 and 4). "central" = the same central differences unsmoothed.
 %
 %  -------------------------------------------------------------------------
 %  ### Mandatory inputs:
@@ -375,7 +377,7 @@ options.fovRot = 0;
 options.numCameraField = 1;
 options.selectedFrames = [];
 options.vortMethod = "stencil";
-options.gradMethod = "central";
+options.gradMethod = "raffel";
 
 skipNext = false;
 for optionIndex = 1:length(varargin)
@@ -458,8 +460,8 @@ for optionIndex = 1:length(varargin)
 
         case 'gradMethod'
             gradMethod = string(getFollowingValue(varargin, optionIndex, optionName));
-            if ~ismember(gradMethod, ["central", "4th"])
-                error('"gradMethod" must be "central" or "4th".')
+            if ~ismember(gradMethod, ["raffel", "central", "4th"])
+                error('"gradMethod" must be "raffel", "central" or "4th".')
             end
             options.gradMethod = gradMethod;
             skipNext = true;
@@ -519,7 +521,7 @@ end
 
 function out1 = extractData(dataStructure, numCameraField, vortMethod, gradMethod)
 if nargin < 3, vortMethod = "stencil"; end
-if nargin < 4, gradMethod = "central"; end
+if nargin < 4, gradMethod = "raffel"; end
 
 frame = dataStructure.Frames{numCameraField, 1};
 components = frame.Components;
@@ -635,16 +637,17 @@ wFilled = fill3D(out1.wRaw);
 [out1.vortXRaw, out1.vortYRaw, out1.vortZRaw] = ...
     calculateVorticity(out1.xRaw, out1.yRaw, out1.zRaw, uFilled, vFilled, wFilled);
 
-% Velocity gradients. Default "central": 2nd-order central differences, so
+% Velocity gradients. Default "raffel": 2nd-order central differences
+% with the [1 2 1] transverse smoothing of calculateVorticity, so
 % the centre plane uses planes 2 and 4 only. The 5-point 4th-order stencil
 % ("4th") leans on the sparse, poorly lit outermost planes and biased
 % du/dx negative in freestream data.
 [out1.dudx, out1.dudy, out1.dudz] = ...
-    get_gradients(out1.xRaw, out1.yRaw, out1.zRaw, uFilled, gradMethod);
+    get_gradients(out1.xRaw, out1.yRaw, out1.zRaw, uFilled, gradMethod, 1);
 [out1.dvdx, out1.dvdy, out1.dvdz] = ...
-    get_gradients(out1.xRaw, out1.yRaw, out1.zRaw, vFilled, gradMethod);
+    get_gradients(out1.xRaw, out1.yRaw, out1.zRaw, vFilled, gradMethod, 2);
 [out1.dwdx, out1.dwdy, out1.dwdz] = ...
-    get_gradients(out1.xRaw, out1.yRaw, out1.zRaw, wFilled, gradMethod);
+    get_gradients(out1.xRaw, out1.yRaw, out1.zRaw, wFilled, gradMethod, 3);
 
 out1.uncURaw = nan([sizeXY numTrimmedPlanes]);
 out1.uncVRaw = nan(size(out1.uncURaw));
@@ -715,6 +718,16 @@ unc(~isfinite(unc) | unc <= 0) = NaN;     % DaVis stores empty bins as 0
 s = median(reshape(unc, nx, []), 2, "omitnan");
 end
 
+function A = smooth121(A, dim)
+    % [1 2 1]/4 smoothing along dim, edge values replicated
+    n = size(A, dim);
+    if n < 2, return; end
+    idx = repmat({':'}, 1, ndims(A));
+    lo = idx; lo{dim} = [1, 1:n-1];
+    hi = idx; hi{dim} = [2:n, n];
+    A = (A(lo{:}) + 2*A + A(hi{:})) / 4;
+end
+
 function dudx = central_diff_4th_3D(x, u)
     % Calculates the 1st derivative of 3D matrix u along the dimension
     % defined by the coordinate matrix x.
@@ -753,11 +766,37 @@ function dudx = central_diff_4th_3D(x, u)
     end
 end
 
-function [dudx, dudy, dudz] = get_gradients(x, y, z, u, gradMethod)
+function [dudx, dudy, dudz] = get_gradients(x, y, z, u, gradMethod, comp)
+    % Gradient of one velocity component u (comp = 1, 2, 3 for u, v, w).
     % empty bins are NaN at this point (see emptyBins above); interpolate
     % across them, consistent with calculateVorticity
-    if nargin < 5, gradMethod = "central"; end
+    if nargin < 5, gradMethod = "raffel"; end
     u = fill3D(u);
+
+    if gradMethod == "raffel"
+        % Raffel stencil as in calculateVorticity: 2nd-order central
+        % difference, then [1 2 1]/4 smoothing across it. Off-diagonal
+        % terms (d of component comp along another direction) are smoothed
+        % along the component's own direction, exactly as they enter the
+        % vorticity (e.g. dv/dx along y, du/dy along x). Diagonal terms
+        % (du/dx, dv/dy, dw/dz) are smoothed along both other directions
+        % (3-D Sobel). Signed spacing: derivatives w.r.t. the coordinate.
+        h = [x(2,1,1) - x(1,1,1), y(1,2,1) - y(1,1,1), z(1,1,2) - z(1,1,1)];
+        g = cell(1, 3);
+        for dim = 1:3
+            g{dim} = central_diff_2nd(u, h(dim), dim);
+            if dim == comp
+                sm = setdiff(1:3, dim);
+            else
+                sm = comp;
+            end
+            for s = sm
+                g{dim} = smooth121(g{dim}, s);
+            end
+        end
+        [dudx, dudy, dudz] = g{:};
+        return
+    end
 
     if gradMethod == "central"
         % 2nd-order central differences (one-sided at the edges), signed
@@ -768,7 +807,7 @@ function [dudx, dudy, dudz] = get_gradients(x, y, z, u, gradMethod)
         return
     end
 
-    % gradMethod == "4th": 5-point 4th-order stencil (not used by default)
+    % gradMethod == "4th": 5-point 4th-order stencil
 
     % Coordinate vectors are passed WITHOUT squeeze so each keeps its
     % orientation (central_diff_4th_3D finds the dimension from it).
