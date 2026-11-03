@@ -38,9 +38,14 @@ properties (Constant, Access = private)
     % transport equation, omega_j du_i/dx_j, computed on the fly as the
     % stored (nondimensional) vorticity times the stored gradient, so in
     % units of U^2/c^2. Fields line up with transport_term_list.
-    TRANSPORT_VARS = ["ω_x du/dx", "ω_y du/dy", "ω_z du/dz", ...
-        "ω_x dv/dx", "ω_y dv/dy", "ω_z dv/dz", ...
-        "ω_x dw/dx", "ω_y dw/dy", "ω_z dw/dz"];
+    % Dropdown names: the term, then what it does to omega_i (row i =
+    % equation for omega_i). "stretch" = omega_i stretched/compressed
+    % along its own axis; "ω_j→ω_i tilt" = existing omega_j rotated
+    % into the i direction. Sign is the rate of change of omega_i itself
+    % (not of |omega_i|): see transport_labels.
+    TRANSPORT_VARS = ["ω_x du/dx (ω_x stretch)", "ω_y du/dy (ω_y→ω_x tilt)", "ω_z du/dz (ω_z→ω_x tilt)", ...
+        "ω_x dv/dx (ω_x→ω_y tilt)", "ω_y dv/dy (ω_y stretch)", "ω_z dv/dz (ω_z→ω_y tilt)", ...
+        "ω_x dw/dx (ω_x→ω_z tilt)", "ω_y dw/dy (ω_y→ω_z tilt)", "ω_z dw/dz (ω_z stretch)"];
     TRANSPORT_FIELDS = ["transport_wx_stretch", "transport_wx_tilt_y", "transport_wx_tilt_z", ...
         "transport_wy_tilt_x", "transport_wy_stretch", "transport_wy_tilt_z", ...
         "transport_wz_tilt_x", "transport_wz_tilt_y", "transport_wz_stretch"];
@@ -4406,15 +4411,22 @@ methods (Access = private)
     end
 
     function labels = transport_labels(obj)
-        % omega_j du_i/dx_j c^2/U^2 for each TRANSPORT_VARS entry
+        % omega_j du_i/dx_j c^2/U^2 for each TRANSPORT_VARS entry, plus
+        % its plain name, e.g. "... (omega_y -> omega_x tilt)"
         labels = strings(1, numel(obj.TRANSPORT_VARS));
         for k = 1:numel(obj.TRANSPORT_VARS)
-            parts = split(obj.TRANSPORT_VARS(k), " ");   % "ω_x", "du/dx"
-            w = extractAfter(parts(1), "_");
-            uvw = extractBetween(parts(2), "d", "/");
-            dx = extractAfter(parts(2), "/d");
+            parts = split(obj.TRANSPORT_VARS(k), " ");   % "ω_x", "du/dx", ...
+            w = extractAfter(parts(1), "_");             % omega_j
+            uvw = extractBetween(parts(2), "d", "/");    % u_i
+            dx = extractAfter(parts(2), "/d");           % x_j
+            wi = replace(uvw, ["u" "v" "w"], ["x" "y" "z"]); % omega_i
+            if w == wi
+                name = "\omega_" + wi + "\ \mathrm{stretch}";
+            else
+                name = "\omega_" + w + " \!\rightarrow\! \omega_" + wi + "\ \mathrm{tilt}";
+            end
             labels(k) = "\boldmath$\omega_" + w + " \frac{\partial " + uvw + ...
-                "}{\partial " + dx + "} \frac{c^2}{U_{\infty}^2}$";
+                "}{\partial " + dx + "} \frac{c^2}{U_{\infty}^2} \;\; (" + name + ")$";
         end
     end
 
