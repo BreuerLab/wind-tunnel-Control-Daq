@@ -272,6 +272,9 @@ properties
     % unc_contour_levels percent of the freestream speed
     unc_contour_bool;
     unc_contour_levels;
+    % 2D time avg / phase avg movie: black dot at the centroid of the
+    % plotted field (field_centroid), computed live
+    centroid_bool;
     % 3D plot "Fix Limits": hold the y and z axis limits (y/c, z/c) at
     % fix_ylim / fix_zlim so cases can be compared on the same axes;
     % fix_lims_set is true once limits were entered or taken from a plot
@@ -336,6 +339,7 @@ methods
         obj.unc_mask_thresh = 4; % % of freestream
         obj.unc_contour_bool = false;
         obj.unc_contour_levels = 1:4; % % of freestream
+        obj.centroid_bool = false;
         obj.fix_lims_bool = false;
         obj.fix_ylim = [-5 5];
         obj.fix_zlim = [-3 3];
@@ -1300,8 +1304,16 @@ methods
 
         % Uncertainty isolines on the 2D plots (types 1-4), like Unc Mask
         % for the 3D plot
-        unc_contour_button = uibutton(sidebar_grid, "state");
-        unc_contour_button.Layout.Row = 16;
+        unc_cen_grid = uigridlayout(sidebar_grid, [1, 2]);
+        unc_cen_grid.Layout.Row = 16;
+        unc_cen_grid.Layout.Column = 1;
+        unc_cen_grid.ColumnWidth = {'1x', '1x'};
+        unc_cen_grid.RowHeight = {'1x'};
+        unc_cen_grid.Padding = [0 0 0 0];
+        unc_cen_grid.ColumnSpacing = 4;
+
+        unc_contour_button = uibutton(unc_cen_grid, "state");
+        unc_contour_button.Layout.Row = 1;
         unc_contour_button.Layout.Column = 1;
         unc_contour_button.Text = "Unc Contours";
         unc_contour_button.FontSize = 16;
@@ -1310,6 +1322,20 @@ methods
         unc_contour_button.Tooltip = "Black isolines of the total uncertainty averaged over the wingbeat, at " + ...
             strjoin(string(obj.unc_contour_levels), ", ") + " % of the freestream speed";
         unc_contour_button.ValueChangedFcn = @(src, event) unc_contour_change(src, event, plot_area_panel);
+
+        % Centroid of the plotted field (2D time avg and phase avg movie)
+        centroid_button = uibutton(unc_cen_grid, "state");
+        centroid_button.Layout.Row = 1;
+        centroid_button.Layout.Column = 2;
+        centroid_button.Text = "Centroid";
+        centroid_button.FontSize = 16;
+        centroid_button.Value = obj.centroid_bool;
+        centroid_button.BackgroundColor = obj.get_button_color(obj.centroid_bool);
+        centroid_button.Tooltip = "Black dot at the centroid of the plotted field, weighted by its departure " + ...
+            "from the background value (0, or -1 / 1 for velocities) with the dominant sign only. " + ...
+            "Points outside the uncertainty mask of the forces (default_trim_bounds) carry no weight. " + ...
+            "Computed live; follows the bins in the movie";
+        centroid_button.ValueChangedFcn = @(src, event) centroid_change(src, event, plot_area_panel);
 
         % Set up plot titles and axes
         set_unc_contour_visibility();
@@ -1522,7 +1548,18 @@ methods
                 unc_contour_button.Visible = "off";
                 row_heights{16} = 0;
             end
+            if ismember(obj.plot_type, obj.plot_types(1:2))
+                centroid_button.Visible = "on";
+            else
+                centroid_button.Visible = "off";
+            end
             sidebar_grid.RowHeight = row_heights;
+        end
+
+        function centroid_change(src, ~, plot_panel)
+            obj.centroid_bool = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.centroid_bool);
+            obj.update_plot(plot_panel);
         end
 
         function unc_contour_change(src, ~, plot_panel)
@@ -2807,6 +2844,41 @@ methods (Access = private)
         ax.CLim = cl;
     end
 
+    % Centroid of a plotted 2D field F on the (y, z) grid. Weight: the
+    % departure from the plot's background value (zero = 0, or -1 / 1 for
+    % the velocities, as PIV_plot centres the colormap), keeping only the
+    % dominant sign (the sign of its integral), so e.g. the stronger of two
+    % counter-rotating vortices or the velocity deficit of the wake. NaN
+    % points and points in mask (uncertainty mask, [] = none) have no
+    % weight. Uniform grid, so plain sums.
+    function [yc, zc] = field_centroid(~, y, z, F, zero, mask)
+        yc = NaN; zc = NaN;
+        w = F - zero;
+        w(isnan(w)) = 0;
+        if ~isempty(mask) && isequal(size(mask), size(w))
+            w(mask) = 0;
+        end
+        s = sign(sum(w, "all"));
+        if s == 0
+            return
+        end
+        w = max(s * w, 0);
+        W = sum(w, "all");
+        if W > 0
+            yc = sum(y .* w, "all") / W;
+            zc = sum(z .* w, "all") / W;
+        end
+    end
+
+    function hm = draw_centroid(~, ax, yc, zc)
+        cl = ax.CLim;
+        hold(ax, 'on');
+        hm = plot(ax, yc, zc, 'o', 'MarkerSize', 9, 'MarkerFaceColor', 'k', ...
+            'MarkerEdgeColor', 'w', 'LineWidth', 1, 'Tag', "centroid");
+        hold(ax, 'off');
+        ax.CLim = cl;
+    end
+
     function A = nan_safe_medfilt(~, A)
         % medfilt2/medfilt3 have undefined behaviour with NaN input: NaNs
         % spread through the volume and results differ run to run, which
@@ -3262,7 +3334,11 @@ methods (Access = private)
         % Unc Contours: wingbeat-averaged total uncertainty (not on the
         % extrapolated grid, which has no uncertainty)
         draw_unc_contours = obj.unc_contour_bool && ismember(plot_idx, 1:4) && ~use_extrapolated_data;
-        if draw_unc_contours
+        % Centroid: plotted field's centroid, with the forces' uncertainty
+        % mask (needs the uncertainty; none on the extrapolated grid)
+        show_centroid = obj.centroid_bool && ismember(plot_idx, [1, 2]);
+        need_unc = draw_unc_contours || (show_centroid && ~use_extrapolated_data);
+        if need_unc
             if using_time_avg_file
                 unc_var_name = "mean_uncTot";
             else
@@ -3560,7 +3636,7 @@ methods (Access = private)
         % uncertainty for the isolines, trimmed / mirrored like the plotted
         % field and averaged over the wingbeat
         unc_field = [];
-        if draw_unc_contours
+        if need_unc
             if isfield(d, unc_var_name)
                 unc_field = d.(unc_var_name);
                 unc_field = squeeze(unc_field(planeIdx,:,:,:));
@@ -3575,7 +3651,20 @@ methods (Access = private)
                     unc_field = [flip(unc_field(2:end,:), 1); unc_field];
                 end
             else
-                fprintf("Unc Contours: %s not in this file\n", unc_var_name);
+                fprintf("Unc Contours / Centroid: %s not in this file\n", unc_var_name);
+            end
+        end
+        unc_centroid = unc_field;
+        if ~draw_unc_contours
+            unc_field = []; % loaded for the centroid only
+        end
+        if show_centroid
+            cen_mask = [];
+            b = default_trim_bounds();
+            if ~isempty(unc_centroid) && isfield(b, 'unc_mask')
+                cen_mode = "threshold";
+                if isfield(b, 'unc_mask_mode'), cen_mode = b.unc_mask_mode; end
+                cen_mask = unc_mask_region(unc_centroid, b.unc_mask, cen_mode);
             end
         end
 
@@ -3654,6 +3743,11 @@ methods (Access = private)
                 obj.draw_original_fov_box(ax, d);
             end
             obj.draw_unc_contours(ax, y, z, unc_field);
+            if show_centroid
+                [yc, zc] = obj.field_centroid(y, z, mean_val, params.zero, cen_mask);
+                obj.draw_centroid(ax, yc, zc);
+                fprintf("Centroid of %s: y/L = %.3f, z/L = %.3f\n", obj.variable_name, yc, zc);
+            end
         elseif plot_idx == 3
             params.clims = var_clims;
 
@@ -3673,6 +3767,17 @@ methods (Access = private)
         t = title(ax, ["Bin number: " + obj.frame_ind], FontSize=18);
         % time averaged, so the isolines stay put while the movie plays
         obj.draw_unc_contours(ax, y, z, unc_field);
+        hm = gobjects(0);
+        if show_centroid && plot_idx == 2
+            % one centroid per bin, the marker follows the movie
+            nb = size(val, 3);
+            yc_bins = NaN(1, nb);
+            zc_bins = NaN(1, nb);
+            for kb = 1:nb
+                [yc_bins(kb), zc_bins(kb)] = obj.field_centroid(y, z, val(:,:,kb), params.zero, cen_mask);
+            end
+            hm = obj.draw_centroid(ax, yc_bins(obj.frame_ind), zc_bins(obj.frame_ind));
+        end
 
         while obj.play && (obj.frame_ind < obj.num_bins)
             obj.frame_ind = obj.frame_ind + 1;
@@ -3686,6 +3791,9 @@ methods (Access = private)
             % Update the existing contour instead of recreating axes.
             set(h, 'ZData', tmp_data); 
             set(t, 'String', ["Bin number: " + obj.frame_ind]);
+            if ~isempty(hm) && isvalid(hm)
+                set(hm, 'XData', yc_bins(obj.frame_ind), 'YData', zc_bins(obj.frame_ind));
+            end
     
             drawnow;
 
