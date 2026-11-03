@@ -278,8 +278,10 @@ function cases = scan_cases(names, num_images, save_folder, bools, skip_processe
                 dirs = [string(save_folder), fullfile(save_folder, "phase_avg"), ...
                     fullfile(save_folder, "phase_avg", "RPCA")];
             end
-            if any(isfile(fullfile(dirs, file)))
-                cases.status(k) = "skipped";
+            for d = dirs
+                if isfile(fullfile(d, file))
+                    cases.status(k) = "skipped";
+                end
             end
         end
     end
@@ -303,7 +305,7 @@ function txt = bools_to_text(bools)
     for k = 1:numel(names)
         v = bools.(names{k});
         if isstring(v) || ischar(v)
-            v =  + string(v) + ;
+            v = '"' + string(v) + '"'; % quoted, e.g. version="coarse"
         elseif isnumeric(v) || islogical(v)
             v = string(mat2str(v));
         else
