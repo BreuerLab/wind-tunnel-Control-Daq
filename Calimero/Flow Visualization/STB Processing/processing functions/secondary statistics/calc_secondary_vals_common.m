@@ -81,6 +81,19 @@ fill_velocity_nans = true;
 [F, y_tr, z_tr, T] = prepare_STB_wake_field(D.L, D.y, D.z, print_dim_bool, trim_source, config.xConvBins, bounds, fill_velocity_nans);
 F.period = config.period;
 
+% Frozen-flow streamwise gradients, d/dx = (1/U) d/dt along the phase
+% bins, and omega_y, omega_z rebuilt with them (frozen_flow_gradients),
+% for comparison with the slab derivatives across the measured volume.
+% From the hole-filled velocity, before the uncertainty mask. Zero for a
+% time average (no time axis).
+t_bins = [];
+if numel(config.xConvBins) >= 3
+    t_bins = config.xConvBins(:) / config.speed;   % x = U t
+end
+ff_in = struct('u', F.u, 'v', F.v, 'w', F.w, 'vortY', F.vortY, 'vortZ', F.vortZ, ...
+    'dvdx', T.dvdx, 'dwdx', T.dwdx);
+G_ff = frozen_flow_gradients(ff_in, t_bins, config.period, config.length, config.speed);
+
 % Uncertainty mask for every force below (bounds.unc_mask, set in
 % default_trim_bounds): points whose time averaged total uncertainty is
 % above the threshold are set to undisturbed freestream so they add
@@ -116,6 +129,16 @@ if has_uavg
     [lift_uavg, drag_uavg] = get_wake_lift(config.speed, config.length, F_uavg, true, config.density);
     S.lift_uavg = lift_uavg; S.drag_uavg = drag_uavg;
 end
+
+% Same forces with the frozen-flow omega_y, omega_z (omega_x unchanged):
+% lift_ff.vortY / vortY_edge and drag_ff.vortY / vortZ / tot are the terms
+% that change; the rest equal lift / drag.
+F_ff = F;
+F_ff.vortY = G_ff.vortY_ff;
+F_ff.vortZ = G_ff.vortZ_ff;
+F_ff = apply_unc_mask(F_ff, T.uncTot, unc_thresh);
+[lift_ff, drag_ff] = get_wake_lift(config.speed, config.length, F_ff, true, config.density);
+S.lift_ff = lift_ff; S.drag_ff = drag_ff;
 
 if config.includeHelmDecomp
     [y_B, z_B, velX_B, velY_B, velZ_B, iy_B, iz_B] = helm_decomp(config.xConv, y_arr, z_arr, config.length, F);
@@ -213,6 +236,11 @@ for g = ["dudx", "dudy", "dudz", "dvdx", "dvdy", "dvdz", "dwdx", "dwdy", "dwdz"]
     if isfield(T, g)
         S.(g + "_avg") = squeeze(mean(T.(g), [1, 2]));
     end
+end
+% planar averages of the frozen-flow gradients and vorticity (compare
+% with dudx_avg, dvdx_avg, dwdx_avg, vortY_avg, vortZ_avg)
+for g = ["dudx_ff", "dvdx_ff", "dwdx_ff", "vortY_ff", "vortZ_ff"]
+    S.(g + "_avg") = squeeze(mean(G_ff.(g), [1, 2]));
 end
 
 % TURNED OFF TEMPORARILY SINCE NOT SUPPORTED BY TIME AVERAGE

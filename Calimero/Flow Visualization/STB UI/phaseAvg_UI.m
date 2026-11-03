@@ -48,7 +48,9 @@ properties
         "y*w_x (u avg)", "Drag - Vorticity (u avg)",... % (u avg): vorticity of the phase-averaged velocity
         "x*w_y (edge)", "y*w_x (taper)",... % omega_y lift with the tapered edge terms / omega_x lift with the same edge taper (get_wake_lift)
         "u*w (extrap)", "(u-U)*u (extrap)",... % velocity-only forces on the Helmholtz-extrapolated field
-        "u*w (extrap fill)", "(u-U)*u (extrap fill)"]; % same, measured velocity inside the FOV, extrapolated outside
+        "u*w (extrap fill)", "(u-U)*u (extrap fill)",... % same, measured velocity inside the FOV, extrapolated outside
+        "x*w_y (frozen)", "x*w_y (edge, frozen)",... % frozen flow: omega_y, omega_z with d/dx = (1/U) d/dt instead of the slab derivative
+        "Drag - Vorticity (frozen)", "z*w_y (frozen)", "y*w_z (frozen)"];
     flow_var_types = ["u", "v", "w", "wx", "wy", "wz", "hel", "wx - z", "wx - y", ...
                 "wx - stretch", "wx - y-tilt", "wx - z-tilt", ...
                 "wy - x-tilt", "wy - stretch", "wy - z-tilt", ...
@@ -56,7 +58,8 @@ properties
                 "y * wx - stretch", "y * wx - y-tilt", "y * wx - z-tilt", ...
                 "u'u'","v'v'","w'w'","u'v'","u'w'","v'w'", "u'w_x'","u'w_y'",...
                 "Q - z", "Q - y", "wx (u avg)", "wy (u avg)", "wz (u avg)",...
-                "du/dx", "du/dy", "du/dz", "dv/dx", "dv/dy", "dv/dz", "dw/dx", "dw/dy", "dw/dz"];
+                "du/dx", "du/dy", "du/dz", "dv/dx", "dv/dy", "dv/dz", "dw/dx", "dw/dy", "dw/dz",...
+                "du/dx (frozen)", "dv/dx (frozen)", "dw/dx (frozen)", "wy (frozen)", "wz (frozen)"];
     kin_var_types = ["Speed", "Speed Error", "Acceleration",...
                 "Wing Position", "Wing Speed", "Wing Acceleration",...
                 "Voltage", "Modeled Voltage", "Current", "Power"];
@@ -65,7 +68,9 @@ properties
                     "drag.tot", "drag.vortY", "drag.vortZ", "drag_vel",...
                     "lift_uavg.vortX", "drag_uavg.tot",...
                     "lift.vortY_edge", "lift.vortX_taper",...
-                    "lift_vel_B", "drag_vel_B", "lift_vel_B_fill", "drag_vel_B_fill"];
+                    "lift_vel_B", "drag_vel_B", "lift_vel_B_fill", "drag_vel_B_fill",...
+                    "lift_ff.vortY", "lift_ff.vortY_edge",...
+                    "drag_ff.tot", "drag_ff.vortY", "drag_ff.vortZ"];
     % forces that are only stored (phase-avg _integral file, from the
     % Helmholtz extrapolation in processing), never calculated live
     stored_only_force_names = ["lift_vel_B", "drag_vel_B", "lift_vel_B_fill", "drag_vel_B_fill"];
@@ -79,7 +84,8 @@ properties
                     "uwx_avg","uwy_avg",...
                     "Qx_z", "Qx_y",...
                     "vortX_uavg_avg", "vortY_uavg_avg", "vortZ_uavg_avg",...
-                    "dudx_avg", "dudy_avg", "dudz_avg", "dvdx_avg", "dvdy_avg", "dvdz_avg", "dwdx_avg", "dwdy_avg", "dwdz_avg"];
+                    "dudx_avg", "dudy_avg", "dudz_avg", "dvdx_avg", "dvdy_avg", "dvdz_avg", "dwdx_avg", "dwdy_avg", "dwdz_avg",...
+                    "dudx_ff_avg", "dvdx_ff_avg", "dwdx_ff_avg", "vortY_ff_avg", "vortZ_ff_avg"];
     kin_var_names = ["phase_avg_speed", "phase_avg_speed_error",...
                          "phase_avg_acc", "phase_avg_wing_pos",...
                          "phase_avg_wing_speed", "phase_avg_wing_acc",...
@@ -89,7 +95,9 @@ properties
         "Drag (N)", "Drag (N)", "Drag (N)", "Drag (N)",...
         "Lift (N)", "Drag (N)",...
         "Lift (N)", "Lift (N)",...
-        "Lift (N)", "Drag (N)", "Lift (N)", "Drag (N)"];
+        "Lift (N)", "Drag (N)", "Lift (N)", "Drag (N)",...
+        "Lift (N)", "Lift (N)",...
+        "Drag (N)", "Drag (N)", "Drag (N)"];
     flow_y_labels = ["$\overline{u} \; / \; U$", "$\overline{v} \; / \; U$",...
                     "$\overline{w} \; / \; U$", "\boldmath$\frac{\omega_x c}{U_{\infty}}$",...
                     "\boldmath$\frac{\omega_y c}{U_{\infty}}$", "\boldmath$\frac{\omega_z c}{U_{\infty}}$",...
@@ -126,7 +134,12 @@ properties
                     "$\overline{\partial v / \partial z} \; c / U$",...
                     "$\overline{\partial w / \partial x} \; c / U$",...
                     "$\overline{\partial w / \partial y} \; c / U$",...
-                    "$\overline{\partial w / \partial z} \; c / U$"];
+                    "$\overline{\partial w / \partial z} \; c / U$",...
+                    "$\overline{\partial u / \partial x} \; c / U$ (frozen)",...
+                    "$\overline{\partial v / \partial x} \; c / U$ (frozen)",...
+                    "$\overline{\partial w / \partial x} \; c / U$ (frozen)",...
+                    "\boldmath$\frac{\omega_y c}{U_{\infty}}$ (frozen)",...
+                    "\boldmath$\frac{\omega_z c}{U_{\infty}}$ (frozen)"];
     kin_y_labels = ["Speed (Hz)", "Speed Error (Hz)", "Acceleration (Hz^2)", ...
         "Position (rad)", "Speed (rad/s)", "Acceleration (rad/s^2)",...
         "Voltage (V)", "Voltage (V)", "Current (mA)", "Power (mW)"];
@@ -1502,9 +1515,10 @@ methods (Access = private)
             types = "BA: " + obj.force_var_types;
             names = obj.get_ba_force_names();
             labels = obj.force_y_labels;
-            % the (u avg) forces, the omega_y / taper variants and the
-            % extrapolated-field forces have no per-frame (BA) version
-            keep = ~contains(obj.force_var_names, "_uavg") & ...
+            % the (u avg) forces, the omega_y / taper variants, the
+            % frozen-flow forces and the extrapolated-field forces have no
+            % per-frame (BA) version
+            keep = ~contains(obj.force_var_names, ["_uavg", "_ff"]) & ...
                 ~ismember(obj.force_var_names, ["lift.vortY_edge", "lift.vortX_taper"]) & ...
                 ~ismember(obj.force_var_names, obj.stored_only_force_names);
             types = types(keep); names = names(keep); labels = labels(keep);
@@ -1624,6 +1638,36 @@ methods (Access = private)
         end
         val = trapz(squeeze(y_tr(:,1)), term, 1);
         var = squeeze(trapz(squeeze(z_tr(1,:)), val, 2));
+    end
+
+    % Frozen-flow variables (frozen_flow_gradients): the forces lift_ff.*,
+    % drag_ff.* and the planar averages *_ff_avg, computed from the main
+    % file for cases whose _integral file predates them
+    function tf = can_compute_frozen_var(obj, file_path, var_name)
+        var_name = string(var_name);
+        is_ff = startsWith(var_name, ["lift_ff.", "drag_ff."]) || endsWith(var_name, "_ff_avg");
+        tf = is_ff && obj.file_has_var(file_path, "dvdx_phase_avg") && ...
+            obj.file_has_var(file_path, "dwdx_phase_avg");
+        if tf && endsWith(var_name, "_ff_avg")
+            tf = obj.file_has_var(file_path, "dudx_phase_avg");
+        end
+    end
+
+    % Returns a struct d1 with d1.<var_name> (dotted names nested), as
+    % loaded from the _integral file. Same trimming and steps as
+    % calc_secondary_vals_common.
+    function d1 = get_frozen_var(~, file_path, case_name, var_name)
+        var_name = string(var_name);
+        d1 = struct();
+        if endsWith(var_name, "_ff_avg")
+            q = erase(extractBefore(var_name, "_ff_avg"), "_");
+            R = get_frozen_flow_fields(file_path, case_name, default_trim_bounds());
+            d1.(var_name) = squeeze(mean(R.ff.(q), [1, 2]));
+        else
+            val = get_PIV_force(file_path, case_name, var_name, 1, false, default_trim_bounds());
+            parts = split(var_name, ".");
+            d1.(parts(1)).(parts(2)) = val;
+        end
     end
 
     function tf = file_has_var(~, file, var_name)
@@ -2213,7 +2257,11 @@ methods (Access = private)
                 % same for the vorticity transport terms (e.g. wy_stretch)
                 live_transport = ~obj.file_has_var(stored_file, var_name) && ...
                     obj.can_compute_transport_term(file_path, var_name);
-                if ~live_grad && ~live_transport && ~obj.file_has_var(stored_file, var_name)
+                % and the frozen-flow forces / planar averages (lift_ff,
+                % drag_ff, *_ff_avg)
+                live_ff = ~obj.file_has_var(stored_file, var_name) && ...
+                    obj.can_compute_frozen_var(file_path, var_name);
+                if ~live_grad && ~live_transport && ~live_ff && ~obj.file_has_var(stored_file, var_name)
                     disp(var_name + " not saved for " + cur_sel + " (older processing) - not plotted")
                     continue
                 end
@@ -2235,6 +2283,8 @@ methods (Access = private)
                     d1 = struct(char(var_name), obj.get_gradient_planar_avg(file_path, var_name));
                 elseif live_transport
                     d1 = struct(char(var_name), obj.get_transport_term(file_path, var_name));
+                elseif live_ff
+                    d1 = obj.get_frozen_var(file_path, cur_sel, var_name);
                 elseif contains(var_name, ".")
                     abbrv_name = extractBefore(var_name, ".");
                     d1 = load(secondary_file_path, abbrv_name);
@@ -2274,12 +2324,24 @@ methods (Access = private)
                     % the extrapolation is only run for phase averages, so
                     % the 0 Hz case has nothing to subtract
                     disp("No 0 Hz version of " + var_name + ", not body subtracted")
-                elseif ~ismember(var_name, ["lift.vortY", "lift.vortY_edge"]) % no 0 Hz omega_y term
+                elseif ~ismember(var_name, ["lift.vortY", "lift.vortY_edge", "lift_ff.vortY", "lift_ff.vortY_edge"]) % no 0 Hz omega_y term
                 if obj.calc_bool
                     % Compute aerodynamic forces
                     norm_bool = false;
                     [bod_var, bod_err] = get_PIV_force(file_path_t, "", var_name, 0, norm_bool, default_trim_bounds());
                     var = var - bod_var;
+                elseif startsWith(var_name, ["lift_ff", "drag_ff"]) && ...
+                        ~obj.file_has_var(secondary_file_path_t, var_name)
+                    % frozen-flow force of a time average processed before
+                    % it was added: computed live (zero frozen d/dx)
+                    norm_bool = false;
+                    try
+                        [bod_var, ~] = get_PIV_force(file_path_t, "", var_name, 0, norm_bool, default_trim_bounds());
+                        var = var - bod_var;
+                    catch err
+                        disp("No " + obj.PIV_sub_case + " subtraction for " + var_name + ...
+                            " (" + cur_sel + "): " + err.message)
+                    end
                 else
                     if ~obj.file_has_var(secondary_file_path_t, var_name)
                         disp(var_name + " not saved for the " + obj.PIV_sub_case +...

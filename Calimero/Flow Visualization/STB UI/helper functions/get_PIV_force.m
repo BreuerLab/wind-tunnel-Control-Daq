@@ -43,6 +43,18 @@ function [var, err, I] = get_PIV_force(file_name, case_name, force_var_name, avg
             vort_suffix = "_uavg";
         end
 
+        % lift_ff / drag_ff: omega_y, omega_z rebuilt with the frozen-flow
+        % streamwise gradients d/dx = (1/U) d/dt instead of the slab
+        % derivatives (frozen_flow_gradients; zero for a time average)
+        ff_bool = false;
+        if contains(force_var_name, "_ff")
+            force_var_name = erase(force_var_name, "_ff");
+            ff_bool = true;
+            if vort_suffix ~= "" || ~vort_bool
+                error("get_PIV_force: _ff is only defined for the vorticity forces of the averaged per-frame vorticity")
+            end
+        end
+
         switch avg_type
             case 0
             vars = {"L","U","rho","y","z","mean_u","mean_v","mean_w"};
@@ -60,6 +72,19 @@ function [var, err, I] = get_PIV_force(file_name, case_name, force_var_name, avg
                 end
             end
             vars = [vars, "uncTot_phase_avg"];
+        end
+        if ff_bool
+            if avg_type == 0
+                grad_vars = ["mean_dvdx", "mean_dwdx"];
+            else
+                grad_vars = ["dvdx_phase_avg", "dwdx_phase_avg"];
+            end
+            missing = grad_vars(~ismember(grad_vars, who('-file', file_name)));
+            if ~isempty(missing)
+                error("get_PIV_force: %s not in %s, needed for the frozen-flow forces", ...
+                    strjoin(missing, ", "), file_name)
+            end
+            vars = [vars, cellstr(grad_vars)];
         end
 
         d = load(file_name, vars{:});
@@ -150,7 +175,23 @@ function [var, err, I] = get_PIV_force(file_name, case_name, force_var_name, avg
             unc_tr = mean(unc_tr, 4, "omitnan");
         end
     end
-    
+
+    if ff_bool
+        if avg_type == 0
+            dvdx_tr = d.mean_dvdx;
+            dwdx_tr = d.mean_dwdx;
+        else
+            dvdx_tr = d.dvdx_phase_avg;
+            dwdx_tr = d.dwdx_phase_avg;
+            if tavg_bool
+                dvdx_tr = mean(dvdx_tr, 4, "omitnan");
+                dwdx_tr = mean(dwdx_tr, 4, "omitnan");
+            end
+        end
+        [~, ~, dvdx_tr] = trim_vel_field(y, z, dvdx_tr, bounds);
+        [~, ~, dwdx_tr] = trim_vel_field(y, z, dwdx_tr, bounds);
+    end
+
     [y_tr, z_tr, u_tr] = trim_vel_field(y, z, u_tr, bounds);
     [~, ~, v_tr] = trim_vel_field(y, z, v_tr, bounds);
     [~, ~, w_tr] = trim_vel_field(y, z, w_tr, bounds);
@@ -168,6 +209,18 @@ function [var, err, I] = get_PIV_force(file_name, case_name, force_var_name, avg
     u_tr = nanRegionFill(u_tr);
     v_tr = nanRegionFill(v_tr);
     w_tr = nanRegionFill(w_tr);
+
+    % frozen-flow omega_y, omega_z (as calc_secondary_vals_common: from the
+    % hole-filled velocity, before the uncertainty mask)
+    if ff_bool
+        t_ff = [];
+        if numel(x_conv) >= 3, t_ff = x_conv(:) / speed; end   % x = U t
+        ff_in = struct('u', u_tr, 'v', v_tr, 'w', w_tr, 'vortY', vortY_tr, 'vortZ', vortZ_tr, ...
+            'dvdx', dvdx_tr, 'dwdx', dwdx_tr);
+        G_ff = frozen_flow_gradients(ff_in, t_ff, period, d.L, speed);
+        vortY_tr = G_ff.vortY_ff;
+        vortZ_tr = G_ff.vortZ_ff;
+    end
 
     D.x = x_conv; D.y = y_tr; D.z = z_tr;
     D.period = period; % wingbeat period, for the periodic time integrals

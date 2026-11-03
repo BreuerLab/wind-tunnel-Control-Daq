@@ -144,7 +144,10 @@ properties
     section_flow_vars;  % flow variables it can average by section (velocities, vorticity)
     section_plot_vars;  % the variable list it shows: section_force_vars then section_flow_vars
     section_dropdown;
-    frozen_vars;      % "frozen flow" plot: slab dw/dx vs (1/U) dw/dt
+    frozen_vars;      % "frozen flow" plot: slab d/dx vs (1/U) d/dt, for frozen_quantities
+    frozen_quantities; %   du/dx, dv/dx, dw/dx, omega_y, omega_z (labels)
+    frozen_keys;       %   their field names in get_frozen_flow_fields (dudx, ... vortZ)
+    frozen_kinds;      %   per quantity: slab map, frozen map, rms ratio, correlation
     frozen_label_dict;
     frozen_clims;
     frozen_clim_dict;
@@ -491,15 +494,23 @@ methods
         obj.force_vars = ["lift_vort", "lift_vort: ω_x term", "lift_vort: ω_y term", "lift_vort: ω_y term (edge)", "lift_vort: ω_x term (taper)", "lift_vort: vel diff term", ...
             "lift_vel", ...
             "drag_vort", "drag_vort: ω_y term", "drag_vort: ω_z term", "drag_vort: bernoulli term", ...
-            "drag_vel"];
+            "drag_vel", ...
+            "lift_vort: ω_y term (frozen)", "lift_vort: ω_y term (edge, frozen)", ...
+            "drag_vort (frozen)", "drag_vort: ω_y term (frozen)", "drag_vort: ω_z term (frozen)"];
+        % (frozen): omega_y, omega_z rebuilt with the frozen-flow d/dx =
+        % (1/U) d/dt instead of the slab derivative (frozen_flow_gradients)
         force_vals = ["lift.tot", "lift.vortX", "lift.vortY", "lift.vortY_edge", "lift.vortX_taper", "lift.vel_diff", ...
             "lift_vel", ...
             "drag.tot", "drag.vortY", "drag.vortZ", "drag.bernoulli", ...
-            "drag_vel"];
+            "drag_vel", ...
+            "lift_ff.vortY", "lift_ff.vortY_edge", ...
+            "drag_ff.tot", "drag_ff.vortY", "drag_ff.vortZ"];
         force_labels = ["Lift (N)", "Lift, ω_x term (N)", "Lift, ω_y term (N)", "Lift, ω_y term, with edge terms (N)", "Lift, ω_x term, tapered (N)", "Lift, vel diff term (N)", ...
             "Lift (N)", ...
             "Drag (N)", "Drag, ω_y term (N)", "Drag, ω_z term (N)", "Drag, bernoulli term (N)", ...
-            "Drag (N)"];
+            "Drag (N)", ...
+            "Lift, ω_y term, frozen flow (N)", "Lift, ω_y term, with edge terms, frozen flow (N)", ...
+            "Drag, frozen flow (N)", "Drag, ω_y term, frozen flow (N)", "Drag, ω_z term, frozen flow (N)"];
 
         obj.var_name_list = obj.movie_3D_avg_vars;
         obj.mean_clims = [-1.1, -0.9;...
@@ -657,17 +668,33 @@ methods
         obj.freq_var_name_dict = containers.Map(freq_keys, freq_vals);
         obj.freq_label_dict = containers.Map(freq_keys, freq_labels);
 
-        % Frozen-flow check of the slab-normal derivative (centre plane):
-        % movies of each estimate, then pointwise rms ratio / correlation
-        % over the wingbeat. All nondimensional like dwdx_phase_avg.
-        obj.frozen_vars = ["dw/dx (slab)", "(1/U) dw/dt", "rms ratio", "correlation over phase"];
+        % Frozen-flow check of the slab-normal derivatives (centre plane):
+        % for du/dx, dv/dx, dw/dx and the vorticity components that contain
+        % one (omega_y, omega_z), movies of the slab and frozen-flow
+        % estimates, then pointwise rms ratio / correlation over the
+        % wingbeat. All nondimensional like dwdx_phase_avg (* c/U).
+        obj.frozen_quantities = ["du/dx", "dv/dx", "dw/dx", "ω_y", "ω_z"];
+        obj.frozen_keys = ["dudx", "dvdx", "dwdx", "vortY", "vortZ"];
+        obj.frozen_kinds = [" (slab)", " (frozen)", ": rms ratio slab/frozen", ": correlation over phase"];
+        tex_slab = ["\frac{\partial u}{\partial x}", "\frac{\partial v}{\partial x}", ...
+            "\frac{\partial w}{\partial x}", "\omega_y", "\omega_z"];
+        tex_ff = ["\frac{1}{U}\frac{\partial u}{\partial t}", "\frac{1}{U}\frac{\partial v}{\partial t}", ...
+            "\frac{1}{U}\frac{\partial w}{\partial t}", "\omega_y^{\mathrm{ff}}", "\omega_z^{\mathrm{ff}}"];
+        lim = [0.2, 0.2, 0.2, 1, 1];   % colour limits of the maps
+        obj.frozen_vars = strings(1, 0);
+        frozen_labels = strings(1, 0);
+        obj.frozen_clims = zeros(0, 2);
+        for q = 1:numel(obj.frozen_quantities)
+            obj.frozen_vars = [obj.frozen_vars, obj.frozen_quantities(q) + obj.frozen_kinds];
+            frozen_labels = [frozen_labels, ...
+                "\boldmath$" + tex_slab(q) + "\frac{c}{U_{\infty}}$", ...
+                "\boldmath$" + tex_ff(q) + "\frac{c}{U_{\infty}}$", ...
+                "\boldmath$\mathrm{rms}(" + tex_slab(q) + ") / \mathrm{rms}(" + tex_ff(q) + ")$", ...
+                "\boldmath$\rho$"]; %#ok<AGROW>
+            obj.frozen_clims = [obj.frozen_clims; -lim(q) lim(q); -lim(q) lim(q); 0 1.5; -1 1]; %#ok<AGROW>
+        end
         obj.section_vars = ["5 sections", "3 sections", "10 sections", "20 sections", "every column"];
         obj.section_count = obj.section_vars(1);
-        frozen_labels = ["\boldmath$\frac{\partial w}{\partial x}\frac{c}{U_{\infty}}$", ...
-            "\boldmath$\frac{1}{U}\frac{\partial w}{\partial t}\frac{c}{U_{\infty}}$", ...
-            "\boldmath$\frac{\mathrm{rms}(\partial_x w)}{\mathrm{rms}(\partial_t w / U)}$", ...
-            "\boldmath$\rho$"];
-        obj.frozen_clims = [-0.2 0.2; -0.2 0.2; 0 1.5; -1 1];
         obj.frozen_label_dict = containers.Map(cellstr(obj.frozen_vars), frozen_labels);
         obj.frozen_clim_dict = obj.build_clim_dict(obj.frozen_vars, obj.frozen_clims);
 
@@ -675,7 +702,7 @@ methods
         obj.force_var_name_dict = containers.Map(force_keys, force_vals);
         % the omega_y lift terms are time integrals of a rate, not plane
         % integrals, so they can't be split across the plane
-        obj.section_force_vars = obj.force_vars(~ismember(force_vals, ["lift.vortY", "lift.vortY_edge"]));
+        obj.section_force_vars = obj.force_vars(~ismember(force_vals, ["lift.vortY", "lift.vortY_edge", "lift_ff.vortY", "lift_ff.vortY_edge"]));
         % flow variables: averaged over each section instead of summed
         % (names, fields and labels from the movie_3D_avg lists)
         obj.section_flow_vars = ["u", "v", "w", "ω_x", "ω_y", "ω_z"];
@@ -4154,77 +4181,66 @@ methods (Access = private)
         if fb < f, b(1) = -f/(1 - f) * b(2); end
     end
 
-    % "frozen flow" plot type: compares the slab-normal derivative dw/dx on
-    % the centre plane with the frozen-flow estimate (1/U) dw/dt from the
-    % phase series (x points upstream, so dw/dx = (1/U) dw/dt). Both are
-    % nondimensional, (L/U) * derivative, like dwdx_phase_avg. Same check
-    % as helper functions/slab_derivative_map.m.
+    % "frozen flow" plot type: compares the slab-normal derivatives du/dx,
+    % dv/dx, dw/dx on the centre plane, and omega_y, omega_z built from
+    % them, with the frozen-flow estimates from the phase series (x points
+    % upstream, so d/dx = (1/U) d/dt; get_frozen_flow_fields ->
+    % frozen_flow_gradients). All nondimensional, (c/U) * derivative, like
+    % dwdx_phase_avg. Same check as helper functions/slab_derivative_map.m.
     function plot_frozen_flow(obj, plot_panel)
         if strlength(obj.case_name) == 0 || ~obj.current_case_has_phase_avg()
             return
         end
         file = obj.get_current_file_base() + ".mat";
-        have = who('-file', file);
 
         ax = axes(plot_panel);
-        if ~all(ismember({'dwdx_phase_avg', 'w_phase_avg'}, have))
-            text(ax, 0.5, 0.5, "dwdx\_phase\_avg or w\_phase\_avg not in this file", ...
-                'HorizontalAlignment', 'center', FontSize=16);
+        try
+            R = get_frozen_flow_fields(file, obj.get_current_case_id(), []);   % untrimmed centre plane
+        catch err
+            text(ax, 0.5, 0.5, err.message, 'HorizontalAlignment', 'center', ...
+                Interpreter='none', FontSize=14);
             axis(ax, 'off');
             obj.slider.Visible = "off"; obj.play_button.Visible = "off";
             return
         end
 
-        vars = {"L", "U", "num_bins", "cycle_freq", "y", "z", "dwdx_phase_avg", "w_phase_avg"};
-        if ismember('U_act', have), vars{end+1} = "U_act"; end
-        if ismember('bin_placement', have), vars{end+1} = "bin_placement"; end
-        d = load(file, vars{:});
-        U_conv = d.U;
-        if isfield(d, 'U_act'), U_conv = d.U_act * d.U; end
-
-        nb = size(d.w_phase_avg, 4);
-        placement = [];
-        if isfield(d, 'bin_placement'), placement = d.bin_placement; end
-        period = 1 / d.cycle_freq;
-        tb = bin_times(nb, period, placement);   % actual (mean-phase) bin times
-        planeIdx = (size(d.w_phase_avg, 1) + 1) / 2;
-        y = squeeze(d.y(planeIdx,:,:));
-        z = squeeze(d.z(planeIdx,:,:));
-        dwdx = squeeze(d.dwdx_phase_avg(planeIdx,:,:,:));
-        w    = squeeze(d.w_phase_avg(planeIdx,:,:,:));
-        for k = 1:nb
-            dwdx(:,:,k) = fill3D(dwdx(:,:,k));
-            w(:,:,k)    = fill3D(w(:,:,k));
-        end
-        dwdt_U = periodic_ddt(w, tb, period, 3) * (d.L / U_conv);
+        % which quantity, and which of slab / frozen / rms ratio / correlation
+        k = find(obj.frozen_vars == string(obj.variable_name), 1);
+        if isempty(k), k = 1; end
+        nk = numel(obj.frozen_kinds);
+        key = obj.frozen_keys(ceil(k / nk));
+        kind = mod(k - 1, nk) + 1;
+        slab = R.slab.(key);
+        ff = R.ff.(key);
+        y = R.y;  z = R.z;
+        nb = size(slab, 3);
 
         if obj.trim_bool
             y_idx = find(y(:,1) > obj.trim_y_bounds(1) & y(:,1) < obj.trim_y_bounds(2));
             z_idx = find(z(1,:) > obj.trim_z_bounds(1) & z(1,:) < obj.trim_z_bounds(2));
             y = y(y_idx, z_idx);  z = z(y_idx, z_idx);
-            dwdx = dwdx(y_idx, z_idx, :);  dwdt_U = dwdt_U(y_idx, z_idx, :);
+            slab = slab(y_idx, z_idx, :);  ff = ff(y_idx, z_idx, :);
         end
 
-        params.U = d.U;
+        params.U = R.U;
         params.zero = 0;
         params.clims = obj.get_color_limits(obj.variable_name);
         params.cb_lab = obj.frozen_label_dict(char(obj.variable_name));
 
-        is_movie = ismember(obj.variable_name, obj.frozen_vars(1:2));
-        if is_movie
+        if kind <= 2
             obj.slider.Visible = "on";
             obj.play_button.Visible = "on";
-            if d.num_bins ~= obj.num_bins
-                obj.num_bins = d.num_bins;
-                obj.slider.Limits = [1 d.num_bins];
-                obj.slider.MajorTicks = 1:5:d.num_bins;
-                obj.slider.MinorTicks = 1:d.num_bins;
+            if nb ~= obj.num_bins
+                obj.num_bins = nb;
+                obj.slider.Limits = [1 nb];
+                obj.slider.MajorTicks = 1:5:nb;
+                obj.slider.MinorTicks = 1:nb;
             end
             obj.frame_ind = min(max(obj.frame_ind, 1), obj.num_bins);
-            if obj.variable_name == obj.frozen_vars(1)
-                val = dwdx;
+            if kind == 1
+                val = slab;
             else
-                val = dwdt_U;
+                val = ff;
             end
 
             h = PIV_plot(y, z, val(:,:,obj.frame_ind), params, ax);
@@ -4248,9 +4264,9 @@ methods (Access = private)
 
         obj.slider.Visible = "off";
         obj.play_button.Visible = "off";
-        a = dwdx   - mean(dwdx, 3, 'omitnan');
-        b = dwdt_U - mean(dwdt_U, 3, 'omitnan');
-        if obj.variable_name == obj.frozen_vars(3)
+        a = slab - mean(slab, 3, 'omitnan');
+        b = ff   - mean(ff, 3, 'omitnan');
+        if kind == 3
             val = std(a, 0, 3, 'omitnan') ./ std(b, 0, 3, 'omitnan');
         else
             val = sum(a.*b, 3, 'omitnan') ./ sqrt(sum(a.^2, 3, 'omitnan') .* sum(b.^2, 3, 'omitnan'));
