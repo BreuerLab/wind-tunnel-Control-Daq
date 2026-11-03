@@ -326,9 +326,9 @@ methods
             option_panel.Scrollable = "on";
         end
 
-        sidebar_grid = uigridlayout(option_panel, [19, 1]);
+        sidebar_grid = uigridlayout(option_panel, [20, 1]);
         sidebar_grid.ColumnWidth = {'1x'};
-        sidebar_grid.RowHeight = {30, 30, 30, 30, 30, 30, 30, 110, 30, 383, 30, 0, 30, 30, 30, 24, 30, 30, 30};
+        sidebar_grid.RowHeight = {30, 30, 30, 30, 30, 30, 30, 110, 30, 383, 30, 0, 30, 30, 30, 30, 24, 30, 30, 30};
         sidebar_grid.Padding = [10 10 10 10];
         sidebar_grid.RowSpacing = 6;
         if isprop(sidebar_grid, "Scrollable")
@@ -621,10 +621,10 @@ methods
         b77.BackgroundColor = [1 1 1];
         b77.ValueChangedFcn = @(src, event) calc_change(src, event, plot_panel);
 
-        align_std_grid = uigridlayout(sidebar_grid, [1, 3]);
+        align_std_grid = uigridlayout(sidebar_grid, [1, 2]);
         align_std_grid.Layout.Row = 14;
         align_std_grid.Layout.Column = 1;
-        align_std_grid.ColumnWidth = {'1x', '0.7x', '1x'};
+        align_std_grid.ColumnWidth = {'1x', '1x'};
         align_std_grid.RowHeight = {'1x'};
         align_std_grid.Padding = [0 0 0 0];
         align_std_grid.ColumnSpacing = 6;
@@ -648,16 +648,6 @@ methods
         corr_button.ValueChangedFcn = @(src, event) corr_change(src, event, plot_panel);
 
         b88.ValueChangedFcn = @(src, event) align_change(src, event, plot_panel, corr_button);
-
-        % shaded +/- 1 SD band around load cell and BA PIV force curves
-        std_button = uibutton(align_std_grid, "state");
-        std_button.Layout.Row = 1;
-        std_button.Layout.Column = 3;
-        std_button.Text = "+/- 1 SD";
-        std_button.FontSize = 18;
-        std_button.Value = obj.std_band;
-        std_button.BackgroundColor = obj.get_button_color(obj.std_band);
-        std_button.ValueChangedFcn = @(src, event) std_band_change(src, event, plot_panel);
 
         y_mean_grid = uigridlayout(sidebar_grid, [1, 2]);
         y_mean_grid.Layout.Row = 15;
@@ -684,26 +674,36 @@ methods
 
 
         % Remaining file output controls.
+        % shaded +/- 1 SD band around load cell and BA PIV force curves
+        std_button = uibutton(sidebar_grid, "state");
+        std_button.Layout.Row = 16;
+        std_button.Layout.Column = 1;
+        std_button.Text = "+/- 1 SD";
+        std_button.FontSize = 18;
+        std_button.Value = obj.std_band;
+        std_button.BackgroundColor = obj.get_button_color(obj.std_band);
+        std_button.ValueChangedFcn = @(src, event) std_band_change(src, event, plot_panel);
+
         fnl = uilabel(sidebar_grid);
-        fnl.Layout.Row = 16;
+        fnl.Layout.Row = 17;
         fnl.Layout.Column = 1;
         fnl.HorizontalAlignment = "center";
         fnl.Text = "File Name";
 
         ef = uieditfield(sidebar_grid);
-        ef.Layout.Row = 17;
+        ef.Layout.Row = 18;
         ef.Layout.Column = 1;
         ef.Placeholder = "test";
 
         % Button to export data on plot to .mat file
         b10 = uibutton(sidebar_grid);
-        b10.Layout.Row = 18;
+        b10.Layout.Row = 19;
         b10.Layout.Column = 1;
         b10.Text = "Export Data";
         b10.ButtonPushedFcn = @(src, event) exportData(src, event, ef);
 
         b4 = uibutton(sidebar_grid);
-        b4.Layout.Row = 19;
+        b4.Layout.Row = 20;
         b4.Layout.Column = 1;
         b4.Text = "Save Fig";
         b4.FontSize = 18;
