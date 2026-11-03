@@ -1869,6 +1869,14 @@ classdef timeAvg_UI < handle
 
                     if obj.is_load_cell_var(force_var)
                         var = obj.get_load_cell_signal(force_var, type, amp, freq, false);
+                    elseif obj.is_live_Q_centroid(force_var)
+                        % Q centroid with the Live Calc bounds and
+                        % uncertainty mask (get_Q_centroid)
+                        var = get_Q_centroid(filepath, secondary_filepath, force_var, obj.trim_bounds);
+                        if obj.PIV_sub
+                            [bod_filepath, bod_secondary_filepath] = obj.get_PIV_sub_file_paths(type, amp);
+                            var = var - get_Q_centroid(bod_filepath, bod_secondary_filepath, force_var, obj.trim_bounds);
+                        end
                     elseif (obj.calc_bool && obj.is_piv_force_variable(force_var)) || obj.is_tavg_force_var(force_var) ||...
                             obj.needs_live_ff(force_var, secondary_filepath)
                         [var, err] = get_PIV_force(filepath, name, force_var, avg_type, obj.y_norm, obj.trim_bounds);
@@ -2208,6 +2216,8 @@ classdef timeAvg_UI < handle
                 var = obj.get_load_cell_signal(force_var, type, amp, freq, true);
                 var = double(var(:)');
                 return
+            elseif obj.is_live_Q_centroid(force_var)
+                var = get_Q_centroid(filepath, secondary_filepath, force_var, obj.trim_bounds);
             elseif (obj.calc_bool && obj.is_piv_force_variable(force_var)) || obj.is_tavg_force_var(force_var) ||...
                     obj.needs_live_ff(force_var, secondary_filepath)
                 var = get_PIV_force(filepath, name, force_var, 1, obj.y_norm, obj.trim_bounds);
@@ -2513,6 +2523,12 @@ classdef timeAvg_UI < handle
 
         % forces from the time-averaged field (TA: force), not stored in
         % the files, so always calculated by get_PIV_force
+        % Q centroid (Qx_y, Qx_z): with Live Calculate on, recomputed from
+        % the saved Q with the Live Calc bounds and uncertainty mask
+        function tf = is_live_Q_centroid(obj, force_var)
+            tf = obj.calc_bool && ismember(string(force_var), ["Qx_y", "Qx_z"]);
+        end
+
         function tf = is_tavg_force_var(obj, force_var)
             tf = any(obj.var_names == string(force_var)) &&...
                 obj.get_var_category(force_var) == "TA: force";

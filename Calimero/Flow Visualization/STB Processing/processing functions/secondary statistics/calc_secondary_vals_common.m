@@ -288,8 +288,13 @@ S.wx_y = integrate_planar(y_arr, z_arr, y_tr .* T.vortX) ./ integrate_planar(y_a
 
 % Vortex core centroids weighted by positive Q only (Q > 0 marks vortex
 % cores; the negative, strain-dominated regions would partly cancel the
-% denominator). Q is trimmed and recentred like y_tr, z_tr.
+% denominator). Q is trimmed and recentred like y_tr, z_tr. Points removed
+% by the uncertainty mask (unc_mask, as for the forces) carry no weight.
+% get_Q_centroid repeats this for timeAvg_UI's Live Calculate.
 Q_pos = max(T.Q, 0);
+if ~isempty(unc_mask)
+    Q_pos(repmat(unc_mask, 1, 1, size(Q_pos, 3))) = 0;
+end
 S.Qx_z = integrate_planar(y_arr, z_arr, z_tr .* Q_pos) ./ integrate_planar(y_arr, z_arr, Q_pos);
 S.Qx_y = integrate_planar(y_arr, z_arr, y_tr .* Q_pos) ./ integrate_planar(y_arr, z_arr, Q_pos);
 
