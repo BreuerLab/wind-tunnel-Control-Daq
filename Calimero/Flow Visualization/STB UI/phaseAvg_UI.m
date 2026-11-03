@@ -2479,7 +2479,11 @@ methods (Access = private)
                     % speed = mean(-squeeze(u_avg)) * d.U;
                     conv_time = dist / obj.conv_speed;
                     shift = conv_time * freq_cor; % get shift as a portion of a cycle
-                    shift_bins = round(shift*length(var));
+                    % The plane sees the wake the wing shed one convection time earlier,
+                    % so the curve is moved EARLIER by that time (negative circshift) to put
+                    % it in the robot's wing phase. (A positive shift added the delay twice:
+                    % x2 and x4 then differed by 2*0.378 m / U instead of lining up.)
+                    shift_bins = -round(shift*length(var));
                     var = circshift(var, shift_bins);
                     placement_pct = circshift(placement_pct, shift_bins);
                     var_std = circshift(var_std, shift_bins);

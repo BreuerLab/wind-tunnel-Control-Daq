@@ -2439,7 +2439,11 @@ classdef timeAvg_UI < handle
                 return
             end
             conv_speed = plane_downstream_dists("conv_speed"); % m/s
-            shift_samples = round(dist / conv_speed * freq_cor * length(signal));
+            % The plane sees the wake the wing shed one convection time earlier,
+            % so the curve is moved EARLIER by that time (negative circshift) to put
+            % it in the robot's wing phase. (A positive shift added the delay twice:
+            % x2 and x4 then differed by 2*0.378 m / U instead of lining up.)
+            shift_samples = -round(dist / conv_speed * freq_cor * length(signal));
             signal = circshift(signal, shift_samples);
             disp("Shifted " + obj.get_force_var_label(force_var) + " by: " + shift_samples + ...
                 " / " + length(signal) + " (" + dist + " m downstream)")

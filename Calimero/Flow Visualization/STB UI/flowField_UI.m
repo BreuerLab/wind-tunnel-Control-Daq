@@ -2753,7 +2753,11 @@ methods (Access = private)
 
         conv_time = dist / obj.CONV_SPEED;
         shift = conv_time * cycle_freq; % shift as a portion of a cycle
-        shift_bins = round(shift * num_bins);
+        % The plane sees the wake the wing shed one convection time earlier,
+        % so the curve is moved EARLIER by that time (negative circshift) to put
+        % it in the robot's wing phase. (A positive shift added the delay twice:
+        % x2 and x4 then differed by 2*0.378 m / U instead of lining up.)
+        shift_bins = -round(shift * num_bins);
         disp("Shifted " + obj.get_current_case_id() + " by: " + shift_bins + " / " + num_bins + ...
             " (" + dist + " m downstream)")
     end
