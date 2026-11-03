@@ -49,6 +49,21 @@ properties (Constant, Access = private)
     TRANSPORT_FIELDS = ["transport_wx_stretch", "transport_wx_tilt_y", "transport_wx_tilt_z", ...
         "transport_wy_tilt_x", "transport_wy_stretch", "transport_wy_tilt_z", ...
         "transport_wz_tilt_x", "transport_wz_tilt_y", "transport_wz_stretch"];
+    % Combined terms, per component omega_i (still derived on the fly):
+    %   net source  sum_j omega_j du_i/dx_j (one row of the 9 terms above,
+    %               = inviscid D(omega_i)/Dt; single terms depend on the
+    %               axes and can cancel, e.g. in an inclined vortex)
+    %   growth      omega_i * net source = 1/2 D(omega_i^2)/Dt, positive
+    %               where |omega_i| is growing, negative where shrinking
+    %               (units U^3/c^3)
+    TRANSPORT_SUM_VARS = ["ω_j du/dx_j (net ω_x source)", ...
+        "ω_j dv/dx_j (net ω_y source)", ...
+        "ω_j dw/dx_j (net ω_z source)", ...
+        "ω_x ω_j du/dx_j (|ω_x| growth)", ...
+        "ω_y ω_j dv/dx_j (|ω_y| growth)", ...
+        "ω_z ω_j dw/dx_j (|ω_z| growth)"];
+    TRANSPORT_SUM_FIELDS = ["transport_wx_total", "transport_wy_total", "transport_wz_total", ...
+        "transport_wx_growth", "transport_wy_growth", "transport_wz_growth"];
     % Trim bounds and mirror centerline for each flapper source mode.
     % The active set is copied into trim_y_bounds / trim_z_bounds /
     % mirror_center_y by set_trim_settings_for_source_mode().
@@ -470,9 +485,9 @@ methods
         movie_3D_avg_values = [movie_3D_avg_values, obj.EXTRAP_DIFF_FIELDS];
         time_avg_values = [time_avg_values, obj.EXTRAP_DIFF_FIELDS]; % not in time-avg files
         % vorticity transport terms (derived, see TRANSPORT_FIELDS)
-        obj.movie_3D_avg_vars = [obj.movie_3D_avg_vars, obj.TRANSPORT_VARS];
-        movie_3D_avg_values = [movie_3D_avg_values, obj.TRANSPORT_FIELDS];
-        time_avg_values = [time_avg_values, obj.TRANSPORT_FIELDS];
+        obj.movie_3D_avg_vars = [obj.movie_3D_avg_vars, obj.TRANSPORT_VARS, obj.TRANSPORT_SUM_VARS];
+        movie_3D_avg_values = [movie_3D_avg_values, obj.TRANSPORT_FIELDS, obj.TRANSPORT_SUM_FIELDS];
+        time_avg_values = [time_avg_values, obj.TRANSPORT_FIELDS, obj.TRANSPORT_SUM_FIELDS];
         % frame-to-frame standard deviation of that Q within each bin
         % (phase_avg_STB with bools.Q_inst = true)
         obj.movie_3D_std_vars = [obj.movie_3D_std_vars, "<Qx> inst", "<Qy> inst", "<Qz> inst", "<Q> inst"];
@@ -563,7 +578,9 @@ methods
                       -0.05, 0.05;... % u: extrap - meas
                       -0.05, 0.05;... % v: extrap - meas
                       -0.05, 0.05;... % w: extrap - meas
-                      repmat([-0.5, 0.5], numel(obj.TRANSPORT_VARS), 1)]; % ω_j du_i/dx_j c^2/U^2
+                      repmat([-0.5, 0.5], numel(obj.TRANSPORT_VARS), 1);... % ω_j du_i/dx_j c^2/U^2
+                      repmat([-0.5, 0.5], 3, 1);... % net ω_i source c^2/U^2
+                      repmat([-2, 2], 3, 1)]; % |ω_i| growth c^3/U^3
 
         % for std plots
         obj.std_clims = [0, 0.05;...
@@ -648,7 +665,7 @@ methods
             "$(u_{extrap} - u_{meas}) \; / \; U$",...
             "$(v_{extrap} - v_{meas}) \; / \; U$",...
             "$(w_{extrap} - w_{meas}) \; / \; U$"];
-        movie_3D_avg_labels = [movie_3D_avg_labels, obj.transport_labels()];
+        movie_3D_avg_labels = [movie_3D_avg_labels, obj.transport_labels(), obj.transport_sum_labels()];
 
         keys = cellstr(obj.movie_3D_avg_vars);
         values = movie_3D_avg_values;
@@ -3173,7 +3190,7 @@ methods (Access = private)
         end
         % transport terms need the gradients, which the extrapolated
         % (Helmholtz) field doesn't have: always the measured field
-        is_transport = any(obj.variable_name == obj.TRANSPORT_VARS);
+        is_transport = any(obj.variable_name == [obj.TRANSPORT_VARS, obj.TRANSPORT_SUM_VARS]);
         if is_transport
             use_extrapolated_data = false;
         end
@@ -3219,8 +3236,8 @@ methods (Access = private)
                 % derived field: load the stored fields it is built from
                 vars = [vars, obj.get_lift_wx_inputs(using_time_avg_file)];
             elseif is_transport
-                [vort_field, grad_field] = obj.get_transport_inputs(var_name, using_time_avg_file);
-                vars = [vars, {vort_field, grad_field}];
+                [transport_pairs, transport_own_vort] = obj.get_transport_inputs(var_name, using_time_avg_file);
+                vars = [vars, cellstr(unique([transport_pairs(:); transport_own_vort]))'];
             elseif contains(obj.variable_name, obj.secondary_vars) || use_extrapolated_data
                 cur_secondary_vars{end+1} = var_name;
             else
@@ -3375,10 +3392,12 @@ methods (Access = private)
             d.(var_name) = obj.compute_lift_wx_field(d, using_time_avg_file);
         end
         if ismember(plot_idx, [1, 2, 5, 9]) && is_transport && ...
-                isfield(d, vort_field) && isfield(d, grad_field)
-            % omega_j du_i/dx_j (c^2/U^2); left missing when the gradient
-            % isn't saved (older processing) -> show_missing_variable
-            d.(var_name) = d.(vort_field) .* d.(grad_field);
+                all(isfield(d, cellstr([transport_pairs(:); transport_own_vort])))
+            % omega_j du_i/dx_j (c^2/U^2), or a row sum / growth of them;
+            % left missing when the gradients aren't saved (older
+            % processing) -> show_missing_variable
+            d.(var_name) = obj.compute_transport_field(d, var_name, ...
+                transport_pairs, transport_own_vort);
         end
 
         if plot_idx ~= 8
@@ -4391,22 +4410,62 @@ methods (Access = private)
         note = sprintf("y-axis limited to 2x mean; %d bin(s) above (value shown)", numel(outliers));
     end
 
-    function [vort_field, grad_field] = get_transport_inputs(obj, var_name, using_time_avg_file)
-        % Stored vorticity and gradient fields for a transport term
-        % (TRANSPORT_FIELDS -> transport_term_list)
+    function [pairs, own_vort] = get_transport_inputs(~, var_name, using_time_avg_file)
+        % Stored fields for a transport variable: pairs is an n x 2 string
+        % array of {vorticity field, gradient field} whose products are
+        % summed (n = 1 for a single term of transport_term_list, n = 3
+        % for a row sum, *_total / *_growth); own_vort is omega_i for
+        % *_growth (empty string array otherwise)
         terms = transport_term_list();
-        k = find(string(terms(:, 1)) == erase(string(var_name), "transport_"), 1);
+        names = string(terms(:, 1));
+        name = erase(string(var_name), "transport_");
+        own_vort = strings(0, 1);
+        if endsWith(name, ["_total", "_growth"])
+            comp = extractBefore(name, "_");          % "wx"
+            k = find(startsWith(names, comp + "_"));  % the 3 terms of that row
+            if endsWith(name, "_growth")
+                own_vort = "vort" + upper(extractAfter(comp, 1)); % "vortX"
+            end
+        else
+            k = find(names == name, 1);
+        end
         if isempty(k)
             error("Unknown vorticity transport term " + string(var_name))
         end
-        vort = string(terms{k, 2});
-        grad = string(terms{k, 3});
+        pairs = [string(terms(k, 2)), string(terms(k, 3))];
         if using_time_avg_file
-            vort_field = char("mean_" + vort);
-            grad_field = char("mean_" + grad);
+            pairs = "mean_" + pairs;
+            own_vort = "mean_" + own_vort;
         else
-            vort_field = char(vort + "_phase_avg");
-            grad_field = char(grad + "_phase_avg");
+            pairs = pairs + "_phase_avg";
+            own_vort = own_vort + "_phase_avg";
+        end
+    end
+
+    function val = compute_transport_field(~, d, var_name, pairs, own_vort)
+        % Sum of omega_j du_i/dx_j over the rows of pairs (product of the
+        % stored nondimensional fields, c^2/U^2), times omega_i for
+        % *_growth (c^3/U^3)
+        val = 0;
+        for r = 1:size(pairs, 1)
+            val = val + d.(char(pairs(r, 1))) .* d.(char(pairs(r, 2)));
+        end
+        if endsWith(string(var_name), "_growth")
+            val = d.(char(own_vort)) .* val;
+        end
+    end
+
+    function labels = transport_sum_labels(obj)
+        % net omega_i source and |omega_i| growth, TRANSPORT_SUM_VARS order
+        labels = strings(1, numel(obj.TRANSPORT_SUM_VARS));
+        uvw = ["u" "v" "w"];
+        xyz = ["x" "y" "z"];
+        for k = 1:3
+            row = "\omega_j \frac{\partial " + uvw(k) + "}{\partial x_j}";
+            labels(k) = "\boldmath$" + row + " \frac{c^2}{U_{\infty}^2} \;\; " + ...
+                "(\mathrm{net}\ \omega_" + xyz(k) + "\ \mathrm{source})$";
+            labels(k + 3) = "\boldmath$\omega_" + xyz(k) + " " + row + ...
+                " \frac{c^3}{U_{\infty}^3} \;\; (|\omega_" + xyz(k) + "|\ \mathrm{growth})$";
         end
     end
 
