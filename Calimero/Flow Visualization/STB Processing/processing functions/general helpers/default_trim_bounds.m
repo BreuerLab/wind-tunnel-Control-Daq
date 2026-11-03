@@ -24,7 +24,7 @@ bounds.z_cen = -0.35;
 % time averaged total uncertainty is above this fraction of the freestream
 % speed add nothing to the forces. Used for the saved forces (_integral
 % files) and the UIs' live forces. 0 = off.
-bounds.unc_mask = 0.02;
+bounds.unc_mask = 0.04;
 % How the threshold is applied (unc_mask_region): "threshold" masks every
 % point above it; "outer" masks only what lies outside the largest region
 % enclosed by the unc_mask contour, so high-uncertainty vortex cores inside
