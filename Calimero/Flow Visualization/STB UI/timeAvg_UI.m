@@ -2446,23 +2446,25 @@ classdef timeAvg_UI < handle
         end
 
         % Streamwise distance (m) from the robot to the imaging plane for a
-        % case type: x3 = 0.9 m with 0.37 m between positions, MPS = 1 m;
-        % old flapper 0.9 m, UP_one / UP_two one / two positions further
+        % case type, from plane_downstream_dists (shared with phaseAvg_UI
+        % and flowField_UI): xN = x3 + (N - 3) * sep, MPS; old flapper at
+        % x3, UP_one / UP_two one / two old spacings further
         function dist = get_robot_to_plane_dist(~, type)
+            d = plane_downstream_dists();
             prefix = regexprep(get_downstream_prefix(type, true), "_$", ""); % e.g. "x3", "UP_one"
             x_pos = regexp(char(prefix), '^x(\d+)$', 'tokens', 'once');
             if ~isempty(x_pos)
-                dist = 0.9 + (str2double(x_pos{1}) - 3) * 0.37;
+                dist = d.x3 + (str2double(x_pos{1}) - 3) * d.sep;
             elseif prefix == "MPS"
-                dist = 1.0;
+                dist = d.MPS;
             elseif prefix == "UP_one"
-                dist = 0.9 + 0.37;
+                dist = d.old(2);
             elseif prefix == "UP_two"
-                dist = 0.9 + 2*0.37;
+                dist = d.old(3);
             elseif contains(type, "turbine")
                 dist = NaN;
             else
-                dist = 0.9; % old flapper
+                dist = d.old(1); % old flapper
             end
         end
 

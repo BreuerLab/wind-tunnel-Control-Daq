@@ -66,8 +66,9 @@ properties (Constant, Access = private)
     % used for the convection phase shift (same values as phaseAvg_UI).
     % Entries line up with OLD_/NEW_FLAPPER_DOWNSTREAM_TYPES. Set an entry
     % to NaN if unknown (no shift applied).
-    OLD_FLAPPER_DOWNSTREAM_DISTS = [0.9; 0.9 + 0.37; 0.9 + 2*0.37]; % flexible, UP_one, UP_two
-    NEW_FLAPPER_DOWNSTREAM_DISTS = [0.9 - 2*0.37; 0.9 - 0.37; 0.9; 0.9 + 0.37; 0.9 + 2*0.37; 1.0]; % x1-x5, MPS
+    % (set in plane_downstream_dists, shared with phaseAvg_UI / timeAvg_UI)
+    OLD_FLAPPER_DOWNSTREAM_DISTS = plane_downstream_dists("old"); % flexible, UP_one, UP_two
+    NEW_FLAPPER_DOWNSTREAM_DISTS = plane_downstream_dists("new"); % x1-x5, MPS
     CONV_SPEED = 4; % m/s, convection speed of the wake
 end
 
