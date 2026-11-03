@@ -186,21 +186,24 @@ classdef timeAvg_UI < handle
                 "BA: lift vortX", "BA: lift vel diff", "BA: lift vel", "BA: drag vort", "BA: drag vel",...
                 "lift vortY (edge)", "lift vortX (taper)",...
                 "TA: lift vortX", "TA: lift vel diff", "TA: lift vel", "TA: drag vort", "TA: drag vel",...
-                "lift vel (extrap)", "drag vel (extrap)", "lift vel (extrap fill)", "drag vel (extrap fill)"];
+                "lift vel (extrap)", "drag vel (extrap)", "lift vel (extrap fill)", "drag vel (extrap fill)",...
+                "divergence"];
             obj.var_names = [obj.var_names, "lift_uavg.vortX", "drag_uavg.tot",...
                 "wx_y", "wx_z", "Qx_y", "Qx_z",...
                 "lift_before_avg.vortX", "lift_before_avg.vel_diff", "lift_vel_before_avg",...
                 "drag_before_avg.tot", "drag_vel_before_avg",...
                 "lift.vortY_edge", "lift.vortX_taper",...
                 "lift_tavg.vortX", "lift_tavg.vel_diff", "lift_vel_tavg", "drag_tavg.tot", "drag_vel_tavg",...
-                "lift_vel_B", "drag_vel_B", "lift_vel_B_fill", "drag_vel_B_fill"];
+                "lift_vel_B", "drag_vel_B", "lift_vel_B_fill", "drag_vel_B_fill",...
+                "div_avg"]; % planar average of du/dx + dv/dy + dw/dz
             obj.y_labels = [obj.y_labels, "Lift (N)", "Drag (N)",...
                 "$\omega_x$ centroid $y/L$", "$\omega_x$ centroid $z/L$",...
                 "Q centroid $y/L$", "Q centroid $z/L$",...
                 "Lift (N)", "Lift (N)", "Lift (N)", "Drag (N)", "Drag (N)",...
                 "Lift (N)", "Lift (N)",...
                 "Lift (N)", "Lift (N)", "Lift (N)", "Drag (N)", "Drag (N)",...
-                "Lift (N)", "Drag (N)", "Lift (N)", "Drag (N)"];
+                "Lift (N)", "Drag (N)", "Lift (N)", "Drag (N)",...
+                "$\overline{\nabla \cdot \mathbf{u}} \; c / U_{\infty}$"];
 
             % Category of each variable, matching the Variable Type dropdown
             % (same groups as phaseAvg_UI)
@@ -2522,6 +2525,31 @@ classdef timeAvg_UI < handle
             end
         end
 
+        function var = compute_div_avg(obj, files)
+            % Planar average of du/dx + dv/dy + dw/dz on the trimmed centre
+            % plane, as calc_secondary_vals_common saves it (div_avg), from
+            % the gradient fields of a time average (mean_d*d*) or phase
+            % average (d*d*_phase_avg) main file. One value per bin for a
+            % phase average. [] if no file has the three gradients.
+            var = [];
+            grads = ["dudx", "dvdy", "dwdz"];
+            for f = 1:numel(files)
+                vars_in_file = string(who('-file', files(f)));
+                for names = {"mean_" + grads, grads + "_phase_avg"}
+                    fields = names{1};
+                    if ~all(ismember(fields, vars_in_file)) || ...
+                            ~all(ismember(["y", "z"], vars_in_file))
+                        continue
+                    end
+                    d = load(files(f), "y", "z", fields{:});
+                    div = d.(fields(1)) + d.(fields(2)) + d.(fields(3));
+                    [~, ~, T] = trim_vel_field(d.y, d.z, div, obj.trim_bounds);
+                    var = squeeze(mean(T, [1, 2]));
+                    return
+                end
+            end
+        end
+
         function file = get_stored_var_file(~, force_var, filepath, secondary_filepath)
             % a few variables are stored in the main file, the rest in
             % the secondary (integral) file
@@ -2532,7 +2560,7 @@ classdef timeAvg_UI < handle
             end
         end
 
-        function var = load_stored_var(~, files, var_name)
+        function var = load_stored_var(obj, files, var_name)
             % Load a (possibly nested, e.g. "lift.vortY") variable from the
             % first of the given .mat files that has it (a case's main
             % file and its _integral file hold different variables). If
@@ -2559,6 +2587,15 @@ classdef timeAvg_UI < handle
                         break
                     end
                 end
+                if ~isempty(var)
+                    return
+                end
+            end
+
+            % divergence planar average not in the _integral file (older
+            % processing): computed from the gradients in the main file
+            if string(var_name) == "div_avg"
+                var = obj.compute_div_avg(files);
                 if ~isempty(var)
                     return
                 end

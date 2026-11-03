@@ -248,6 +248,11 @@ for g = ["dudx", "dudy", "dudz", "dvdx", "dvdy", "dvdz", "dwdx", "dwdy", "dwdz"]
         S.(g + "_avg") = squeeze(mean(T.(g), [1, 2]));
     end
 end
+% planar average of the divergence du/dx + dv/dy + dw/dz (c/U), e.g. as a
+% check of the gradients (zero for incompressible flow)
+if all(isfield(T, ["dudx", "dvdy", "dwdz"]))
+    S.div_avg = squeeze(mean(T.dudx + T.dvdy + T.dwdz, [1, 2]));
+end
 % planar averages of the frozen-flow gradients and vorticity (compare
 % with dudx_avg, dvdx_avg, dwdx_avg, vortY_avg, vortZ_avg)
 for g = ["dudx_ff", "dvdx_ff", "dwdx_ff", "vortY_ff", "vortZ_ff"]
