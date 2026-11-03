@@ -211,9 +211,8 @@ properties
     stroke_flip;
     align_bool;
     % boolean, with align_bool: plot the cross-correlations used for the
-    % alignment in a separate figure (corr_fig)
+    % alignment instead of the aligned curves
     corr_bool;
-    corr_fig;
     separate_y_axis_bool;
     mean_subtraction_bool;
     % used to calculate forces from vector field data
@@ -275,7 +274,6 @@ methods
         obj.label_stroke = false;
         obj.align_bool = false;
         obj.corr_bool = false;
-        obj.corr_fig = [];
         obj.separate_y_axis_bool = false;
         obj.mean_subtraction_bool = false;
 
@@ -646,7 +644,7 @@ methods
         corr_button.FontSize = 18;
         corr_button.BackgroundColor = [1 1 1];
         corr_button.Enable = obj.align_bool;
-        corr_button.Tooltip = "Plot the cross-correlation used to align each curve with the first, marking the lag applied";
+        corr_button.Tooltip = "Show the cross-correlation used to align each curve with the first (instead of the curves), marking the lag applied";
         corr_button.ValueChangedFcn = @(src, event) corr_change(src, event, plot_panel);
 
         b88.ValueChangedFcn = @(src, event) align_change(src, event, plot_panel, corr_button);
@@ -879,18 +877,12 @@ methods
             obj.align_bool = src.Value;
             src.BackgroundColor = obj.get_button_color(obj.align_bool);
             corr_button.Enable = obj.align_bool;
-            if ~obj.align_bool
-                obj.close_corr_figure();
-            end
             obj.update_plot(plot_panel);
         end
 
         function corr_change(src, ~, plot_panel)
             obj.corr_bool = src.Value;
             src.BackgroundColor = obj.get_button_color(obj.corr_bool);
-            if ~obj.corr_bool
-                obj.close_corr_figure();
-            end
             obj.update_plot(plot_panel);
         end
 
@@ -1771,55 +1763,53 @@ methods (Access = private)
         [~, version] = obj.extract_file_version(selection);
     end
 
-    % Cross-correlation of each aligned curve with the first one (the
-    % reference), as computed in align_signals, in its own figure. Lag in
-    % wingbeats (samples / n); the marker and dashed line show the lag
-    % applied, i.e. the peak (circshift by +lag moves the curve later).
-    % Correlation divided by (n - 1), so 1 = identical shape at that lag.
-    function plot_alignment_corr(obj, corr_curves, lags, n, names)
-        if isempty(corr_curves)
-            obj.close_corr_figure();
-            return
-        end
-        if isempty(obj.corr_fig) || ~isvalid(obj.corr_fig)
-            obj.corr_fig = figure("Name", "Alignment cross-correlation", ...
-                "NumberTitle", "off");
-        end
-        clf(obj.corr_fig);
-        ax = axes(obj.corr_fig);
-        hold(ax, "on");
+    % "Corr": circular cross-correlation of each aligned curve with the
+    % first one (the reference), as computed in align_signals, plotted in
+    % the GUI in place of the aligned curves (and in the hidden save
+    % figure). Lag in wingbeats (samples / n); the marker and dashed line
+    % show the lag applied, i.e. the peak (circshift by +lag moves the
+    % curve later). Correlation divided by (n - 1), so 1 = identical shape
+    % at that lag. Fresh axes, so nothing from the curve plot carries over.
+    function [ax, ax_target] = plot_alignment_corr(obj, plot_panel, ax, ax_target, corr_curves, lags, n, names)
+        delete(ax);
+        ax = axes(plot_panel);
+        save_fig = ancestor(ax_target, 'figure');
+        delete(ax_target);
+        ax_target = axes('Parent', save_fig);
 
         names(strlength(names) == 0) = "curve";
         colors = obj.get_default_selection_colors(numel(corr_curves));
-        h = gobjects(1, numel(corr_curves));
-        for i = 1:numel(corr_curves)
-            c = corr_curves(i).corr / (n - 1);
-            x = corr_curves(i).lags / n;
-            col = colors(i, :);
-            h(i) = plot(ax, x, c, "-", "Color", col, "LineWidth", 1.5, ...
-                "DisplayName", names(i + 1));
-            [~, k] = min(abs(corr_curves(i).lags - lags(i)));
-            plot(ax, x(k), c(k), "o", "Color", col, "MarkerFaceColor", col, ...
-                "MarkerSize", 8, "HandleVisibility", "off");
-            xline(ax, lags(i) / n, "--", sprintf("%+.3f T", lags(i) / n), ...
-                "Color", col, "LineWidth", 1, "HandleVisibility", "off", ...
-                "LabelVerticalAlignment", "bottom");
+        for a = [ax, ax_target]
+            hold(a, "on");
+            if isempty(corr_curves)
+                text(a, 0.5, 0.5, "Select at least two curves to align", ...
+                    "Units", "normalized", "HorizontalAlignment", "center", "FontSize", 14);
+                axis(a, "off");
+                continue
+            end
+            h = gobjects(1, numel(corr_curves));
+            for i = 1:numel(corr_curves)
+                c = corr_curves(i).corr / (n - 1);
+                x = corr_curves(i).lags / n;
+                col = colors(i, :);
+                h(i) = plot(a, x, c, "-", "Color", col, "LineWidth", 2, ...
+                    "DisplayName", names(i + 1));
+                k = find(corr_curves(i).lags == lags(i), 1);
+                plot(a, x(k), c(k), "o", "Color", col, "MarkerFaceColor", col, ...
+                    "MarkerSize", 9, "HandleVisibility", "off");
+                xline(a, lags(i) / n, "--", sprintf("%+.3f T", lags(i) / n), ...
+                    "Color", col, "LineWidth", 1, "HandleVisibility", "off", ...
+                    "LabelVerticalAlignment", "bottom", "FontSize", 14);
+            end
+            yline(a, 0, ":", "Color", [0.5 0.5 0.5], "HandleVisibility", "off");
+            grid(a, "on");
+            xlim(a, [-0.5 0.5]);
+            set(a, "FontSize", 14);
+            xlabel(a, "Lag (wingbeats, t/T)");
+            ylabel(a, "Normalized cross-correlation");
+            title(a, "Aligned to: " + names(1), "Interpreter", "none");
+            legend(a, h, "Location", "best", "Interpreter", "none");
         end
-        yline(ax, 0, ":", "Color", [0.5 0.5 0.5], "HandleVisibility", "off");
-        hold(ax, "off");
-        grid(ax, "on");
-        xlim(ax, [-1 1]);
-        xlabel(ax, "Lag (wingbeats, t/T)");
-        ylabel(ax, "Normalized cross-correlation");
-        title(ax, "Aligned to: " + names(1), "Interpreter", "none");
-        legend(ax, h, "Location", "best", "Interpreter", "none");
-    end
-
-    function close_corr_figure(obj)
-        if ~isempty(obj.corr_fig) && isvalid(obj.corr_fig)
-            close(obj.corr_fig);
-        end
-        obj.corr_fig = [];
     end
 
     function legend_entry = get_aligned_legend_entry(obj, cur_sel, index)
@@ -2562,6 +2552,7 @@ methods (Access = private)
         end
         end
 
+        show_corr = false; % Corr: correlation plotted instead of the curves
         if align_plot_bool && ~isempty(aligned_curves)
         lengths = arrayfun(@(s) length(s.val), aligned_curves, 'UniformOutput', true);
         aligned_curves = aligned_curves(lengths > 0);
@@ -2607,11 +2598,6 @@ methods (Access = private)
         end
         end
 
-        if obj.corr_bool
-            obj.plot_alignment_corr(corr_curves, lags, maxLength, ...
-                string({aligned_curves.legend_entry}));
-        end
-
         disp(lags)
         % if lags(1) < lags(2) && lags(1) < 0
         %     lags(2) = lags(2) - length(time_interp);
@@ -2621,6 +2607,11 @@ methods (Access = private)
         % disp(lags(2) / lags(1))
 
 
+        show_corr = obj.corr_bool;
+        if show_corr
+            [ax, ax_target] = obj.plot_alignment_corr(plot_panel, ax, ax_target, ...
+                corr_curves, lags, maxLength, string({aligned_curves.legend_entry}));
+        else
         for i = 1:length(aligned_curves)
             plot_options.legend_entry = aligned_curves(i).legend_entry;
             plot_options.line_style = aligned_curves(i).line_style;
@@ -2632,8 +2623,9 @@ methods (Access = private)
                           aligned_curves(i).cur_sel, color_params, ylabs, plot_options); % ylabel_one, ylabel_two
         end
         end
+        end
 
-        if obj.conv_shift && obj.label_stroke && ~isempty(obj.selection)
+        if ~show_corr && obj.conv_shift && obj.label_stroke && ~isempty(obj.selection)
             % reversals move with the "+/-" shift (time base (1:N)/N)
             t_top = mod(t_top + flip_frac, 1);
             t_bottom = mod(t_bottom + flip_frac, 1);
