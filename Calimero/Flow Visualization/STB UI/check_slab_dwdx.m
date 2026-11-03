@@ -26,6 +26,22 @@
 % amplitude relative to the centre plane and its lag, next to the lag
 % frozen flow predicts for that plane's x offset.
 %
+% Per wingbeat harmonic h (FFT of W_k over the bins), with the streamwise
+% wavenumber k_h = 2 pi h f / U_c that frozen flow assigns it:
+%   r_h = slab dW/dx / frozen dW/dx   (complex; |r_h| and its phase)
+%   phase ratio = measured phase step from plane 2 to plane 4 / the
+%                 frozen-flow step k_h (x_4 - x_2)
+% plotted against k_h * (plane spacing) for every case together. Harmonics
+% are compared one at a time, so noise in the time derivative doesn't
+% inflate the denominator. If |r_h| from all frequencies falls on one
+% curve that drops with k: spatial filtering in x (compare the stencil
+% curves sin(k dx)/(k dx) for 2-4, sin(2 k dx)/(2 k dx) for 1-5; the
+% binning average itself acts on both sides alike and cancels). If |r_h|
+% is flat at ~0.65 for all k: a fixed gain, i.e. the planes are
+% effectively closer together than their grid positions (e.g. the
+% particles in each subvolume sit nearer the slab centre than the
+% subvolume centre and the binning value isn't corrected for that).
+%
 % Reading it: ratio ~1 with correlation ~1 = the slab derivative is fine.
 % Ratio ~0.65 at every frequency = a fixed gain error in the slab
 % derivative. If "slab 2-4" is ~1 but "stored" / "slab 4th" / "slab 1-5"
@@ -47,6 +63,9 @@ amp        = 20;              % deg
 freqs      = [2 4 6 8];       % Hz
 conv_speed = [];              % m/s; [] = each case's freestream (U_act*U)
 min_valid  = 0.9;             % fraction of bins a point needs data on every plane
+n_harm     = 15;              % wingbeat harmonics in the per-harmonic check
+min_share  = 0.02;            % harmonics plotted / printed if they carry at least
+                              % this share of the frozen dW/dx variance
 detail_case = "x4_wings_20deg_8Hz";   % time series plotted for this case
 % ------------------------------------------------------------------------
 
@@ -60,12 +79,12 @@ for type = types
             fprintf("%s: no file (%s), skipped\n", case_name, file);
             continue
         end
-        R = slab_check_case(file, case_name, conv_speed, min_valid);
+        R = slab_check_case(file, case_name, conv_speed, min_valid, n_harm);
         R.type = type;
         R.freq = f;
         cases{end+1} = R; %#ok<SAGROW>
         rows{end+1} = R.summary; %#ok<SAGROW>
-        print_case(R);
+        print_case(R, min_share);
     end
 end
 if isempty(rows)
@@ -76,6 +95,7 @@ disp(T)
 
 plot_ratios(cases, types);
 plot_plane_amplitudes(cases);
+plot_harmonics(cases, min_share);
 k = find(cellfun(@(c) c.case_name == detail_case, cases), 1);
 if ~isempty(k)
     plot_time_series(cases{k});
@@ -83,7 +103,7 @@ end
 
 % =========================================================================
 
-function R = slab_check_case(file, case_name, conv_speed, min_valid)
+function R = slab_check_case(file, case_name, conv_speed, min_valid, n_harm)
 have = string(who('-file', file));
 vars = ["w_phase_avg", "x", "y", "z", "L", "U", "cycle_freq"];
 opt = ["U_act", "bin_placement", "dwdx_phase_avg", "vortY_phase_avg"];
@@ -194,7 +214,44 @@ for k = 1:nx
     R.plane_lag(k) = lag;
 end
 s.plane_amp = strjoin(compose("%.2f", R.plane_amp(:)'), " ");
+
+% per harmonic: slab vs frozen-flow dW/dx and the plane-to-plane phase
+R.harm = harmonic_check(W, xk, ic, freq, d.L, Uc, nb, n_harm);
+s.dx_mm = R.harm.dx * 1000;
+s.ratio_harm24 = R.harm.ratio_weighted;
 R.summary = s;
+end
+
+function Hc = harmonic_check(W, xk, ic, freq, L, Uc, nb, n_harm)
+% W_k(t) split into wingbeat harmonics (bins taken as evenly spaced; the
+% bin_placement corrections are a small fraction of a bin). With
+% W(x, t) = f(x + U_c t) (x upstream), harmonic h has the form
+% e^{i w_h (t + x / U_c)}: dW/dx = i k_h W_h with k_h = w_h / U_c, and the
+% plane at larger x leads by the phase k_h * dx.
+nx = size(W, 1);
+Wf = fft(W, [], 2) / nb;                 % [nx nb]
+h = 1:min(n_harm, floor((nb - 1) / 2));
+Wh = Wf(:, h + 1);                       % [nx nh]
+omega = 2 * pi * freq * h;               % rad/s
+k = omega / Uc;                          % rad/m
+dx = abs(xk(2) - xk(1)) * L;             % plane spacing (m)
+
+F = 1i * k .* Wh(ic, :);                 % frozen-flow dW/dx (per m)
+x24 = (xk(ic+1) - xk(ic-1)) * L;         % signed (m)
+S24 = (Wh(ic+1, :) - Wh(ic-1, :)) / x24;
+Hc.r24 = S24 ./ F;
+Hc.r15 = NaN(size(h));
+if nx >= 5
+    x15 = (xk(ic+2) - xk(ic-2)) * L;
+    Hc.r15 = ((Wh(ic+2, :) - Wh(ic-2, :)) / x15) ./ F;
+end
+phi_meas = angle(Wh(ic+1, :) ./ Wh(ic-1, :));
+phi_pred = k * x24;
+Hc.phase_ratio = phi_meas ./ phi_pred;
+
+Hc.share = abs(F).^2 / sum(abs(F).^2);   % share of the frozen dW/dx variance
+Hc.ratio_weighted = sum(Hc.share .* abs(Hc.r24));
+Hc.h = h; Hc.k = k; Hc.kdx = k * dx; Hc.dx = dx;
 end
 
 function [ratio, rho, lag] = compare(a, b)
@@ -227,7 +284,7 @@ end
 s = [rows{:}];
 end
 
-function print_case(R)
+function print_case(R, min_share)
 fprintf("\n%s  (U_c = %.2f m/s, %d bins, %.0f%% of the window has all planes)\n", ...
     R.case_name, R.Uc, R.nb, 100*R.coverage);
 s = R.summary;
@@ -240,6 +297,17 @@ fprintf("  omega_y   rms ratio %.2f   corr %+.2f   (stored / frozen-flow plane m
 fprintf("  plane W amplitude / centre: %s\n", s.plane_amp);
 fprintf("  plane lag (t/T) measured:   %s\n", strjoin(compose("%+.3f", R.plane_lag(:)'), " "));
 fprintf("  plane lead, frozen flow:    %s\n", strjoin(compose("%+.3f", R.plane_lag_ff(:)'), " "));
+
+Hc = R.harm;
+fprintf("  plane spacing %.1f mm (subvolume 4x = %.1f mm); per harmonic, share >= %.0f%%:\n", ...
+    1000*Hc.dx, 4000*Hc.dx, 100*min_share);
+fprintf("     h   k (rad/m)   k*dx   share   |r 2-4|  phase(r)  |r 1-5|  phase step meas/pred\n");
+for j = find(Hc.share >= min_share)
+    fprintf("   %3d   %8.1f   %5.3f   %4.0f%%    %5.2f   %+6.0f deg   %5.2f    %5.2f\n", ...
+        Hc.h(j), Hc.k(j), Hc.kdx(j), 100*Hc.share(j), abs(Hc.r24(j)), ...
+        rad2deg(angle(Hc.r24(j))), abs(Hc.r15(j)), Hc.phase_ratio(j));
+end
+fprintf("  variance-weighted |r 2-4|: %.2f\n", Hc.ratio_weighted);
 end
 
 function plot_ratios(cases, types)
@@ -282,6 +350,45 @@ xlabel("Plane"); ylabel("rms of W_k / rms of W_{centre}");
 legend("Location", "bestoutside", "Interpreter", "none");
 grid on
 hold off
+end
+
+function plot_harmonics(cases, min_share)
+% |slab / frozen| and the plane-to-plane phase ratio per harmonic, against
+% k * plane spacing, all cases together; marker area ~ share of the
+% frozen dW/dx variance (harmonics below min_share left out)
+figure("Name", "Slab vs frozen flow per harmonic");
+tiledlayout(1, 2, "TileSpacing", "compact");
+colors = lines(numel(cases));
+kmax = 0;
+ax1 = nexttile; hold(ax1, "on");
+ax2 = nexttile; hold(ax2, "on");
+for i = 1:numel(cases)
+    Hc = cases{i}.harm;
+    j = Hc.share >= min_share;
+    if ~any(j), continue, end
+    kmax = max(kmax, max(Hc.kdx(j)));
+    sz = 20 + 400 * Hc.share(j);
+    scatter(ax1, Hc.kdx(j), abs(Hc.r24(j)), sz, colors(i, :), "filled", ...
+        "DisplayName", cases{i}.case_name + " (2-4)");
+    scatter(ax1, Hc.kdx(j), abs(Hc.r15(j)), sz, colors(i, :), ...
+        "DisplayName", cases{i}.case_name + " (1-5)");
+    scatter(ax2, Hc.kdx(j), Hc.phase_ratio(j), sz, colors(i, :), "filled", ...
+        "DisplayName", cases{i}.case_name);
+end
+kk = linspace(1e-3, max(kmax, 0.1) * 1.1, 200);
+plot(ax1, kk, sin(kk) ./ kk, "k-", "LineWidth", 1.5, "DisplayName", "stencil 2-4: sin(k dx)/(k dx)");
+plot(ax1, kk, sin(2*kk) ./ (2*kk), "k--", "LineWidth", 1.5, "DisplayName", "stencil 1-5: sin(2k dx)/(2k dx)");
+yline(ax1, 1, "k:", "HandleVisibility", "off");
+xlabel(ax1, "k \cdot dx  (k = 2\pi h f / U_c, dx = plane spacing)");
+ylabel(ax1, "|slab / frozen-flow dW/dx|");
+title(ax1, "filled: planes 2-4, open: planes 1-5");
+legend(ax1, "Location", "bestoutside", "Interpreter", "none");
+grid(ax1, "on");
+yline(ax2, 1, "k:", "HandleVisibility", "off");
+xlabel(ax2, "k \cdot dx");
+ylabel(ax2, "phase step plane 2 \rightarrow 4: measured / frozen flow");
+grid(ax2, "on");
+hold(ax1, "off"); hold(ax2, "off");
 end
 
 function plot_time_series(c)
