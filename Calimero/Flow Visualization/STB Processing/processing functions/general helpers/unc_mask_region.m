@@ -32,6 +32,13 @@ if nargin < 3 || isempty(mode)
 end
 
 unc_t = mean(unc, 3, "omitnan");
+if all(isnan(unc_t), 'all')
+    % no uncertainty in the data at all (VIC-processed cases): masking
+    % every "never measured" point would remove the whole plane
+    warning("unc_mask_region:noUncertainty", ...
+        "No uncertainty in this data (e.g. VIC): uncertainty mask not applied")
+    return
+end
 bad = unc_t > thresh | isnan(unc_t);
 
 switch lower(string(mode))

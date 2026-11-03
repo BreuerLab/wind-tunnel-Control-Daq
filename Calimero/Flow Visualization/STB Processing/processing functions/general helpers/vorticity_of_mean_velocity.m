@@ -50,4 +50,7 @@ function s = plane_sigma(unc)
 nx = size(unc, 1);
 unc(~isfinite(unc) | unc <= 0) = NaN;
 s = median(reshape(unc, nx, []), 2, "omitnan");
+if all(isnan(s))
+    s = ones(nx, 1); % no uncertainty (VIC-processed data): equal weights
+end
 end

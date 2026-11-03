@@ -253,6 +253,12 @@ for frameCounter = 1:numSelectedFrames
         options.gradMethod, options.wlsPlanes);
 
     if frameCounter == 1
+        if ~frameData.hasUnc
+            fprintf("No uncertainty fields in %s (e.g. VIC): uncertainties left NaN, WLS slab fits weight planes equally\n", folderPIV);
+        end
+        if ~frameData.hasNumP
+            fprintf("No particle count field in %s (e.g. VIC): numP left NaN\n", folderPIV);
+        end
         if frameData.dimNum > 3
             error(['Data structure contains an unrecognized data structure; ' ...
                 'number of dimensions exceeds 3D data structure. Review data structure.']);
@@ -585,8 +591,11 @@ for planeIndex = planeIndices
     if out1.dimNum == 3
         out1.wRaw(:,:,planeCount) = components{wIndex, 1}.Planes{planeIndex, 1} * scales.I.Slope + components{wIndex, 1}.Scale.Offset;
     end
-    out1.numP(:,:,planeCount) = components{numParticlesIndex, 1}.Planes{planeIndex, 1};
+    if ~isempty(numParticlesIndex) % not in VIC-processed data (NaN)
+        out1.numP(:,:,planeCount) = components{numParticlesIndex, 1}.Planes{planeIndex, 1};
+    end
 end
+out1.hasNumP = ~isempty(numParticlesIndex);
 
 % DaVis stores empty bins as 0. Mark them as NaN BEFORE any derivative is
 % taken, so calculateVorticity (via fill3D) and get_gradients interpolate
@@ -669,9 +678,15 @@ out1.uncURaw = nan([sizeXY numTrimmedPlanes]);
 out1.uncVRaw = nan(size(out1.uncURaw));
 out1.uncWRaw = nan(size(out1.uncURaw));
 
+% VIC-processed data has no uncertainty fields: they stay NaN, the WLS
+% slab fits then weight all planes equally (plane_sigma) and the force
+% uncertainty mask is skipped (unc_mask_region)
+out1.hasUnc = ~isempty(uncUIndex) && ~isempty(uncVIndex) && ...
+    (out1.dimNum < 3 || ~isempty(uncWIndex));
 planeCount = 0;
 for planeIndex = planeIndices
     planeCount = planeCount + 1;
+    if ~out1.hasUnc, break; end
     out1.uncURaw(:,:,planeCount) = components{uncUIndex, 1}.Planes{planeIndex, 1};
     out1.uncVRaw(:,:,planeCount) = components{uncVIndex, 1}.Planes{planeIndex, 1};
     if out1.dimNum == 3
@@ -803,9 +818,13 @@ function s = plane_sigma(unc)
 % One uncertainty per plane: median of the valid per-vector values. Only
 % the relative size between planes matters for the weights, so DaVis'
 % uncertainty scaling does not need to match the velocity scaling here.
+% No uncertainty at all (VIC-processed data): equal weights.
 nx = size(unc, 1);
 unc(~isfinite(unc) | unc <= 0) = NaN;     % DaVis stores empty bins as 0
 s = median(reshape(unc, nx, []), 2, "omitnan");
+if all(isnan(s))
+    s = ones(nx, 1);
+end
 end
 
 function A = smooth121(A, dim)
