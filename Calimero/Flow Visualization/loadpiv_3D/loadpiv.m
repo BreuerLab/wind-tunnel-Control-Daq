@@ -194,6 +194,9 @@ function varargout = loadpiv(folderPIV, varargin)
 
 %% Check input parameters
 
+persistent reportedFolders % folders already told about missing fields (VIC)
+if isempty(reportedFolders), reportedFolders = strings(0); end
+
 nargoutchk(1, 2);
 
 if nargin < 1 || isempty(folderPIV)
@@ -253,11 +256,16 @@ for frameCounter = 1:numSelectedFrames
         options.gradMethod, options.wlsPlanes);
 
     if frameCounter == 1
-        if ~frameData.hasUnc
-            fprintf("No uncertainty fields in %s (e.g. VIC): uncertainties left NaN, WLS slab fits weight planes equally\n", folderPIV);
-        end
-        if ~frameData.hasNumP
-            fprintf("No particle count field in %s (e.g. VIC): numP left NaN\n", folderPIV);
+        % loadpiv is called once per phase bin: report missing fields
+        % once per folder per MATLAB session
+        if (~frameData.hasUnc || ~frameData.hasNumP) && ~any(reportedFolders == string(folderPIV))
+            reportedFolders(end+1) = string(folderPIV);
+            if ~frameData.hasUnc
+                fprintf("No uncertainty fields in %s (e.g. VIC): uncertainties left NaN, WLS slab fits weight planes equally\n", folderPIV);
+            end
+            if ~frameData.hasNumP
+                fprintf("No particle count field in %s (e.g. VIC): numP left NaN\n", folderPIV);
+            end
         end
         if frameData.dimNum > 3
             error(['Data structure contains an unrecognized data structure; ' ...
