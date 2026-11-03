@@ -2,6 +2,7 @@ classdef flowField_UI < handle
 properties (Constant, Access = private)
     ACTIVE_COLOR = [0.3010 0.7450 0.9330];
     INACTIVE_COLOR = [1 1 1];
+    MOVIE_FRAME_DELAY = 0.1;    % s between frames of the .gif from Save Movie
     Q_ISO_RANGE = [0.005 0.1];  % Q isovalue slider range (negated by "+/-")
     Q_ISO_DEFAULT = 0.05;       % Q isovalue slider default
     % Tag on the 3D plot's stroke lines / shading / labels (Label Stroke),
@@ -148,6 +149,7 @@ properties
     num_bins;
     frame_ind;
     play;
+    movie_frame_fcn;   % called after each bin is drawn by the 2D movie loop (Save Movie), [] otherwise
 
     % Plot and variable selection
     plot_type;
@@ -309,6 +311,7 @@ methods
         obj.num_bins = 5;
         obj.frame_ind = 1;
         obj.play = false;
+        obj.movie_frame_fcn = [];
 
         obj.plot_types = ["time avg of phase avg","phase avg: movie", "time avg of phase std","phase std: movie", "phase avg: 3D plot",...
             "image wingbeat phase", "wingbeat frequency","wake forces","phase avg: planar avg",...
@@ -762,9 +765,9 @@ methods
         end
         pause(1) % wait until GUI opened
 
-        sidebar_grid = uigridlayout(option_panel, [16, 1]);
+        sidebar_grid = uigridlayout(option_panel, [17, 1]);
         sidebar_grid.ColumnWidth = {'1x'};
-        sidebar_grid.RowHeight = {30, 30, 30, 30, 30, 30, 35, 30, 30, 30, 30, 30, 30, 0, 30, 30};
+        sidebar_grid.RowHeight = {30, 30, 30, 30, 30, 30, 35, 30, 30, 30, 30, 30, 30, 0, 30, 30, 30};
         sidebar_grid.Padding = [10 10 10 10];
         sidebar_grid.RowSpacing = 6;
         if isprop(sidebar_grid, "Scrollable")
@@ -1307,10 +1310,22 @@ methods
         save_button.BackgroundColor = obj.INACTIVE_COLOR;
         save_button.ValueChangedFcn = @(src, event) save_figure(src, event, plot_area_panel);
 
+        % Saves "phase avg: movie" / "phase std: movie" as a .gif, one
+        % frame per phase bin
+        save_movie_button = uibutton(sidebar_grid, "push");
+        save_movie_button.Layout.Row = 16;
+        save_movie_button.Layout.Column = 1;
+        save_movie_button.Text = "Save Movie";
+        save_movie_button.FontSize = 18;
+        save_movie_button.BackgroundColor = obj.INACTIVE_COLOR;
+        save_movie_button.Tooltip = "Save the movie (every phase bin, from bin 1 to the last) as a .gif. " + ...
+            "Only for phase avg: movie and phase std: movie";
+        save_movie_button.ButtonPushedFcn = @(src, event) save_movie(src, event, plot_area_panel);
+
         % Uncertainty isolines on the 2D plots (types 1-4), like Unc Mask
         % for the 3D plot
         unc_cen_grid = uigridlayout(sidebar_grid, [2, 2]);
-        unc_cen_grid.Layout.Row = 16;
+        unc_cen_grid.Layout.Row = 17;
         unc_cen_grid.Layout.Column = 1;
         unc_cen_grid.ColumnWidth = {'1x', '1x'};
         unc_cen_grid.RowHeight = {30, 30};
@@ -1579,16 +1594,22 @@ methods
             row_heights = sidebar_grid.RowHeight;
             if ismember(obj.plot_type, obj.plot_types(1:4))
                 unc_contour_button.Visible = "on";
-                row_heights{16} = 30;
+                row_heights{17} = 30;
             else
                 unc_contour_button.Visible = "off";
-                row_heights{16} = 0;
+                row_heights{17} = 0;
+            end
+            % Save Movie: only the 2D movies (phase avg / phase std)
+            if ismember(obj.plot_type, obj.plot_types([2 4]))
+                save_movie_button.Enable = "on";
+            else
+                save_movie_button.Enable = "off";
             end
             if ismember(obj.plot_type, obj.plot_types(1:2))
                 centroid_button.Visible = "on";
                 cen_unc_grid.Visible = "on";
                 unc_cen_grid.RowHeight = {30, 30};
-                row_heights{16} = 64;
+                row_heights{17} = 64;
             else
                 centroid_button.Visible = "off";
                 cen_unc_grid.Visible = "off";
@@ -1875,26 +1896,102 @@ methods
         end
 
         function save_figure(~, ~, plot_panel)
-            ax = findobj(plot_panel.Children, 'Type', 'axes');
-            cb = findobj(plot_panel.Children, 'Type', 'colorbar');
-
             filename = "saved_figure.fig";
             fignew = figure('Visible','off'); % Invisible figure
-            % copyobj can't copy axes with two y axes (yyaxis, e.g. the
-            % section avg plot), so those are rebuilt side by side
-            is_yy = arrayfun(@(a) numel(a.YAxis) > 1, ax);
-            if any(~is_yy) || ~isempty(cb)
-                copyobj([ax(~is_yy); cb(:)], fignew);
-            end
-            for a = ax(is_yy)'
-                obj.copy_yyaxis_axes(a, fignew);
-            end
-            if ~isempty(obj.card_panel_color)
-                fignew.Color = obj.CARD_BG; % card style: dark around the axes too
-            end
+            obj.copy_plot_to_figure(plot_panel, fignew);
             set(fignew,'CreateFcn','set(gcbf,''Visible'',''on'')'); % Make it visible upon loading
             savefig(fignew,filename);
             delete(fignew);
+        end
+
+        % Steps the 2D movie through every phase bin (bin 1 to the last)
+        % and appends each one to a .gif. The bins are drawn by the same
+        % play loop as the Play button (update_plot), which calls
+        % capture_frame after drawing each bin.
+        function save_movie(~, ~, plot_panel)
+            fig = ancestor(plot_panel, 'figure');
+            if ~ismember(obj.plot_type, obj.plot_types([2 4]))
+                uialert(fig, "Save Movie is only for phase avg: movie and phase std: movie.", "Save Movie");
+                return
+            end
+            if obj.play
+                uialert(fig, "Stop the movie before saving it.", "Save Movie");
+                return
+            end
+
+            default_name = regexprep(obj.plot_type + "_" + obj.get_current_case_id() + ...
+                "_" + obj.variable_name, "[^\w\-]+", "_") + ".gif";
+            [file, folder] = uiputfile("*.gif", "Save Movie", default_name);
+            figure(fig); % uiputfile can leave the app behind other windows
+            if isequal(file, 0)
+                return
+            end
+            filename = fullfile(folder, file);
+
+            dlg = uiprogressdlg(fig, 'Title', "Saving Movie", ...
+                'Message', "Preparing...", 'Cancelable', 'on');
+            panel_units = plot_panel.Units;
+            plot_panel.Units = 'pixels';
+            panel_pos = plot_panel.Position;
+            plot_panel.Units = panel_units;
+            % off-screen copy of the plot panel, one frame per bin
+            fignew = figure('Visible', 'off', 'Units', 'pixels', ...
+                'Position', [100 100 panel_pos(3) panel_pos(4)]);
+
+            start_frame = obj.frame_ind;
+            num_saved = 0;
+            save_error = [];
+            try
+                obj.frame_ind = 1;
+                obj.slider.Value = 1;
+                obj.movie_frame_fcn = @capture_frame;
+                obj.play = true; % play loop runs bin 1 -> last bin, capture_frame stops it
+                obj.update_plot(plot_panel);
+            catch save_error
+            end
+            was_cancelled = dlg.CancelRequested;
+
+            % back to the frame shown before saving
+            obj.movie_frame_fcn = [];
+            obj.play = false;
+            obj.frame_ind = min(max(start_frame, 1), obj.num_bins);
+            obj.slider.Value = obj.frame_ind;
+            if isvalid(fignew)
+                delete(fignew);
+            end
+            close(dlg);
+            obj.update_plot(plot_panel);
+
+            if ~isempty(save_error)
+                uialert(fig, "Saving the movie failed: " + save_error.message, "Save Movie");
+            elseif was_cancelled
+                uialert(fig, "Cancelled: " + num_saved + " of " + obj.num_bins + ...
+                    " bins saved to " + filename, "Save Movie", 'Icon', 'warning');
+            else
+                disp("Saved " + num_saved + " bins to " + filename)
+            end
+
+            function capture_frame()
+                k = obj.frame_ind;
+                delete(fignew.Children);
+                obj.copy_plot_to_figure(plot_panel, fignew);
+                img = print(fignew, '-RGBImage', '-r0');
+                [A, cmap] = rgb2ind(img, 256);
+                if num_saved == 0
+                    imwrite(A, cmap, filename, "gif", "LoopCount", Inf, ...
+                        "DelayTime", obj.MOVIE_FRAME_DELAY);
+                else
+                    imwrite(A, cmap, filename, "gif", "WriteMode", "append", ...
+                        "DelayTime", obj.MOVIE_FRAME_DELAY);
+                end
+                num_saved = num_saved + 1;
+
+                dlg.Value = k / obj.num_bins;
+                dlg.Message = "Saving bin " + k + " of " + obj.num_bins;
+                if k >= obj.num_bins || dlg.CancelRequested
+                    obj.play = false; % ends the play loop in update_plot
+                end
+            end
         end
 
         function num_cycles_change(src, ~, plot_panel)
@@ -3845,6 +3942,11 @@ methods (Access = private)
             hm = obj.draw_centroid(ax, yc_bins(obj.frame_ind), zc_bins(obj.frame_ind));
         end
 
+        if ~isempty(obj.movie_frame_fcn) % Save Movie: first bin
+            drawnow;
+            obj.movie_frame_fcn();
+        end
+
         while obj.play && (obj.frame_ind < obj.num_bins)
             obj.frame_ind = obj.frame_ind + 1;
             obj.slider.Value = obj.frame_ind;
@@ -3863,7 +3965,11 @@ methods (Access = private)
     
             drawnow;
 
-            pause(0.05);
+            if isempty(obj.movie_frame_fcn)
+                pause(0.05);
+            else
+                obj.movie_frame_fcn(); % Save Movie: add this bin to the .gif
+            end
 
             if obj.frame_ind == obj.num_bins
             obj.frame_ind = 0; % reset for next loop iteration
@@ -4342,6 +4448,25 @@ methods (Access = private)
     % Copy an axes with left and right y axes (yyaxis) into fig, which
     % copyobj doesn't support: copies each side's plotted objects, limits
     % and labels into a new yyaxis axes at the same position
+    % Copies the axes and colorbars of the plot panel into fig (Save
+    % Figure / Save Movie)
+    function copy_plot_to_figure(obj, plot_panel, fig)
+        ax = findobj(plot_panel.Children, 'Type', 'axes');
+        cb = findobj(plot_panel.Children, 'Type', 'colorbar');
+        % copyobj can't copy axes with two y axes (yyaxis, e.g. the
+        % section avg plot), so those are rebuilt side by side
+        is_yy = arrayfun(@(a) numel(a.YAxis) > 1, ax);
+        if any(~is_yy) || ~isempty(cb)
+            copyobj([ax(~is_yy); cb(:)], fig);
+        end
+        for a = ax(is_yy)'
+            obj.copy_yyaxis_axes(a, fig);
+        end
+        if ~isempty(obj.card_panel_color)
+            fig.Color = obj.CARD_BG; % card style: dark around the axes too
+        end
+    end
+
     function dst = copy_yyaxis_axes(~, src, fig)
         dst = axes(fig, 'Units', src.Units, 'Position', src.Position, 'FontSize', src.FontSize);
         sides = ["left", "right"];
