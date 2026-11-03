@@ -275,6 +275,9 @@ properties
     % 2D time avg / phase avg movie: black dot at the centroid of the
     % plotted field (field_centroid), computed live
     centroid_bool;
+    % uncertainty mask threshold for the centroid, % of the freestream
+    % (0 = no mask); mask mode from default_trim_bounds
+    centroid_unc_pct;
     % 3D plot "Fix Limits": hold the y and z axis limits (y/c, z/c) at
     % fix_ylim / fix_zlim so cases can be compared on the same axes;
     % fix_lims_set is true once limits were entered or taken from a plot
@@ -340,6 +343,8 @@ methods
         obj.unc_contour_bool = false;
         obj.unc_contour_levels = 1:4; % % of freestream
         obj.centroid_bool = false;
+        b_def = default_trim_bounds();
+        obj.centroid_unc_pct = 100 * b_def.unc_mask; % starts as the forces use it
         obj.fix_lims_bool = false;
         obj.fix_ylim = [-5 5];
         obj.fix_zlim = [-3 3];
@@ -1304,13 +1309,14 @@ methods
 
         % Uncertainty isolines on the 2D plots (types 1-4), like Unc Mask
         % for the 3D plot
-        unc_cen_grid = uigridlayout(sidebar_grid, [1, 2]);
+        unc_cen_grid = uigridlayout(sidebar_grid, [2, 2]);
         unc_cen_grid.Layout.Row = 16;
         unc_cen_grid.Layout.Column = 1;
         unc_cen_grid.ColumnWidth = {'1x', '1x'};
-        unc_cen_grid.RowHeight = {'1x'};
+        unc_cen_grid.RowHeight = {30, 30};
         unc_cen_grid.Padding = [0 0 0 0];
         unc_cen_grid.ColumnSpacing = 4;
+        unc_cen_grid.RowSpacing = 4;
 
         unc_contour_button = uibutton(unc_cen_grid, "state");
         unc_contour_button.Layout.Row = 1;
@@ -1333,9 +1339,39 @@ methods
         centroid_button.BackgroundColor = obj.get_button_color(obj.centroid_bool);
         centroid_button.Tooltip = "Black dot at the centroid of the plotted field, weighted by its departure " + ...
             "from the background value (0, or -1 / 1 for velocities) with the dominant sign only. " + ...
-            "Points outside the uncertainty mask of the forces (default_trim_bounds) carry no weight. " + ...
+            "Points removed by the uncertainty mask (threshold below, mode from default_trim_bounds) carry no weight. " + ...
             "Computed live; follows the bins in the movie";
         centroid_button.ValueChangedFcn = @(src, event) centroid_change(src, event, plot_area_panel);
+
+        % Centroid uncertainty mask threshold (% of freestream, 0 = off)
+        cen_unc_grid = uigridlayout(unc_cen_grid, [1, 3]);
+        cen_unc_grid.Layout.Row = 2;
+        cen_unc_grid.Layout.Column = [1 2];
+        cen_unc_grid.ColumnWidth = {'1x', 46, 14};
+        cen_unc_grid.RowHeight = {'1x'};
+        cen_unc_grid.Padding = [0 0 0 0];
+        cen_unc_grid.ColumnSpacing = 3;
+
+        cen_unc_label = uilabel(cen_unc_grid);
+        cen_unc_label.Layout.Row = 1;
+        cen_unc_label.Layout.Column = 1;
+        cen_unc_label.Text = "Centroid unc mask";
+        cen_unc_label.HorizontalAlignment = 'right';
+
+        cen_unc_field = uieditfield(cen_unc_grid, "numeric");
+        cen_unc_field.Layout.Row = 1;
+        cen_unc_field.Layout.Column = 2;
+        cen_unc_field.Limits = [0 Inf];
+        cen_unc_field.Value = obj.centroid_unc_pct;
+        cen_unc_field.HorizontalAlignment = 'center';
+        cen_unc_field.Tooltip = "Uncertainty mask threshold for the centroid, % of the freestream speed " + ...
+            "(0 = no mask). The mask boundary is drawn as a dashed line";
+        cen_unc_field.ValueChangedFcn = @(src, event) centroid_unc_change(src, event, plot_area_panel);
+
+        cen_unc_pct_label = uilabel(cen_unc_grid);
+        cen_unc_pct_label.Layout.Row = 1;
+        cen_unc_pct_label.Layout.Column = 3;
+        cen_unc_pct_label.Text = '%';
 
         % Set up plot titles and axes
         set_unc_contour_visibility();
@@ -1550,10 +1586,22 @@ methods
             end
             if ismember(obj.plot_type, obj.plot_types(1:2))
                 centroid_button.Visible = "on";
+                cen_unc_grid.Visible = "on";
+                unc_cen_grid.RowHeight = {30, 30};
+                row_heights{16} = 64;
             else
                 centroid_button.Visible = "off";
+                cen_unc_grid.Visible = "off";
+                unc_cen_grid.RowHeight = {'1x', 0};
             end
             sidebar_grid.RowHeight = row_heights;
+        end
+
+        function centroid_unc_change(src, ~, plot_panel)
+            obj.centroid_unc_pct = src.Value;
+            if obj.centroid_bool
+                obj.update_plot(plot_panel);
+            end
         end
 
         function centroid_change(src, ~, plot_panel)
@@ -2870,6 +2918,21 @@ methods (Access = private)
         end
     end
 
+    % Dashed black line around the region kept by the centroid's
+    % uncertainty mask
+    function draw_mask_outline(~, ax, y, z, mask)
+        if isempty(mask) || ~isequal(size(mask), size(y)) || ~any(mask(:))
+            return
+        end
+        cl = ax.CLim;
+        hold(ax, 'on');
+        [~, hc] = contour(ax, y, z, double(~mask), [0.5 0.5], ...
+            'LineColor', 'k', 'LineStyle', '--', 'LineWidth', 1.2);
+        hc.Tag = "centroid_mask";
+        hold(ax, 'off');
+        ax.CLim = cl;
+    end
+
     function hm = draw_centroid(~, ax, yc, zc)
         cl = ax.CLim;
         hold(ax, 'on');
@@ -3661,10 +3724,10 @@ methods (Access = private)
         if show_centroid
             cen_mask = [];
             b = default_trim_bounds();
-            if ~isempty(unc_centroid) && isfield(b, 'unc_mask')
+            if ~isempty(unc_centroid) && obj.centroid_unc_pct > 0
                 cen_mode = "threshold";
                 if isfield(b, 'unc_mask_mode'), cen_mode = b.unc_mask_mode; end
-                cen_mask = unc_mask_region(unc_centroid, b.unc_mask, cen_mode);
+                cen_mask = unc_mask_region(unc_centroid, obj.centroid_unc_pct / 100, cen_mode);
             end
         end
 
@@ -3745,8 +3808,10 @@ methods (Access = private)
             obj.draw_unc_contours(ax, y, z, unc_field);
             if show_centroid
                 [yc, zc] = obj.field_centroid(y, z, mean_val, params.zero, cen_mask);
+                obj.draw_mask_outline(ax, y, z, cen_mask);
                 obj.draw_centroid(ax, yc, zc);
-                fprintf("Centroid of %s: y/L = %.3f, z/L = %.3f\n", obj.variable_name, yc, zc);
+                fprintf("Centroid of %s (unc mask %g%%): y/L = %.3f, z/L = %.3f\n", ...
+                    obj.variable_name, obj.centroid_unc_pct, yc, zc);
             end
         elseif plot_idx == 3
             params.clims = var_clims;
@@ -3776,6 +3841,7 @@ methods (Access = private)
             for kb = 1:nb
                 [yc_bins(kb), zc_bins(kb)] = obj.field_centroid(y, z, val(:,:,kb), params.zero, cen_mask);
             end
+            obj.draw_mask_outline(ax, y, z, cen_mask);
             hm = obj.draw_centroid(ax, yc_bins(obj.frame_ind), zc_bins(obj.frame_ind));
         end
 
