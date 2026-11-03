@@ -22,7 +22,8 @@ classdef phaseAvg_UI < handle
         % with cur_types / new_flapper_downstream_types. Set an entry to
         % NaN if unknown (no shift applied).
         downstream_dists = [0.9; 0.9 + 0.37; 0.9 + 2*0.37]; % flexible, UP_one, UP_two
-        new_flapper_downstream_dists = [0.9 - 2*0.37; 0.9 - 0.37; 0.9; 0.9 + 0.37; 0.9 + 2*0.37; 1.0]; % x1-x5, MPS
+        sep_dist = 0.378;
+        new_flapper_downstream_dists = [0.9 - 2*sep_dist; 0.9 - sep_dist; 0.9; 0.9 + sep_dist; 0.9 + 2*sep_dist; 1.0]; % x1-x5, MPS
         conv_speed = 4; % m/s, convection speed of the wake
     end
 
