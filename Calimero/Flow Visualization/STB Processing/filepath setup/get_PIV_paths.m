@@ -25,7 +25,7 @@ function file_path = get_PIV_paths(PIV_case_name)
     % This is now much easier to read and edit.
     map = {
         'freestream',  month_3 + "freestream" + BIN2
-        'x2_wings_20deg_8Hz_VIC',  month_3 + "x2_wings_20deg_8Hz" + BIN3
+        'x2_wings_20deg_8Hz_VIC',  month_3 + "x2\x2_wings_20deg_8Hz" + BIN3
 
         'UP_two_flexible_10deg_0Hz',  month_1 + "UP_two_flexible_10deg_0Hz" + BIN
         'UP_two_flexible_10deg_2Hz',  month_1 + "UP_two_flexible_10deg_2Hz" + BIN
