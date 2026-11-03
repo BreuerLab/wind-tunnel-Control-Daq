@@ -805,7 +805,9 @@ classdef timeAvg_UI < handle
             function fixed_1_change(src, ~, fixed_dropdown_2)
                 fixed_vars = obj.get_fixed_variable_names();
                 obj.set_selected_value_from_item(fixed_vars(1), src.Value);
-                obj.set_first_available_value(fixed_vars(2));
+                % keep the second value (e.g. amplitude) if the new first
+                % value has data at it; update_fixed_dropdown falls back to
+                % the first available option otherwise (ensure_selected_value)
                 obj.update_fixed_dropdown(fixed_dropdown_2, fixed_vars(2));
             end
 
