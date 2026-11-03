@@ -86,8 +86,19 @@ function [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name)
     cases.turbine_S_ext = {'turbine_6ms_S_ext_2026_02_17_16_55_48.mat', base_group};
     cases.turbine_F_ext = {'turbine_6ms_F_ext_2026_02_17_17_27_12.mat', base_group};
 
+    % Reprocessed versions of a recording (e.g. VIC instead of binning,
+    % see get_PIV_paths) use the DAQ file of the original case.
+    % Format: '<reprocessed case>', '<case whose DAQ file it uses>'
+    daq_aliases = {
+        'x2_wings_20deg_8Hz_VIC', 'x2_wings_20deg_8Hz'
+        };
+
     % Retrieve the data: listed cases first, then the September files
     PIV_case_name = char(PIV_case_name);
+    alias = find(strcmp(daq_aliases(:, 1), PIV_case_name), 1);
+    if ~isempty(alias)
+        PIV_case_name = daq_aliases{alias, 2};
+    end
     if isfield(cases, PIV_case_name)
         data = cases.(PIV_case_name);
         daq_data_filename = data{1};
