@@ -210,6 +210,10 @@ properties
     % instead of the downstroke ("+/-" button, see get_stroke_flip_frac)
     stroke_flip;
     align_bool;
+    % boolean, with align_bool: plot the cross-correlations used for the
+    % alignment in a separate figure (corr_fig)
+    corr_bool;
+    corr_fig;
     separate_y_axis_bool;
     mean_subtraction_bool;
     % used to calculate forces from vector field data
@@ -270,6 +274,8 @@ methods
         obj.stroke_flip = false;
         obj.label_stroke = false;
         obj.align_bool = false;
+        obj.corr_bool = false;
+        obj.corr_fig = [];
         obj.separate_y_axis_bool = false;
         obj.mean_subtraction_bool = false;
 
@@ -617,10 +623,10 @@ methods
         b77.BackgroundColor = [1 1 1];
         b77.ValueChangedFcn = @(src, event) calc_change(src, event, plot_panel);
 
-        align_std_grid = uigridlayout(sidebar_grid, [1, 2]);
+        align_std_grid = uigridlayout(sidebar_grid, [1, 3]);
         align_std_grid.Layout.Row = 14;
         align_std_grid.Layout.Column = 1;
-        align_std_grid.ColumnWidth = {'1x', '1x'};
+        align_std_grid.ColumnWidth = {'1x', '0.7x', '1x'};
         align_std_grid.RowHeight = {'1x'};
         align_std_grid.Padding = [0 0 0 0];
         align_std_grid.ColumnSpacing = 6;
@@ -631,12 +637,24 @@ methods
         b88.Text = "Align";
         b88.FontSize = 18;
         b88.BackgroundColor = [1 1 1];
-        b88.ValueChangedFcn = @(src, event) align_change(src, event, plot_panel);
+
+        % cross-correlation behind the alignment (only with Align on)
+        corr_button = uibutton(align_std_grid, "state");
+        corr_button.Layout.Row = 1;
+        corr_button.Layout.Column = 2;
+        corr_button.Text = "Corr";
+        corr_button.FontSize = 18;
+        corr_button.BackgroundColor = [1 1 1];
+        corr_button.Enable = obj.align_bool;
+        corr_button.Tooltip = "Plot the cross-correlation used to align each curve with the first, marking the lag applied";
+        corr_button.ValueChangedFcn = @(src, event) corr_change(src, event, plot_panel);
+
+        b88.ValueChangedFcn = @(src, event) align_change(src, event, plot_panel, corr_button);
 
         % shaded +/- 1 SD band around load cell and BA PIV force curves
         std_button = uibutton(align_std_grid, "state");
         std_button.Layout.Row = 1;
-        std_button.Layout.Column = 2;
+        std_button.Layout.Column = 3;
         std_button.Text = "+/- 1 SD";
         std_button.FontSize = 18;
         std_button.Value = obj.std_band;
@@ -857,9 +875,22 @@ methods
             obj.update_plot(plot_panel);
         end
 
-        function align_change(src, ~, plot_panel)
+        function align_change(src, ~, plot_panel, corr_button)
             obj.align_bool = src.Value;
             src.BackgroundColor = obj.get_button_color(obj.align_bool);
+            corr_button.Enable = obj.align_bool;
+            if ~obj.align_bool
+                obj.close_corr_figure();
+            end
+            obj.update_plot(plot_panel);
+        end
+
+        function corr_change(src, ~, plot_panel)
+            obj.corr_bool = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.corr_bool);
+            if ~obj.corr_bool
+                obj.close_corr_figure();
+            end
             obj.update_plot(plot_panel);
         end
 
@@ -1740,6 +1771,57 @@ methods (Access = private)
         [~, version] = obj.extract_file_version(selection);
     end
 
+    % Cross-correlation of each aligned curve with the first one (the
+    % reference), as computed in align_signals, in its own figure. Lag in
+    % wingbeats (samples / n); the marker and dashed line show the lag
+    % applied, i.e. the peak (circshift by +lag moves the curve later).
+    % Correlation divided by (n - 1), so 1 = identical shape at that lag.
+    function plot_alignment_corr(obj, corr_curves, lags, n, names)
+        if isempty(corr_curves)
+            obj.close_corr_figure();
+            return
+        end
+        if isempty(obj.corr_fig) || ~isvalid(obj.corr_fig)
+            obj.corr_fig = figure("Name", "Alignment cross-correlation", ...
+                "NumberTitle", "off");
+        end
+        clf(obj.corr_fig);
+        ax = axes(obj.corr_fig);
+        hold(ax, "on");
+
+        names(strlength(names) == 0) = "curve";
+        colors = obj.get_default_selection_colors(numel(corr_curves));
+        h = gobjects(1, numel(corr_curves));
+        for i = 1:numel(corr_curves)
+            c = corr_curves(i).corr / (n - 1);
+            x = corr_curves(i).lags / n;
+            col = colors(i, :);
+            h(i) = plot(ax, x, c, "-", "Color", col, "LineWidth", 1.5, ...
+                "DisplayName", names(i + 1));
+            [~, k] = min(abs(corr_curves(i).lags - lags(i)));
+            plot(ax, x(k), c(k), "o", "Color", col, "MarkerFaceColor", col, ...
+                "MarkerSize", 8, "HandleVisibility", "off");
+            xline(ax, lags(i) / n, "--", sprintf("%+.3f T", lags(i) / n), ...
+                "Color", col, "LineWidth", 1, "HandleVisibility", "off", ...
+                "LabelVerticalAlignment", "bottom");
+        end
+        yline(ax, 0, ":", "Color", [0.5 0.5 0.5], "HandleVisibility", "off");
+        hold(ax, "off");
+        grid(ax, "on");
+        xlim(ax, [-1 1]);
+        xlabel(ax, "Lag (wingbeats, t/T)");
+        ylabel(ax, "Normalized cross-correlation");
+        title(ax, "Aligned to: " + names(1), "Interpreter", "none");
+        legend(ax, h, "Location", "best", "Interpreter", "none");
+    end
+
+    function close_corr_figure(obj)
+        if ~isempty(obj.corr_fig) && isvalid(obj.corr_fig)
+            close(obj.corr_fig);
+        end
+        obj.corr_fig = [];
+    end
+
     function legend_entry = get_aligned_legend_entry(obj, cur_sel, index)
         case_label = obj.get_case_label(cur_sel);
         index_label = obj.active_types(index);
@@ -2516,11 +2598,18 @@ methods (Access = private)
         end
 
         lags = zeros(1,length(aligned_curves)-1);
+        corr_curves = struct('corr', {}, 'lags', {});
         for i = 2:length(aligned_curves)
-        [aligned_curves(i).val, lags(i-1)] = align_signals(aligned_curves(1).val, aligned_curves(i).val);
+        [aligned_curves(i).val, lags(i-1), corr_curves(i-1).corr, corr_curves(i-1).lags] = ...
+            align_signals(aligned_curves(1).val, aligned_curves(i).val);
         if ~isempty(aligned_curves(i).std)
             aligned_curves(i).std = circshift(aligned_curves(i).std, lags(i-1)); % same shift as val
         end
+        end
+
+        if obj.corr_bool
+            obj.plot_alignment_corr(corr_curves, lags, maxLength, ...
+                string({aligned_curves.legend_entry}));
         end
 
         disp(lags)

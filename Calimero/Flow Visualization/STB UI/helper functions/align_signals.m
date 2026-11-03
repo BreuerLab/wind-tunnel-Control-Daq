@@ -1,4 +1,7 @@
-function [shifted_sig, lag_in_samples] = align_signals(sig1, sig2)
+function [shifted_sig, lag_in_samples, corr, lags] = align_signals(sig1, sig2)
+% Shift sig2 onto sig1 by the lag of the peak of their cross-correlation.
+% Also returns the cross-correlation of the normalized signals and its
+% lags (samples), e.g. for plotting it (phaseAvg_UI "Corr" button).
 
     % normalize signals to have mean of zero and std of 1
     sig1_norm = (sig1 - mean(sig1)) / std(sig1);
