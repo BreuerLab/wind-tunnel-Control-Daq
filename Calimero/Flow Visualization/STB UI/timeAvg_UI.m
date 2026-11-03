@@ -109,7 +109,9 @@ classdef timeAvg_UI < handle
         % Live Calculate uncertainty mask: points whose wingbeat-averaged
         % total uncertainty exceeds unc_mask_pct % of the freestream add
         % nothing to the force integrals (trim_bounds.unc_mask, see
-        % get_PIV_force)
+        % get_PIV_force). trim_bounds.unc_mask_mode picks "threshold" (mask
+        % every such point) or "outer" (only outside the largest region
+        % enclosed by the threshold contour, keeping vortex cores)
         unc_mask_bool;
         unc_mask_pct;
 
@@ -282,6 +284,9 @@ classdef timeAvg_UI < handle
             obj.conv_shift = false;
             obj.unwrap_shift = false;
             obj.trim_bounds = default_trim_bounds();
+            if ~isfield(obj.trim_bounds, 'unc_mask_mode')
+                obj.trim_bounds.unc_mask_mode = "threshold";
+            end
             % uncertainty mask starts as the saved forces use it
             % (default_trim_bounds), so live and stored forces agree
             obj.unc_mask_bool = isfield(obj.trim_bounds, 'unc_mask') && obj.trim_bounds.unc_mask > 0;
@@ -400,7 +405,7 @@ classdef timeAvg_UI < handle
             sidebar_grid = uigridlayout(option_panel, [27, 1]);
             sidebar_grid.ColumnWidth = {'1x'};
             sidebar_grid.RowHeight = {30, 60, 30, 30, 30, 30, 30, 110, 30, 30, 30, 30, 30, 30, 30,...
-                                      30, 25, 30, 30, 30, 30, 30, 30, 30, 30, 160, 30};
+                                      30, 25, 30, 30, 30, 30, 30, 30, 30, 30, 190, 30};
             sidebar_grid.Padding = [10 10 10 10];
             sidebar_grid.RowSpacing = 6;
             if isprop(sidebar_grid, "Scrollable")
@@ -712,9 +717,9 @@ classdef timeAvg_UI < handle
             bounds_panel.Title = "Live Calc Bounds (y/L, z/L)";
             bounds_panel.TitlePosition = 'centertop';
 
-            bounds_grid = uigridlayout(bounds_panel, [4, 3]);
+            bounds_grid = uigridlayout(bounds_panel, [5, 3]);
             bounds_grid.ColumnWidth = {45, '1x', '1x'};
-            bounds_grid.RowHeight = {25, 25, 25, 25};
+            bounds_grid.RowHeight = {25, 25, 25, 25, 25};
             bounds_grid.Padding = [6 4 6 4];
             bounds_grid.RowSpacing = 4;
             bounds_grid.ColumnSpacing = 4;
@@ -764,6 +769,24 @@ classdef timeAvg_UI < handle
             unc_button.Tooltip = "Leave out of the live force integrals the points whose total uncertainty, averaged over the wingbeat, is above this % of the freestream speed (they are treated as undisturbed freestream)";
             unc_button.ValueChangedFcn = @(src, event) unc_mask_change(src, event, plot_panel);
             bounds_fields(end+1) = unc_button;
+
+            % How the threshold is applied (unc_mask_region)
+            unc_mode_label = uilabel(bounds_grid);
+            unc_mode_label.Layout.Row = 5;
+            unc_mode_label.Layout.Column = 1;
+            unc_mode_label.Text = "mode";
+
+            unc_mode_dropdown = uidropdown(bounds_grid);
+            unc_mode_dropdown.Layout.Row = 5;
+            unc_mode_dropdown.Layout.Column = [2 3];
+            unc_mode_dropdown.Items = ["All above threshold", "Outside largest contour"];
+            unc_mode_dropdown.ItemsData = ["threshold", "outer"];
+            unc_mode_dropdown.Value = obj.trim_bounds.unc_mask_mode;
+            unc_mode_dropdown.Tooltip = "All above threshold: mask every point above the uncertainty threshold. " + ...
+                "Outside largest contour: mask only what lies outside the largest region enclosed by the threshold contour, " + ...
+                "so high-uncertainty vortex cores inside the plane stay in the integrals (static cases)";
+            unc_mode_dropdown.ValueChangedFcn = @(src, event) unc_mask_mode_change(src, event, plot_panel);
+            bounds_fields(end+1) = unc_mode_dropdown;
 
             set(bounds_fields, 'Enable', 'off'); % only used with Live Calculate
             calc_button.ValueChangedFcn = @(src, event) calc_change(src, event, plot_panel, bounds_fields);
@@ -1038,6 +1061,13 @@ classdef timeAvg_UI < handle
                 src.BackgroundColor = obj.get_button_color(obj.unc_mask_bool);
                 obj.set_unc_mask_bound();
                 if obj.calc_bool
+                    obj.update_plot(plot_panel);
+                end
+            end
+
+            function unc_mask_mode_change(src, ~, plot_panel)
+                obj.trim_bounds.unc_mask_mode = string(src.Value);
+                if obj.calc_bool && obj.unc_mask_bool
                     obj.update_plot(plot_panel);
                 end
             end

@@ -112,10 +112,13 @@ S.ff_ddt_method = G_ff.ddt_method;
 % forces (helm_decomp) start from these masked fields too. The planar
 % averages and integral quantities further down use the unmasked T.
 unc_thresh = [];
+unc_mode = "threshold";
 if isfield(bounds, 'unc_mask'), unc_thresh = bounds.unc_mask; end
-[F, unc_mask] = apply_unc_mask(F, T.uncTot, unc_thresh);
+if isfield(bounds, 'unc_mask_mode'), unc_mode = bounds.unc_mask_mode; end
+[F, unc_mask] = apply_unc_mask(F, T.uncTot, unc_thresh, unc_mode);
 S.unc_mask = unc_mask;            % [ny nz] logical on the trimmed grid ([] = off)
 S.unc_mask_thresh = unc_thresh;   % fraction of the freestream speed
+S.unc_mask_mode = unc_mode;
 if ~isempty(unc_mask)
     fprintf("Uncertainty mask (%.3g U): %.1f%% of the trimmed plane left out of the forces\n", ...
         unc_thresh, 100 * mean(unc_mask(:)));
@@ -136,7 +139,7 @@ if has_uavg
     F_uavg.vortX = T.vortX_uavg;
     F_uavg.vortY = T.vortY_uavg;
     F_uavg.vortZ = T.vortZ_uavg;
-    F_uavg = apply_unc_mask(F_uavg, T.uncTot, unc_thresh);
+    F_uavg = apply_unc_mask(F_uavg, T.uncTot, unc_thresh, unc_mode);
     [lift_uavg, drag_uavg] = get_wake_lift(config.speed, config.length, F_uavg, true, config.density);
     S.lift_uavg = lift_uavg; S.drag_uavg = drag_uavg;
 end
@@ -147,7 +150,7 @@ end
 F_ff = F;
 F_ff.vortY = G_ff.vortY_ff;
 F_ff.vortZ = G_ff.vortZ_ff;
-F_ff = apply_unc_mask(F_ff, T.uncTot, unc_thresh);
+F_ff = apply_unc_mask(F_ff, T.uncTot, unc_thresh, unc_mode);
 [lift_ff, drag_ff] = get_wake_lift(config.speed, config.length, F_ff, true, config.density);
 S.lift_ff = lift_ff; S.drag_ff = drag_ff;
 

@@ -236,12 +236,14 @@ function [var, err, I] = get_PIV_force(file_name, case_name, force_var_name, avg
     end
     D.unc = unc_tr;
 
-    % Uncertainty mask (bounds.unc_mask, default in default_trim_bounds):
-    % points whose time averaged uncertainty is above it add nothing to
-    % the forces (see apply_unc_mask)
+    % Uncertainty mask (bounds.unc_mask / unc_mask_mode, defaults in
+    % default_trim_bounds): masked points add nothing to the forces (see
+    % apply_unc_mask, unc_mask_region)
     unc_thresh = [];
+    unc_mode = "threshold";
     if isfield(bounds, 'unc_mask'), unc_thresh = bounds.unc_mask; end
-    [D, mask] = apply_unc_mask(D, unc_tr, unc_thresh);
+    if isfield(bounds, 'unc_mask_mode'), unc_mode = bounds.unc_mask_mode; end
+    [D, mask] = apply_unc_mask(D, unc_tr, unc_thresh, unc_mode);
     
     % Capture all outputs into a cell array
     % [outputs{1:2}] = get_wake_lift(speed, d.L, x, d.y, d.z, d, avg_type, vort_bool, y_cen, z_cen, density);
