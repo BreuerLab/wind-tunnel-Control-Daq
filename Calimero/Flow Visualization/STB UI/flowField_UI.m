@@ -4075,8 +4075,9 @@ methods (Access = private)
         n_masked = 0;
         if has_unc && isfield(bounds, 'unc_mask') && ~isempty(bounds.unc_mask) && bounds.unc_mask > 0
             [~, ~, unc] = trim_vel_field(d.y, d.z, d.(unc_name), bounds);
-            unc_t = mean(unc, 3, "omitnan");
-            mask = unc_t > bounds.unc_mask | isnan(unc_t);
+            unc_mode = "threshold";
+            if isfield(bounds, 'unc_mask_mode'), unc_mode = bounds.unc_mask_mode; end
+            mask = unc_mask_region(unc, bounds.unc_mask, unc_mode);
             n_masked = nnz(mask & ~isnan(field));
             field(mask) = NaN;
         end

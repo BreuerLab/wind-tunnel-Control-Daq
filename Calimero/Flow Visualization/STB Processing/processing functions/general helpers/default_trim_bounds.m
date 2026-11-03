@@ -25,4 +25,10 @@ bounds.z_cen = -0.35;
 % speed add nothing to the forces. Used for the saved forces (_integral
 % files) and the UIs' live forces. 0 = off.
 bounds.unc_mask = 0.04;
+% How the threshold is applied (unc_mask_region): "threshold" masks every
+% point above it; "outer" masks only what lies outside the largest region
+% enclosed by the unc_mask contour, so high-uncertainty vortex cores inside
+% the plane stay in (useful for static, 0 Hz cases, whose cores are poorly
+% seeded).
+bounds.unc_mask_mode = "threshold";
 end
