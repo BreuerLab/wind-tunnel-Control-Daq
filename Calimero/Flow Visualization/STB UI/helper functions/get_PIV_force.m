@@ -217,7 +217,13 @@ function [var, err, I] = get_PIV_force(file_name, case_name, force_var_name, avg
         if numel(x_conv) >= 3, t_ff = x_conv(:) / speed; end   % x = U t
         ff_in = struct('u', u_tr, 'v', v_tr, 'w', w_tr, 'vortY', vortY_tr, 'vortZ', vortZ_tr, ...
             'dvdx', dvdx_tr, 'dwdx', dwdx_tr);
-        G_ff = frozen_flow_gradients(ff_in, t_ff, period, d.L, speed);
+        % harmonic regression files: exact d/dt of the fitted series
+        ff_opts = struct();
+        if avg_type ~= 0 && ismember('hr', who('-file', file_name))
+            h = load(file_name, 'hr');
+            if isstruct(h.hr) && isfield(h.hr, 'H'), ff_opts.H = h.hr.H; end
+        end
+        G_ff = frozen_flow_gradients(ff_in, t_ff, period, d.L, speed, ff_opts);
         vortY_tr = G_ff.vortY_ff;
         vortZ_tr = G_ff.vortZ_ff;
     end

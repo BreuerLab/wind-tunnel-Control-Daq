@@ -145,8 +145,8 @@ properties
     section_plot_vars;  % the variable list it shows: section_force_vars then section_flow_vars
     section_dropdown;
     frozen_vars;      % "frozen flow" plot: slab d/dx vs (1/U) d/dt, for frozen_quantities
-    frozen_quantities; %   du/dx, dv/dx, dw/dx, omega_y, omega_z (labels)
-    frozen_keys;       %   their field names in get_frozen_flow_fields (dudx, ... vortZ)
+    frozen_quantities; %   du/dx, dv/dx, dw/dx, omega_y, omega_z, div u (labels)
+    frozen_keys;       %   their field names in get_frozen_flow_fields (dudx, ... vortZ, div)
     frozen_kinds;      %   per quantity: slab map, frozen map, rms ratio, correlation
     frozen_label_dict;
     frozen_clims;
@@ -672,15 +672,18 @@ methods
         % for du/dx, dv/dx, dw/dx and the vorticity components that contain
         % one (omega_y, omega_z), movies of the slab and frozen-flow
         % estimates, then pointwise rms ratio / correlation over the
-        % wingbeat. All nondimensional like dwdx_phase_avg (* c/U).
-        obj.frozen_quantities = ["du/dx", "dv/dx", "dw/dx", "ω_y", "ω_z"];
-        obj.frozen_keys = ["dudx", "dvdx", "dwdx", "vortY", "vortZ"];
+        % wingbeat. All nondimensional like dwdx_phase_avg (* c/U). ∇·u is
+        % the continuity check du/dx + dv/dy + dw/dz with the slab or the
+        % frozen-flow du/dx (zero for incompressible flow).
+        obj.frozen_quantities = ["du/dx", "dv/dx", "dw/dx", "ω_y", "ω_z", "∇·u"];
+        obj.frozen_keys = ["dudx", "dvdx", "dwdx", "vortY", "vortZ", "div"];
         obj.frozen_kinds = [" (slab)", " (frozen)", ": rms ratio slab/frozen", ": correlation over phase"];
         tex_slab = ["\frac{\partial u}{\partial x}", "\frac{\partial v}{\partial x}", ...
-            "\frac{\partial w}{\partial x}", "\omega_y", "\omega_z"];
+            "\frac{\partial w}{\partial x}", "\omega_y", "\omega_z", "\nabla \cdot \mathbf{u}"];
         tex_ff = ["\frac{1}{U}\frac{\partial u}{\partial t}", "\frac{1}{U}\frac{\partial v}{\partial t}", ...
-            "\frac{1}{U}\frac{\partial w}{\partial t}", "\omega_y^{\mathrm{ff}}", "\omega_z^{\mathrm{ff}}"];
-        lim = [0.2, 0.2, 0.2, 1, 1];   % colour limits of the maps
+            "\frac{1}{U}\frac{\partial w}{\partial t}", "\omega_y^{\mathrm{ff}}", "\omega_z^{\mathrm{ff}}", ...
+            "(\nabla \cdot \mathbf{u})^{\mathrm{ff}}"];
+        lim = [0.2, 0.2, 0.2, 1, 1, 0.2];   % colour limits of the maps
         obj.frozen_vars = strings(1, 0);
         frozen_labels = strings(1, 0);
         obj.frozen_clims = zeros(0, 2);
@@ -4210,6 +4213,13 @@ methods (Access = private)
         nk = numel(obj.frozen_kinds);
         key = obj.frozen_keys(ceil(k / nk));
         kind = mod(k - 1, nk) + 1;
+        if ~isfield(R.slab, key)
+            text(ax, 0.5, 0.5, "dvdy\_phase\_avg / dwdz\_phase\_avg not in this file (older processing)", ...
+                'HorizontalAlignment', 'center', FontSize=14);
+            axis(ax, 'off');
+            obj.slider.Visible = "off"; obj.play_button.Visible = "off";
+            return
+        end
         slab = R.slab.(key);
         ff = R.ff.(key);
         y = R.y;  z = R.z;
@@ -4244,7 +4254,10 @@ methods (Access = private)
             end
 
             h = PIV_plot(y, z, val(:,:,obj.frame_ind), params, ax);
-            t = title(ax, "Bin number: " + obj.frame_ind, FontSize=18);
+            % d/dt: exact (harmonic regression) or finite difference
+            suffix = "";
+            if kind == 2, suffix = "  (d/dt: " + R.ddt_method + ")"; end
+            t = title(ax, "Bin number: " + obj.frame_ind + suffix, FontSize=18);
             while obj.play && (obj.frame_ind < obj.num_bins)
                 obj.frame_ind = obj.frame_ind + 1;
                 obj.slider.Value = obj.frame_ind;
@@ -4252,7 +4265,7 @@ methods (Access = private)
                 tmp(tmp < params.clims(1)) = params.clims(1);
                 tmp(tmp > params.clims(2)) = params.clims(2);
                 set(h, 'ZData', tmp);
-                set(t, 'String', "Bin number: " + obj.frame_ind);
+                set(t, 'String', "Bin number: " + obj.frame_ind + suffix);
                 drawnow;
                 pause(0.05);
                 if obj.frame_ind == obj.num_bins

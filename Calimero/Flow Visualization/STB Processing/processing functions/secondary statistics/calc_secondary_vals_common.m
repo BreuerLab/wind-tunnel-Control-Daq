@@ -85,14 +85,25 @@ F.period = config.period;
 % bins, and omega_y, omega_z rebuilt with them (frozen_flow_gradients),
 % for comparison with the slab derivatives across the measured volume.
 % From the hole-filled velocity, before the uncertainty mask. Zero for a
-% time average (no time axis).
+% time average (no time axis). For harmonic regression files (D.hr) d/dt
+% is the exact derivative of the fitted series rather than a finite
+% difference between bins.
 t_bins = [];
 if numel(config.xConvBins) >= 3
     t_bins = config.xConvBins(:) / config.speed;   % x = U t
 end
 ff_in = struct('u', F.u, 'v', F.v, 'w', F.w, 'vortY', F.vortY, 'vortZ', F.vortZ, ...
-    'dvdx', T.dvdx, 'dwdx', T.dwdx);
-G_ff = frozen_flow_gradients(ff_in, t_bins, config.period, config.length, config.speed);
+    'dvdx', T.dvdx, 'dwdx', T.dwdx, 'dudx', T.dudx);
+if isfield(T, 'dvdy') && isfield(T, 'dwdz')   % for the divergence check
+    ff_in.dvdy = T.dvdy;
+    ff_in.dwdz = T.dwdz;
+end
+ff_opts = struct();
+if isfield(D, 'hr') && isstruct(D.hr) && isfield(D.hr, 'H')
+    ff_opts.H = D.hr.H;
+end
+G_ff = frozen_flow_gradients(ff_in, t_bins, config.period, config.length, config.speed, ff_opts);
+S.ff_ddt_method = G_ff.ddt_method;
 
 % Uncertainty mask for every force below (bounds.unc_mask, set in
 % default_trim_bounds): points whose time averaged total uncertainty is
@@ -241,6 +252,15 @@ end
 % with dudx_avg, dvdx_avg, dwdx_avg, vortY_avg, vortZ_avg)
 for g = ["dudx_ff", "dvdx_ff", "dwdx_ff", "vortY_ff", "vortZ_ff"]
     S.(g + "_avg") = squeeze(mean(G_ff.(g), [1, 2]));
+end
+% continuity check, du/dx + dv/dy + dw/dz with the slab or the frozen-flow
+% du/dx: plane average and plane rms (the average lets positive and
+% negative regions cancel; the rms doesn't)
+if isfield(G_ff, 'div_slab')
+    for g = ["div_slab", "div_ff"]
+        S.(g + "_avg") = squeeze(mean(G_ff.(g), [1, 2]));
+        S.(g + "_rms") = squeeze(sqrt(mean(G_ff.(g).^2, [1, 2])));
+    end
 end
 
 % TURNED OFF TEMPORARILY SINCE NOT SUPPORTED BY TIME AVERAGE

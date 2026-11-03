@@ -10,11 +10,14 @@ function R = get_frozen_flow_fields(file_name, case_name, bounds)
 %   bounds     trim bounds (trim_vel_field, recentred on y_cen, z_cen);
 %              [] or omitted = the untrimmed centre plane
 %
-%   R.slab.(q) and R.ff.(q) for q = dudx, dvdx, dwdx, vortY, vortZ:
+%   R.slab.(q) and R.ff.(q) for q = dudx, dvdx, dwdx, vortY, vortZ and
+%   div (du/dx + dv/dy + dw/dz; only if dvdy, dwdz are in the file):
 %   [ny nz nb], nondimensional like the processed files (* L/U). slab is
 %   what's stored (derivative across the measured planes), ff the
 %   frozen-flow version (frozen_flow_gradients, d/dx = (1/U) d/dt).
-%   R.y, R.z (y/c, z/c), R.t (bin times, s), R.period, R.L, R.U.
+%   R.y, R.z (y/c, z/c), R.t (bin times, s), R.period, R.L, R.U,
+%   R.ddt_method ("harmonic" for harmonic regression files, where d/dt is
+%   the exact derivative of the fitted series, else "finite difference").
 %
 %   Same steps as calc_secondary_vals_common / get_PIV_force: velocity
 %   hole-filled plane by plane (nanRegionFill) before d/dt.
@@ -28,8 +31,12 @@ missing = need(~ismember(need, have));
 if ~isempty(missing)
     error("get_frozen_flow_fields: %s not in %s", strjoin(missing, ", "), file_name)
 end
-vars = ["L", "U", "cycle_freq", "y", "z", need];
+optional = ["dvdy_phase_avg", "dwdz_phase_avg"];   % divergence check
+optional = optional(ismember(optional, have));
+has_div = numel(optional) == 2;
+vars = ["L", "U", "cycle_freq", "y", "z", need, optional];
 if ismember("U_act", have), vars(end+1) = "U_act"; end
+if ismember("hr", have), vars(end+1) = "hr"; end
 if ismember("bin_placement", have), vars(end+1) = "bin_placement"; end
 d = load(file_name, vars{:});
 
@@ -50,6 +57,7 @@ if isfield(d, 'bin_placement'), placement = d.bin_placement; end
 t = bin_times(nb, period, placement);   % actual (mean-phase) bin times
 
 names = ["u", "v", "w", "vortY", "vortZ", "dudx", "dvdx", "dwdx"];
+if has_div, names = [names, "dvdy", "dwdz"]; end
 if isempty(bounds)
     ip = ceil(size(d.u_phase_avg, 1) / 2);   % centre plane
     R.y = squeeze(d.y(ip, :, :));
@@ -69,11 +77,18 @@ P.u = nanRegionFill(P.u);
 P.v = nanRegionFill(P.v);
 P.w = nanRegionFill(P.w);
 
-G = frozen_flow_gradients(P, t, period, d.L, speed);
+ff_opts = struct();
+if isfield(d, 'hr') && isstruct(d.hr) && isfield(d.hr, 'H'), ff_opts.H = d.hr.H; end
+G = frozen_flow_gradients(P, t, period, d.L, speed, ff_opts);
 
 for q = ["dudx", "dvdx", "dwdx", "vortY", "vortZ"]
     R.slab.(q) = nanRegionFill(P.(q));
     R.ff.(q) = G.(q + "_ff");
 end
+if has_div
+    R.slab.div = G.div_slab;
+    R.ff.div = G.div_ff;
+end
+R.ddt_method = G.ddt_method;
 R.t = t; R.period = period; R.L = d.L; R.U = speed;
 end
