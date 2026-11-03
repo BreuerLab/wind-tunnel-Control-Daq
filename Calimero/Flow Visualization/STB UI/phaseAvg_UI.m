@@ -24,7 +24,7 @@ classdef phaseAvg_UI < handle
         % (shared with timeAvg_UI and flowField_UI).
         downstream_dists = plane_downstream_dists("old"); % flexible, UP_one, UP_two
         new_flapper_downstream_dists = plane_downstream_dists("new"); % x1-x5, MPS
-        conv_speed = 4; % m/s, convection speed of the wake
+        conv_speed = plane_downstream_dists("conv_speed"); % m/s, convection speed of the wake
     end
 
 properties

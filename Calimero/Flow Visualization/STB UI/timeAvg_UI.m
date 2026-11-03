@@ -2438,7 +2438,7 @@ classdef timeAvg_UI < handle
                 disp("No downstream distance defined for " + type + ", not shifted")
                 return
             end
-            conv_speed = 4; % m/s
+            conv_speed = plane_downstream_dists("conv_speed"); % m/s
             shift_samples = round(dist / conv_speed * freq_cor * length(signal));
             signal = circshift(signal, shift_samples);
             disp("Shifted " + obj.get_force_var_label(force_var) + " by: " + shift_samples + ...
@@ -2448,7 +2448,7 @@ classdef timeAvg_UI < handle
         % Streamwise distance (m) from the robot to the imaging plane for a
         % case type, from plane_downstream_dists (shared with phaseAvg_UI
         % and flowField_UI): xN = x3 + (N - 3) * sep, MPS; old flapper at
-        % x3, UP_one / UP_two one / two old spacings further
+        % x3, UP_one / UP_two one / two spacings further
         function dist = get_robot_to_plane_dist(~, type)
             d = plane_downstream_dists();
             prefix = regexprep(get_downstream_prefix(type, true), "_$", ""); % e.g. "x3", "UP_one"

@@ -69,7 +69,7 @@ properties (Constant, Access = private)
     % (set in plane_downstream_dists, shared with phaseAvg_UI / timeAvg_UI)
     OLD_FLAPPER_DOWNSTREAM_DISTS = plane_downstream_dists("old"); % flexible, UP_one, UP_two
     NEW_FLAPPER_DOWNSTREAM_DISTS = plane_downstream_dists("new"); % x1-x5, MPS
-    CONV_SPEED = 4; % m/s, convection speed of the wake
+    CONV_SPEED = plane_downstream_dists("conv_speed"); % m/s, convection speed of the wake
 end
 
 properties
