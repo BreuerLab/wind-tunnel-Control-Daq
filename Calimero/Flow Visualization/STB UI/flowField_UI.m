@@ -580,7 +580,7 @@ methods
                       -0.05, 0.05;... % w: extrap - meas
                       repmat([-0.5, 0.5], numel(obj.TRANSPORT_VARS), 1);... % ω_j du_i/dx_j c^2/U^2
                       repmat([-0.5, 0.5], 3, 1);... % net ω_i source c^2/U^2
-                      repmat([-2, 2], 3, 1)]; % |ω_i| growth c^3/U^3
+                      repmat([-0.5, 0.5], 3, 1)]; % |ω_i| growth c^3/U^3
 
         % for std plots
         obj.std_clims = [0, 0.05;...
