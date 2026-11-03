@@ -1,24 +1,31 @@
 function centroid = get_Q_centroid(file_name, secondary_file_name, var_name, bounds)
-% GET_Q_CENTROID Live calculation of the Q-weighted vortex core centroid
-% (Qx_y or Qx_z), with the trim bounds and uncertainty mask in bounds.
+% GET_Q_CENTROID Live calculation of the vortex core centroid weighted by
+% positive Q (Qx_y, Qx_z) or by positive Q_x (Qxcomp_y, Qxcomp_z), with
+% the trim bounds and uncertainty mask in bounds.
 %
 %   centroid = get_Q_centroid(file_name, secondary_file_name, var_name, bounds)
 %
 %   file_name           - averaged file (_time_avg.mat / _phase_avg.mat):
 %                         y, z and the total uncertainty
-%   secondary_file_name - matching _integral.mat, which holds Q
-%   var_name            - "Qx_y" or "Qx_z"
+%   secondary_file_name - matching _integral.mat, which holds Q and Qx
+%   var_name            - "Qx_y", "Qx_z" (weighted by Q) or
+%                         "Qxcomp_y", "Qxcomp_z" (weighted by Q_x)
 %   bounds              - trim limits, centre point and uncertainty mask
 %                         (default_trim_bounds / timeAvg_UI Live Calc Bounds)
 %
-%   Same definition as calc_secondary_vals_common: positive Q only, on the
-%   trimmed and recentred plane (y/L, z/L), one value per phase bin. Points
-%   removed by the uncertainty mask (unc_mask_region, same threshold and
-%   mode as the forces) carry no weight.
+%   Same definition as calc_secondary_vals_common: positive Q (or Q_x)
+%   only, on the trimmed and recentred plane (y/L, z/L), one value per
+%   phase bin. Points removed by the uncertainty mask (unc_mask_region,
+%   same threshold and mode as the forces) carry no weight.
 
 var_name = string(var_name);
-if ~ismember(var_name, ["Qx_y", "Qx_z"])
-    error("get_Q_centroid: var_name must be ""Qx_y"" or ""Qx_z""")
+switch var_name
+    case {"Qx_y", "Qx_z"}
+        q_name = "Q";
+    case {"Qxcomp_y", "Qxcomp_z"}
+        q_name = "Qx";
+    otherwise
+        error("get_Q_centroid: var_name must be Qx_y, Qx_z, Qxcomp_y or Qxcomp_z")
 end
 
 % old flapper cases use the bounds they were analysed with
@@ -37,12 +44,12 @@ load_vars = {'y', 'z'};
 if unc_name ~= "", load_vars{end+1} = char(unc_name); end
 d = load(file_name, load_vars{:});
 
-if ~ismember("Q", string(who('-file', secondary_file_name)))
-    error("get_Q_centroid: Q not in %s, reprocess the case", secondary_file_name)
+if ~ismember(q_name, string(who('-file', secondary_file_name)))
+    error("get_Q_centroid: %s not in %s, reprocess the case", q_name, secondary_file_name)
 end
-q = load(secondary_file_name, 'Q');
+q = load(secondary_file_name, char(q_name));
 
-[y_tr, z_tr, Q_tr] = trim_vel_field(d.y, d.z, q.Q, bounds);
+[y_tr, z_tr, Q_tr] = trim_vel_field(d.y, d.z, q.(q_name), bounds);
 Q_pos = max(Q_tr, 0);
 
 thresh = [];
@@ -57,7 +64,7 @@ end
 
 y_arr = y_tr(:, 1);
 z_arr = z_tr(1, :);
-if var_name == "Qx_y"
+if endsWith(var_name, "_y")
     coord = y_tr;
 else
     coord = z_tr;

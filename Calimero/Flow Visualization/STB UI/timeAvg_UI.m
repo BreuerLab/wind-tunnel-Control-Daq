@@ -185,6 +185,7 @@ classdef timeAvg_UI < handle
             % drag_vel_before_avg)
             obj.box_labels = [obj.box_labels, "lift vortX (u avg)", "drag vort (u avg)",...
                 "wx centroid y", "wx centroid z", "Q centroid y", "Q centroid z",...
+                "Qx centroid y", "Qx centroid z",...
                 "BA: lift vortX", "BA: lift vel diff", "BA: lift vel", "BA: drag vort", "BA: drag vel",...
                 "lift vortY (edge)", "lift vortX (taper)",...
                 "TA: lift vortX", "TA: lift vel diff", "TA: lift vel", "TA: drag vort", "TA: drag vel",...
@@ -193,6 +194,7 @@ classdef timeAvg_UI < handle
                 "lift vortY (frozen flow)", "lift vortY (edge, frozen flow)"];
             obj.var_names = [obj.var_names, "lift_uavg.vortX", "drag_uavg.tot",...
                 "wx_y", "wx_z", "Qx_y", "Qx_z",...
+                "Qxcomp_y", "Qxcomp_z",... % Q_x (not Q) centroid
                 "lift_before_avg.vortX", "lift_before_avg.vel_diff", "lift_vel_before_avg",...
                 "drag_before_avg.tot", "drag_vel_before_avg",...
                 "lift.vortY_edge", "lift.vortX_taper",...
@@ -203,6 +205,7 @@ classdef timeAvg_UI < handle
             obj.y_labels = [obj.y_labels, "Lift (N)", "Drag (N)",...
                 "$\omega_x$ centroid $y/L$", "$\omega_x$ centroid $z/L$",...
                 "Q centroid $y/L$", "Q centroid $z/L$",...
+                "$Q_x$ centroid $y/L$", "$Q_x$ centroid $z/L$",...
                 "Lift (N)", "Lift (N)", "Lift (N)", "Drag (N)", "Drag (N)",...
                 "Lift (N)", "Lift (N)",...
                 "Lift (N)", "Lift (N)", "Lift (N)", "Drag (N)", "Drag (N)",...
@@ -1869,13 +1872,13 @@ classdef timeAvg_UI < handle
 
                     if obj.is_load_cell_var(force_var)
                         var = obj.get_load_cell_signal(force_var, type, amp, freq, false);
-                    elseif obj.is_live_Q_centroid(force_var)
-                        % Q centroid with the Live Calc bounds and
+                    elseif obj.is_live_Q_centroid(force_var, secondary_filepath)
+                        % Q / Q_x centroid with the Live Calc bounds and
                         % uncertainty mask (get_Q_centroid)
-                        var = get_Q_centroid(filepath, secondary_filepath, force_var, obj.trim_bounds);
+                        var = get_Q_centroid(filepath, secondary_filepath, force_var, obj.get_Q_centroid_bounds());
                         if obj.PIV_sub
                             [bod_filepath, bod_secondary_filepath] = obj.get_PIV_sub_file_paths(type, amp);
-                            var = var - get_Q_centroid(bod_filepath, bod_secondary_filepath, force_var, obj.trim_bounds);
+                            var = var - get_Q_centroid(bod_filepath, bod_secondary_filepath, force_var, obj.get_Q_centroid_bounds());
                         end
                     elseif (obj.calc_bool && obj.is_piv_force_variable(force_var)) || obj.is_tavg_force_var(force_var) ||...
                             obj.needs_live_ff(force_var, secondary_filepath)
@@ -2216,8 +2219,8 @@ classdef timeAvg_UI < handle
                 var = obj.get_load_cell_signal(force_var, type, amp, freq, true);
                 var = double(var(:)');
                 return
-            elseif obj.is_live_Q_centroid(force_var)
-                var = get_Q_centroid(filepath, secondary_filepath, force_var, obj.trim_bounds);
+            elseif obj.is_live_Q_centroid(force_var, secondary_filepath)
+                var = get_Q_centroid(filepath, secondary_filepath, force_var, obj.get_Q_centroid_bounds());
             elseif (obj.calc_bool && obj.is_piv_force_variable(force_var)) || obj.is_tavg_force_var(force_var) ||...
                     obj.needs_live_ff(force_var, secondary_filepath)
                 var = get_PIV_force(filepath, name, force_var, 1, obj.y_norm, obj.trim_bounds);
@@ -2523,10 +2526,26 @@ classdef timeAvg_UI < handle
 
         % forces from the time-averaged field (TA: force), not stored in
         % the files, so always calculated by get_PIV_force
-        % Q centroid (Qx_y, Qx_z): with Live Calculate on, recomputed from
-        % the saved Q with the Live Calc bounds and uncertainty mask
-        function tf = is_live_Q_centroid(obj, force_var)
-            tf = obj.calc_bool && ismember(string(force_var), ["Qx_y", "Qx_z"]);
+        % Q centroid (Qx_y, Qx_z) and Q_x centroid (Qxcomp_y, Qxcomp_z):
+        % with Live Calculate on, recomputed from the saved Q / Q_x with the
+        % Live Calc bounds and uncertainty mask. Also computed (default
+        % bounds) when the _integral file predates the variable.
+        function tf = is_live_Q_centroid(obj, force_var, secondary_filepath)
+            force_var = string(force_var);
+            tf = false;
+            if ~ismember(force_var, ["Qx_y", "Qx_z", "Qxcomp_y", "Qxcomp_z"])
+                return
+            end
+            tf = obj.calc_bool || ~isfile(secondary_filepath) ||...
+                ~ismember(force_var, string(who('-file', secondary_filepath)));
+        end
+
+        function bounds = get_Q_centroid_bounds(obj)
+            if obj.calc_bool
+                bounds = obj.trim_bounds;
+            else
+                bounds = default_trim_bounds();
+            end
         end
 
         function tf = is_tavg_force_var(obj, force_var)

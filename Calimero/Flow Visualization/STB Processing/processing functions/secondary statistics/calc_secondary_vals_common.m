@@ -45,6 +45,7 @@ end
 trim_source.KE_diff = S.KE_diff_field;
 trim_source.power = S.power_field;
 trim_source.Q = Q; % trimmed like the other fields, for the Q centroid
+trim_source.Qx = Qx; % same, for the Q_x centroid
 
 % vorticity of the averaged velocity (only in files processed after it
 % was added)
@@ -297,6 +298,15 @@ if ~isempty(unc_mask)
 end
 S.Qx_z = integrate_planar(y_arr, z_arr, z_tr .* Q_pos) ./ integrate_planar(y_arr, z_arr, Q_pos);
 S.Qx_y = integrate_planar(y_arr, z_arr, y_tr .* Q_pos) ./ integrate_planar(y_arr, z_arr, Q_pos);
+
+% Same centroid weighted by positive Q_x (calQlate3D) instead of Q. Note
+% Qx_y / Qx_z above are the Q centroid; Qxcomp_* are the Q_x centroid.
+Qx_pos = max(T.Qx, 0);
+if ~isempty(unc_mask)
+    Qx_pos(repmat(unc_mask, 1, 1, size(Qx_pos, 3))) = 0;
+end
+S.Qxcomp_z = integrate_planar(y_arr, z_arr, z_tr .* Qx_pos) ./ integrate_planar(y_arr, z_arr, Qx_pos);
+S.Qxcomp_y = integrate_planar(y_arr, z_arr, y_tr .* Qx_pos) ./ integrate_planar(y_arr, z_arr, Qx_pos);
 
 % Vortex stretching/tilting terms of the vorticity transport equation,
 % (omega . grad) u, integrated over the plane:
