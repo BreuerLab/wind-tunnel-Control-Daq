@@ -1366,48 +1366,14 @@ methods
         unc_mask_label.Text = '%';
 
         % Crop Box: hide the isosurface inside a y-z box (e.g. the wire
-        % wake), laid out like Fix Limits: y and z rows, lower / upper
-        crop_grid = uigridlayout(param_grid, [2, 4]);
-        crop_grid.Layout.Row = 16;
-        crop_grid.Layout.Column = 1;
-        crop_grid.ColumnWidth = {'1x', 14, 44, 44};
-        crop_grid.RowHeight = {'1x', '1x'};
-        crop_grid.Padding = [0 0 0 0];
-        crop_grid.RowSpacing = 4;
-        crop_grid.ColumnSpacing = 3;
-
-        crop_box_button = uibutton(crop_grid, "state");
-        crop_box_button.Layout.Row = [1 2];
-        crop_box_button.Layout.Column = 1;
-        crop_box_button.Text = ["Crop"; "Box"];
-        crop_box_button.FontSize = 14;
-        crop_box_button.Value = obj.crop_box_bool;
-        crop_box_button.BackgroundColor = obj.get_button_color(obj.crop_box_bool);
-        crop_box_button.Tooltip = "Hide the isosurface inside the y-z box beside it (e.g. the wake of the robot's wires). y from the mirror centreline, z as plotted, in chords. Display only: the data and other calculations are unchanged";
-        crop_box_button.ValueChangedFcn = @(src, event) crop_box_change(src, event, plot_area_panel);
-
-        crop_fields = gobjects(2, 2);
-        for crop_row = 1:2
-            crop_label = uilabel(crop_grid);
-            crop_label.Layout.Row = crop_row;
-            crop_label.Layout.Column = 2;
-            crop_label.Text = lim_names(crop_row);
-            crop_label.HorizontalAlignment = 'right';
-            for crop_col = 1:2
-                crop_f = uieditfield(crop_grid, "numeric");
-                crop_f.Layout.Row = crop_row;
-                crop_f.Layout.Column = 2 + crop_col;
-                crop_f.HorizontalAlignment = 'center';
-                crop_f.ValueDisplayFormat = '%.3g';
-                crop_f.Value = obj.crop_box(2*(crop_row - 1) + crop_col);
-                crop_f.Tooltip = lim_names(crop_row) + "/c " + lim_sides(crop_col) + " edge of the Crop Box";
-                if crop_row == 1
-                    crop_f.Tooltip = crop_f.Tooltip + " (from the mirror centreline)";
-                end
-                crop_f.ValueChangedFcn = @(src, event) crop_box_bounds_change(src, event, plot_area_panel);
-                crop_fields(crop_row, crop_col) = crop_f;
-            end
-        end
+        % wake), laid out like Fix Limits: y and z rows, lower / upper. A
+        % second copy for the 2D plots (centroid) is made below; both set
+        % the same box.
+        crop_ctrls = struct('button', {}, 'fields', {});
+        crop_ctrls(1) = make_crop_controls(param_grid, 16, 1, ...
+            "Hide the isosurface inside the y-z box beside it (e.g. the wake of the robot's wires). " + ...
+            "y from the mirror centreline, z as plotted, in chords. Also leaves the box out of the 2D centroid. " + ...
+            "Display only: the data and other calculations are unchanged");
 
         save_button = uibutton(sidebar_grid, "state");
         save_button.Layout.Row = 15;
@@ -1431,11 +1397,11 @@ methods
 
         % Uncertainty isolines on the 2D plots (types 1-4), like Unc Mask
         % for the 3D plot
-        unc_cen_grid = uigridlayout(sidebar_grid, [2, 2]);
+        unc_cen_grid = uigridlayout(sidebar_grid, [3, 2]);
         unc_cen_grid.Layout.Row = 17;
         unc_cen_grid.Layout.Column = 1;
         unc_cen_grid.ColumnWidth = {'1x', '1x'};
-        unc_cen_grid.RowHeight = {30, 30};
+        unc_cen_grid.RowHeight = {30, 30, 52};
         unc_cen_grid.Padding = [0 0 0 0];
         unc_cen_grid.ColumnSpacing = 4;
         unc_cen_grid.RowSpacing = 4;
@@ -1494,6 +1460,14 @@ methods
         cen_unc_pct_label.Layout.Row = 1;
         cen_unc_pct_label.Layout.Column = 3;
         cen_unc_pct_label.Text = '%';
+
+        % Crop Box for the centroid (same box as the 3D plot's): points in
+        % the box carry no weight, like the uncertainty mask
+        crop_ctrls(2) = make_crop_controls(unc_cen_grid, 3, [1 2], ...
+            "Leave the y-z box beside it out of the centroid (e.g. the wake of the robot's wires), " + ...
+            "together with the uncertainty mask; the kept region is outlined. y from the mirror centreline, " + ...
+            "z as plotted, in chords. Same box as the 3D plot's Crop Box");
+        crop_grid_2D = crop_ctrls(2).button.Parent;
 
         % Set up plot titles and axes
         set_unc_contour_visibility();
@@ -1752,12 +1726,14 @@ methods
             if ismember(obj.plot_type, obj.plot_types(1:2))
                 centroid_button.Visible = "on";
                 cen_unc_grid.Visible = "on";
-                unc_cen_grid.RowHeight = {30, 30};
-                row_heights{17} = 64;
+                crop_grid_2D.Visible = "on";
+                unc_cen_grid.RowHeight = {30, 30, 52};
+                row_heights{17} = 30 + 30 + 52 + 2 * unc_cen_grid.RowSpacing;
             else
                 centroid_button.Visible = "off";
                 cen_unc_grid.Visible = "off";
-                unc_cen_grid.RowHeight = {'1x', 0};
+                crop_grid_2D.Visible = "off";
+                unc_cen_grid.RowHeight = {'1x', 0, 0};
             end
             sidebar_grid.RowHeight = row_heights;
         end
@@ -2338,29 +2314,99 @@ methods
             end
         end
 
-        function crop_box_change(src, ~, plot_panel)
-            obj.crop_box_bool = src.Value;
-            src.BackgroundColor = obj.get_button_color(obj.crop_box_bool);
-            if obj.is_3D_plot_type()
-                obj.update_plot(plot_panel); % new isosurface, same view
+        % Crop Box button and four limit fields (y lower / upper, z lower /
+        % upper) in a 2 x 4 grid like Fix Limits
+        function ctrl = make_crop_controls(parent, row, col, tip)
+            g = uigridlayout(parent, [2, 4]);
+            g.Layout.Row = row;
+            g.Layout.Column = col;
+            g.ColumnWidth = {'1x', 12, 38, 38};
+            g.RowHeight = {'1x', '1x'};
+            g.Padding = [0 0 0 0];
+            g.RowSpacing = 4;
+            g.ColumnSpacing = 3;
+
+            btn = uibutton(g, "state");
+            btn.Layout.Row = [1 2];
+            btn.Layout.Column = 1;
+            btn.Text = ["Crop"; "Box"];
+            btn.FontSize = 14;
+            btn.Value = obj.crop_box_bool;
+            btn.BackgroundColor = obj.get_button_color(obj.crop_box_bool);
+            btn.Tooltip = tip;
+            btn.ValueChangedFcn = @(src, event) crop_box_change(src, event, plot_area_panel);
+
+            flds = gobjects(2, 2);
+            names = ["y", "z"];
+            sides = ["lower", "upper"];
+            for r = 1:2
+                lab = uilabel(g);
+                lab.Layout.Row = r;
+                lab.Layout.Column = 2;
+                lab.Text = names(r);
+                lab.HorizontalAlignment = 'right';
+                for c = 1:2
+                    f = uieditfield(g, "numeric");
+                    f.Layout.Row = r;
+                    f.Layout.Column = 2 + c;
+                    f.HorizontalAlignment = 'center';
+                    f.ValueDisplayFormat = '%.3g';
+                    f.Value = obj.crop_box(2*(r - 1) + c);
+                    f.Tooltip = names(r) + "/c " + sides(c) + " edge of the Crop Box";
+                    if r == 1
+                        f.Tooltip = f.Tooltip + " (from the mirror centreline)";
+                    end
+                    f.ValueChangedFcn = @(src, event) crop_box_bounds_change(src, event, plot_area_panel);
+                    flds(r, c) = f;
+                end
+            end
+            ctrl = struct('button', btn, 'fields', flds);
+        end
+
+        % show the current crop state in both copies of the controls
+        function sync_crop_controls()
+            for k = 1:numel(crop_ctrls)
+                crop_ctrls(k).button.Value = obj.crop_box_bool;
+                crop_ctrls(k).button.BackgroundColor = obj.get_button_color(obj.crop_box_bool);
+                for r = 1:2
+                    for c = 1:2
+                        crop_ctrls(k).fields(r, c).Value = obj.crop_box(2*(r - 1) + c);
+                    end
+                end
             end
         end
 
-        function crop_box_bounds_change(~, ~, plot_panel)
-            b = [crop_fields(1,1).Value, crop_fields(1,2).Value, ...
-                 crop_fields(2,1).Value, crop_fields(2,2).Value];
-            if b(1) >= b(2) || b(3) >= b(4)
-                % lower must be below upper: undo
-                for r = 1:2
-                    for c = 1:2
-                        crop_fields(r, c).Value = obj.crop_box(2*(r - 1) + c);
-                    end
+        % redraw if the current plot uses the box (3D isosurface, or the
+        % 2D centroid)
+        function crop_redraw(plot_panel)
+            if obj.is_3D_plot_type() || ...
+                    (obj.centroid_bool && ismember(obj.plot_type, obj.plot_types(1:2)))
+                obj.update_plot(plot_panel); % 3D: new isosurface, same view
+            end
+        end
+
+        function crop_box_change(src, ~, plot_panel)
+            obj.crop_box_bool = src.Value;
+            sync_crop_controls();
+            crop_redraw(plot_panel);
+        end
+
+        function crop_box_bounds_change(src, ~, plot_panel)
+            flds = [];
+            for k = 1:numel(crop_ctrls)
+                if any(crop_ctrls(k).fields(:) == src)
+                    flds = crop_ctrls(k).fields;
                 end
+            end
+            b = [flds(1,1).Value, flds(1,2).Value, flds(2,1).Value, flds(2,2).Value];
+            if b(1) >= b(2) || b(3) >= b(4)
+                sync_crop_controls(); % lower must be below upper: undo
                 return
             end
             obj.crop_box = b;
-            if obj.crop_box_bool && obj.is_3D_plot_type()
-                obj.update_plot(plot_panel);
+            sync_crop_controls();
+            if obj.crop_box_bool
+                crop_redraw(plot_panel);
             end
         end
 
@@ -4163,6 +4209,15 @@ methods (Access = private)
                 if isfield(b, 'unc_mask_mode'), cen_mode = b.unc_mask_mode; end
                 cen_mask = unc_mask_region(unc_centroid, obj.centroid_unc_pct / 100, cen_mode);
             end
+            % Crop Box: also left out of the centroid
+            crop = obj.crop_box_mask(y, z, obj.mirror_bool && ~use_extrapolated_data);
+            if ~isempty(crop)
+                if isempty(cen_mask) || ~isequal(size(cen_mask), size(crop))
+                    cen_mask = crop;
+                else
+                    cen_mask = cen_mask | crop;
+                end
+            end
         end
 
         if geom_hit
@@ -5660,7 +5715,26 @@ methods (Access = private)
     % surfaces crossing the box edge are closed off. y is measured from
     % the mirror centreline (the plotted y when mirrored).
     function Q = apply_crop_box(obj, Q, y, z, mirrored)
-        if ~obj.crop_box_bool || ~isequal(size(y), [size(Q, 1), size(Q, 2)])
+        if ~isequal(size(y), [size(Q, 1), size(Q, 2)])
+            return
+        end
+        mask = obj.crop_box_mask(y, z, mirrored);
+        if isempty(mask)
+            return
+        end
+        b = obj.crop_box;
+        mask3 = repmat(mask, 1, 1, size(Q, 3));
+        Q(mask3) = median(Q(~mask3), "omitnan");
+        fprintf("Crop Box: %.1f%% of points hidden (y %g to %g, z %g to %g)\n", ...
+            100 * mean(mask(:)), b);
+    end
+
+    % Points of the plotted y, z grid inside the Crop Box ([] if it's off
+    % or holds no points). y is measured from the mirror centreline (the
+    % plotted y when mirrored).
+    function mask = crop_box_mask(obj, y, z, mirrored)
+        mask = [];
+        if ~obj.crop_box_bool || isempty(y)
             return
         end
         b = obj.crop_box;
@@ -5668,14 +5742,10 @@ methods (Access = private)
         if ~mirrored
             y_rel = y - obj.mirror_center_y;
         end
-        mask = y_rel > b(1) & y_rel < b(2) & z > b(3) & z < b(4);
-        if ~any(mask(:))
-            return
+        m = y_rel > b(1) & y_rel < b(2) & z > b(3) & z < b(4);
+        if any(m(:))
+            mask = m;
         end
-        mask3 = repmat(mask, 1, 1, size(Q, 3));
-        Q(mask3) = median(Q(~mask3), "omitnan");
-        fprintf("Crop Box: %.1f%% of points hidden (y %g to %g, z %g to %g)\n", ...
-            100 * mean(mask(:)), b);
     end
 
     function inputs = get_lift_wx_inputs(~, using_time_avg_file)
