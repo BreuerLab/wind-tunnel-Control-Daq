@@ -1030,7 +1030,7 @@ methods
         % isovalue, iso variable, views, fixed y / z limits, x-axis /
         % shift / stroke labels, Remove Small, Unc Mask, number of
         % wingbeats, Card Style, Crop Box
-        param_grid.RowHeight = {22, 55, 30, 50, 18, 24, 52, 30, 30, 30, 30, 30, 22, 55, 30, 30};
+        param_grid.RowHeight = {22, 55, 30, 50, 18, 24, 52, 30, 30, 30, 30, 30, 22, 55, 30, 52};
         param_grid.Padding = [10 8 10 8];
         param_grid.RowSpacing = 6;
 
@@ -1365,32 +1365,49 @@ methods
         unc_mask_label.Layout.Column = 3;
         unc_mask_label.Text = '%';
 
-        % Crop Box: hide the isosurface inside a y-z box (e.g. the wire wake)
-        crop_grid = uigridlayout(param_grid, [1, 2]);
+        % Crop Box: hide the isosurface inside a y-z box (e.g. the wire
+        % wake), laid out like Fix Limits: y and z rows, lower / upper
+        crop_grid = uigridlayout(param_grid, [2, 4]);
         crop_grid.Layout.Row = 16;
         crop_grid.Layout.Column = 1;
-        crop_grid.ColumnWidth = {'1x', '1.3x'};
-        crop_grid.RowHeight = {'1x'};
+        crop_grid.ColumnWidth = {'1x', 14, 44, 44};
+        crop_grid.RowHeight = {'1x', '1x'};
         crop_grid.Padding = [0 0 0 0];
+        crop_grid.RowSpacing = 4;
         crop_grid.ColumnSpacing = 3;
 
         crop_box_button = uibutton(crop_grid, "state");
-        crop_box_button.Layout.Row = 1;
+        crop_box_button.Layout.Row = [1 2];
         crop_box_button.Layout.Column = 1;
-        crop_box_button.Text = "Crop Box";
-        crop_box_button.FontSize = 16;
+        crop_box_button.Text = ["Crop"; "Box"];
+        crop_box_button.FontSize = 14;
         crop_box_button.Value = obj.crop_box_bool;
         crop_box_button.BackgroundColor = obj.get_button_color(obj.crop_box_bool);
-        crop_box_button.Tooltip = "Hide the isosurface inside the y-z box at right (e.g. the wake of the robot's wires). Display only: the data and other calculations are unchanged";
+        crop_box_button.Tooltip = "Hide the isosurface inside the y-z box beside it (e.g. the wake of the robot's wires). y from the mirror centreline, z as plotted, in chords. Display only: the data and other calculations are unchanged";
         crop_box_button.ValueChangedFcn = @(src, event) crop_box_change(src, event, plot_area_panel);
 
-        crop_box_field = uieditfield(crop_grid, "text");
-        crop_box_field.Layout.Row = 1;
-        crop_box_field.Layout.Column = 2;
-        crop_box_field.Value = num2str(obj.crop_box);
-        crop_box_field.HorizontalAlignment = 'center';
-        crop_box_field.Tooltip = "Crop box: ymin ymax zmin zmax in chords; y from the mirror centreline (as plotted with Mirror on), z as plotted";
-        crop_box_field.ValueChangedFcn = @(src, event) crop_box_bounds_change(src, event, plot_area_panel);
+        crop_fields = gobjects(2, 2);
+        for crop_row = 1:2
+            crop_label = uilabel(crop_grid);
+            crop_label.Layout.Row = crop_row;
+            crop_label.Layout.Column = 2;
+            crop_label.Text = lim_names(crop_row);
+            crop_label.HorizontalAlignment = 'right';
+            for crop_col = 1:2
+                crop_f = uieditfield(crop_grid, "numeric");
+                crop_f.Layout.Row = crop_row;
+                crop_f.Layout.Column = 2 + crop_col;
+                crop_f.HorizontalAlignment = 'center';
+                crop_f.ValueDisplayFormat = '%.3g';
+                crop_f.Value = obj.crop_box(2*(crop_row - 1) + crop_col);
+                crop_f.Tooltip = lim_names(crop_row) + "/c " + lim_sides(crop_col) + " edge of the Crop Box";
+                if crop_row == 1
+                    crop_f.Tooltip = crop_f.Tooltip + " (from the mirror centreline)";
+                end
+                crop_f.ValueChangedFcn = @(src, event) crop_box_bounds_change(src, event, plot_area_panel);
+                crop_fields(crop_row, crop_col) = crop_f;
+            end
+        end
 
         save_button = uibutton(sidebar_grid, "state");
         save_button.Layout.Row = 15;
@@ -2329,16 +2346,19 @@ methods
             end
         end
 
-        function crop_box_bounds_change(src, ~, plot_panel)
-            b = str2num(char(src.Value)); %#ok<ST2NM> four numbers
-            if numel(b) ~= 4 || any(~isfinite(b)) || b(1) >= b(2) || b(3) >= b(4)
-                uialert(ancestor(src, 'figure'), ...
-                    "Enter four numbers: ymin ymax zmin zmax (min < max).", "Crop Box");
-                src.Value = num2str(obj.crop_box);
+        function crop_box_bounds_change(~, ~, plot_panel)
+            b = [crop_fields(1,1).Value, crop_fields(1,2).Value, ...
+                 crop_fields(2,1).Value, crop_fields(2,2).Value];
+            if b(1) >= b(2) || b(3) >= b(4)
+                % lower must be below upper: undo
+                for r = 1:2
+                    for c = 1:2
+                        crop_fields(r, c).Value = obj.crop_box(2*(r - 1) + c);
+                    end
+                end
                 return
             end
-            obj.crop_box = b(:)';
-            src.Value = num2str(obj.crop_box);
+            obj.crop_box = b;
             if obj.crop_box_bool && obj.is_3D_plot_type()
                 obj.update_plot(plot_panel);
             end
