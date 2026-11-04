@@ -469,11 +469,13 @@ methods
         var_panel.Title = "Variables";
 
         var_grid = uigridlayout(var_panel, [obj.NUM_VARS + 1, 2]);
-        var_grid.ColumnWidth = {38, '1x'};
+        % label column only as wide as "Type" ('fit'), the rest for the
+        % variable names
+        var_grid.ColumnWidth = {'fit', '1x'};
         var_grid.RowHeight = repmat({25}, 1, obj.NUM_VARS + 1);
-        var_grid.Padding = [6 6 6 6];
+        var_grid.Padding = [4 6 6 6];
         var_grid.RowSpacing = 4;
-        var_grid.ColumnSpacing = 4;
+        var_grid.ColumnSpacing = 3;
 
         var_type_label = uilabel(var_grid);
         var_type_label.Layout.Row = 1;
