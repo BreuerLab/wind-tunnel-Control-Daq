@@ -2426,11 +2426,13 @@ classdef timeAvg_UI < handle
             end
         end
 
-        % Colour of each series, {case, variable}. Several cases: one hue
-        % per case (lines colormap), and the variables of a case in shades
-        % of it, from darker (variable 1) to lighter (last variable), so
-        % the variables of one case are told apart by shade (and marker)
-        % and the cases by hue. One case: a distinct colour per variable.
+        % Colour of each series, {case, variable}. Several cases: each case
+        % gets a ColorBrewer sequential palette (Blues, Oranges, Greens,
+        % Purples, Reds, Greys; colorbrewer2.org, 9 classes; repeating
+        % after six cases) and its variables take well separated levels of
+        % it, darkest for variable 1, so the cases are told apart by hue
+        % and the variables of a case by lightness (and marker). One case:
+        % a distinct colour per variable.
         function colors = get_series_colors(~, num_sel, num_vars)
             num_sel = max(1, num_sel);
             num_vars = max(1, num_vars);
@@ -2442,20 +2444,25 @@ classdef timeAvg_UI < handle
                 end
                 return
             end
-            base = lines(num_sel);
+            palettes = { ...
+                ["#f7fbff" "#deebf7" "#c6dbef" "#9ecae1" "#6baed6" "#4292c6" "#2171b5" "#08519c" "#08306b"], ... % Blues
+                ["#fff5eb" "#fee6ce" "#fdd0a2" "#fdae6b" "#fd8d3c" "#f16913" "#d94801" "#a63603" "#7f2704"], ... % Oranges
+                ["#f7fcf5" "#e5f5e0" "#c7e9c0" "#a1d99b" "#74c476" "#41ab5d" "#238b45" "#006d2c" "#00441b"], ... % Greens
+                ["#fcfbfd" "#efedf5" "#dadaeb" "#bcbddc" "#9e9ac8" "#807dba" "#6a51a3" "#54278f" "#3f007d"], ... % Purples
+                ["#fff5f0" "#fee0d2" "#fcbba1" "#fc9272" "#fb6a4a" "#ef3b2c" "#cb181d" "#a50f15" "#67000d"], ... % Reds
+                ["#ffffff" "#f0f0f0" "#d9d9d9" "#bdbdbd" "#969696" "#737373" "#525252" "#252525" "#000000"]};   % Greys
+            % levels used, darkest first: one variable -> level 7; more ->
+            % spread from 8 to 4 (levels 1-3 are too light on white)
+            if num_vars == 1
+                levels = 7;
+            else
+                levels = round(linspace(8, 4, num_vars));
+            end
+            hex2rgb = @(h) double(sscanf(char(extractAfter(h, 1)), '%2x', [1 3])) / 255;
             for i = 1:num_sel
+                pal = palettes{mod(i - 1, numel(palettes)) + 1};
                 for k = 1:num_vars
-                    if num_vars == 1
-                        colors{i, k} = base(i, :);
-                        continue
-                    end
-                    % -1 (darkest, variable 1) ... +1 (lightest, last)
-                    t = 2 * (k - 1) / (num_vars - 1) - 1;
-                    if t < 0
-                        colors{i, k} = base(i, :) * (1 + 0.35 * t);           % towards black
-                    else
-                        colors{i, k} = base(i, :) + (1 - base(i, :)) * 0.5 * t; % towards white
-                    end
+                    colors{i, k} = hex2rgb(pal(levels(k)));
                 end
             end
         end
