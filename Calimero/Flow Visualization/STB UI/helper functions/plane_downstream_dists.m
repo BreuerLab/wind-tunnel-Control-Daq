@@ -16,7 +16,12 @@ function out = plane_downstream_dists(name)
 %   new        [x1; x2; x3; x4; x5; MPS]
 %   old        [flexible; UP_one; UP_two]
 
-d.x3 = 0.9;
+% At x2, leading edge of wing is 61 cm from back of calibration target and
+% trailing edge near root of wing is 54 cm from back of cal target
+% At x3, I don't seem to have a good photo, but from another photo LE is
+% probably 96 cm from back of calibration target
+
+d.x3 = 0.96;
 d.sep = 0.378;
 d.MPS = 1.0;
 d.conv_speed = 4;

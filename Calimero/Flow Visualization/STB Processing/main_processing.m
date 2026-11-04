@@ -16,14 +16,14 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 % PIV_case_name = 'UP_two_flexible_20deg_6Hz';
 % PIV_case_name = 'x5_wings_20deg_0Hz';
 % PIV_case_name = 'MPS_wings_20deg_6Hz';
-% PIV_case_name = 'x4_wings_20deg_4Hz';
+PIV_case_name = 'x4_wings_20deg_4Hz';
 % PIV_case_name = 'x2_NACA';
 % PIV_case_name = 'freestream';
-PIV_case_name = 'x2_wings_20deg_8Hz_VIC';
+% PIV_case_name = 'x2_wings_20deg_8Hz_VIC';
 
 % num_images = 1200; 
-% num_images = 3000;
-num_images = 600;
+num_images = 3000;
+% num_images = 600;
 
 % save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
 save_filepath_local = "F:\Processed Results\";
@@ -33,7 +33,7 @@ bools.RPCA = false; % RPCA filtering of vector fields
 bools.Q_inst = false; % per-frame Q averaged over each bin, plus its std (Q*_inst_avg, Q*_inst_std), slow
 bools.vort_uavg = false; % vorticity of the averaged velocity (vort*_uavg)
 bools.div_std = true; % frame-to-frame std of the velocity divergence: per bin (div_phase_std), or over all frames for time averages (std_div); quick
-bools.num_workers = 0; % parallel workers for phase bins / time-avg frame chunks (0 = serial); lower if out of memory
+bools.num_workers = 8; % parallel workers for phase bins / time-avg frame chunks (0 = serial); lower if out of memory
 bools.frames_per_chunk = 20; % time averages: frames loaded and processed per call on each worker; lower if out of memory
 bools.compress_save = false; % true = MATLAB's compressed .mat (smaller, much slower to save)
 bools.proc_vel = true; % false if just calculating secondary values
@@ -59,7 +59,7 @@ bools.version = "";
 % Reynolds stresses and Q_inst are still computed per bin. Saved with
 % "_hr" added to the version name (e.g. coarse_hr), so it doesn't
 % overwrite the bin-averaged files. See harmonic_regression_STB.m.
-bools.harmonic_reg = false;
+bools.harmonic_reg = true;
 bools.num_harmonics = 10; % 2*10+1 = 21 coefficients per point and field
 bools.hr_save_coef = false; % save coefficients (to evaluate fit / exact d/dt at any phase); large files
 
