@@ -126,6 +126,9 @@ classdef timeAvg_UI < handle
         sel_type;
         sel_freq;
         sel_amp;
+        % downstream distance x-axis: the model, i.e. the case type without
+        % its position prefix ("wings", "body", "NACA", "ring", ...), or "all"
+        sel_model;
 
         % Curves currently displayed on plot
         plot_curves;
@@ -391,6 +394,7 @@ classdef timeAvg_UI < handle
             obj.sel_type = selection_types(1);
             obj.sel_amp = obj.get_first_amp(obj.sel_type);
             obj.sel_freq = obj.get_first_freq(obj.sel_type, obj.sel_amp);
+            obj.sel_model = "all";
             obj.x_axis_type = obj.x_axis_types(1);
         end
 
@@ -1145,7 +1149,10 @@ classdef timeAvg_UI < handle
                 case "wingbeat amplitude"
                     fixed_vars = ["type", "freq"];
                 case "downstream distance"
-                    fixed_vars = ["amp", "freq"];
+                    % the model, then its amplitude / frequency combinations
+                    % ("case"), so e.g. NACA isn't mixed with the other
+                    % 0 deg, 0 Hz cases (ring, body, gliding wings)
+                    fixed_vars = ["model", "case"];
                 otherwise
                     error("Unknown x-axis type: %s", obj.x_axis_type)
             end
@@ -1171,6 +1178,11 @@ classdef timeAvg_UI < handle
                     obj.sel_amp = options(1);
                 case "freq"
                     obj.sel_freq = options(1);
+                case "model"
+                    obj.sel_model = string(options(1));
+                case "case"
+                    obj.sel_amp = options(1, 1);
+                    obj.sel_freq = options(1, 2);
             end
         end
 
@@ -1218,7 +1230,28 @@ classdef timeAvg_UI < handle
                     else
                         dropdown.Value = string(obj.sel_freq) + " Hz";
                     end
+                case "model"
+                    obj.ensure_selected_value(variable_name, options);
+                    dropdown.Items = [strrep(string(options(:)), "_", " "); "all"];
+                    if obj.sel_model == "all"
+                        dropdown.Value = "all";
+                    else
+                        dropdown.Value = strrep(obj.sel_model, "_", " ");
+                    end
+                case "case"
+                    obj.ensure_selected_value(variable_name, options);
+                    dropdown.Items = [obj.case_label(options(:, 1), options(:, 2)); "all"];
+                    if obj.sel_amp == -1
+                        dropdown.Value = "all";
+                    else
+                        dropdown.Value = obj.case_label(obj.sel_amp, obj.sel_freq);
+                    end
             end
+        end
+
+        % "20 deg, 4 Hz" for each amplitude / frequency pair (column)
+        function labels = case_label(~, amps, freqs)
+            labels = string(amps(:)) + " deg, " + string(freqs(:)) + " Hz";
         end
 
         function ensure_selected_value(obj, variable_name, options)
@@ -1227,7 +1260,12 @@ classdef timeAvg_UI < handle
                 return
             end
 
-            if isempty(selected_value) || ~ismember(selected_value, options)
+            if variable_name == "case"
+                is_option = ~isempty(selected_value) && ismember(selected_value, options, 'rows');
+            else
+                is_option = ~isempty(selected_value) && ismember(selected_value, options);
+            end
+            if ~is_option
                 obj.set_first_available_value(variable_name);
             end
         end
@@ -1240,6 +1278,10 @@ classdef timeAvg_UI < handle
                     selected_value = obj.sel_amp;
                 case "freq"
                     selected_value = obj.sel_freq;
+                case "model"
+                    selected_value = obj.sel_model;
+                case "case"
+                    selected_value = [obj.sel_amp, obj.sel_freq];
             end
         end
 
@@ -1262,6 +1304,24 @@ classdef timeAvg_UI < handle
                         obj.sel_freq = -1;
                     else
                         obj.sel_freq = str2double(erase(string(item), " Hz"));
+                    end
+                case "model"
+                    if string(item) == "all"
+                        obj.sel_model = "all";
+                    else
+                        % dropdown shows "_" as spaces
+                        models = obj.get_fixed_variable_options("model");
+                        k = find(strrep(models, "_", " ") == string(item), 1);
+                        obj.sel_model = models(k);
+                    end
+                case "case"
+                    if string(item) == "all"
+                        obj.sel_amp = -1;
+                        obj.sel_freq = -1;
+                    else
+                        tok = regexp(char(item), '^(\S+) deg, (\S+) Hz$', 'tokens', 'once');
+                        obj.sel_amp = str2double(tok{1});
+                        obj.sel_freq = str2double(tok{2});
                     end
             end
         end
@@ -1287,10 +1347,29 @@ classdef timeAvg_UI < handle
                     options = unique(selection_amps(mask));
                 case "freq"
                     options = unique(selection_freqs(mask));
+                case "model"
+                    % models measured at a known downstream distance
+                    has_dist = arrayfun(@(t) isfinite(obj.get_downstream_distance(t)), selection_types);
+                    options = unique(obj.get_model(selection_types(mask & has_dist)), 'stable');
+                case "case"
+                    options = unique([selection_amps(mask), selection_freqs(mask)], 'rows');
             end
         end
 
-        function mask = get_variable_mask(~, selection_types, selection_amps, selection_freqs, variable_name, value)
+        % Case type without its measurement position prefix: "x3_NACA" ->
+        % "NACA", "UP_one_flexible" -> "flexible", "flexible" -> "flexible"
+        function models = get_model(~, types)
+            types = string(types);
+            models = types;
+            for i = 1:numel(types)
+                prefix = get_downstream_prefix(types(i), true);
+                if strlength(prefix) > 0
+                    models(i) = extractAfter(types(i), strlength(prefix));
+                end
+            end
+        end
+
+        function mask = get_variable_mask(obj, selection_types, selection_amps, selection_freqs, variable_name, value)
             switch variable_name
                 case "type"
                     if string(value) == "all"
@@ -1310,6 +1389,18 @@ classdef timeAvg_UI < handle
                     else
                         mask = selection_freqs == value;
                     end
+                case "model"
+                    if string(value) == "all"
+                        mask = true(size(selection_types));
+                    else
+                        mask = obj.get_model(selection_types) == string(value);
+                    end
+                case "case"
+                    if value(1) == -1
+                        mask = true(size(selection_amps));
+                    else
+                        mask = selection_amps == value(1) & selection_freqs == value(2);
+                    end
             end
         end
 
@@ -1319,6 +1410,10 @@ classdef timeAvg_UI < handle
                     all_value = string(value) == "all";
                 case {"amp", "freq"}
                     all_value = value == -1;
+                case "model"
+                    all_value = string(value) == "all";
+                case "case"
+                    all_value = value(1) == -1;
             end
         end
 
@@ -1376,14 +1471,19 @@ classdef timeAvg_UI < handle
                     variable_name = fixed_vars(i);
                     switch variable_name
                         case "type"
-                            value = selection_types(cur_idx);
+                            part = "type=" + selection_types(cur_idx);
                         case "amp"
-                            value = selection_amps(cur_idx);
+                            part = "amp=" + string(selection_amps(cur_idx));
                         case "freq"
-                            value = selection_freqs(cur_idx);
+                            part = "freq=" + string(selection_freqs(cur_idx));
+                        case "model"
+                            part = "model=" + obj.get_model(selection_types(cur_idx));
+                        case "case"
+                            part = "amp=" + string(selection_amps(cur_idx)) + ...
+                                "|freq=" + string(selection_freqs(cur_idx));
                     end
 
-                    selection_key = selection_key + "|" + variable_name + "=" + string(value);
+                    selection_key = selection_key + "|" + part;
                 end
                 selection_key = selection_key + "|source=" + obj.source_mode;
 
@@ -1395,7 +1495,7 @@ classdef timeAvg_UI < handle
 
         function info = decode_selection(~, selection_key)
             parts = split(string(selection_key), "|");
-            info = struct("x_axis_type", parts(1), "type", "", "amp", NaN, "freq", NaN, "RPCA", false, "HR", false, "source", "");
+            info = struct("x_axis_type", parts(1), "type", "", "model", "", "amp", NaN, "freq", NaN, "RPCA", false, "HR", false, "source", "");
 
             for i = 2:length(parts)
                 variable_name = extractBefore(parts(i), "=");
@@ -1403,6 +1503,8 @@ classdef timeAvg_UI < handle
                 switch variable_name
                     case "type"
                         info.type = value;
+                    case "model"
+                        info.model = value;
                     case "amp"
                         info.amp = str2double(value);
                     case "freq"
@@ -1426,7 +1528,7 @@ classdef timeAvg_UI < handle
                 case "wingbeat amplitude"
                     label = "Amp | " + obj.get_type_label(info.type) + " | " + info.freq + " Hz";
                 case "downstream distance"
-                    label = "Distance | " + info.amp + " deg | " + info.freq + " Hz";
+                    label = "Distance | " + obj.model_label(info) + info.amp + " deg | " + info.freq + " Hz";
             end
 
             if info.source == obj.OLD_FLAPPER_SOURCE_MODE
@@ -1479,16 +1581,22 @@ classdef timeAvg_UI < handle
                     points.x_values = points.amps;
                 case "downstream distance"
                     mask = selection_amps == info.amp & selection_freqs == info.freq;
+                    if strlength(info.model) > 0 % entries from before the model filter: every model
+                        mask = mask & obj.get_model(selection_types) == info.model;
+                    end
                     types = obj.get_ordered_type_options(selection_types(mask));
                     x_values = NaN(size(types));
                     for i = 1:length(types)
                         x_values(i) = obj.get_downstream_distance(types(i));
                     end
-                    valid_indices = isfinite(x_values);
-                    points.types = types(valid_indices)';
-                    points.amps = repmat(info.amp, 1, sum(valid_indices));
-                    points.freqs = repmat(info.freq, 1, sum(valid_indices));
-                    points.x_values = x_values(valid_indices)';
+                    valid_indices = find(isfinite(x_values));
+                    % in order of distance, so the curve runs downstream
+                    [~, order] = sort(x_values(valid_indices));
+                    valid_indices = valid_indices(order);
+                    points.types = reshape(types(valid_indices), 1, []);
+                    points.amps = repmat(info.amp, 1, numel(valid_indices));
+                    points.freqs = repmat(info.freq, 1, numel(valid_indices));
+                    points.x_values = reshape(x_values(valid_indices), 1, []);
             end
         end
 
@@ -1523,12 +1631,28 @@ classdef timeAvg_UI < handle
             end
         end
 
+        % "NACA, " (model, "_" as spaces) for labels, "" if no model
+        function label = model_label(~, info)
+            label = "";
+            if strlength(info.model) > 0
+                label = strrep(info.model, "_", " ") + ", ";
+            end
+        end
+
+        % Downstream distance (m) of a case's imaging plane: the old
+        % flapper positions (cur_types) as before, the new flapper ones
+        % (x1-x5, MPS) from plane_downstream_dists (robot to plane). NaN
+        % for anything else (e.g. freestream, which has no position).
         function distance = get_downstream_distance(obj, type)
             type_index = find(obj.cur_types == string(type), 1);
-            if isempty(type_index)
-                distance = NaN;
-            else
+            if ~isempty(type_index)
                 distance = obj.downstream_distances(type_index);
+                return
+            end
+            distance = NaN;
+            prefix = get_downstream_prefix(type);
+            if strlength(prefix) > 0 && ~contains(type, "turbine")
+                distance = obj.get_robot_to_plane_dist(type);
             end
         end
 
@@ -1565,7 +1689,7 @@ classdef timeAvg_UI < handle
                 case "wingbeat amplitude"
                     label = strrep(info.type, "_", " ") + ", " + info.freq + " Hz";
                 case "downstream distance"
-                    label = info.amp + " deg, " + info.freq + " Hz";
+                    label = obj.model_label(info) + info.amp + " deg, " + info.freq + " Hz";
             end
 
             if info.HR
