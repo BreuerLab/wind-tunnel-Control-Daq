@@ -3020,7 +3020,7 @@ classdef timeAvg_UI < handle
         % x-axis (default: the current one): the measured frequencies (Hz)
         % or amplitudes (deg) of the current data set, or the downstream
         % positions as indices 1..n into dist_positions (ordered by
-        % distance, labelled with their names)
+        % distance, labelled with their names; no MPS)
         function [vals, labels] = get_range_slider_values(obj, x_axis_type)
             if nargin < 2
                 x_axis_type = obj.x_axis_type;
@@ -3037,6 +3037,9 @@ classdef timeAvg_UI < handle
                     labels = string(vals);
                 case "downstream distance"
                     pos = unique(obj.get_position(types(in_source)));
+                    % MPS is left off the distance axis (its cases are
+                    % still listed for the frequency / amplitude axes)
+                    pos = pos(pos ~= "MPS");
                     dists = arrayfun(@(p) obj.position_distance(p), pos);
                     keep = isfinite(dists);
                     [~, order] = sort(dists(keep));
