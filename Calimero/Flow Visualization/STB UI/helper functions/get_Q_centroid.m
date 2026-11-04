@@ -16,7 +16,8 @@ function centroid = get_Q_centroid(file_name, secondary_file_name, var_name, bou
 %   Same definition as calc_secondary_vals_common: positive Q (or Q_x)
 %   only, on the trimmed and recentred plane (y/L, z/L), one value per
 %   phase bin. Points removed by the uncertainty mask (unc_mask_region,
-%   same threshold and mode as the forces) carry no weight.
+%   same threshold and mode as the forces) or inside the Crop Box
+%   (bounds.crop_box, crop_box_region) carry no weight.
 
 var_name = string(var_name);
 switch var_name
@@ -56,9 +57,21 @@ thresh = [];
 mode = "threshold";
 if isfield(bounds, 'unc_mask'), thresh = bounds.unc_mask; end
 if isfield(bounds, 'unc_mask_mode'), mode = bounds.unc_mask_mode; end
+mask = [];
 if unc_name ~= "" && ~isempty(thresh) && thresh > 0
     [~, ~, unc_tr] = trim_vel_field(d.y, d.z, d.(unc_name), bounds);
     mask = unc_mask_region(unc_tr, thresh, mode);
+end
+% Crop Box, merged with the uncertainty mask (as for the forces)
+crop = crop_box_region(y_tr, z_tr, bounds);
+if ~isempty(crop)
+    if isempty(mask) || ~isequal(size(mask), size(crop))
+        mask = crop;
+    else
+        mask = mask | crop;
+    end
+end
+if ~isempty(mask)
     Q_pos(repmat(mask, 1, 1, size(Q_pos, 3))) = 0;
 end
 
