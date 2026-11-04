@@ -32,8 +32,10 @@ D.u = nanToMedian(D.u);
 D.v = nanToMedian(D.v);
 D.w = nanToMedian(D.w);
 
-s_ind = 2;
-e_ind = 4;
+% centre plane and its two neighbours (planes 2-4 of 5, 1-3 of 3)
+i0 = ceil(size(D.u, 1) / 2);
+s_ind = max(i0 - 1, 1);
+e_ind = min(i0 + 1, size(D.u, 1));
 origSize = size(D.u(s_ind:e_ind,:,:,:));
 
 % 1. Reshape and concatenate all three components vertically

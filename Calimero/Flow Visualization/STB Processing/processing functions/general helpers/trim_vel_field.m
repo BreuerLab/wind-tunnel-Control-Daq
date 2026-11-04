@@ -10,7 +10,12 @@ function [y, z, u] = trim_vel_field(y, z, u, bounds)
     y_cen = bounds.y_cen;
     z_cen = bounds.z_cen;
     
-    x_ind = 3;
+    % centre plane of the STB slab (plane 3 of 5, plane 2 of 3)
+    x_ind = (size(y, 1) + 1) / 2;
+    if x_ind ~= round(x_ind)
+        error("trim_vel_field:evenPlanes", ...
+            "Expected an odd number of planes to take the centre plane, got %d", size(y, 1))
+    end
     y_idx = find(y(1,:,1) > ybounds(1) & y(1,:,1) < ybounds(2));  % columns
     z_idx = find(z(1,1,:) > zbounds(1) & z(1,1,:) < zbounds(2));  % rows
     
