@@ -34,6 +34,14 @@ config.speed = D.U;
 config.length = D.L;
 config.density = D.rho;
 
+% Helmholtz extrapolation of the time-averaged field (lift_vel_B,
+% lift_vel_B_fill, ...), so phaseAvg_UI / timeAvg_UI can subtract a
+% steady case from the extrapolated phase-averaged forces (PIV Body Sub).
+% One plane at x = 0: helm_decomp treats the steady wake as unchanging
+% along x (the steady counterpart of the frozen-flow wingbeat).
+config.xConv = 0;
+config.includeHelmDecomp = true;
+
 % standard error of mean_u etc. at each point (time_avg_STB)
 config.uSeField = 'se_u';
 config.vSeField = 'se_v';

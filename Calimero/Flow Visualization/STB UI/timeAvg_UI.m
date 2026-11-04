@@ -226,8 +226,9 @@ classdef timeAvg_UI < handle
                 "lift_vel", "drag.tot", "drag_vel"])) = "force";
             % velocity-only forces on the Helmholtz-extrapolated field
             % (_B: extrapolated velocity only, _B_fill: measured inside the
-            % FOV). Stored in the phase-avg _integral file only, so always
-            % loaded, never calculated live; 0 Hz cases read as 0.
+            % FOV). Stored in the _integral file, so always loaded, never
+            % calculated live; 0 Hz cases read as 0 unless their time avg
+            % was processed after the extrapolation was added for it.
             obj.var_categories(ismember(obj.var_names, ["lift_vel_B", "drag_vel_B",...
                 "lift_vel_B_fill", "drag_vel_B_fill"])) = "force";
             obj.var_categories(startsWith(obj.var_names, ["lift_before_avg", "drag_before_avg"]) |...

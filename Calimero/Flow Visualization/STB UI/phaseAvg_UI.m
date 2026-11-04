@@ -73,8 +73,10 @@ properties
                     "lift_vel_B", "drag_vel_B", "lift_vel_B_fill", "drag_vel_B_fill",...
                     "lift_ff.vortY", "lift_ff.vortY_edge",...
                     "drag_ff.tot", "drag_ff.vortY", "drag_ff.vortZ"];
-    % forces that are only stored (phase-avg _integral file, from the
-    % Helmholtz extrapolation in processing), never calculated live
+    % forces that are only stored (_integral file, from the Helmholtz
+    % extrapolation in processing), never calculated live. Time averages
+    % processed after the extrapolation was added for them have these
+    % too, so PIV Body Sub can subtract them
     stored_only_force_names = ["lift_vel_B", "drag_vel_B", "lift_vel_B_fill", "drag_vel_B_fill"];
     flow_var_names = ["u_avg", "v_avg", "w_avg",...
                     "vortX_avg", "vortY_avg","vortZ_avg", "hel_avg",...
@@ -2466,12 +2468,8 @@ methods (Access = private)
             if obj.is_force_index(index) && obj.PIV_sub
                 [file_path_t, secondary_file_path_t] = obj.get_PIV_sub_file_paths(type, amp);
 
-                if ismember(var_name, obj.stored_only_force_names)
-                    % the extrapolation is only run for phase averages, so
-                    % the 0 Hz case has nothing to subtract
-                    disp("No 0 Hz version of " + var_name + ", not body subtracted")
-                elseif ~ismember(var_name, ["lift.vortY", "lift.vortY_edge", "lift_ff.vortY", "lift_ff.vortY_edge"]) % no 0 Hz omega_y term
-                if obj.calc_bool
+                if ~ismember(var_name, ["lift.vortY", "lift.vortY_edge", "lift_ff.vortY", "lift_ff.vortY_edge"]) % no 0 Hz omega_y term
+                if obj.calc_bool && ~ismember(var_name, obj.stored_only_force_names)
                     % Compute aerodynamic forces
                     norm_bool = false;
                     [bod_var, bod_err] = get_PIV_force(file_path_t, "", var_name, 0, norm_bool, default_trim_bounds());
@@ -2490,8 +2488,12 @@ methods (Access = private)
                     end
                 else
                     if ~obj.file_has_var(secondary_file_path_t, var_name)
-                        disp(var_name + " not saved for the " + obj.PIV_sub_case +...
-                            " subtraction case of " + cur_sel + " (older processing) - not plotted")
+                        msg = var_name + " not saved for the " + obj.PIV_sub_case +...
+                            " subtraction case of " + cur_sel + " (older processing) - not plotted";
+                        if ismember(var_name, obj.stored_only_force_names)
+                            msg = msg + ". Rerun time_avg_STB on that case for the extrapolated forces";
+                        end
+                        disp(msg)
                         continue
                     end
                     if contains(var_name, ".")

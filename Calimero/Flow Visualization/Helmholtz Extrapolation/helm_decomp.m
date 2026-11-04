@@ -11,11 +11,14 @@ function [y_big, z_big, velX, velY, velZ, iy_fov, iz_fov] = helm_decomp(x, y, z,
 % approximation of the walls).
 %
 % x    : frozen-flow position of each bin (m), x = U t, uniformly spaced
-%        over one wingbeat (nominal bin times)
+%        over one wingbeat (nominal bin times). A scalar (one plane, e.g.
+%        a time average) treats the wake as unchanging along x: only the
+%        kx = 0 mode, i.e. the 2D cross-plane Biot-Savart problem
 % y, z : measured half-plane coordinates (chords, divided by L), y(1) on
 %        the centreline (as returned by trim_vel_field)
 % L    : chord (m)
-% D    : struct with vortX, vortY, vortZ, [ny nz nbins] (omega L / U)
+% D    : struct with vortX, vortY, vortZ, [ny nz nbins] (omega L / U);
+%        [ny nz] for a single plane
 %
 % y_big, z_big     : [Ny Nz] grid (chords); the measured points keep their
 %                    measured coordinates
@@ -46,7 +49,14 @@ vortZ = cat(2, flip(-vortZ(:,2:end,:),2), vortZ);
 % ---- Grid, all lengths in chords --------
 % -----------------------------------------
 x = x(:) / L;
-dx = x(2) - x(1); % one wingbeat = nx * dx
+if nx > 1
+    dx = x(2) - x(1); % one wingbeat = nx * dx
+else
+    % single plane (time average): x-invariant wake. Only kx = 0 exists
+    % in get_vel_from_vort, so dx only has to be finite and nonzero
+    % (dx = 0 would give 0 * Inf = NaN in the wavenumbers)
+    dx = 1;
+end
 dy = y(2) - y(1);
 dz = z(2) - z(1);
 
