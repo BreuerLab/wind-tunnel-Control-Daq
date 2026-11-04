@@ -2939,20 +2939,121 @@ methods (Access = private)
             label_interp = "latex";
         end
 
-        add_labels(down, "downstroke");
-        add_labels(up, "upstroke");
+        h_labels = [add_labels(down, "downstroke"), add_labels(up, "upstroke")];
+        place_labels(h_labels);
 
-        function add_labels(intervals, label)
+        function h = add_labels(intervals, label)
+            h = gobjects(1, 0);
             for m = 1:size(intervals, 1)
                 width = diff(intervals(m,:));
                 if width < 0.06 % too narrow to fit the text
                     continue
                 end
-                text(ax, mean(intervals(m,:)), y_text, label, ...
+                h(end+1) = text(ax, mean(intervals(m,:)), y_text, label, ...
                     HorizontalAlignment="center", VerticalAlignment="top", ...
                     FontName=label_font, FontSize=label_size, ...
-                    Interpreter=label_interp, Color="k", Clipping="on");
+                    Interpreter=label_interp, Color="k", Clipping="on"); %#ok<AGROW>
             end
+        end
+
+        % Labels go near the top of the plot unless curves (or the legend)
+        % run through them there: then all of them move to the bottom, if
+        % fewer curve points get in the way there. All labels stay on one
+        % horizontal line.
+        function place_labels(h)
+            if isempty(h)
+                return
+            end
+            curves = get_curves();
+            hits_top = count_hits(h, curves);
+            if hits_top == 0
+                return
+            end
+            y_bottom = yl(1) + 0.03 * diff(yl);
+            for m = 1:numel(h)
+                h(m).Position(2) = y_bottom;
+                h(m).VerticalAlignment = "bottom";
+            end
+            hits_bottom = count_hits(h, curves);
+            if hits_bottom < hits_top
+                disp("Stroke labels moved to the bottom of the plot (curves under them at the top)")
+                return
+            end
+            for m = 1:numel(h) % no better at the bottom: back to the top
+                h(m).Position(2) = y_text;
+                h(m).VerticalAlignment = "top";
+            end
+        end
+
+        % Every plotted line as [x, y] with y as a fraction of its own
+        % y-axis (left or right), so curves on both sides of a dual plot
+        % can be checked against the labels (drawn on the left axis)
+        function curves = get_curves()
+            curves = {};
+            sides = "left";
+            if dual_plot
+                sides = ["left", "right"];
+            end
+            for side = sides
+                if dual_plot
+                    yyaxis(ax, side)
+                end
+                yl_side = ylim(ax);
+                lns = findobj(ax.Children, 'flat', 'Type', 'line'); % not xline (ConstantLine)
+                for ln = lns'
+                    x = double(ln.XData(:));
+                    y = double(ln.YData(:));
+                    ok = isfinite(x) & isfinite(y);
+                    if nnz(ok) < 2
+                        continue
+                    end
+                    [x, ix] = unique(x(ok));
+                    y = y(ok);
+                    if numel(x) < 2
+                        continue
+                    end
+                    curves{end+1} = [x, (y(ix) - yl_side(1)) / diff(yl_side)]; %#ok<AGROW>
+                end
+            end
+            if dual_plot
+                yyaxis(ax, 'left')
+            end
+        end
+
+        % Curve points inside the labels' boxes (each curve sampled along
+        % the label's width, so sparse curves count too), plus a large
+        % penalty if a label overlaps the legend
+        function hits = count_hits(h, curves)
+            hits = 0;
+            pad = 0.01; % fraction of the y range around the text
+            for m = 1:numel(h)
+                ext = h(m).Extent; % [x y w h], data units of the left axis
+                y0 = (ext(2) - yl(1)) / diff(yl) - pad;
+                y1 = (ext(2) + ext(4) - yl(1)) / diff(yl) + pad;
+                xs = linspace(ext(1), ext(1) + ext(3), 40);
+                for c = 1:numel(curves)
+                    yi = interp1(curves{c}(:,1), curves{c}(:,2), xs);
+                    hits = hits + nnz(yi >= y0 & yi <= y1);
+                end
+                if overlaps_legend(ext)
+                    hits = hits + 1000;
+                end
+            end
+        end
+
+        function tf = overlaps_legend(ext)
+            tf = false;
+            lg_ax = ax.Legend;
+            if isempty(lg_ax) || ~isvalid(lg_ax) || lg_ax.Visible == "off" || ...
+                    ~strcmp(lg_ax.Units, ax.Units)
+                return
+            end
+            ap = ax.InnerPosition;
+            xl_ax = xlim(ax);
+            r = [ap(1) + (ext(1) - xl_ax(1)) / diff(xl_ax) * ap(3), ...
+                 ap(2) + (ext(2) - yl(1)) / diff(yl) * ap(4), ...
+                 ext(3) / diff(xl_ax) * ap(3), ext(4) / diff(yl) * ap(4)];
+            tf = rectint(r, lg_ax.Position) > 0;
         end
 
         function intervals = wrap_intervals(t_start, t_end)
