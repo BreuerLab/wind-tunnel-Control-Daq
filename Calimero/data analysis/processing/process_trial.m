@@ -72,9 +72,12 @@ end
 
 async = true; % We are doing async method of collecting data
 
-% wing kinematics outputs not requested since they aren't used here
-% (skips computing them)
-[time_data, force_data, voltAdj, curAdj, home_signal, ~, speed] = ...
+% Wing kinematics (wing_pos, wing_speed, wing_acc) from the optical
+% encoder count through the mechanism (calimero_mechanism), the same way
+% phase_avg_STB gets them for the STB cases. Saved so the UIs can place
+% the stroke reversals of each load cell trial from its own kinematics.
+[time_data, force_data, voltAdj, curAdj, home_signal, ~, speed, ~, ...
+    wing_pos, wing_speed, wing_acc] = ...
     process_data(trimmed_results, offsets, cal_matrix, ticksPerRev, OC_pulse_step, amp, async);
 OC_pulse_count = trimmed_results(:,11);
 
@@ -127,6 +130,9 @@ filtered_data = filtered_data(:, core_idx);
 filtered_data_smoother = filtered_data_smoother(:, core_idx);
 filtered_data_smoothest = filtered_data_smoothest(:, core_idx);
 speed = speed(core_idx);
+wing_pos = wing_pos(core_idx);
+wing_speed = wing_speed(core_idx);
+wing_acc = wing_acc(core_idx);
 OC_pulse_count = OC_pulse_count(core_idx);
 
 % Non-dimensionalize the data. Newtons to Force Coefficients and
@@ -151,7 +157,7 @@ filename = case_name + " " + time_stamp + ".mat"; % file name for processed data
 
 saved_vars = {'time_data', 'force_data', 'results_lab', 'mod_results',...
     'filtered_data','filtered_data_smoother','filtered_data_smoothest','norm_factors',...
-    'St', 'Re', 'U_act', 'rho_act'};
+    'St', 'Re', 'U_act', 'rho_act', 'wing_pos', 'wing_speed', 'wing_acc'};
 
 % If this is a flapping trial, analyze data over each wingbeat rather than
 % just in time
@@ -176,6 +182,26 @@ if (wing_freq > 0)
     cycle_avg_forces_smoothest]...
     = wingbeat_transformation(num_wingbeats, filtered_data_smoothest, OC_pulse_count, speed, AoA);
 
+% Wing kinematics over a wingbeat, on the same phase axis as the forces
+% (frames_kin = frames). Its own call, so the rows of the force arrays
+% (and the OC count / speed rows wingbeat_transformation appends) stay
+% as they were. Rows 1-3 = wing position, speed, acceleration; the COP
+% output means nothing here and is not kept.
+[wingbeat_kin, frames_kin, wingbeat_avg_kin, wingbeat_std_kin] = ...
+    wingbeat_transformation(num_wingbeats, [wing_pos(:)'; wing_speed(:)'; wing_acc(:)'], ...
+    OC_pulse_count, speed, AoA);
+wingbeat_wing_pos = squeeze(wingbeat_kin(1,:,:));   % [wingbeats x frames]
+wingbeat_avg_wing_pos = wingbeat_avg_kin(1,:);
+wingbeat_avg_wing_speed = wingbeat_avg_kin(2,:);
+wingbeat_avg_wing_acc = wingbeat_avg_kin(3,:);
+wingbeat_std_wing_pos = wingbeat_std_kin(1,:);
+wingbeat_std_wing_speed = wingbeat_std_kin(2,:);
+wingbeat_std_wing_acc = wingbeat_std_kin(3,:);
+
+kin_wing_vars = {'frames_kin', 'wingbeat_wing_pos', ...
+    'wingbeat_avg_wing_pos', 'wingbeat_avg_wing_speed', 'wingbeat_avg_wing_acc', ...
+    'wingbeat_std_wing_pos', 'wingbeat_std_wing_speed', 'wingbeat_std_wing_acc'};
+
 raw_wing_vars = {'wingbeat_forces_raw', 'frames_raw',...
     'wingbeat_avg_forces_raw', 'wingbeat_std_forces_raw',...
     'wingbeat_rmse_forces_raw', 'wingbeat_max_forces_raw',...
@@ -199,7 +225,7 @@ filt_smoothest_wing_vars = {'wingbeat_forces_smoothest', 'frames_smoothest',...
     'wingbeat_min_forces_smoothest', 'wingbeat_COP_smoothest', ...
     'cycle_avg_forces_smoothest'}; % 'upstroke_avg_forces_smoothest', 'downstroke_avg_forces_smoothest'
 
-vars = [saved_vars, raw_wing_vars, filt_wing_vars, filt_smoother_wing_vars, filt_smoothest_wing_vars];
+vars = [saved_vars, raw_wing_vars, filt_wing_vars, filt_smoother_wing_vars, filt_smoothest_wing_vars, kin_wing_vars];
 
 else
     vars = saved_vars;

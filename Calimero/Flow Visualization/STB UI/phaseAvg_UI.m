@@ -2325,7 +2325,10 @@ methods (Access = private)
         t_top = [];
         t_bottom = [];
         reorder = obj.conv_shift && obj.stroke_order ~= "UDU";
-        if obj.conv_shift && (obj.label_stroke || reorder) && ~isempty(obj.selection)
+        % load cell curves are lined up on these reversals from their own
+        % wing position (get_load_cell_stroke_shift)
+        has_lc = any(arrayfun(@(index) obj.is_load_cell_index(index), obj.inds));
+        if obj.conv_shift && (obj.label_stroke || reorder || has_lc) && ~isempty(obj.selection)
             [t_top, t_bottom] = obj.get_stroke_reversals();
         end
         flip_frac = 0;
@@ -2364,9 +2367,16 @@ methods (Access = private)
                     disp("No wingbeat SD for " + obj.active_names(index) + " (" + cur_sel + "), no band plotted")
                 end
                 plotted_lc_vars(end+1) = lc_key;
-                var = circshift(var, round(flip_frac * length(var))); % stroke order
+                % stroke order, with the curve's own stroke reversals (from
+                % the wing position in its load cell file) lined up on the
+                % labeled ones
+                lc_shift = flip_frac;
+                if obj.conv_shift && ~isempty(t_top)
+                    lc_shift = obj.get_load_cell_stroke_shift(type, amp, freq, t_top, t_bottom, flip_frac);
+                end
+                var = circshift(var, round(lc_shift * length(var)));
                 if ~isempty(var_std)
-                    var_std = circshift(var_std, round(flip_frac * length(var_std)));
+                    var_std = circshift(var_std, round(lc_shift * length(var_std)));
                 end
                 var = obj.subtract_signal_mean(var); % SD unchanged by a constant offset
                 % time: saved wingbeat phase (frames) of each sample; the
@@ -2806,6 +2816,46 @@ methods (Access = private)
                 end
             end
         end
+    end
+
+    % Shift (fraction of a wingbeat) for a load cell curve: its own stroke
+    % reversals, from the phase-averaged wing position saved in its load
+    % cell file (wingbeat_avg_wing_pos, process_trial), are moved onto the
+    % labeled reversals t_top / t_bottom (from the STB wing position) after
+    % the stroke order shift flip_frac. The offset is the circular mean of
+    % the top and bottom offsets. Load cell phase grid: (0:n-1)/n
+    % (wingbeat_transformation). Files processed before the wing position
+    % was saved (or upstream / 0 Hz cases): flip_frac, i.e. the load cell
+    % phase is taken to match the STB one as before.
+    function lc_shift = get_load_cell_stroke_shift(obj, type, amp, freq, t_top, t_bottom, flip_frac)
+        lc_shift = flip_frac;
+        if contains(type, "UP") || str2double(string(freq)) == 0
+            return
+        end
+        try
+            wing_pos = get_force(obj.get_force_path(type), type, amp, freq, 1, "wingbeat_avg_wing_pos");
+        catch ME
+            if ~startsWith(ME.identifier, "get_force:")
+                rethrow(ME)
+            end
+            disp("No wing position in the load cell file for " + type + " " + amp + " deg " + freq + ...
+                " Hz (reprocess with process_trial): load cell phase taken as the STB one")
+            return
+        end
+        wing_pos = double(wing_pos(:)');
+        n = numel(wing_pos);
+        [~, i_top] = max(wing_pos);
+        [~, i_bottom] = min(wing_pos);
+        lc_top = (i_top - 1) / n;
+        lc_bottom = (i_bottom - 1) / n;
+
+        wrap = @(x) mod(x + 0.5, 1) - 0.5; % to (-0.5, 0.5]
+        d_top = wrap(t_top - lc_top);
+        d_bottom = d_top + wrap(t_bottom - lc_bottom - d_top); % same branch as d_top
+        offset = (d_top + d_bottom) / 2;
+        lc_shift = mod(offset + flip_frac, 1);
+        disp(sprintf("Load cell %s %s deg %s Hz: reversals top %.3f, bottom %.3f (STB %.3f, %.3f), shifted %+.3f wingbeat to line up", ...
+            type, string(amp), string(freq), lc_top, lc_bottom, t_top, t_bottom, wrap(offset)))
     end
 
     % Stroke order: fraction of a wingbeat to shift every curve by, from
