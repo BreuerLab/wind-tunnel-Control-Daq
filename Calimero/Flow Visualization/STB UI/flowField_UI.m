@@ -3,6 +3,7 @@ properties (Constant, Access = private)
     ACTIVE_COLOR = [0.3010 0.7450 0.9330];
     INACTIVE_COLOR = [1 1 1];
     MOVIE_FRAME_DELAY = 0.1;    % s between frames of the .gif from Save Movie
+    MOVIE_CROP_PAD = 10;        % px of margin kept around the plot when Save Movie crops the frames
     Q_ISO_RANGE = [0.005 0.1];  % Q isovalue slider range (negated by "+/-")
     Q_ISO_DEFAULT = 0.05;       % Q isovalue slider default
     % Tag on the 3D plot's stroke lines / shading / labels (Label Stroke),
@@ -2033,6 +2034,10 @@ methods
             start_frame = obj.frame_ind;
             num_saved = 0;
             save_error = [];
+            % frames are kept until the end so all of them get the same
+            % crop: the smallest box holding the content of every frame
+            frames = {};
+            bbox = [Inf -Inf Inf -Inf]; % [row_min row_max col_min col_max]
             try
                 obj.frame_ind = 1;
                 obj.slider.Value = 1;
@@ -2042,6 +2047,13 @@ methods
             catch save_error
             end
             was_cancelled = dlg.CancelRequested;
+            if isempty(save_error) && ~isempty(frames)
+                dlg.Message = "Writing " + numel(frames) + " frames...";
+                try
+                    write_gif();
+                catch save_error
+                end
+            end
 
             % back to the frame shown before saving
             obj.movie_frame_fcn = [];
@@ -2068,20 +2080,46 @@ methods
                 delete(fignew.Children);
                 obj.copy_plot_to_figure(plot_panel, fignew);
                 img = print(fignew, '-RGBImage', '-r0');
-                [A, cmap] = rgb2ind(img, 256);
-                if num_saved == 0
-                    imwrite(A, cmap, filename, "gif", "LoopCount", Inf, ...
-                        "DelayTime", obj.MOVIE_FRAME_DELAY);
-                else
-                    imwrite(A, cmap, filename, "gif", "WriteMode", "append", ...
-                        "DelayTime", obj.MOVIE_FRAME_DELAY);
+                % content = pixels that differ from the background (corner
+                % pixel colour); widen the box to cover this frame
+                bg = img(1, 1, :);
+                content = any(abs(int16(img) - int16(bg)) > 8, 3);
+                rows = find(any(content, 2));
+                cols = find(any(content, 1));
+                if ~isempty(rows)
+                    bbox = [min(bbox(1), rows(1)), max(bbox(2), rows(end)), ...
+                            min(bbox(3), cols(1)), max(bbox(4), cols(end))];
                 end
+                frames{end+1} = img;
                 num_saved = num_saved + 1;
 
                 dlg.Value = k / obj.num_bins;
                 dlg.Message = "Saving bin " + k + " of " + obj.num_bins;
                 if k >= obj.num_bins || dlg.CancelRequested
                     obj.play = false; % ends the play loop in update_plot
+                end
+            end
+
+            % crop every frame to the common box (plus MOVIE_CROP_PAD) and
+            % write the .gif
+            function write_gif()
+                [h, w, ~] = size(frames{1});
+                pad = obj.MOVIE_CROP_PAD;
+                if all(isfinite(bbox))
+                    r = max(1, bbox(1) - pad):min(h, bbox(2) + pad);
+                    c = max(1, bbox(3) - pad):min(w, bbox(4) + pad);
+                else
+                    r = 1:h; c = 1:w; % nothing drawn: keep the full frame
+                end
+                for f = 1:numel(frames)
+                    [A, cmap] = rgb2ind(frames{f}(r, c, :), 256);
+                    if f == 1
+                        imwrite(A, cmap, filename, "gif", "LoopCount", Inf, ...
+                            "DelayTime", obj.MOVIE_FRAME_DELAY);
+                    else
+                        imwrite(A, cmap, filename, "gif", "WriteMode", "append", ...
+                            "DelayTime", obj.MOVIE_FRAME_DELAY);
+                    end
                 end
             end
         end
