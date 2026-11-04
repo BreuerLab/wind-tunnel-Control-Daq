@@ -26,6 +26,19 @@ sel_case_names = select_cases(get_PIV_paths(), positions, amps, freqs);
 % folder): set the three filters above to [] or uncomment this line
 % sel_case_names = get_PIV_paths();
 
+% Keep only flapping or only static cases from the selection above
+% (whichever way it was made):
+%   "all"      - no change
+%   "flapping" - phase-averaged cases (nonzero wingbeat frequency, and the
+%                turbine cases)
+%   "static"   - time-averaged cases: 0 Hz (gliding) and cases without a
+%                frequency (ring, body, freestream, NACA)
+% Same rule process_case uses to pick a time or phase average. Static
+% cases without an amplitude or frequency (ring, freestream, ...) only
+% pass empty amps / freqs filters above, e.g. for every static case:
+% positions = []; amps = []; freqs = []; motion = "static";
+motion = "all";
+
 % Number of images per case: "auto" counts the .vc7 files in each case's
 % data folder (get_PIV_paths) and uses that; a number uses it for every
 % case. Cases with no .vc7 files are skipped and logged.
@@ -93,8 +106,17 @@ log_file = fullfile(save_filepath_local, "processing_log.txt");
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 sel_case_names = string(sel_case_names);
+switch motion
+    case "all"
+    case "flapping"
+        sel_case_names = sel_case_names(~arrayfun(@is_static_case, sel_case_names));
+    case "static"
+        sel_case_names = sel_case_names(arrayfun(@is_static_case, sel_case_names));
+    otherwise
+        error('motion must be "all", "flapping" or "static", not "%s"', motion)
+end
 if isempty(sel_case_names)
-    error("No cases selected")
+    error('No cases selected (motion = "%s")', motion)
 end
 
 % Check every name before starting, so a typo doesn't stop the batch
@@ -116,6 +138,7 @@ log_line(log_file, "Batch started " + string(datetime("now", "Format", "yyyy-MM-
     " on " + string(getenv("COMPUTERNAME")) + " (" + string(getenv("USERNAME")) + ")")
 log_line(log_file, "Code version: " + code_version())
 log_line(log_file, "Save folder: " + save_filepath_local)
+log_line(log_file, "motion: " + motion)
 log_line(log_file, "num_images: " + string(num_images) + ...
     ", skip_processed: " + string(skip_processed) + ", continue_on_error: " + string(continue_on_error))
 log_line(log_file, "Settings: " + bools_to_text(bools))
@@ -239,7 +262,7 @@ function cases = scan_cases(names, num_images, save_folder, bools, skip_processe
 
     for k = 1:n
         name = cases.name(k);
-        if ~contains(name, "turbine") && (contains(name, "0Hz") || ~contains(name, "Hz"))
+        if is_static_case(name)
             cases.avg_type(k) = "time"; % same rule as process_case
         else
             cases.avg_type(k) = "phase";
@@ -285,6 +308,13 @@ function cases = scan_cases(names, num_images, save_folder, bools, skip_processe
             end
         end
     end
+end
+
+% True for cases that are time averaged (static: 0 Hz, or no frequency
+% such as ring, body, freestream), false for phase-averaged ones
+% (flapping, turbine). Same rule as process_case.
+function tf = is_static_case(name)
+    tf = ~contains(name, "turbine") && (contains(name, "0Hz") || ~contains(name, "Hz"));
 end
 
 % Append one line to the processing log
