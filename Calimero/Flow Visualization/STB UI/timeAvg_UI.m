@@ -94,6 +94,9 @@ classdef timeAvg_UI < handle
         HR;
         % Difference: plot variable 1 minus variables 2 (and 3)
         diff_bool;
+        % Sub First: subtract each curve's first point (lowest x, e.g. the
+        % 0 Hz value) from all of its points, separately for every case
+        sub_first_bool;
         calc_bool;
         % shift mode: phase shift imaging-plane (STB) signals by the wake's
         % convection time from the robot to the imaging plane
@@ -297,6 +300,7 @@ classdef timeAvg_UI < handle
             obj.force_vars = obj.force_var;
             obj.saveFig = false;
             obj.diff_bool = false;
+            obj.sub_first_bool = false;
             obj.calc_bool = false;
             obj.conv_shift = false;
             obj.unwrap_shift = false;
@@ -726,14 +730,33 @@ classdef timeAvg_UI < handle
             separate_y_button.BackgroundColor = obj.COLOR_INACTIVE;
             separate_y_button.ValueChangedFcn = @(src, event) separate_y_axis_change(src, event, plot_panel);
 
-            diff_button = uibutton(sidebar_grid, "state");
-            diff_button.Layout.Row = 24;
+            % Difference and, next to it, Sub First
+            diff_grid = uigridlayout(sidebar_grid, [1, 2]);
+            diff_grid.Layout.Row = 24;
+            diff_grid.Layout.Column = 1;
+            diff_grid.ColumnWidth = {'1x', '1x'};
+            diff_grid.RowHeight = {'1x'};
+            diff_grid.Padding = [0 0 0 0];
+            diff_grid.ColumnSpacing = 8;
+
+            diff_button = uibutton(diff_grid, "state");
+            diff_button.Layout.Row = 1;
             diff_button.Layout.Column = 1;
             diff_button.Text = "Difference";
             diff_button.FontSize = 18;
             diff_button.BackgroundColor = obj.COLOR_INACTIVE;
             diff_button.Tooltip = "Plot variable 1 minus variable 2 (and minus variable 3), e.g. lift vortX - lift (LC). Mean / range / rmse operations";
             diff_button.ValueChangedFcn = @(src, event) diff_change(src, event, plot_panel);
+
+            sub_first_button = uibutton(diff_grid, "state");
+            sub_first_button.Layout.Row = 1;
+            sub_first_button.Layout.Column = 2;
+            sub_first_button.Text = "Sub First";
+            sub_first_button.FontSize = 18;
+            sub_first_button.Value = obj.sub_first_bool;
+            sub_first_button.BackgroundColor = obj.get_button_color(obj.sub_first_bool);
+            sub_first_button.Tooltip = "Subtract each curve's first point (lowest x-axis value, e.g. 0 Hz) from all of its points, separately for every case and variable";
+            sub_first_button.ValueChangedFcn = @(src, event) sub_first_change(src, event, plot_panel);
 
             calc_button = uibutton(sidebar_grid, "state");
             calc_button.Layout.Row = 25;
@@ -1030,6 +1053,12 @@ classdef timeAvg_UI < handle
             function diff_change(src, ~, plot_panel)
                 obj.diff_bool = src.Value;
                 src.BackgroundColor = obj.get_button_color(obj.diff_bool);
+                obj.update_plot(plot_panel);
+            end
+
+            function sub_first_change(src, ~, plot_panel)
+                obj.sub_first_bool = src.Value;
+                src.BackgroundColor = obj.get_button_color(obj.sub_first_bool);
                 obj.update_plot(plot_panel);
             end
             
@@ -2280,6 +2309,38 @@ classdef timeAvg_UI < handle
             end
             end
 
+            % Sub First: each series (variable and case) minus its first
+            % point, the one at the lowest x (e.g. 0 Hz). Its error bar
+            % adds to the others' (difference of independent means) and
+            % the reference point itself becomes 0 +/- 0. The earlier load
+            % cell repeats are shifted by the same value.
+            if obj.sub_first_bool
+                for var_idx = 1:num_vars
+                    for i = 1:num_sel
+                        v = values{var_idx, i};
+                        k0 = find(isfinite(v), 1);
+                        if isempty(k0)
+                            continue
+                        end
+                        v0 = v(k0);
+                        e = errors{var_idx, i};
+                        e0 = e(k0);
+                        values{var_idx, i} = v - v0;
+                        if isfinite(e0) && e0 > 0
+                            e = hypot(e, e0);
+                        end
+                        e(k0) = 0;
+                        errors{var_idx, i} = e;
+                        if ~isempty(rep_values{var_idx, i})
+                            rep_values{var_idx, i} = rep_values{var_idx, i} - v0;
+                        end
+                        fprintf("Sub First: %s, %s minus %.4g (point at x = %g)\n", ...
+                            obj.get_selection_label(obj.selection(i)), selected_force_vars(var_idx), ...
+                            v0, x_vals{var_idx, i}(k0));
+                    end
+                end
+            end
+
             if diff_plot
                 labels = arrayfun(@(v) obj.get_force_var_label(v), selected_force_vars);
                 for i = 1:num_sel
@@ -2347,6 +2408,15 @@ classdef timeAvg_UI < handle
                     end
                 end
             end
+            end
+
+            % Sub First: say so on the y-axis label(s)
+            if obj.sub_first_bool && num_vars > 0
+                for k = 1:numel(ax.YAxis)
+                    if strlength(string(ax.YAxis(k).Label.String)) > 0
+                        ax.YAxis(k).Label.String = string(ax.YAxis(k).Label.String) + " (minus first point)";
+                    end
+                end
             end
 
             if (obj.saveFig)
