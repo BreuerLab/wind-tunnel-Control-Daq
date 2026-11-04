@@ -212,9 +212,12 @@ properties
     % available with conv_shift, since only then are all curves in the
     % robot's wing phase)
     label_stroke;
-    % boolean, with conv_shift, shift all curves so the upstroke is centred
-    % instead of the downstroke ("+/-" button, see get_stroke_flip_frac)
-    stroke_flip;
+    % with conv_shift, order of the strokes across the plotted wingbeat
+    % (dropdown next to Convection Shift, see get_stroke_shift_frac):
+    % "UDU" downstroke centred (no extra shift), "DUD" upstroke centred,
+    % "DU" starts at the top of the stroke (downstroke then upstroke),
+    % "UD" starts at the bottom (upstroke then downstroke)
+    stroke_order;
     align_bool;
     % boolean, with align_bool: plot the cross-correlations used for the
     % alignment instead of the aligned curves
@@ -276,7 +279,7 @@ methods
 
         obj.calc_bool = false;
         obj.conv_shift = false;
-        obj.stroke_flip = false;
+        obj.stroke_order = "UDU";
         obj.label_stroke = false;
         obj.align_bool = false;
         obj.corr_bool = false;
@@ -524,12 +527,12 @@ methods
         PIV_sub_dropdown.Tooltip = "Steady case subtracted (e.g. for x3_wings_20deg_4Hz: ring = x3_ring, body = x3_body_20deg_0Hz, gliding = x3_wings_20deg_0Hz, freestream = freestream, the empty test section)";
         PIV_sub_dropdown.ValueChangedFcn = @(src, event) PIV_sub_case_change(src, event, plot_panel);
 
-        % Convection Shift and, next to it, "+/-": shift all curves so the
-        % upstroke is centred instead of the downstroke (as in flowField_UI)
+        % Convection Shift and, next to it, the stroke order: UDU, DUD, DU
+        % or UD (as in flowField_UI)
         conv_shift_grid = uigridlayout(param_grid, [1, 2]);
         conv_shift_grid.Layout.Row = 4;
         conv_shift_grid.Layout.Column = 1;
-        conv_shift_grid.ColumnWidth = {'1x', 32};
+        conv_shift_grid.ColumnWidth = {'1x', 62};
         conv_shift_grid.RowHeight = {'1x'};
         conv_shift_grid.Padding = [0 0 0 0];
         conv_shift_grid.ColumnSpacing = 4;
@@ -544,16 +547,18 @@ methods
         conv_shift_button.Tooltip = "Phase shift PIV force and flow curves by the convection time from the robot to the imaging plane (kinematics and load cell variables are measured at the robot and aren't shifted)";
         conv_shift_button.ValueChangedFcn = @(src, event) conv_shift_change(src, event, plot_panel);
 
-        stroke_flip_button = uibutton(conv_shift_grid, "state");
-        stroke_flip_button.Layout.Row = 1;
-        stroke_flip_button.Layout.Column = 2;
-        stroke_flip_button.Text = "+/-";
-        stroke_flip_button.FontSize = 12;
-        stroke_flip_button.Value = obj.stroke_flip;
-        stroke_flip_button.Enable = obj.conv_shift;
-        stroke_flip_button.BackgroundColor = obj.get_button_color(obj.stroke_flip);
-        stroke_flip_button.Tooltip = "Off: downstroke centred. On: all curves shifted so the upstroke is centred instead (shift from the stroke reversals in the wing position, since the strokes differ in length). Requires Convection Shift";
-        stroke_flip_button.ValueChangedFcn = @(src, event) stroke_flip_change(src, event, plot_panel);
+        stroke_order_dropdown = uidropdown(conv_shift_grid);
+        stroke_order_dropdown.Layout.Row = 1;
+        stroke_order_dropdown.Layout.Column = 2;
+        stroke_order_dropdown.Items = ["UDU", "DUD", "DU", "UD"];
+        stroke_order_dropdown.Value = obj.stroke_order;
+        stroke_order_dropdown.FontSize = 12;
+        stroke_order_dropdown.Enable = obj.conv_shift;
+        stroke_order_dropdown.Tooltip = "Order of the strokes across the wingbeat (D = downstroke, U = upstroke). " + ...
+            "UDU: downstroke centred. DUD: upstroke centred. DU: starts at the top of the stroke. " + ...
+            "UD: starts at the bottom. All curves are shifted together, using the stroke reversals " + ...
+            "in the wing position. Requires Convection Shift";
+        stroke_order_dropdown.ValueChangedFcn = @(src, event) stroke_order_change(src, event, plot_panel);
 
         % Stroke reversal lines, upstroke/downstroke labels and downstroke
         % shading. Turned on with Convection Shift, unavailable without it.
@@ -823,22 +828,23 @@ methods
             label_stroke_button.Enable = obj.conv_shift;
             label_stroke_button.BackgroundColor = obj.get_button_color(obj.label_stroke);
 
-            % +/- (centred stroke) only means something in the wing phase,
-            % so it needs the convection shift too; reset when it goes off
+            % the stroke order only means something in the wing phase, so
+            % it needs the convection shift too; reset when it goes off
             if ~obj.conv_shift
-                obj.stroke_flip = false;
-                stroke_flip_button.Value = false;
+                obj.stroke_order = "UDU";
+                stroke_order_dropdown.Value = obj.stroke_order;
             end
-            stroke_flip_button.Enable = obj.conv_shift;
-            stroke_flip_button.BackgroundColor = obj.get_button_color(obj.stroke_flip);
+            stroke_order_dropdown.Enable = obj.conv_shift;
 
             obj.update_plot(plot_panel);
         end
 
-        function stroke_flip_change(src, ~, plot_panel)
-            obj.stroke_flip = src.Value && obj.conv_shift;
-            src.Value = obj.stroke_flip;
-            src.BackgroundColor = obj.get_button_color(obj.stroke_flip);
+        function stroke_order_change(src, ~, plot_panel)
+            obj.stroke_order = string(src.Value);
+            if ~obj.conv_shift
+                obj.stroke_order = "UDU";
+                src.Value = obj.stroke_order;
+            end
             obj.update_plot(plot_panel);
         end
 
@@ -2290,16 +2296,17 @@ methods (Access = private)
         % wing, amplitude and frequency share one curve)
         plotted_lc_vars = strings(0);
 
-        % Stroke reversals (Label Stroke and "+/-"), and the "+/-" shift
-        % (fraction of a wingbeat) applied to every curve
+        % Stroke reversals (Label Stroke and the stroke order), and the
+        % stroke order shift (fraction of a wingbeat) applied to every curve
         t_top = [];
         t_bottom = [];
-        if obj.conv_shift && (obj.label_stroke || obj.stroke_flip) && ~isempty(obj.selection)
+        reorder = obj.conv_shift && obj.stroke_order ~= "UDU";
+        if obj.conv_shift && (obj.label_stroke || reorder) && ~isempty(obj.selection)
             [t_top, t_bottom] = obj.get_stroke_reversals();
         end
         flip_frac = 0;
-        if obj.conv_shift && obj.stroke_flip
-            flip_frac = obj.get_stroke_flip_frac(t_top, t_bottom);
+        if reorder
+            flip_frac = obj.get_stroke_shift_frac(t_top, t_bottom);
         end
 
         for j = 1:length(obj.inds)
@@ -2333,7 +2340,7 @@ methods (Access = private)
                     disp("No wingbeat SD for " + obj.active_names(index) + " (" + cur_sel + "), no band plotted")
                 end
                 plotted_lc_vars(end+1) = lc_key;
-                var = circshift(var, round(flip_frac * length(var))); % "+/-"
+                var = circshift(var, round(flip_frac * length(var))); % stroke order
                 if ~isempty(var_std)
                     var_std = circshift(var_std, round(flip_frac * length(var_std)));
                 end
@@ -2561,7 +2568,7 @@ methods (Access = private)
                 disp("Shifted STB curve for " + cur_sel + " by " + phase_offset + " cycles (old_flapper_compat)")
             end
 
-            % "+/-": all curves (wing phase) shifted to centre the upstroke
+            % stroke order: all curves (wing phase) shifted together
             flip_bins = round(flip_frac * length(var));
             var = circshift(var, flip_bins);
             placement_pct = circshift(placement_pct, flip_bins);
@@ -2683,7 +2690,7 @@ methods (Access = private)
         end
 
         if ~show_corr && obj.conv_shift && obj.label_stroke && ~isempty(obj.selection)
-            % reversals move with the "+/-" shift (time base (1:N)/N)
+            % reversals move with the stroke order shift (time base (1:N)/N)
             t_top = mod(t_top + flip_frac, 1);
             t_bottom = mod(t_bottom + flip_frac, 1);
             if ~isempty(t_top)
@@ -2764,23 +2771,38 @@ methods (Access = private)
         end
     end
 
-    % "+/-": fraction of a wingbeat to shift every curve by so the middle
-    % of the upstroke lands where the middle of the downstroke is without
-    % it. The strokes differ in length, so it comes from the stroke
-    % reversals (downstroke: top -> bottom, upstroke: bottom -> top); half
-    % a wingbeat if there is no wing position.
-    function flip_frac = get_stroke_flip_frac(~, t_top, t_bottom)
+    % Stroke order: fraction of a wingbeat to shift every curve by, from
+    % the stroke reversals (downstroke: top -> bottom, upstroke: bottom ->
+    % top; the strokes differ in length). Time base (1:N)/N, a reversal at
+    % t lands at mod(t + frac, 1).
+    %   UDU: 0 (downstroke centred, as with the convection shift alone)
+    %   DUD: the middle of the upstroke moves to where the middle of the
+    %        downstroke is in UDU
+    %   DU : the top of the stroke moves to t/T = 0 (downstroke first)
+    %   UD : the bottom of the stroke moves to t/T = 0 (upstroke first)
+    % Without the wing position the strokes are taken as equal with the
+    % downstroke centred (top at 0.25, bottom at 0.75).
+    function frac = get_stroke_shift_frac(obj, t_top, t_bottom)
         if isempty(t_top)
-            flip_frac = 0.5;
-            disp("No wing position, upstroke centred assuming equal strokes")
-            return
+            t_top = 0.25;
+            t_bottom = 0.75;
+            disp("No wing position, stroke order " + obj.stroke_order + " assuming equal strokes")
         end
         down_len = mod(t_bottom - t_top, 1);
-        down_mid = t_top + down_len / 2;
-        up_mid = t_bottom + (1 - down_len) / 2;
-        flip_frac = mod(down_mid - up_mid, 1);
-        disp(sprintf("Downstroke %.0f%% / upstroke %.0f%% of the wingbeat: upstroke centred with a %.3f wingbeat shift", ...
-            100 * down_len, 100 * (1 - down_len), flip_frac))
+        switch obj.stroke_order
+            case "DUD"
+                down_mid = t_top + down_len / 2;
+                up_mid = t_bottom + (1 - down_len) / 2;
+                frac = mod(down_mid - up_mid, 1);
+            case "DU"
+                frac = mod(-t_top, 1);
+            case "UD"
+                frac = mod(-t_bottom, 1);
+            otherwise % UDU
+                frac = 0;
+        end
+        disp(sprintf("Downstroke %.0f%% / upstroke %.0f%% of the wingbeat: %s with a %.3f wingbeat shift", ...
+            100 * down_len, 100 * (1 - down_len), obj.stroke_order, frac))
     end
 
     % Black lines at the stroke reversals, light gray shading over the

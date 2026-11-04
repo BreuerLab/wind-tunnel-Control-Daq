@@ -238,13 +238,14 @@ properties
     % shift the 3D plot's phase by the wake's convection time from the
     % robot to the imaging plane, so all cases start at the same wing phase
     conv_shift;
-    % with conv_shift, shift the 3D plot further so the upstroke is
-    % centred instead of the downstroke ("+/-" button, see
-    % get_stroke_flip_bins)
-    stroke_flip;
-    % inputs of the last 3D plot, so "+/-" can shift the surface without a
+    % with conv_shift, order of the strokes across the 3D plot's wingbeat
+    % (dropdown next to Convection Shift, see get_stroke_shift_bins):
+    % "UDU" downstroke centred (no extra shift), "DUD" upstroke centred,
+    % "DU" starts at the top of the stroke, "UD" at the bottom
+    stroke_order;
+    % inputs of the last 3D plot, so the stroke order can shift the surface without a
     % full redraw (see shift_3D_surface); ext = cached surface over one
-    % extra wingbeat, built on the first "+/-" press
+    % extra wingbeat, built on the first stroke order change
     surf_3D;
     % processed iso variable (Q) and isosurface of the last 3D plot, with
     % the settings they depend on (key), so changing only the colour
@@ -347,7 +348,7 @@ methods
         obj.conv_units_bool = false;
         obj.conv_scale = [];
         obj.conv_shift = false;
-        obj.stroke_flip = false;
+        obj.stroke_order = "UDU";
         obj.surf_3D = [];
         obj.geom_3D = [];
         obj.label_stroke = false;
@@ -1141,12 +1142,11 @@ methods
 
         % Phase shift by the convection time from the robot to the imaging
         % plane (same as phaseAvg_UI's Convection Shift button), and next
-        % to it "+/-": a further half wingbeat, so the upstroke is centred
-        % instead of the downstroke
+        % to it the stroke order (UDU, DUD, DU, UD), a further shift
         conv_shift_grid = uigridlayout(param_grid, [1, 2]);
         conv_shift_grid.Layout.Row = 9;
         conv_shift_grid.Layout.Column = 1;
-        conv_shift_grid.ColumnWidth = {'1x', 32};
+        conv_shift_grid.ColumnWidth = {'1x', 62};
         conv_shift_grid.RowHeight = {'1x'};
         conv_shift_grid.Padding = [0 0 0 0];
         conv_shift_grid.ColumnSpacing = 4;
@@ -1161,16 +1161,17 @@ methods
         conv_shift_button.Tooltip = "Phase shift the 3D plot by the convection time from the robot to the imaging plane, so cases at different frequencies start at the same wing phase";
         conv_shift_button.ValueChangedFcn = @(src, event) conv_shift_change(src, event, plot_area_panel);
 
-        stroke_flip_button = uibutton(conv_shift_grid, "state");
-        stroke_flip_button.Layout.Row = 1;
-        stroke_flip_button.Layout.Column = 2;
-        stroke_flip_button.Text = "+/-";
-        stroke_flip_button.FontSize = 12;
-        stroke_flip_button.Value = obj.stroke_flip;
-        stroke_flip_button.Enable = obj.conv_shift;
-        stroke_flip_button.BackgroundColor = obj.get_button_color(obj.stroke_flip);
-        stroke_flip_button.Tooltip = "Off: downstroke centred. On: shifted so the upstroke is centred instead (shift from the stroke reversals in the wing position, since the strokes differ in length). Requires Convection Shift";
-        stroke_flip_button.ValueChangedFcn = @(src, event) stroke_flip_change(src, event, plot_area_panel);
+        stroke_order_dropdown = uidropdown(conv_shift_grid);
+        stroke_order_dropdown.Layout.Row = 1;
+        stroke_order_dropdown.Layout.Column = 2;
+        stroke_order_dropdown.Items = ["UDU", "DUD", "DU", "UD"];
+        stroke_order_dropdown.Value = obj.stroke_order;
+        stroke_order_dropdown.FontSize = 12;
+        stroke_order_dropdown.Enable = obj.conv_shift;
+        stroke_order_dropdown.Tooltip = "Order of the strokes across the wingbeat (D = downstroke, U = upstroke). " + ...
+            "UDU: downstroke centred. DUD: upstroke centred. DU: starts at the top of the stroke. " + ...
+            "UD: starts at the bottom. From the stroke reversals in the wing position. Requires Convection Shift";
+        stroke_order_dropdown.ValueChangedFcn = @(src, event) stroke_order_change(src, event, plot_area_panel);
 
         % "phase avg: 3D all planes" only, in place of Convection Shift:
         % wake convection speed U_c for the frozen-flow reconstruction,
@@ -1633,7 +1634,7 @@ methods
             is_merged = obj.plot_type == obj.MERGED_3D_PLOT;
             conv_units_button.Enable = ~is_merged;
             conv_shift_button.Enable = ~is_merged;
-            stroke_flip_button.Enable = obj.conv_shift && ~is_merged;
+            stroke_order_dropdown.Enable = obj.conv_shift && ~is_merged;
             % U_c takes Convection Shift's place on the all-planes plot
             conv_shift_grid.Visible = ~is_merged;
             uc_grid.Visible = is_merged;
@@ -2143,24 +2144,25 @@ methods
             label_stroke_button.Enable = obj.conv_shift;
             label_stroke_button.BackgroundColor = obj.get_button_color(obj.label_stroke);
 
-            % +/- (centred stroke) only means something in the wing phase,
-            % so it needs the convection shift too; reset when it goes off
+            % the stroke order only means something in the wing phase, so
+            % it needs the convection shift too; reset when it goes off
             if ~obj.conv_shift
-                obj.stroke_flip = false;
-                stroke_flip_button.Value = false;
+                obj.stroke_order = "UDU";
+                stroke_order_dropdown.Value = obj.stroke_order;
             end
-            stroke_flip_button.Enable = obj.conv_shift;
-            stroke_flip_button.BackgroundColor = obj.get_button_color(obj.stroke_flip);
+            stroke_order_dropdown.Enable = obj.conv_shift;
 
             if obj.plot_type == obj.plot_types(5)
                 obj.update_plot(plot_panel);
             end
         end
 
-        function stroke_flip_change(src, ~, plot_panel)
-            obj.stroke_flip = src.Value && obj.conv_shift;
-            src.Value = obj.stroke_flip;
-            src.BackgroundColor = obj.get_button_color(obj.stroke_flip);
+        function stroke_order_change(src, ~, plot_panel)
+            obj.stroke_order = string(src.Value);
+            if ~obj.conv_shift
+                obj.stroke_order = "UDU";
+                src.Value = obj.stroke_order;
+            end
             if obj.plot_type ~= obj.plot_types(5)
                 return
             end
@@ -2651,7 +2653,7 @@ methods (Access = private)
     % put them back. Only Faces changes (Vertices and colours stay, so the
     % x-axis units switch still works). The full faces are kept in the
     % patch's appdata; if the patch's faces aren't the filtered ones (new
-    % surface, "+/-" shift) they are the full surface. Safe to call
+    % surface, stroke order shift) they are the full surface. Safe to call
     % repeatedly, e.g. after every redraw.
     function apply_remove_small(obj, ax)
         if isempty(ax) || ~isscalar(ax) || ~isvalid(ax)
@@ -2756,12 +2758,12 @@ methods (Access = private)
             mat2str(obj.trim_y_bounds), mat2str(obj.trim_z_bounds), ...
             string(obj.mirror_bool), mat2str(obj.mirror_center_y), ...
             string(obj.filter_bool), string(use_extrapolated_data), ...
-            string(obj.frame_ind), string(obj.conv_shift), string(obj.stroke_flip), ...
+            string(obj.frame_ind), string(obj.conv_shift), obj.stroke_order, ...
             string(obj.unc_mask_bool), sprintf("%.10g", obj.unc_mask_thresh)];
         key = strjoin(parts, "|");
     end
 
-    % Re-phase the current 3D plot for a new "+/-" setting without
+    % Re-phase the current 3D plot for a new stroke order without
     % reloading or recomputing it for the shift. A circular shift of the
     % periodic wake is the same as sliding the plotted window along it, so
     % the isosurface is computed once over one extra wingbeat (unshifted,
@@ -2794,8 +2796,8 @@ methods (Access = private)
         end
 
         flip_bins = 0;
-        if obj.conv_shift && obj.stroke_flip
-            flip_bins = obj.get_stroke_flip_bins(N);
+        if obj.conv_shift && obj.stroke_order ~= "UDU"
+            flip_bins = obj.get_stroke_shift_bins(N, S3.base_shift - S3.conv_shift_bins);
         end
         shift = mod(S3.base_shift + flip_bins, N);
 
@@ -2821,26 +2823,49 @@ methods (Access = private)
         ok = true;
     end
 
-    % Bins to shift the 3D plot by so the middle of the upstroke lands
-    % where the middle of the downstroke is without the shift. The strokes
-    % differ in length, so this comes from the stroke reversals in the
-    % wing position (downstroke: top -> bottom, upstroke: bottom -> top);
-    % half a wingbeat if the wing position isn't saved.
-    function flip_bins = get_stroke_flip_bins(obj, num_bins)
+    % Stroke order: bins to shift the 3D plot by, from the stroke
+    % reversals in the wing position (downstroke: top -> bottom, upstroke:
+    % bottom -> top; the strokes differ in length). frame_offset is the
+    % stroke labels' shift without it (slider frame - 1), so bin k is
+    % plotted at index mod(k - 1 + frame_offset + shift, N).
+    %   UDU: 0 (as with the convection shift alone)
+    %   DUD: the middle of the upstroke moves to where the middle of the
+    %        downstroke is in UDU
+    %   DU : the top of the stroke moves to the start of the wingbeat
+    %   UD : the bottom of the stroke moves to the start
+    % Without the wing position the strokes are taken as equal with the
+    % downstroke centred.
+    function flip_bins = get_stroke_shift_bins(obj, num_bins, frame_offset)
         S = obj.stroke_3D;
         if isempty(S)
-            flip_bins = round(num_bins / 2);
-            disp("No wing position for " + obj.get_current_case_id() + ", upstroke centred assuming equal strokes")
+            switch obj.stroke_order
+                case "DUD", flip_bins = round(num_bins / 2);
+                case "DU",  flip_bins = round(3 * num_bins / 4);
+                case "UD",  flip_bins = round(num_bins / 4);
+                otherwise,  flip_bins = 0;
+            end
+            disp("No wing position for " + obj.get_current_case_id() + ", stroke order " + ...
+                obj.stroke_order + " assuming equal strokes")
             return
         end
         N = S.N;
         down_len = mod(S.bottom - S.top, N);
         up_len = N - down_len;
-        down_mid = S.top + down_len / 2;
-        up_mid = S.bottom + up_len / 2;
-        flip_bins = round(mod(down_mid - up_mid, N));
-        disp(sprintf("Downstroke %.0f%% / upstroke %.0f%% of the wingbeat: upstroke centred with a %d / %d bin shift", ...
-            100 * down_len / N, 100 * up_len / N, flip_bins, N))
+        switch obj.stroke_order
+            case "DUD"
+                down_mid = S.top + down_len / 2;
+                up_mid = S.bottom + up_len / 2;
+                flip_bins = round(mod(down_mid - up_mid, N));
+            case "DU"
+                flip_bins = round(mod(-(S.top - 1) - frame_offset, N));
+            case "UD"
+                flip_bins = round(mod(-(S.bottom - 1) - frame_offset, N));
+            otherwise % UDU
+                flip_bins = 0;
+        end
+        flip_bins = mod(flip_bins, N);
+        disp(sprintf("Downstroke %.0f%% / upstroke %.0f%% of the wingbeat: %s with a %d / %d bin shift", ...
+            100 * down_len / N, 100 * up_len / N, obj.stroke_order, flip_bins, N))
     end
 
     function set_stroke_frame_shift(obj, frame_shift)
@@ -4178,7 +4203,7 @@ methods (Access = private)
             params.L = d.L;
             conv_shift_bins = obj.get_conv_shift_bins(d.cycle_freq, d.num_bins);
 
-            % Stroke reversals (Label Stroke and "+/-"). The wing position
+            % Stroke reversals (Label Stroke and the stroke order). The wing position
             % is measured at the robot, so it only lines up with the flow
             % once the convection shift is applied.
             obj.stroke_3D = [];
@@ -4186,13 +4211,12 @@ methods (Access = private)
                 obj.stroke_3D = obj.get_stroke_info_3D(full_file_path, d.num_bins);
             end
 
-            % "+/-": shift so the upstroke is centred where the downstroke
-            % is otherwise. It moves the flow and the wing phase together,
-            % so unlike the convection shift it is part of the stroke
-            % labels' shift too.
+            % Stroke order (UDU / DUD / DU / UD). It moves the flow and
+            % the wing phase together, so unlike the convection shift it
+            % is part of the stroke labels' shift too.
             stroke_flip_bins = 0;
-            if obj.conv_shift && obj.stroke_flip
-                stroke_flip_bins = obj.get_stroke_flip_bins(d.num_bins);
+            if obj.conv_shift && obj.stroke_order ~= "UDU"
+                stroke_flip_bins = obj.get_stroke_shift_bins(d.num_bins, obj.frame_ind - 1);
             end
             params.shift = obj.frame_ind - 1 + conv_shift_bins + stroke_flip_bins;
             params.isoValue = obj.iso_val; % 0.05
@@ -4211,7 +4235,7 @@ methods (Access = private)
             setColorBar(ax, params)
             xlim(ax,xlims) % otherwise when plotting multiple wingbeats awkward extra space added
 
-            % kept so "+/-" can shift this plot without a full redraw
+            % kept so the stroke order can shift this plot without a full redraw
             obj.surf_3D = struct('y', y, 'z', z, 'val', val, 'Q', Q, ...
                 'cycle_freq', d.cycle_freq, 'params', params, 'xlims', xlims, ...
                 'base_shift', obj.frame_ind - 1 + conv_shift_bins, ...
