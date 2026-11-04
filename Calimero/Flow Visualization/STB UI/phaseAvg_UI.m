@@ -12,6 +12,14 @@ classdef phaseAvg_UI < handle
         OLD_FLAPPER_SOURCE_MODE = "old flapper";
         NEW_FLAPPER_SOURCE_MODE = "new flapper";
         DEFAULT_VERSION_LABEL = "default";
+        % Harmonic regression (HR) cases: force curves computed from the
+        % fitted fields that get the +/- 1 SD band of their BA version
+        % (scatter of the per-frame force about its fit). Only forces
+        % linear in the field: for those the integral of the fitted field
+        % is the fit of the per-frame integral, so the two share their
+        % scatter. Products of velocities (lift.vel_diff, lift_vel,
+        % drag_vel, Bernoulli) are left out; their BA versions have bands.
+        HR_BAND_FORCE_NAMES = ["lift.vortX", "drag.tot", "drag.vortY", "drag.vortZ"];
         NUM_VARS = 4; % variables plotted at once (Variables panel)
         cur_types = ["flexible";"UP_one_flexible";"UP_two_flexible"];
         downstream_distance_labels = ["x = 0.9m"; "x = 1.3m"; "x = 1.7m"];
@@ -1607,6 +1615,22 @@ methods (Access = private)
     % as a row like the plotted curve. Empty if the file predates it.
     % PIV Body Sub needs no change: it subtracts a time-averaged value, a
     % constant, which leaves the SD as it is.
+    % Whether an HR file's BA SDs (*_before_std) are the scatter about the
+    % fitted curve (phase_avg_STB marks them in hr.before_std_type).
+    % Older HR files hold the scatter about the bin means: noted in the
+    % Command Window (reprocess for the residual band).
+    function tf = has_hr_residual_std(obj, file_path, cur_sel)
+        tf = false;
+        if obj.file_has_var(file_path, "hr")
+            d = load(file_path, "hr");
+            tf = isfield(d.hr, 'before_std_type') && string(d.hr.before_std_type) == "residual";
+        end
+        if ~tf
+            disp("HR SD for " + cur_sel + " is the scatter about the bin means (older processing): " + ...
+                "reprocess with phase_avg_STB for the SD about the fit (and a band on the field-based forces)")
+        end
+    end
+
     function var_std = get_ba_force_std(obj, file_path, var_name, n, cur_sel)
         var_std = [];
         std_name = replace(string(var_name), "_before_avg", "_before_std");
@@ -2429,6 +2453,9 @@ methods (Access = private)
                     var = eval("d2." + var_name);
                     if obj.std_band
                         var_std = obj.get_ba_force_std(file_path, var_name, numel(var), cur_sel);
+                        if obj.is_HR_selection(cur_sel)
+                            obj.has_hr_residual_std(file_path, cur_sel); % note if it's the older bin SD
+                        end
                     end
                 else
                 if live_grad
@@ -2460,6 +2487,16 @@ methods (Access = private)
                 if ismember(var_name, ["wx_y", "wx_z"])
                     dv = load(secondary_file_path, "vortX_avg");
                     var = mask_vortex_centroid(var, dv.vortX_avg, cur_sel);
+                end
+            end
+
+            % HR cases: band for force curves from the fitted fields, from
+            % the scatter of the per-frame force about its fit
+            if obj.std_band && isempty(var_std) && obj.is_HR_selection(cur_sel) && ...
+                    index <= length(obj.force_var_types) && ismember(var_name, obj.HR_BAND_FORCE_NAMES)
+                if obj.has_hr_residual_std(file_path, cur_sel)
+                    ba_name = regexprep(var_name, '\.', '_before_avg.', 'once');
+                    var_std = obj.get_ba_force_std(file_path, ba_name, numel(var), cur_sel);
                 end
             end
             

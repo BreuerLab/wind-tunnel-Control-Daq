@@ -35,6 +35,8 @@ frames, or whose valid frames don't cover the cycle, are left NaN.
 
 hr_fit_scalar.m ->
 	Harmonic regression of one per-frame series (e.g. lift on each frame).
+Also returns the scatter of the frames about the fit, overall and per phase
+bin (RMS residual), saved by phase_avg_STB as the *_before_std of HR files.
 
 harmonic_eval.m ->
 	Evaluates saved coefficients (bools.hr_save_coef) at any phase, or their

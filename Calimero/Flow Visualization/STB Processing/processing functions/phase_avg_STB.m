@@ -316,8 +316,11 @@ clear R B
 
 % Harmonic regression: replace the bin averages with the fitted fields at
 % the bin centres, so everything downstream (secondary values, phaseAvg_UI)
-% works unchanged. std, Reynolds stresses and Q_inst stay per bin (so do
-% the BA force SDs, *_before_std: the scatter of the frames in each bin).
+% works unchanged. std, Reynolds stresses and Q_inst stay per bin. The BA
+% force SDs (*_before_std) become the scatter of the per-frame forces
+% about the fitted curve (RMS residual of each bin's frames, see
+% hr_fit_scalar), the +/- 1 SD band phaseAvg_UI draws; the scatter about
+% the bin means is kept in S.hr.bin_before_std.
 if hr.on
 t0 = tic;
 phi_centres = bin_offset + ((1:num_bins) - 0.5) / num_bins;
@@ -342,6 +345,21 @@ if ~bools.turbine
     end
     lift_vel_before_avg = HR.scalars.lift_vel;
     drag_vel_before_avg = HR.scalars.drag_vel;
+
+    % SD about the fit replaces the SD about the bin mean (S.hr is set
+    % below, from HR.info)
+    hr_bin_before_std = struct('lift_before_std', lift_before_std, ...
+        'drag_before_std', drag_before_std, ...
+        'lift_vel_before_std', lift_vel_before_std, ...
+        'drag_vel_before_std', drag_vel_before_std);
+    for f = 1:length(lift_fields)
+        lift_before_std.(lift_fields{f}) = HR.scalar_std_phase.lift.(lift_fields{f});
+    end
+    for f = 1:length(drag_fields)
+        drag_before_std.(drag_fields{f}) = HR.scalar_std_phase.drag.(drag_fields{f});
+    end
+    lift_vel_before_std = HR.scalar_std_phase.lift_vel;
+    drag_vel_before_std = HR.scalar_std_phase.drag_vel;
 end
 
 % The fitted fields sit exactly at the bin centres
@@ -353,6 +371,11 @@ S.hr.freq = cycle_freq;
 S.hr.bin_offset = bin_offset;
 S.hr.scalar_coef = HR.scalar_coef;
 S.hr.scalar_std = HR.scalar_std;
+S.hr.scalar_std_phase = HR.scalar_std_phase;
+if ~bools.turbine
+    S.hr.bin_before_std = hr_bin_before_std;
+    S.hr.before_std_type = "residual"; % phaseAvg_UI: *_before_std is about the fit
+end
 clear HR
 t_stage.hr = toc(t0);
 end

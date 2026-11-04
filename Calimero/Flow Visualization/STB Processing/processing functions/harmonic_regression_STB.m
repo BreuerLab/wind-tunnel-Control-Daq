@@ -32,7 +32,10 @@ function HR = harmonic_regression_STB(accs, fields, phi_eval, frame_vals, frame_
 %   HR.coef.<field>   - coefficients (only with opts.save_coef)
 %   HR.scalars        - per-frame scalars fitted at phi_eval (same nesting
 %                       as frame_vals); HR.scalar_coef, HR.scalar_std hold
-%                       their coefficients and the scatter about the fit
+%                       their coefficients and the scatter about the fit,
+%                       HR.scalar_std_phase that scatter at each phi_eval
+%                       (RMS residual of the frames nearest it, see
+%                       hr_fit_scalar)
 %   HR.info           - H, K, number of frames, conditioning, phases, and
 %                       points left NaN (too few valid frames) per field
 
@@ -82,6 +85,7 @@ HR.info.num_points = prod(grid);
 HR.scalars = struct();
 HR.scalar_coef = struct();
 HR.scalar_std = struct();
+HR.scalar_std_phase = struct();
 names = fieldnames(frame_vals);
 for k = 1:numel(names)
     val = frame_vals.(names{k});
@@ -89,11 +93,12 @@ for k = 1:numel(names)
         sub = fieldnames(val);
         for j = 1:numel(sub)
             [HR.scalars.(names{k}).(sub{j}), HR.scalar_coef.(names{k}).(sub{j}), ...
-                HR.scalar_std.(names{k}).(sub{j})] = ...
+                HR.scalar_std.(names{k}).(sub{j}), HR.scalar_std_phase.(names{k}).(sub{j})] = ...
                 hr_fit_scalar(val.(sub{j}), frame_phi, opts.H, phi_eval);
         end
     else
-        [HR.scalars.(names{k}), HR.scalar_coef.(names{k}), HR.scalar_std.(names{k})] = ...
+        [HR.scalars.(names{k}), HR.scalar_coef.(names{k}), HR.scalar_std.(names{k}), ...
+            HR.scalar_std_phase.(names{k})] = ...
             hr_fit_scalar(val, frame_phi, opts.H, phi_eval);
     end
 end
