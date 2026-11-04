@@ -123,12 +123,22 @@ classdef timeAvg_UI < handle
         % when the x-axis is wingbeat frequency
         available_freqs;
         freq_range;
+        % same for the other x-axes: amplitudes (deg) plotted, and the
+        % downstream positions plotted as [first last] indices into
+        % dist_positions (positions of the current data set, in order of
+        % distance; slider ticks are their names)
+        amp_range;
+        dist_range;
+        dist_positions;
         sel_type;
         sel_freq;
         sel_amp;
         % downstream distance x-axis: the model, i.e. the case type without
         % its position prefix ("wings", "body", "NACA", "ring", ...), or "all"
         sel_model;
+        % position prefix without "_" ("x3", "MPS", "UP_one"; "" = none,
+        % e.g. the old flapper "flexible" plane), or "all"
+        sel_position;
 
         % Curves currently displayed on plot
         plot_curves;
@@ -370,9 +380,6 @@ classdef timeAvg_UI < handle
             % full frequency range to start (0 to 8 Hz for the current data)
             obj.available_freqs = unique(cell2mat(obj.available_selections(:, 3)))';
             obj.freq_range = [min(obj.available_freqs), max(obj.available_freqs)];
-            if obj.freq_range(1) == obj.freq_range(2)
-                obj.freq_range(2) = obj.freq_range(1) + 1; % slider needs a span
-            end
 
             obj.plot_curves = [];
             obj.selection = strings(0);
@@ -395,6 +402,9 @@ classdef timeAvg_UI < handle
             obj.sel_amp = obj.get_first_amp(obj.sel_type);
             obj.sel_freq = obj.get_first_freq(obj.sel_type, obj.sel_amp);
             obj.sel_model = "all";
+            obj.sel_position = "all";
+            obj.amp_range = [];
+            obj.dist_range = [];
             obj.x_axis_type = obj.x_axis_types(1);
         end
 
@@ -442,16 +452,14 @@ classdef timeAvg_UI < handle
             freq_label.Layout.Column = 1;
             freq_label.HorizontalAlignment = "center";
 
+            % range of whichever variable is on the x-axis (frequency,
+            % amplitude or downstream position), see setup_range_slider
             freq_slider = uislider(freq_grid, "range");
             freq_slider.Layout.Row = 2;
             freq_slider.Layout.Column = 1;
-            freq_slider.Limits = obj.freq_range;
-            freq_slider.Value = obj.freq_range;
-            freq_slider.MajorTicks = obj.available_freqs;
             freq_slider.MinorTicks = [];
             freq_slider.ValueChangedFcn = @(src, event) freq_range_change(src, event, freq_label, plot_panel);
-            obj.update_freq_range_label(freq_label);
-            obj.set_freq_slider_enable(freq_slider, freq_label);
+            obj.setup_range_slider(freq_slider, freq_label);
 
             % Old/new flapper data set the case dropdowns below list
             source_dropdown = uidropdown(sidebar_grid);
@@ -461,16 +469,32 @@ classdef timeAvg_UI < handle
             source_dropdown.Value = obj.source_mode;
             source_dropdown.Tooltip = "Data set the case dropdowns list (entries already added are kept)";
 
-            % Dropdown boxes for variables held fixed while the x-axis varies
+            % Dropdown boxes for the three variables held fixed while the
+            % x-axis varies (get_fixed_variable_names): the model on its
+            % own row, the other two side by side below it
             fixed_dropdown_1 = uidropdown(sidebar_grid);
             fixed_dropdown_1.Layout.Row = 4;
             fixed_dropdown_1.Layout.Column = 1;
 
-            fixed_dropdown_2 = uidropdown(sidebar_grid);
-            fixed_dropdown_2.Layout.Row = 5;
+            fixed_grid = uigridlayout(sidebar_grid, [1, 2]);
+            fixed_grid.Layout.Row = 5;
+            fixed_grid.Layout.Column = 1;
+            fixed_grid.ColumnWidth = {'1x', '1x'};
+            fixed_grid.RowHeight = {'1x'};
+            fixed_grid.Padding = [0 0 0 0];
+            fixed_grid.ColumnSpacing = 6;
+
+            fixed_dropdown_2 = uidropdown(fixed_grid);
+            fixed_dropdown_2.Layout.Row = 1;
             fixed_dropdown_2.Layout.Column = 1;
+
+            fixed_dropdown_3 = uidropdown(fixed_grid);
+            fixed_dropdown_3.Layout.Row = 1;
+            fixed_dropdown_3.Layout.Column = 2;
+
+            fixed_dropdowns = [fixed_dropdown_1, fixed_dropdown_2, fixed_dropdown_3];
             obj.reset_fixed_variable_defaults();
-            obj.update_fixed_dropdowns(fixed_dropdown_1, fixed_dropdown_2);
+            obj.update_fixed_dropdowns(fixed_dropdowns);
 
             % RPCA and HR (harmonic regression) buttons share a row
             variant_grid = uigridlayout(sidebar_grid, [1, 2]);
@@ -524,10 +548,11 @@ classdef timeAvg_UI < handle
             lbox.Layout.Column = 1;
             lbox.Items = strings(0);
 
-            x_axis_dropdown.ValueChangedFcn = @(src, event) x_axis_change(src, event, fixed_dropdown_1, fixed_dropdown_2, plot_panel, lbox, freq_slider, freq_label);
-            source_dropdown.ValueChangedFcn = @(src, event) source_change(src, event, fixed_dropdown_1, fixed_dropdown_2);
-            fixed_dropdown_1.ValueChangedFcn = @(src, event) fixed_1_change(src, event, fixed_dropdown_2);
-            fixed_dropdown_2.ValueChangedFcn = @(src, event) fixed_2_change(src, event);
+            x_axis_dropdown.ValueChangedFcn = @(src, event) x_axis_change(src, event, fixed_dropdowns, plot_panel, lbox, freq_slider, freq_label);
+            source_dropdown.ValueChangedFcn = @(src, event) source_change(src, event, fixed_dropdowns, freq_slider, freq_label);
+            for k_fixed = 1:numel(fixed_dropdowns)
+                fixed_dropdowns(k_fixed).ValueChangedFcn = @(src, event) fixed_change(src, event, k_fixed, fixed_dropdowns);
+            end
             add_button.ButtonPushedFcn = @(src, event) addToList(src, event, plot_panel, lbox);
             delete_button.ButtonPushedFcn = @(src, event) removeFromList(src, event, plot_panel, lbox);
 
@@ -812,11 +837,11 @@ classdef timeAvg_UI < handle
 
             % ===== Nested Callback Functions =====
             
-            function x_axis_change(src, ~, fixed_dropdown_1, fixed_dropdown_2, plot_panel, lbox, freq_slider, freq_label)
+            function x_axis_change(src, ~, fixed_dropdowns, plot_panel, lbox, freq_slider, freq_label)
                 obj.x_axis_type = obj.get_x_axis_type(src.Value);
-                obj.set_freq_slider_enable(freq_slider, freq_label);
+                obj.setup_range_slider(freq_slider, freq_label);
                 obj.reset_fixed_variable_defaults();
-                obj.update_fixed_dropdowns(fixed_dropdown_1, fixed_dropdown_2);
+                obj.update_fixed_dropdowns(fixed_dropdowns);
                 obj.selection = strings(0);
                 lbox.Items = strings(0);
                 obj.update_plot(plot_panel);
@@ -824,34 +849,43 @@ classdef timeAvg_UI < handle
 
             % new data set: refill the case dropdowns from it. Entries
             % already in the list keep their own data set.
-            function source_change(src, ~, fixed_dropdown_1, fixed_dropdown_2)
+            function source_change(src, ~, fixed_dropdowns, freq_slider, freq_label)
                 obj.source_mode = string(src.Value);
                 [~, obj.distance_labels] = obj.get_available_type_options();
+                % amplitudes / positions differ between the data sets
+                obj.amp_range = [];
+                obj.dist_range = [];
+                obj.setup_range_slider(freq_slider, freq_label);
                 obj.reset_fixed_variable_defaults();
-                obj.update_fixed_dropdowns(fixed_dropdown_1, fixed_dropdown_2);
+                obj.update_fixed_dropdowns(fixed_dropdowns);
             end
 
             function freq_range_change(src, ~, freq_label, plot_panel)
-                % snap both ends to measured frequencies
-                new_range = obj.snap_to_available_freqs(src.Value);
+                % snap both ends to the slider's values (measured
+                % frequencies / amplitudes, or positions)
+                vals = obj.get_range_slider_values();
+                new_range = src.Value;
+                for k = 1:2
+                    [~, idx] = min(abs(vals - src.Value(k)));
+                    new_range(k) = vals(idx);
+                end
+                new_range = sort(new_range);
                 src.Value = new_range;
-                obj.freq_range = new_range;
-                obj.update_freq_range_label(freq_label);
+                obj.set_x_range(new_range);
+                obj.update_range_label(freq_label);
                 obj.update_plot(plot_panel);
             end
 
-            function fixed_1_change(src, ~, fixed_dropdown_2)
+            % k-th fixed dropdown changed: refill the ones after it. Their
+            % values are kept if the new choice has data at them;
+            % update_fixed_dropdown falls back to the first available
+            % option otherwise (ensure_selected_value)
+            function fixed_change(src, ~, k, fixed_dropdowns)
                 fixed_vars = obj.get_fixed_variable_names();
-                obj.set_selected_value_from_item(fixed_vars(1), src.Value);
-                % keep the second value (e.g. amplitude) if the new first
-                % value has data at it; update_fixed_dropdown falls back to
-                % the first available option otherwise (ensure_selected_value)
-                obj.update_fixed_dropdown(fixed_dropdown_2, fixed_vars(2));
-            end
-
-            function fixed_2_change(src, ~)
-                fixed_vars = obj.get_fixed_variable_names();
-                obj.set_selected_value_from_item(fixed_vars(2), src.Value);
+                obj.set_selected_value_from_item(fixed_vars(k), src.Value);
+                for m = k + 1:numel(fixed_dropdowns)
+                    obj.update_fixed_dropdown(fixed_dropdowns(m), fixed_vars(m));
+                end
             end
 
             function var_type_change(src, ~, var_dropdowns)
@@ -1144,15 +1178,15 @@ classdef timeAvg_UI < handle
 
         function fixed_vars = get_fixed_variable_names(obj)
             switch obj.x_axis_type
+                % the model (case type without its position: wings, body,
+                % NACA, ...) first, so e.g. NACA isn't mixed with the other
+                % 0 deg, 0 Hz cases; then the two variables not on the x-axis
                 case "wingbeat frequency"
-                    fixed_vars = ["type", "amp"];
+                    fixed_vars = ["model", "position", "amp"];
                 case "wingbeat amplitude"
-                    fixed_vars = ["type", "freq"];
+                    fixed_vars = ["model", "position", "freq"];
                 case "downstream distance"
-                    % the model, then its amplitude / frequency combinations
-                    % ("case"), so e.g. NACA isn't mixed with the other
-                    % 0 deg, 0 Hz cases (ring, body, gliding wings)
-                    fixed_vars = ["model", "case"];
+                    fixed_vars = ["model", "amp", "freq"];
                 otherwise
                     error("Unknown x-axis type: %s", obj.x_axis_type)
             end
@@ -1180,16 +1214,19 @@ classdef timeAvg_UI < handle
                     obj.sel_freq = options(1);
                 case "model"
                     obj.sel_model = string(options(1));
+                case "position"
+                    obj.sel_position = string(options(1));
                 case "case"
                     obj.sel_amp = options(1, 1);
                     obj.sel_freq = options(1, 2);
             end
         end
 
-        function update_fixed_dropdowns(obj, dropdown_1, dropdown_2)
+        function update_fixed_dropdowns(obj, dropdowns)
             fixed_vars = obj.get_fixed_variable_names();
-            obj.update_fixed_dropdown(dropdown_1, fixed_vars(1));
-            obj.update_fixed_dropdown(dropdown_2, fixed_vars(2));
+            for k = 1:numel(dropdowns)
+                obj.update_fixed_dropdown(dropdowns(k), fixed_vars(k));
+            end
         end
 
         function update_fixed_dropdown(obj, dropdown, variable_name)
@@ -1238,6 +1275,14 @@ classdef timeAvg_UI < handle
                     else
                         dropdown.Value = strrep(obj.sel_model, "_", " ");
                     end
+                case "position"
+                    obj.ensure_selected_value(variable_name, options);
+                    dropdown.Items = [obj.position_label(options(:)); "all"];
+                    if obj.sel_position == "all"
+                        dropdown.Value = "all";
+                    else
+                        dropdown.Value = obj.position_label(obj.sel_position);
+                    end
                 case "case"
                     obj.ensure_selected_value(variable_name, options);
                     dropdown.Items = [obj.case_label(options(:, 1), options(:, 2)); "all"];
@@ -1280,6 +1325,8 @@ classdef timeAvg_UI < handle
                     selected_value = obj.sel_freq;
                 case "model"
                     selected_value = obj.sel_model;
+                case "position"
+                    selected_value = obj.sel_position;
                 case "case"
                     selected_value = [obj.sel_amp, obj.sel_freq];
             end
@@ -1313,6 +1360,14 @@ classdef timeAvg_UI < handle
                         models = obj.get_fixed_variable_options("model");
                         k = find(strrep(models, "_", " ") == string(item), 1);
                         obj.sel_model = models(k);
+                    end
+                case "position"
+                    if string(item) == "all"
+                        obj.sel_position = "all";
+                    else
+                        positions = obj.get_fixed_variable_options("position");
+                        k = find(obj.position_label(positions) == string(item), 1);
+                        obj.sel_position = positions(k);
                     end
                 case "case"
                     if string(item) == "all"
@@ -1348,11 +1403,73 @@ classdef timeAvg_UI < handle
                 case "freq"
                     options = unique(selection_freqs(mask));
                 case "model"
-                    % models measured at a known downstream distance
-                    has_dist = arrayfun(@(t) isfinite(obj.get_downstream_distance(t)), selection_types);
-                    options = unique(obj.get_model(selection_types(mask & has_dist)), 'stable');
+                    % downstream distance: only models measured at a known
+                    % distance (not freestream)
+                    if obj.x_axis_type == "downstream distance"
+                        mask = mask & arrayfun(@(t) isfinite(obj.get_downstream_distance(t)), selection_types);
+                    end
+                    options = unique(obj.get_model(selection_types(mask)), 'stable');
+                case "position"
+                    % in order of distance (no known distance last)
+                    options = unique(obj.get_position(selection_types(mask)), 'stable');
+                    dists = arrayfun(@(p) obj.position_distance(p), options);
+                    dists(~isfinite(dists)) = Inf;
+                    [~, order] = sort(dists);
+                    options = options(order);
                 case "case"
                     options = unique([selection_amps(mask), selection_freqs(mask)], 'rows');
+            end
+        end
+
+        % Measurement position of a case type, the prefix without "_":
+        % "x3_NACA" -> "x3", "UP_one_flexible" -> "UP_one", "flexible" or
+        % "freestream" -> "" (none)
+        function positions = get_position(~, types)
+            types = string(types);
+            positions = strings(size(types));
+            for i = 1:numel(types)
+                positions(i) = erase(get_downstream_prefix(types(i), true), "_");
+            end
+        end
+
+        % Case type from its position and model (inverse of get_position /
+        % get_model)
+        function type = build_type(~, position, model)
+            if strlength(position) == 0
+                type = string(model);
+            else
+                type = string(position) + "_" + model;
+            end
+        end
+
+        % Dropdown / slider name of a position: new flapper as is ("x3");
+        % old flapper as its distance label (flexible, UP_one, UP_two ->
+        % "x = 0.9m", ...); "none" for no position in the new data set
+        function labels = position_label(obj, positions)
+            positions = string(positions);
+            labels = positions;
+            old_positions = ["", "UP_one", "UP_two"];
+            for i = 1:numel(positions)
+                k = find(old_positions == positions(i), 1);
+                if obj.source_mode == obj.OLD_FLAPPER_SOURCE_MODE && ~isempty(k)
+                    labels(i) = obj.downstream_distance_labels(k);
+                elseif strlength(positions(i)) == 0
+                    labels(i) = "none";
+                end
+            end
+        end
+
+        % Distance (m) of a position in the current data set, as
+        % get_downstream_distance; NaN if none (e.g. freestream)
+        function dist = position_distance(obj, position)
+            position = string(position);
+            dist = NaN;
+            old_positions = ["", "UP_one", "UP_two"];
+            k = find(old_positions == position, 1);
+            if obj.source_mode == obj.OLD_FLAPPER_SOURCE_MODE && ~isempty(k)
+                dist = obj.downstream_distances(k);
+            elseif strlength(position) > 0 && position ~= "UP_one" && position ~= "UP_two"
+                dist = obj.get_robot_to_plane_dist(position + "_x");
             end
         end
 
@@ -1395,6 +1512,12 @@ classdef timeAvg_UI < handle
                     else
                         mask = obj.get_model(selection_types) == string(value);
                     end
+                case "position"
+                    if string(value) == "all"
+                        mask = true(size(selection_types));
+                    else
+                        mask = obj.get_position(selection_types) == string(value);
+                    end
                 case "case"
                     if value(1) == -1
                         mask = true(size(selection_amps));
@@ -1410,7 +1533,7 @@ classdef timeAvg_UI < handle
                     all_value = string(value) == "all";
                 case {"amp", "freq"}
                     all_value = value == -1;
-                case "model"
+                case {"model", "position"}
                     all_value = string(value) == "all";
                 case "case"
                     all_value = value(1) == -1;
@@ -1478,6 +1601,8 @@ classdef timeAvg_UI < handle
                             part = "freq=" + string(selection_freqs(cur_idx));
                         case "model"
                             part = "model=" + obj.get_model(selection_types(cur_idx));
+                        case "position"
+                            part = "position=" + obj.get_position(selection_types(cur_idx));
                         case "case"
                             part = "amp=" + string(selection_amps(cur_idx)) + ...
                                 "|freq=" + string(selection_freqs(cur_idx));
@@ -1493,9 +1618,10 @@ classdef timeAvg_UI < handle
             end
         end
 
-        function info = decode_selection(~, selection_key)
+        function info = decode_selection(obj, selection_key)
             parts = split(string(selection_key), "|");
-            info = struct("x_axis_type", parts(1), "type", "", "model", "", "amp", NaN, "freq", NaN, "RPCA", false, "HR", false, "source", "");
+            info = struct("x_axis_type", parts(1), "type", "", "model", "", "position", "", "amp", NaN, "freq", NaN, "RPCA", false, "HR", false, "source", "");
+            has_position = false;
 
             for i = 2:length(parts)
                 variable_name = extractBefore(parts(i), "=");
@@ -1505,6 +1631,9 @@ classdef timeAvg_UI < handle
                         info.type = value;
                     case "model"
                         info.model = value;
+                    case "position"
+                        info.position = value;
+                        has_position = true;
                     case "amp"
                         info.amp = str2double(value);
                     case "freq"
@@ -1516,6 +1645,11 @@ classdef timeAvg_UI < handle
                     case "source"
                         info.source = string(value);
                 end
+            end
+            % model + position entries (frequency / amplitude x-axis): the
+            % case type the rest of the code uses
+            if strlength(info.model) > 0 && has_position
+                info.type = obj.build_type(info.position, info.model);
             end
         end
 
@@ -1575,6 +1709,11 @@ classdef timeAvg_UI < handle
                 case "wingbeat amplitude"
                     mask = selection_types == info.type & selection_freqs == info.freq;
                     amps = unique(selection_amps(mask));
+                    % amplitudes inside the slider range
+                    r = obj.get_x_range("wingbeat amplitude");
+                    if ~isempty(r)
+                        amps = amps(amps >= r(1) - 1e-9 & amps <= r(2) + 1e-9);
+                    end
                     points.types = repmat(info.type, 1, length(amps));
                     points.amps = amps(:)';
                     points.freqs = repmat(info.freq, 1, length(amps));
@@ -1588,6 +1727,12 @@ classdef timeAvg_UI < handle
                     x_values = NaN(size(types));
                     for i = 1:length(types)
                         x_values(i) = obj.get_downstream_distance(types(i));
+                    end
+                    % positions inside the slider range
+                    r = obj.get_x_range("downstream distance");
+                    if ~isempty(r)
+                        pos_idx = arrayfun(@(t) obj.position_index(t), types);
+                        x_values(~(pos_idx >= r(1) & pos_idx <= r(2))) = NaN;
                     end
                     valid_indices = find(isfinite(x_values));
                     % in order of distance, so the curve runs downstream
@@ -1640,19 +1785,26 @@ classdef timeAvg_UI < handle
         end
 
         % Downstream distance (m) of a case's imaging plane: the old
-        % flapper positions (cur_types) as before, the new flapper ones
+        % flapper positions (no prefix, UP_one, UP_two) as before, the new flapper ones
         % (x1-x5, MPS) from plane_downstream_dists (robot to plane). NaN
         % for anything else (e.g. freestream, which has no position).
         function distance = get_downstream_distance(obj, type)
-            type_index = find(obj.cur_types == string(type), 1);
-            if ~isempty(type_index)
-                distance = obj.downstream_distances(type_index);
+            type = string(type);
+            distance = NaN;
+            if contains(type, "turbine")
                 return
             end
-            distance = NaN;
-            prefix = get_downstream_prefix(type);
-            if strlength(prefix) > 0 && ~contains(type, "turbine")
-                distance = obj.get_robot_to_plane_dist(type);
+            position = obj.get_position(type);
+            if obj.is_new_flapper_type(type)
+                if strlength(position) > 0
+                    distance = obj.get_robot_to_plane_dist(type);
+                end
+            else
+                % old flapper: no prefix, UP_one, UP_two
+                k = find(["", "UP_one", "UP_two"] == position, 1);
+                if ~isempty(k)
+                    distance = obj.downstream_distances(k);
+                end
             end
         end
 
@@ -2864,29 +3016,115 @@ classdef timeAvg_UI < handle
             end
         end
 
-        function new_range = snap_to_available_freqs(obj, value)
-            % move each end of the slider to the nearest measured frequency
-            new_range = value;
-            for k = 1:2
-                [~, idx] = min(abs(obj.available_freqs - value(k)));
-                new_range(k) = obj.available_freqs(idx);
+        % Values the range slider snaps to and their tick labels, for an
+        % x-axis (default: the current one): the measured frequencies (Hz)
+        % or amplitudes (deg) of the current data set, or the downstream
+        % positions as indices 1..n into dist_positions (ordered by
+        % distance, labelled with their names)
+        function [vals, labels] = get_range_slider_values(obj, x_axis_type)
+            if nargin < 2
+                x_axis_type = obj.x_axis_type;
             end
-            new_range = sort(new_range);
+            types = string(obj.available_selections(:, 1));
+            in_source = obj.get_source_mask(types, obj.source_mode);
+            switch x_axis_type
+                case "wingbeat frequency"
+                    vals = obj.available_freqs(:)';
+                    labels = string(vals);
+                case "wingbeat amplitude"
+                    amps = cell2mat(obj.available_selections(:, 2));
+                    vals = unique(amps(in_source))';
+                    labels = string(vals);
+                case "downstream distance"
+                    pos = unique(obj.get_position(types(in_source)));
+                    dists = arrayfun(@(p) obj.position_distance(p), pos);
+                    keep = isfinite(dists);
+                    [~, order] = sort(dists(keep));
+                    pos = pos(keep);
+                    obj.dist_positions = reshape(pos(order), 1, []);
+                    vals = 1:numel(obj.dist_positions);
+                    labels = obj.position_label(obj.dist_positions);
+            end
         end
 
-        function update_freq_range_label(obj, freq_label)
-            freq_label.Text = sprintf("Frequencies: %g - %g Hz", obj.freq_range(1), obj.freq_range(2));
+        % Index of a case type's position in dist_positions (NaN if none)
+        function idx = position_index(obj, type)
+            idx = find(obj.dist_positions == obj.get_position(type), 1);
+            if isempty(idx)
+                idx = NaN;
+            end
         end
 
-        function set_freq_slider_enable(obj, freq_slider, freq_label)
-            % the range only applies to the wingbeat frequency x-axis
-            if obj.x_axis_type == "wingbeat frequency"
-                state = "on";
-            else
-                state = "off";
+        % [low high] slider range of an x-axis (default: the current one);
+        % the full range if unset or no longer valid, [] if no values
+        function r = get_x_range(obj, x_axis_type)
+            if nargin < 2
+                x_axis_type = obj.x_axis_type;
             end
-            freq_slider.Enable = state;
-            freq_label.Enable = state;
+            vals = obj.get_range_slider_values(x_axis_type);
+            if isempty(vals)
+                r = [];
+                return
+            end
+            switch x_axis_type
+                case "wingbeat frequency", r = obj.freq_range;
+                case "wingbeat amplitude", r = obj.amp_range;
+                case "downstream distance", r = obj.dist_range;
+            end
+            if numel(r) ~= 2 || ~all(ismember(r, vals))
+                r = [min(vals), max(vals)];
+                obj.set_x_range(r, x_axis_type);
+            end
+        end
+
+        function set_x_range(obj, r, x_axis_type)
+            if nargin < 3
+                x_axis_type = obj.x_axis_type;
+            end
+            switch x_axis_type
+                case "wingbeat frequency", obj.freq_range = r;
+                case "wingbeat amplitude", obj.amp_range = r;
+                case "downstream distance", obj.dist_range = r;
+            end
+        end
+
+        % Range slider and its label for the current x-axis
+        function setup_range_slider(obj, slider, label)
+            [vals, tick_labels] = obj.get_range_slider_values();
+            if isempty(vals)
+                slider.Enable = "off";
+                label.Enable = "off";
+                label.Text = "No cases";
+                return
+            end
+            r = obj.get_x_range();
+            lims = [min(vals), max(vals)];
+            if lims(1) == lims(2)
+                lims(2) = lims(1) + 1; % slider needs a span
+            end
+            slider.Limits = lims;
+            slider.Value = r;
+            slider.MajorTicks = vals;
+            slider.MajorTickLabels = cellstr(tick_labels);
+            slider.Enable = "on";
+            label.Enable = "on";
+            obj.update_range_label(label);
+        end
+
+        function update_range_label(obj, label)
+            r = obj.get_x_range();
+            if isempty(r)
+                return
+            end
+            switch obj.x_axis_type
+                case "wingbeat frequency"
+                    label.Text = sprintf("Frequencies: %g - %g Hz", r(1), r(2));
+                case "wingbeat amplitude"
+                    label.Text = sprintf("Amplitudes: %g - %g deg", r(1), r(2));
+                case "downstream distance"
+                    names = obj.position_label(obj.dist_positions(r));
+                    label.Text = "Positions: " + names(1) + " - " + names(2);
+            end
         end
 
         function tf = is_plain_steady_type(obj, type)
