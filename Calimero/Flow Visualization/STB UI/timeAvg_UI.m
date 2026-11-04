@@ -2048,7 +2048,9 @@ classdef timeAvg_UI < handle
 
             num_vars = length(selected_force_vars);
             num_sel = length(obj.selection);
-            curve_colors = lines(max(1, num_sel * max(1, num_vars)));
+            % one hue per case, shades of it for the variables (see
+            % get_series_color)
+            curve_colors = obj.get_series_colors(num_sel, num_vars);
 
             % Difference: variable 1 minus variable 2 (and minus variable
             % 3), e.g. lift vortX - lift (LC) for the STB error
@@ -2349,7 +2351,7 @@ classdef timeAvg_UI < handle
                     end
                     curve_label = obj.get_curve_label(obj.decode_selection(obj.selection(i)));
                     for k = 2:num_vars
-                        color = curve_colors((i - 1) * num_vars + k, :);
+                        color = curve_colors{i, k};
                         s1 = plot(ax, x_vals{1, i}, values{1, i} - values{k, i}, ...
                             char(obj.get_variable_marker(k)), LineStyle="none", MarkerSize=10, ...
                             Color=color, MarkerFaceColor=color);
@@ -2385,7 +2387,7 @@ classdef timeAvg_UI < handle
                     if isempty(values{var_idx, i})
                         continue
                     end
-                    original_color = curve_colors((i - 1) * num_vars + var_idx, :);
+                    original_color = curve_colors{i, var_idx};
                     info = obj.decode_selection(obj.selection(i));
                     if obj.is_load_cell_var(force_var)
                         curve_label = obj.get_curve_label(obj.strip_load_cell_position(info));
@@ -2421,6 +2423,40 @@ classdef timeAvg_UI < handle
 
             if (obj.saveFig)
                 obj.save_hidden_figure(fignew);
+            end
+        end
+
+        % Colour of each series, {case, variable}. Several cases: one hue
+        % per case (lines colormap), and the variables of a case in shades
+        % of it, from darker (variable 1) to lighter (last variable), so
+        % the variables of one case are told apart by shade (and marker)
+        % and the cases by hue. One case: a distinct colour per variable.
+        function colors = get_series_colors(~, num_sel, num_vars)
+            num_sel = max(1, num_sel);
+            num_vars = max(1, num_vars);
+            colors = cell(num_sel, num_vars);
+            if num_sel == 1
+                c = lines(num_vars);
+                for k = 1:num_vars
+                    colors{1, k} = c(k, :);
+                end
+                return
+            end
+            base = lines(num_sel);
+            for i = 1:num_sel
+                for k = 1:num_vars
+                    if num_vars == 1
+                        colors{i, k} = base(i, :);
+                        continue
+                    end
+                    % -1 (darkest, variable 1) ... +1 (lightest, last)
+                    t = 2 * (k - 1) / (num_vars - 1) - 1;
+                    if t < 0
+                        colors{i, k} = base(i, :) * (1 + 0.35 * t);           % towards black
+                    else
+                        colors{i, k} = base(i, :) + (1 - base(i, :)) * 0.5 * t; % towards white
+                    end
+                end
             end
         end
 
