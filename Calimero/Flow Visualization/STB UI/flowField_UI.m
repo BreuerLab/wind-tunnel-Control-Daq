@@ -278,6 +278,11 @@ properties
     % unc_mask_thresh percent of the freestream speed
     unc_mask_bool;
     unc_mask_thresh;
+    % 3D plot: hide the isosurface inside a y-z box (e.g. the wake of the
+    % robot's wires below the wing wake), [ymin ymax zmin zmax] in chords,
+    % y from the mirror centreline and z as plotted. Display only.
+    crop_box_bool;
+    crop_box;
     % 2D plots (time avg / movie of phase avg and phase std): thin black
     % isolines of the wingbeat-averaged total uncertainty at
     % unc_contour_levels percent of the freestream speed
@@ -362,6 +367,8 @@ methods
         obj.remove_small_pct = obj.REMOVE_SMALL_DEFAULT;
         obj.unc_mask_bool = false;
         obj.unc_mask_thresh = 4; % % of freestream
+        obj.crop_box_bool = false;
+        obj.crop_box = [-1.4 1.4 -3.5 -1.2];
         obj.unc_contour_bool = false;
         obj.unc_contour_levels = 1:4; % % of freestream
         obj.centroid_bool = false;
@@ -1018,12 +1025,12 @@ methods
         obj.param_panel.Title = "3D Plot Parameters";
         obj.param_panel.TitlePosition = 'centertop';
 
-        param_grid = uigridlayout(obj.param_panel, [15, 1]);
+        param_grid = uigridlayout(obj.param_panel, [16, 1]);
         param_grid.ColumnWidth = {'1x'};
         % isovalue, iso variable, views, fixed y / z limits, x-axis /
         % shift / stroke labels, Remove Small, Unc Mask, number of
-        % wingbeats, Card Style
-        param_grid.RowHeight = {22, 55, 30, 50, 18, 24, 52, 30, 30, 30, 30, 30, 22, 55, 30};
+        % wingbeats, Card Style, Crop Box
+        param_grid.RowHeight = {22, 55, 30, 50, 18, 24, 52, 30, 30, 30, 30, 30, 22, 55, 30, 30};
         param_grid.Padding = [10 8 10 8];
         param_grid.RowSpacing = 6;
 
@@ -1357,6 +1364,33 @@ methods
         unc_mask_label.Layout.Row = 1;
         unc_mask_label.Layout.Column = 3;
         unc_mask_label.Text = '%';
+
+        % Crop Box: hide the isosurface inside a y-z box (e.g. the wire wake)
+        crop_grid = uigridlayout(param_grid, [1, 2]);
+        crop_grid.Layout.Row = 16;
+        crop_grid.Layout.Column = 1;
+        crop_grid.ColumnWidth = {'1x', '1.3x'};
+        crop_grid.RowHeight = {'1x'};
+        crop_grid.Padding = [0 0 0 0];
+        crop_grid.ColumnSpacing = 3;
+
+        crop_box_button = uibutton(crop_grid, "state");
+        crop_box_button.Layout.Row = 1;
+        crop_box_button.Layout.Column = 1;
+        crop_box_button.Text = "Crop Box";
+        crop_box_button.FontSize = 16;
+        crop_box_button.Value = obj.crop_box_bool;
+        crop_box_button.BackgroundColor = obj.get_button_color(obj.crop_box_bool);
+        crop_box_button.Tooltip = "Hide the isosurface inside the y-z box at right (e.g. the wake of the robot's wires). Display only: the data and other calculations are unchanged";
+        crop_box_button.ValueChangedFcn = @(src, event) crop_box_change(src, event, plot_area_panel);
+
+        crop_box_field = uieditfield(crop_grid, "text");
+        crop_box_field.Layout.Row = 1;
+        crop_box_field.Layout.Column = 2;
+        crop_box_field.Value = num2str(obj.crop_box);
+        crop_box_field.HorizontalAlignment = 'center';
+        crop_box_field.Tooltip = "Crop box: ymin ymax zmin zmax in chords; y from the mirror centreline (as plotted with Mirror on), z as plotted";
+        crop_box_field.ValueChangedFcn = @(src, event) crop_box_bounds_change(src, event, plot_area_panel);
 
         save_button = uibutton(sidebar_grid, "state");
         save_button.Layout.Row = 15;
@@ -2287,6 +2321,29 @@ methods
             end
         end
 
+        function crop_box_change(src, ~, plot_panel)
+            obj.crop_box_bool = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.crop_box_bool);
+            if obj.is_3D_plot_type()
+                obj.update_plot(plot_panel); % new isosurface, same view
+            end
+        end
+
+        function crop_box_bounds_change(src, ~, plot_panel)
+            b = str2num(char(src.Value)); %#ok<ST2NM> four numbers
+            if numel(b) ~= 4 || any(~isfinite(b)) || b(1) >= b(2) || b(3) >= b(4)
+                uialert(ancestor(src, 'figure'), ...
+                    "Enter four numbers: ymin ymax zmin zmax (min < max).", "Crop Box");
+                src.Value = num2str(obj.crop_box);
+                return
+            end
+            obj.crop_box = b(:)';
+            src.Value = num2str(obj.crop_box);
+            if obj.crop_box_bool && obj.is_3D_plot_type()
+                obj.update_plot(plot_panel);
+            end
+        end
+
         function unc_mask_thresh_change(src, ~, plot_panel)
             obj.unc_mask_thresh = src.Value;
             if obj.unc_mask_bool && obj.is_3D_plot_type()
@@ -2797,7 +2854,8 @@ methods (Access = private)
             string(obj.mirror_bool), mat2str(obj.mirror_center_y), ...
             string(obj.filter_bool), string(use_extrapolated_data), ...
             string(obj.frame_ind), string(obj.conv_shift), obj.stroke_order, ...
-            string(obj.unc_mask_bool), sprintf("%.10g", obj.unc_mask_thresh)];
+            string(obj.unc_mask_bool), sprintf("%.10g", obj.unc_mask_thresh), ...
+            string(obj.crop_box_bool), mat2str(obj.crop_box)];
         key = strjoin(parts, "|");
     end
 
@@ -4124,6 +4182,10 @@ methods (Access = private)
                 fprintf("Uncertainty mask: %.1f%% of points hidden (unc > %g%% of U)\n", ...
                     100 * mean(mask(:)), obj.unc_mask_thresh);
             end
+            % Crop Box (3D plot only, display only), same treatment
+            if plot_idx == 5
+                Q = obj.apply_crop_box(Q, y, z, obj.mirror_bool && ~use_extrapolated_data);
+            end
         end
         
         % Create a fresh axes unless the 3D patch can be updated in place.
@@ -4593,6 +4655,7 @@ methods (Access = private)
             string(obj.mirror_bool), mat2str(obj.mirror_center_y), string(obj.filter_bool), ...
             string(obj.floor_bool), sprintf("%.10g", obj.thresh), ...
             string(obj.unc_mask_bool), sprintf("%.10g", obj.unc_mask_thresh), ...
+            string(obj.crop_box_bool), mat2str(obj.crop_box), ...
             mat2str(obj.get_color_limits(obj.variable_name))], "|");
         if ~isempty(obj.merged_3D) && obj.merged_3D.key == key
             M = obj.merged_3D;
@@ -4790,6 +4853,7 @@ methods (Access = private)
             mask3 = repmat(unc > obj.unc_mask_thresh / 100 | isnan(unc), 1, 1, size(Q, 3));
             Q(mask3) = median(Q(~mask3), "omitnan");
         end
+        Q = obj.apply_crop_box(Q, y, z, obj.mirror_bool);
 
         P = struct();
         P.U = d.U;
@@ -5568,6 +5632,30 @@ methods (Access = private)
             labels(k) = "\boldmath$\omega_" + w + " \frac{\partial " + uvw + ...
                 "}{\partial " + dx + "} \frac{c^2}{U_{\infty}^2} \;\; (" + name + ")$";
         end
+    end
+
+    % Crop Box: points of the 3D plot's iso variable Q ([ny nz nb] on the
+    % plotted y, z grid) inside obj.crop_box get Q's background value (its
+    % median), like the uncertainty mask, so no isosurface forms there and
+    % surfaces crossing the box edge are closed off. y is measured from
+    % the mirror centreline (the plotted y when mirrored).
+    function Q = apply_crop_box(obj, Q, y, z, mirrored)
+        if ~obj.crop_box_bool || ~isequal(size(y), [size(Q, 1), size(Q, 2)])
+            return
+        end
+        b = obj.crop_box;
+        y_rel = y;
+        if ~mirrored
+            y_rel = y - obj.mirror_center_y;
+        end
+        mask = y_rel > b(1) & y_rel < b(2) & z > b(3) & z < b(4);
+        if ~any(mask(:))
+            return
+        end
+        mask3 = repmat(mask, 1, 1, size(Q, 3));
+        Q(mask3) = median(Q(~mask3), "omitnan");
+        fprintf("Crop Box: %.1f%% of points hidden (y %g to %g, z %g to %g)\n", ...
+            100 * mean(mask(:)), b);
     end
 
     function inputs = get_lift_wx_inputs(~, using_time_avg_file)
