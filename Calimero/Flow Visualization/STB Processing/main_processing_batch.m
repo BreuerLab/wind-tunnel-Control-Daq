@@ -24,7 +24,7 @@ freqs = [2 4 6 8];         % wingbeat frequency (Hz), 0 = gliding
 sel_case_names = select_cases(get_PIV_paths(), positions, amps, freqs);
 % All cases found (every listed case and every September\<pos>\<case>
 % folder): set the three filters above to [] or uncomment this line
-% sel_case_names = get_PIV_paths();
+sel_case_names = get_PIV_paths();
 
 % Keep only flapping or only static cases from the selection above
 % (whichever way it was made):

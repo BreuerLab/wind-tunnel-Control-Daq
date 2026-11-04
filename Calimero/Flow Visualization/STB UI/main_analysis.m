@@ -26,12 +26,12 @@ data_file_path = ["F:\", "C:\Users\rgissler\Documents\STB Round 1\"];
 % b.dynamic_plotting();
 
 % GUI for plotting phase averaged quantities
-c = phaseAvg_UI(data_file_path);
-c.dynamic_plotting();
+% c = phaseAvg_UI(data_file_path);
+% c.dynamic_plotting();
 
 % % GUI for plotting time averaged quantities
-% d = timeAvg_UI(data_file_path);
-% d.dynamic_plotting();
+d = timeAvg_UI(data_file_path);
+d.dynamic_plotting();
 
 % ----------------------------------------------
 % Diagnostic recommendations from Claude

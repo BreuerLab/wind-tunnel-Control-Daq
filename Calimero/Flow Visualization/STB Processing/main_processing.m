@@ -16,14 +16,14 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 % PIV_case_name = 'UP_two_flexible_20deg_6Hz';
 % PIV_case_name = 'x5_wings_20deg_0Hz';
 % PIV_case_name = 'MPS_wings_20deg_6Hz';
-PIV_case_name = 'x4_wings_20deg_4Hz';
+% PIV_case_name = 'x4_wings_20deg_4Hz';
 % PIV_case_name = 'x2_NACA';
 % PIV_case_name = 'freestream';
-% PIV_case_name = 'x2_wings_20deg_8Hz_VIC';
+PIV_case_name = 'x2_wings_20deg_8Hz_VIC3';
 
 % num_images = 1200; 
-num_images = 3000;
-% num_images = 600;
+% num_images = 3000;
+num_images = 600;
 
 % save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
 save_filepath_local = "F:\Processed Results\";
@@ -59,7 +59,7 @@ bools.version = "";
 % Reynolds stresses and Q_inst are still computed per bin. Saved with
 % "_hr" added to the version name (e.g. coarse_hr), so it doesn't
 % overwrite the bin-averaged files. See harmonic_regression_STB.m.
-bools.harmonic_reg = true;
+bools.harmonic_reg = false;
 bools.num_harmonics = 10; % 2*10+1 = 21 coefficients per point and field
 bools.hr_save_coef = false; % save coefficients (to evaluate fit / exact d/dt at any phase); large files
 
