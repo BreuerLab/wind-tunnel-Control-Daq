@@ -117,6 +117,13 @@ classdef timeAvg_UI < handle
         % enclosed by the threshold contour, keeping vortex cores)
         unc_mask_bool;
         unc_mask_pct;
+        % Live Calculate Crop Box: points inside [ymin ymax zmin zmax]
+        % (y/L from the mirror centreline y_cen, z/L unshifted, as in
+        % flowField_UI's Crop Box) are left out of the force integrals
+        % together with the uncertainty mask (trim_bounds.crop_box, see
+        % crop_box_region)
+        crop_box_bool;
+        crop_box;
 
         % ------- Available parameters user can select from -------
         available_selections;
@@ -316,6 +323,9 @@ classdef timeAvg_UI < handle
                 obj.unc_mask_pct = 100 * obj.trim_bounds.unc_mask;
             end
             obj.set_unc_mask_bound();
+            obj.crop_box_bool = false;
+            obj.crop_box = [-1.4 1.4 -3.5 -1.2];
+            obj.set_crop_box_bound();
 
             % Search through files in path to get types and speeds.
             % Phase averaged cases live in phase_avg\, the 0 Hz (gliding)
@@ -427,7 +437,7 @@ classdef timeAvg_UI < handle
             sidebar_grid = uigridlayout(option_panel, [27, 1]);
             sidebar_grid.ColumnWidth = {'1x'};
             sidebar_grid.RowHeight = {30, 60, 30, 30, 30, 30, 30, 110, 30, 30, 30, 30, 30, 30, 30,...
-                                      30, 25, 30, 30, 30, 30, 30, 30, 30, 30, 190, 30};
+                                      30, 25, 30, 30, 30, 30, 30, 30, 30, 30, 277, 30};
             sidebar_grid.Padding = [10 10 10 10];
             sidebar_grid.RowSpacing = 6;
             if isprop(sidebar_grid, "Scrollable")
@@ -773,9 +783,9 @@ classdef timeAvg_UI < handle
             bounds_panel.Title = "Live Calc Bounds (y/L, z/L)";
             bounds_panel.TitlePosition = 'centertop';
 
-            bounds_grid = uigridlayout(bounds_panel, [5, 3]);
+            bounds_grid = uigridlayout(bounds_panel, [8, 3]);
             bounds_grid.ColumnWidth = {45, '1x', '1x'};
-            bounds_grid.RowHeight = {25, 25, 25, 25, 25};
+            bounds_grid.RowHeight = {25, 25, 25, 25, 25, 25, 25, 25};
             bounds_grid.Padding = [6 4 6 4];
             bounds_grid.RowSpacing = 4;
             bounds_grid.ColumnSpacing = 4;
@@ -843,6 +853,40 @@ classdef timeAvg_UI < handle
                 "so high-uncertainty vortex cores inside the plane stay in the integrals (static cases)";
             unc_mode_dropdown.ValueChangedFcn = @(src, event) unc_mask_mode_change(src, event, plot_panel);
             bounds_fields(end+1) = unc_mode_dropdown;
+
+            % Crop Box: y and z limits of a region left out of the live
+            % forces, merged with the uncertainty mask
+            crop_rows = {"crop y", "y/L from the mirror centreline (y_cen)";
+                         "crop z", "z/L, unshifted (as plotted in flowField_UI)"};
+            crop_sides = ["lower", "upper"];
+            crop_fields = gobjects(2, 2);
+            for r = 1:2
+                crop_label = uilabel(bounds_grid);
+                crop_label.Layout.Row = 5 + r;
+                crop_label.Layout.Column = 1;
+                crop_label.Text = crop_rows{r, 1};
+                for c = 1:2
+                    crop_f = uieditfield(bounds_grid, 'numeric');
+                    crop_f.Layout.Row = 5 + r;
+                    crop_f.Layout.Column = c + 1;
+                    crop_f.Value = obj.crop_box(2*(r - 1) + c);
+                    crop_f.Tooltip = "Crop Box " + crop_sides(c) + " edge, " + crop_rows{r, 2};
+                    crop_f.ValueChangedFcn = @(src, event) crop_box_value_change(src, event, plot_panel);
+                    crop_fields(r, c) = crop_f;
+                    bounds_fields(end+1) = crop_f; %#ok<AGROW>
+                end
+            end
+
+            crop_button = uibutton(bounds_grid, "state");
+            crop_button.Layout.Row = 8;
+            crop_button.Layout.Column = [1 3];
+            crop_button.Text = "Crop Box";
+            crop_button.Value = obj.crop_box_bool;
+            crop_button.BackgroundColor = obj.get_button_color(obj.crop_box_bool);
+            crop_button.Tooltip = "Leave the y-z box above out of the live force integrals (treated as undisturbed freestream), " + ...
+                "together with the uncertainty mask. Same box convention as flowField_UI's Crop Box";
+            crop_button.ValueChangedFcn = @(src, event) crop_box_change(src, event, plot_panel);
+            bounds_fields(end+1) = crop_button;
 
             set(bounds_fields, 'Enable', 'off'); % only used with Live Calculate
             calc_button.ValueChangedFcn = @(src, event) calc_change(src, event, plot_panel, bounds_fields);
@@ -1132,6 +1176,34 @@ classdef timeAvg_UI < handle
                 src.BackgroundColor = obj.get_button_color(obj.unc_mask_bool);
                 obj.set_unc_mask_bound();
                 if obj.calc_bool
+                    obj.update_plot(plot_panel);
+                end
+            end
+
+            function crop_box_change(src, ~, plot_panel)
+                obj.crop_box_bool = src.Value;
+                src.BackgroundColor = obj.get_button_color(obj.crop_box_bool);
+                obj.set_crop_box_bound();
+                if obj.calc_bool
+                    obj.update_plot(plot_panel);
+                end
+            end
+
+            function crop_box_value_change(~, ~, plot_panel)
+                b = [crop_fields(1,1).Value, crop_fields(1,2).Value, ...
+                     crop_fields(2,1).Value, crop_fields(2,2).Value];
+                if b(1) >= b(2) || b(3) >= b(4)
+                    % lower must be below upper: undo
+                    for r = 1:2
+                        for c = 1:2
+                            crop_fields(r, c).Value = obj.crop_box(2*(r - 1) + c);
+                        end
+                    end
+                    return
+                end
+                obj.crop_box = b;
+                obj.set_crop_box_bound();
+                if obj.calc_bool && obj.crop_box_bool
                     obj.update_plot(plot_panel);
                 end
             end
@@ -3100,6 +3172,15 @@ classdef timeAvg_UI < handle
 
         % Uncertainty mask threshold passed to get_PIV_force with the trim
         % bounds (fraction of the freestream; 0 = off)
+        % Crop Box passed to get_PIV_force with the trim bounds ([] = off)
+        function set_crop_box_bound(obj)
+            if obj.crop_box_bool
+                obj.trim_bounds.crop_box = obj.crop_box;
+            else
+                obj.trim_bounds.crop_box = [];
+            end
+        end
+
         function set_unc_mask_bound(obj)
             if obj.unc_mask_bool
                 obj.trim_bounds.unc_mask = obj.unc_mask_pct / 100;

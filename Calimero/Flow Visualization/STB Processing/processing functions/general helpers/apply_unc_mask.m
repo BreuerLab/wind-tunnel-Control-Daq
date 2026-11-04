@@ -1,8 +1,9 @@
-function [F, mask] = apply_unc_mask(F, unc, thresh, mode)
+function [F, mask] = apply_unc_mask(F, unc, thresh, mode, extra_mask)
 % APPLY_UNC_MASK Leave high-uncertainty points out of the wake force
 % integrals.
 %
 %   [F, mask] = apply_unc_mask(F, unc, thresh, mode)
+%   [F, mask] = apply_unc_mask(F, unc, thresh, mode, extra_mask)
 %
 %   F      - trimmed, hole-filled, nondimensional fields as passed to
 %            get_wake_lift (u, v, w and any of vortX, vortY, vortZ,
@@ -31,8 +32,18 @@ function [F, mask] = apply_unc_mask(F, unc, thresh, mode)
 
 if nargin < 3, thresh = []; end
 if nargin < 4, mode = "threshold"; end
+if nargin < 5, extra_mask = []; end
 
+% extra_mask ([ny nz] logical, e.g. the Crop Box from crop_box_region) is
+% merged with the uncertainty mask: either one leaves a point out
 mask = unc_mask_region(unc, thresh, mode);
+if ~isempty(extra_mask)
+    if isempty(mask)
+        mask = extra_mask;
+    elseif isequal(size(mask), size(extra_mask))
+        mask = mask | extra_mask;
+    end
+end
 if isempty(mask)
     return
 end
