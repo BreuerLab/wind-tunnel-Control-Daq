@@ -24,7 +24,7 @@ freqs = [2 4 6 8];         % wingbeat frequency (Hz), 0 = gliding
 sel_case_names = select_cases(get_PIV_paths(), positions, amps, freqs);
 % All cases found (every listed case and every September\<pos>\<case>
 % folder): set the three filters above to [] or uncomment this line
-sel_case_names = get_PIV_paths();
+% sel_case_names = get_PIV_paths();
 
 % Keep only flapping or only static cases from the selection above
 % (whichever way it was made):
@@ -37,7 +37,7 @@ sel_case_names = get_PIV_paths();
 % cases without an amplitude or frequency (ring, freestream, ...) only
 % pass empty amps / freqs filters above, e.g. for every static case:
 % positions = []; amps = []; freqs = []; motion = "static";
-motion = "static";
+motion = "all";
 
 % Number of images per case: "auto" counts the .vc7 files in each case's
 % data folder (get_PIV_paths) and uses that; a number uses it for every

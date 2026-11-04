@@ -12,6 +12,7 @@ classdef phaseAvg_UI < handle
         OLD_FLAPPER_SOURCE_MODE = "old flapper";
         NEW_FLAPPER_SOURCE_MODE = "new flapper";
         DEFAULT_VERSION_LABEL = "default";
+        NUM_VARS = 4; % variables plotted at once (Variables panel)
         cur_types = ["flexible";"UP_one_flexible";"UP_two_flexible"];
         downstream_distance_labels = ["x = 0.9m"; "x = 1.3m"; "x = 1.7m"];
         new_flapper_downstream_types = ["x1";"x2";"x3";"x4";"x5";"MPS"];
@@ -333,7 +334,7 @@ methods
 
         sidebar_grid = uigridlayout(option_panel, [20, 1]);
         sidebar_grid.ColumnWidth = {'1x'};
-        sidebar_grid.RowHeight = {30, 30, 30, 30, 30, 30, 30, 110, 30, 383, 30, 0, 30, 30, 30, 30, 24, 30, 30, 30};
+        sidebar_grid.RowHeight = {30, 30, 30, 30, 30, 30, 30, 110, 30, 346, 30, 0, 30, 30, 30, 30, 24, 30, 30, 30};
         sidebar_grid.Padding = [10 10 10 10];
         sidebar_grid.RowSpacing = 6;
         if isprop(sidebar_grid, "Scrollable")
@@ -453,61 +454,60 @@ methods
         param_panel.Title = "Plot Parameters";
         param_panel.TitlePosition = 'centertop';
 
-        param_grid = uigridlayout(param_panel, [12, 1]);
+        param_grid = uigridlayout(param_panel, [5, 1]);
         param_grid.ColumnWidth = {'1x'};
-        param_grid.RowHeight = {22, 25, 22, 25, 22, 25, 22, 25, 30, 25, 30, 30};
+        param_grid.RowHeight = {175, 30, 25, 30, 30};
         param_grid.Padding = [10 8 10 8];
         param_grid.RowSpacing = 4;
 
-        var_type_label = uilabel(param_grid);
+        % Variables: the type (filters the lists) and up to NUM_VARS
+        % variables, numbered in plot order (variable 1 takes the left
+        % y-axis when the axes are separate)
+        var_panel = uipanel(param_grid);
+        var_panel.Layout.Row = 1;
+        var_panel.Layout.Column = 1;
+        var_panel.Title = "Variables";
+
+        var_grid = uigridlayout(var_panel, [obj.NUM_VARS + 1, 2]);
+        % label column only as wide as "Type" ('fit'), the rest for the
+        % variable names
+        var_grid.ColumnWidth = {'fit', '1x'};
+        var_grid.RowHeight = repmat({25}, 1, obj.NUM_VARS + 1);
+        var_grid.Padding = [4 6 6 6];
+        var_grid.RowSpacing = 4;
+        var_grid.ColumnSpacing = 3;
+
+        var_type_label = uilabel(var_grid);
         var_type_label.Layout.Row = 1;
         var_type_label.Layout.Column = 1;
-        var_type_label.Text = "Variable Type";
+        var_type_label.Text = "Type";
 
-        var_type_dropdown = uidropdown(param_grid);
-        var_type_dropdown.Layout.Row = 2;
-        var_type_dropdown.Layout.Column = 1;
+        var_type_dropdown = uidropdown(var_grid);
+        var_type_dropdown.Layout.Row = 1;
+        var_type_dropdown.Layout.Column = 2;
         var_type_dropdown.Items = ["kinematics", "flow", "force", "BA: force", "load cell"];
         var_type_dropdown.Value = "kinematics";
 
         [init_types, ~, ~] = obj.get_variable_options(var_type_dropdown.Value);
         init_options = ["none", init_types];
 
-        var_label1 = uilabel(param_grid);
-        var_label1.Layout.Row = 3;
-        var_label1.Layout.Column = 1;
-        var_label1.Text = "Variable 1";
+        var_dropdowns = gobjects(1, obj.NUM_VARS);
+        for k = 1:obj.NUM_VARS
+            var_num_label = uilabel(var_grid);
+            var_num_label.Layout.Row = k + 1;
+            var_num_label.Layout.Column = 1;
+            var_num_label.Text = string(k);
+            var_num_label.HorizontalAlignment = "center";
 
-        var_dropdown1 = uidropdown(param_grid);
-        var_dropdown1.Layout.Row = 4;
-        var_dropdown1.Layout.Column = 1;
-        var_dropdown1.Items = init_options;
-        var_dropdown1.Value = "none";
-
-        var_label2 = uilabel(param_grid);
-        var_label2.Layout.Row = 5;
-        var_label2.Layout.Column = 1;
-        var_label2.Text = "Variable 2";
-
-        var_dropdown2 = uidropdown(param_grid);
-        var_dropdown2.Layout.Row = 6;
-        var_dropdown2.Layout.Column = 1;
-        var_dropdown2.Items = init_options;
-        var_dropdown2.Value = "none";
-
-        var_label3 = uilabel(param_grid);
-        var_label3.Layout.Row = 7;
-        var_label3.Layout.Column = 1;
-        var_label3.Text = "Variable 3";
-
-        var_dropdown3 = uidropdown(param_grid);
-        var_dropdown3.Layout.Row = 8;
-        var_dropdown3.Layout.Column = 1;
-        var_dropdown3.Items = init_options;
-        var_dropdown3.Value = "none";
+            var_dropdowns(k) = uidropdown(var_grid);
+            var_dropdowns(k).Layout.Row = k + 1;
+            var_dropdowns(k).Layout.Column = 2;
+            var_dropdowns(k).Items = init_options;
+            var_dropdowns(k).Value = "none";
+        end
 
         b6 = uibutton(param_grid, "state");
-        b6.Layout.Row = 9;
+        b6.Layout.Row = 2;
         b6.Layout.Column = 1;
         b6.Text = "PIV Body Sub";
         b6.FontSize = 18;
@@ -517,7 +517,7 @@ methods
         % Steady case used for the subtraction, matched to each
         % selection's downstream position (and amplitude for body/gliding)
         PIV_sub_dropdown = uidropdown(param_grid);
-        PIV_sub_dropdown.Layout.Row = 10;
+        PIV_sub_dropdown.Layout.Row = 3;
         PIV_sub_dropdown.Layout.Column = 1;
         PIV_sub_dropdown.Items = ["ring", "body", "gliding", "freestream"];
         PIV_sub_dropdown.Value = obj.PIV_sub_case;
@@ -527,7 +527,7 @@ methods
         % Convection Shift and, next to it, "+/-": shift all curves so the
         % upstroke is centred instead of the downstroke (as in flowField_UI)
         conv_shift_grid = uigridlayout(param_grid, [1, 2]);
-        conv_shift_grid.Layout.Row = 11;
+        conv_shift_grid.Layout.Row = 4;
         conv_shift_grid.Layout.Column = 1;
         conv_shift_grid.ColumnWidth = {'1x', 32};
         conv_shift_grid.RowHeight = {'1x'};
@@ -558,7 +558,7 @@ methods
         % Stroke reversal lines, upstroke/downstroke labels and downstroke
         % shading. Turned on with Convection Shift, unavailable without it.
         label_stroke_button = uibutton(param_grid, "state");
-        label_stroke_button.Layout.Row = 12;
+        label_stroke_button.Layout.Row = 5;
         label_stroke_button.Layout.Column = 1;
         label_stroke_button.Text = "Label Stroke";
         label_stroke_button.FontSize = 18;
@@ -568,7 +568,6 @@ methods
         label_stroke_button.Tooltip = "Mark stroke reversals (from the phase-averaged wing position) and label upstroke / downstroke. Requires Convection Shift";
         label_stroke_button.ValueChangedFcn = @(src, event) label_stroke_change(src, event, plot_panel);
 
-        var_dropdowns = [var_dropdown1, var_dropdown2, var_dropdown3];
         for var_dropdown = var_dropdowns
             var_dropdown.ValueChangedFcn = @(src, event) updateVariableSelection(src, event, plot_panel, var_dropdowns);
         end
@@ -2101,7 +2100,7 @@ methods (Access = private)
             return
         end
 
-        % variable 1 on the left, variables 2 (and 3) on the right
+        % variable 1 on the left, the other variables on the right
         ylabs(1) = obj.active_labels(obj.inds(1));
         right_labels = obj.active_labels(obj.inds(2:end));
         if all(right_labels == right_labels(1))

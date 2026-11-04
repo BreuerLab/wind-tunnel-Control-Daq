@@ -20,14 +20,12 @@ function file_path = get_PIV_paths(PIV_case_name)
     BIN = "\Binning_48x48x48_75%ov_ord=0";
     BIN2 = "\Binning_48x48x48_75%ov_ord=1";
     BIN3 = "\VIC\FineScaleReconst_grid=12_GPU";
-    BIN4 = "\VIC\FineScaleReconst_grid=18_GPU";
 
     % Define the Mapping (Case Name -> Subpath)
     % This is now much easier to read and edit.
     map = {
         'freestream',  month_3 + "freestream" + BIN2
         'x2_wings_20deg_8Hz_VIC',  month_3 + "x2\x2_wings_20deg_8Hz" + BIN3
-        'x2_wings_20deg_8Hz_VIC2',  month_3 + "x2\x2_wings_20deg_8Hz" + BIN4
 
         'UP_two_flexible_10deg_0Hz',  month_1 + "UP_two_flexible_10deg_0Hz" + BIN
         'UP_two_flexible_10deg_2Hz',  month_1 + "UP_two_flexible_10deg_2Hz" + BIN
