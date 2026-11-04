@@ -1534,6 +1534,13 @@ methods (Access = private)
         labels = [obj.force_y_labels, obj.force_y_labels, obj.flow_y_labels, obj.kin_y_labels, obj.lc_y_labels];
     end
 
+    % Before-averaging (BA) force names (lift_before_avg.*, drag_before_avg.*,
+    % lift_vel_before_avg, drag_vel_before_avg)
+    function tf = is_ba_force_name(~, var_name)
+        tf = contains(string(var_name), ["lift_before_avg", "drag_before_avg",...
+            "lift_vel_before_avg", "drag_vel_before_avg"]);
+    end
+
     function names = get_ba_force_names(obj)
         % before-averaging (BA) versions of the force variables saved by
         % phase_avg_STB / time_avg_STB (force computed per frame, then
@@ -2414,8 +2421,11 @@ methods (Access = private)
             % frame-to-frame SD within each bin, BA forces only
             var_std = [];
 
+            % BA forces are per-frame forces averaged in processing, so they
+            % are always loaded, never calculated live from the averaged field
+            is_ba_var = obj.is_ba_force_name(var_name);
             if obj.is_force_index(index) && obj.calc_bool && ...
-                    ~ismember(var_name, obj.stored_only_force_names)
+                    ~ismember(var_name, obj.stored_only_force_names) && ~is_ba_var
                 avg_type = 1;
                 norm_bool = false;
                 % Compute forces from flow field live
@@ -2423,8 +2433,6 @@ methods (Access = private)
             else
                 % skip cases whose processed file doesn't hold the variable
                 % (e.g. old flapper cases processed with older code)
-                is_ba_var = contains(var_name, ["lift_before_avg", "drag_before_avg",...
-                        "lift_vel_before_avg", "drag_vel_before_avg"]);
                 if is_ba_var
                     stored_file = file_path;
                 else
@@ -2521,8 +2529,9 @@ methods (Access = private)
             if obj.is_force_index(index) && obj.PIV_sub
                 [file_path_t, secondary_file_path_t] = obj.get_PIV_sub_file_paths(type, amp);
 
-                if ~ismember(var_name, ["lift.vortY", "lift.vortY_edge", "lift_ff.vortY", "lift_ff.vortY_edge"]) % no 0 Hz omega_y term
-                if obj.calc_bool && ~ismember(var_name, obj.stored_only_force_names)
+                if ~ismember(var_name, ["lift.vortY", "lift.vortY_edge", "lift_ff.vortY", "lift_ff.vortY_edge", ...
+                        "lift_before_avg.vortY", "lift_before_avg.vortY_edge"]) % no 0 Hz omega_y term
+                if obj.calc_bool && ~ismember(var_name, obj.stored_only_force_names) && ~is_ba_var
                     % Compute aerodynamic forces
                     norm_bool = false;
                     [bod_var, bod_err] = get_PIV_force(file_path_t, "", var_name, 0, norm_bool, default_trim_bounds());
@@ -2540,7 +2549,14 @@ methods (Access = private)
                             " (" + cur_sel + "): " + err.message)
                     end
                 else
-                    if ~obj.file_has_var(secondary_file_path_t, var_name)
+                    % BA forces are in the main file (time_avg_STB), the
+                    % rest in the _integral file (calc_secondary_vals_time)
+                    if is_ba_var
+                        sub_file = file_path_t;
+                    else
+                        sub_file = secondary_file_path_t;
+                    end
+                    if ~obj.file_has_var(sub_file, var_name)
                         msg = var_name + " not saved for the " + obj.PIV_sub_case +...
                             " subtraction case of " + cur_sel + " (older processing) - not plotted";
                         if ismember(var_name, obj.stored_only_force_names)
@@ -2551,9 +2567,9 @@ methods (Access = private)
                     end
                     if contains(var_name, ".")
                         abbrv_name = extractBefore(var_name, ".");
-                        d2 = load(secondary_file_path_t, abbrv_name);
+                        d2 = load(sub_file, abbrv_name);
                     else
-                        d2 = load(secondary_file_path_t, var_name);
+                        d2 = load(sub_file, var_name);
                     end
 
                     body_var = eval("d2." + var_name);
