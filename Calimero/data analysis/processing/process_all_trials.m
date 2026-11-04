@@ -221,6 +221,12 @@ if isfield(d, 'rate')
     disp("DAQ rate from experiment params: " + params.rate + " Hz")
 end
 
+% Notch filter bands (Hz) for the filtered_data_notch set in process_trial:
+% centre(s) at the wings' structural resonance(s) from the ringdown tests,
+% full width(s) of each band. Vectors remove several bands.
+params.notch_freq = 38; % placeholder until the ringdown tests
+params.notch_bw = 10;
+
 % Processing timers: per trial and for the whole run
 fmt_dur = @(sec) string(duration(0, 0, sec, 'Format', 'hh:mm:ss.SSS'));
 is_trial = ~contains(string({exp_files.name}), "speedCheck");

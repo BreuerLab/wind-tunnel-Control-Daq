@@ -120,6 +120,28 @@ else
 end
 filtered_data_smoothest = filter_data(mod_results, frame_rate, fc);
 
+% Notch: the fc = 10*f data with narrow bands around the wing's structural
+% resonance(s) removed (e.g. the first spanwise bending mode, which rings
+% after each stroke reversal and swamps the drag signal). Unlike lowering
+% the low-pass cutoff, this keeps the wingbeat harmonics below and above
+% each band. Band centres/widths (Hz) come from params.notch_freq and
+% params.notch_bw (set in process_all_trials from the ringdown tests).
+% Only the force/moment rows (1-6) are notched; the home signal, voltage
+% and current rows are the same as in filtered_data.
+[notch_freq, notch_bw] = get_notch_params(params);
+filtered_data_notch = notch_filter_data(filtered_data, frame_rate, ...
+    notch_freq, notch_bw, 1:6);
+if (wing_freq > 0)
+    % Wingbeat harmonics that fall inside a notch band are removed along
+    % with the resonance (aerodynamic content included)
+    for j = 1:length(notch_freq)
+        band = notch_freq(j) + [-1 1]*notch_bw(j)/2;
+        k_in = ceil(band(1)/wing_freq):floor(band(2)/wing_freq);
+        disp("Notch " + band(1) + "-" + band(2) + " Hz removes wingbeat harmonics: " ...
+            + strjoin(string(k_in), ", "))
+    end
+end
+
 % Now trim everything to the analysed wingbeats (drops filter transients,
 % and the Savitzky-Golay edge zeros in speed, along with the padding)
 time_data = time_data(core_idx);
@@ -129,6 +151,7 @@ mod_results = mod_results(:, core_idx);
 filtered_data = filtered_data(:, core_idx);
 filtered_data_smoother = filtered_data_smoother(:, core_idx);
 filtered_data_smoothest = filtered_data_smoothest(:, core_idx);
+filtered_data_notch = filtered_data_notch(:, core_idx);
 speed = speed(core_idx);
 wing_pos = wing_pos(core_idx);
 wing_speed = wing_speed(core_idx);
@@ -156,7 +179,8 @@ OC_pulse_count = OC_pulse_count(core_idx);
 filename = case_name + " " + time_stamp + ".mat"; % file name for processed data
 
 saved_vars = {'time_data', 'force_data', 'results_lab', 'mod_results',...
-    'filtered_data','filtered_data_smoother','filtered_data_smoothest','norm_factors',...
+    'filtered_data','filtered_data_smoother','filtered_data_smoothest',...
+    'filtered_data_notch','notch_freq','notch_bw','norm_factors',...
     'St', 'Re', 'U_act', 'rho_act', 'wing_pos', 'wing_speed', 'wing_acc'};
 
 % If this is a flapping trial, analyze data over each wingbeat rather than
@@ -181,6 +205,11 @@ if (wing_freq > 0)
     wingbeat_rmse_forces_smoothest, wingbeat_max_forces_smoothest, wingbeat_min_forces_smoothest, wingbeat_COP_smoothest,...
     cycle_avg_forces_smoothest]...
     = wingbeat_transformation(num_wingbeats, filtered_data_smoothest, OC_pulse_count, speed, AoA);
+
+[wingbeat_forces_notch, frames_notch, wingbeat_avg_forces_notch, wingbeat_std_forces_notch,...
+    wingbeat_rmse_forces_notch, wingbeat_max_forces_notch, wingbeat_min_forces_notch, wingbeat_COP_notch,...
+    cycle_avg_forces_notch]...
+    = wingbeat_transformation(num_wingbeats, filtered_data_notch, OC_pulse_count, speed, AoA);
 
 % Wing kinematics over a wingbeat, on the same phase axis as the forces
 % (frames_kin = frames). Its own call, so the rows of the force arrays
@@ -225,7 +254,14 @@ filt_smoothest_wing_vars = {'wingbeat_forces_smoothest', 'frames_smoothest',...
     'wingbeat_min_forces_smoothest', 'wingbeat_COP_smoothest', ...
     'cycle_avg_forces_smoothest'}; % 'upstroke_avg_forces_smoothest', 'downstroke_avg_forces_smoothest'
 
-vars = [saved_vars, raw_wing_vars, filt_wing_vars, filt_smoother_wing_vars, filt_smoothest_wing_vars, kin_wing_vars];
+filt_notch_wing_vars = {'wingbeat_forces_notch', 'frames_notch',...
+    'wingbeat_avg_forces_notch', 'wingbeat_std_forces_notch',...
+    'wingbeat_rmse_forces_notch', 'wingbeat_max_forces_notch',...
+    'wingbeat_min_forces_notch', 'wingbeat_COP_notch', ...
+    'cycle_avg_forces_notch'};
+
+vars = [saved_vars, raw_wing_vars, filt_wing_vars, filt_smoother_wing_vars, ...
+    filt_smoothest_wing_vars, filt_notch_wing_vars, kin_wing_vars];
 
 else
     vars = saved_vars;
@@ -298,4 +334,24 @@ save(processed_data_path + filename, vars{:}, '-v7.3', '-nocompression')
 % 
 % % ---------------------------------------------------------
 % end
+end
+% Notch band centre(s) and width(s) in Hz from params.notch_freq /
+% params.notch_bw (set in process_all_trials). Falls back to a placeholder
+% band around the ~38 Hz ringing seen in the 4 Hz, 20 deg drag data until
+% the wing ringdown tests give the measured natural frequency.
+function [notch_freq, notch_bw] = get_notch_params(params)
+    notch_freq = 38; % Hz, placeholder
+    notch_bw = 10;   % Hz, placeholder
+    if isfield(params, 'notch_freq') && ~isempty(params.notch_freq)
+        notch_freq = params.notch_freq;
+    else
+        warning("process_trial: params.notch_freq not set, using placeholder " ...
+            + notch_freq + " Hz notch")
+    end
+    if isfield(params, 'notch_bw') && ~isempty(params.notch_bw)
+        notch_bw = params.notch_bw;
+    end
+    if isscalar(notch_bw)
+        notch_bw = notch_bw * ones(size(notch_freq));
+    end
 end
