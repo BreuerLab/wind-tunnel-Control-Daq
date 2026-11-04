@@ -91,6 +91,13 @@ properties (Constant, Access = private)
     OLD_FLAPPER_DOWNSTREAM_DISTS = plane_downstream_dists("old"); % flexible, UP_one, UP_two
     NEW_FLAPPER_DOWNSTREAM_DISTS = plane_downstream_dists("new"); % x1-x5, MPS
     CONV_SPEED = plane_downstream_dists("conv_speed"); % m/s, convection speed of the wake
+    % "phase avg: 3D all planes": the frozen-flow 3D wakes of one case at
+    % every downstream position, joined into one reconstruction (see
+    % plot_merged_3D). Positions listed here are left out (MPS sits
+    % between x3 and x4 and isn't part of the x1-x5 traverse).
+    MERGED_3D_PLOT = "phase avg: 3D all planes";
+    MERGED_3D_EXCLUDE_TYPES = ["MPS"];
+    MERGED_3D_MARKER_TAG = "merged_3D_plane";  % plane outlines / labels on that plot
 end
 
 properties
@@ -287,6 +294,10 @@ properties
     fix_ylim;
     fix_zlim;
     fix_lims_set;
+    % "phase avg: 3D all planes": per-plane fields (trimmed / mirrored /
+    % filtered) of the last plot and the settings they depend on (key),
+    % so moving through the bins only rebuilds the isosurfaces
+    merged_3D;
 end
 
 methods
@@ -315,7 +326,7 @@ methods
 
         obj.plot_types = ["time avg of phase avg","phase avg: movie", "time avg of phase std","phase std: movie", "phase avg: 3D plot",...
             "image wingbeat phase", "wingbeat frequency","wake forces","phase avg: planar avg",...
-            "time avg: section avg", "frozen flow"];
+            "time avg: section avg", "frozen flow", obj.MERGED_3D_PLOT];
         obj.plot_type = obj.plot_types(1);
         obj.plot_hold_bool = false;
         obj.iso_var_list = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
@@ -337,6 +348,7 @@ methods
         obj.geom_3D = [];
         obj.label_stroke = false;
         obj.stroke_3D = [];
+        obj.merged_3D = [];
         obj.card_style = false;
         obj.card_panel_color = [];
         obj.remove_small_bool = false;
@@ -1390,7 +1402,7 @@ methods
 
         % Set up plot titles and axes
         set_unc_contour_visibility();
-        set_param_panel_visibility(strcmp(obj.plot_type, obj.plot_types(5)));
+        set_param_panel_visibility(obj.is_3D_plot_type());
         obj.set_section_controls();
         obj.update_plot(plot_area_panel);
 
@@ -1534,7 +1546,7 @@ methods
         end
 
         function refresh_variable_dropdown(previous_plot_type)
-            phase_avg_plots = obj.plot_types([1 2 5 9]);
+            phase_avg_plots = obj.plot_types([1 2 5 9 12]);
             phase_std_plots = obj.plot_types([3 4]);
             same_phase_avg_family = ismember(previous_plot_type, phase_avg_plots) && ...
                 ismember(obj.plot_type, phase_avg_plots);
@@ -1565,9 +1577,28 @@ methods
             obj.set_active_color_limit_set();
             obj.update_color_limit_slider();
 
-            set_param_panel_visibility(strcmp(obj.plot_type, obj.plot_types(5)));
+            set_param_panel_visibility(obj.is_3D_plot_type());
             set_unc_contour_visibility();
             obj.set_section_controls();
+            set_merged_controls();
+        end
+
+        % "phase avg: 3D all planes" uses every downstream position, so the
+        % position dropdown is hidden, and its x-axis is always the
+        % streamwise distance from the robot (no t/T axis, convection
+        % shift or stroke labels)
+        function set_merged_controls()
+            is_merged = obj.plot_type == obj.MERGED_3D_PLOT;
+            conv_units_button.Enable = ~is_merged;
+            conv_shift_button.Enable = ~is_merged;
+            stroke_flip_button.Enable = obj.conv_shift && ~is_merged;
+            label_stroke_button.Enable = obj.conv_shift && ~is_merged;
+            if is_merged
+                num_cycles_slider.Tooltip = "Wingbeats of wake reconstructed downstream of the last plane";
+            else
+                num_cycles_slider.Tooltip = "";
+            end
+            set_distance_dropdown_visibility();
         end
 
         function section_count_change(src, ~, plot_panel)
@@ -1576,7 +1607,8 @@ methods
         end
 
         function set_distance_dropdown_visibility()
-            is_visible = obj.is_flapper_source_mode(obj.source_mode) && ~isempty(obj.distance_labels);
+            is_visible = obj.is_flapper_source_mode(obj.source_mode) && ~isempty(obj.distance_labels) && ...
+                obj.plot_type ~= obj.MERGED_3D_PLOT;
             row_heights = sidebar_grid.RowHeight;
             if is_visible
                 distance_dropdown.Visible = "on";
@@ -2100,7 +2132,7 @@ methods
             % restyle the current 3D plot in place, no reload or redraw
             ax = findobj(plot_panel.Children, 'Type', 'axes');
             if obj.card_style
-                if obj.plot_type == obj.plot_types(5)
+                if obj.is_3D_plot_type()
                     obj.apply_card_style(ax);
                 end
             else
@@ -2113,14 +2145,14 @@ methods
             obj.fix_lims_bool = src.Value;
             src.BackgroundColor = obj.get_button_color(obj.fix_lims_bool);
             ax = findobj(plot_panel.Children, 'Type', 'axes');
-            if obj.fix_lims_bool && ~obj.fix_lims_set && isscalar(ax) && obj.plot_type == obj.plot_types(5)
+            if obj.fix_lims_bool && ~obj.fix_lims_set && isscalar(ax) && obj.is_3D_plot_type()
                 % first use: start from the current plot's limits
                 obj.fix_ylim = round(ax.YLim, 2);
                 obj.fix_zlim = round(ax.ZLim, 2);
                 obj.fix_lims_set = true;
                 set_lim_fields();
             end
-            if obj.plot_type == obj.plot_types(5)
+            if obj.is_3D_plot_type()
                 obj.apply_fixed_lims(ax);
             end
         end
@@ -2135,7 +2167,7 @@ methods
             obj.fix_ylim = ylim_new;
             obj.fix_zlim = zlim_new;
             obj.fix_lims_set = true;
-            if obj.fix_lims_bool && obj.plot_type == obj.plot_types(5)
+            if obj.fix_lims_bool && obj.is_3D_plot_type()
                 ax = findobj(plot_panel.Children, 'Type', 'axes');
                 obj.apply_fixed_lims(ax);
             end
@@ -2151,14 +2183,14 @@ methods
         function unc_mask_change(src, ~, plot_panel)
             obj.unc_mask_bool = src.Value;
             src.BackgroundColor = obj.get_button_color(obj.unc_mask_bool);
-            if obj.plot_type == obj.plot_types(5)
+            if obj.is_3D_plot_type()
                 obj.update_plot(plot_panel); % new isosurface, same view
             end
         end
 
         function unc_mask_thresh_change(src, ~, plot_panel)
             obj.unc_mask_thresh = src.Value;
-            if obj.unc_mask_bool && obj.plot_type == obj.plot_types(5)
+            if obj.unc_mask_bool && obj.is_3D_plot_type()
                 obj.update_plot(plot_panel);
             end
         end
@@ -2167,7 +2199,7 @@ methods
             obj.remove_small_bool = src.Value;
             src.BackgroundColor = obj.get_button_color(obj.remove_small_bool);
             % filter (or restore) the current surface in place
-            if obj.plot_type == obj.plot_types(5)
+            if obj.is_3D_plot_type()
                 ax = findobj(plot_panel.Children, 'Type', 'axes');
                 obj.apply_remove_small(ax);
             end
@@ -2175,7 +2207,7 @@ methods
 
         function remove_small_pct_change(src, ~, plot_panel)
             obj.remove_small_pct = src.Value;
-            if obj.remove_small_bool && obj.plot_type == obj.plot_types(5)
+            if obj.remove_small_bool && obj.is_3D_plot_type()
                 ax = findobj(plot_panel.Children, 'Type', 'axes');
                 obj.apply_remove_small(ax);
             end
@@ -2197,6 +2229,11 @@ methods (Access = private)
         file_names = string({files.name});
         avg_files = endsWith(file_names, suffix + ".mat");
         file_stems = erase(file_names(avg_files), suffix + ".mat");
+    end
+
+    % 3D plot or "phase avg: 3D all planes" (share the 3D parameters)
+    function tf = is_3D_plot_type(obj)
+        tf = obj.plot_type == obj.plot_types(5) || obj.plot_type == obj.MERGED_3D_PLOT;
     end
 
     function tf = is_Q_iso_var(~, iso_var)
@@ -3174,7 +3211,84 @@ methods (Access = private)
     % Cases for the dropdown: for the flappers, only those at the selected
     % downstream position
     function case_names = get_case_name_list_for_active_plot_type(obj)
+        if obj.plot_type == obj.MERGED_3D_PLOT
+            case_names = obj.get_merged_case_names();
+            return
+        end
         case_names = obj.get_case_name_list(obj.source_mode, obj.plot_type, obj.current_downstream_type);
+    end
+
+    % "phase avg: 3D all planes": downstream positions it joins, in order
+    % from the robot (types and distances, m), for the current source
+    function [types, dists] = get_merged_plane_types(obj)
+        if obj.source_mode == obj.OLD_FLAPPER_SOURCE_MODE
+            types = obj.OLD_FLAPPER_DOWNSTREAM_TYPES;
+            dists = obj.OLD_FLAPPER_DOWNSTREAM_DISTS;
+        elseif obj.source_mode == obj.NEW_FLAPPER_SOURCE_MODE
+            types = obj.NEW_FLAPPER_DOWNSTREAM_TYPES;
+            dists = obj.NEW_FLAPPER_DOWNSTREAM_DISTS;
+        else
+            types = strings(0, 1);
+            dists = zeros(0, 1);
+            return
+        end
+        keep = ~ismember(types, obj.MERGED_3D_EXCLUDE_TYPES) & ~isnan(dists);
+        types = types(keep);
+        dists = dists(keep);
+        [dists, order] = sort(dists(:));
+        types = types(order);
+    end
+
+    % Phase averaged cases of the current source at any downstream
+    % position (name without the position prefix), for "phase avg: 3D all
+    % planes"; position-independent cases (freestream) are left out
+    function case_names = get_merged_case_names(obj)
+        case_names = strings(1, 0);
+        if ~obj.is_flapper_source_mode(obj.source_mode)
+            return
+        end
+        if obj.source_mode == obj.NEW_FLAPPER_SOURCE_MODE
+            stems = obj.phase_new_flapper_stems;
+        else
+            stems = obj.phase_old_flapper_stems;
+        end
+        [types, ~] = obj.get_merged_plane_types();
+        [known_types, known_labels] = obj.get_known_downstream_options(obj.source_mode);
+        for i = 1:numel(types)
+            label = known_labels(known_types == types(i));
+            case_names = [case_names, obj.get_flapper_case_names(stems, types(i), label, obj.source_mode)]; %#ok<AGROW>
+        end
+        case_names = unique(case_names, 'stable');
+        case_names = case_names(~ismember(case_names, position_independent_cases()));
+    end
+
+    % Phase average case id of the current case at one downstream
+    % position, "" if it wasn't measured there
+    function case_id = get_merged_case_id(obj, downstream_type)
+        name = string(obj.case_name);
+        case_id = obj.with_variant_suffix(downstream_type + "_" + name);
+        if any(obj.phase_avg_case_ids == case_id)
+            return
+        end
+        % old flapper cases at the default position may have no prefix
+        if obj.source_mode == obj.OLD_FLAPPER_SOURCE_MODE && ...
+                downstream_type == obj.OLD_FLAPPER_DOWNSTREAM_TYPES(1) && ...
+                obj.is_legacy_default_distance_stem(name)
+            case_id = obj.with_variant_suffix(name);
+            if any(obj.phase_avg_case_ids == case_id)
+                return
+            end
+        end
+        case_id = "";
+    end
+
+    % <folder>\<case id>_phase_avg (no extension) of a phase average case
+    function file_base = get_phase_file_base(obj, case_id)
+        if ~any(obj.phase_avg_main_case_ids == case_id) && any(obj.phase_avg_RPCA_case_ids == case_id)
+            file_base = obj.get_case_dir("rpca", case_id) + case_id + "_phase_avg";
+        else
+            file_base = obj.get_case_dir("phase", case_id) + case_id + "_phase_avg";
+        end
     end
 
     % downstream_type (optional): only cases at that downstream position
@@ -3371,6 +3485,24 @@ methods (Access = private)
     end
 
     function plot_types = get_available_plot_types_for_current_case(obj)
+        % the merged 3D plot doesn't depend on the selected position, so
+        % while it is shown every plot type stays available (picking
+        % another one goes back to the cases at the selected position)
+        is_flapper = obj.is_flapper_source_mode(obj.source_mode);
+        if obj.plot_type == obj.MERGED_3D_PLOT && is_flapper
+            plot_types = obj.plot_types;
+            return
+        end
+        plot_types = obj.get_position_plot_types();
+        has_merged = any(plot_types == obj.MERGED_3D_PLOT);
+        if is_flapper && ~has_merged && ~isempty(obj.get_merged_case_names())
+            plot_types(end+1) = obj.MERGED_3D_PLOT;
+        elseif ~is_flapper && has_merged
+            plot_types = plot_types(plot_types ~= obj.MERGED_3D_PLOT);
+        end
+    end
+
+    function plot_types = get_position_plot_types(obj)
         if obj.is_time_avg_file_selected() || ~obj.current_case_has_phase_avg()
             plot_types = obj.plot_types(1);
             % SD over all frames (std_* fields of the time average file)
@@ -3398,10 +3530,15 @@ methods (Access = private)
         end
 
         plot_idx = find(obj.plot_types == obj.plot_type);
-        if plot_idx ~= 5
-            % card style is only for the 3D plot; other plots get the
+        if ~obj.is_3D_plot_type()
+            % card style is only for the 3D plots; other plots get the
             % normal panel background back (their axes are new anyway)
             obj.restore_card_panel(plot_panel);
+        end
+
+        if obj.plot_type == obj.MERGED_3D_PLOT
+            obj.plot_merged_3D(plot_panel);
+            return
         end
         using_time_avg_file = obj.is_time_avg_file_selected();
         use_extrapolated_data = obj.extrapolate_bool && ~using_time_avg_file;
@@ -4152,6 +4289,468 @@ methods (Access = private)
             yline(ax, mean(mean_val))
             xlabel(ax, "Time", FontSize=16)
             ylabel(ax, obj.label_dict(obj.variable_name), FontSize=16, Interpreter="latex")
+        end
+    end
+
+    % "phase avg: 3D all planes": one case (e.g. wings_20deg_6Hz) at every
+    % downstream position, joined into a single frozen-flow reconstruction
+    % of the wake, with the x-axis the streamwise distance from the robot
+    % (x/c, downstream positive).
+    %
+    % Plane i (at x_i) sees at time t the fluid that is at
+    % x_i + U (t_ref - t) at the snapshot time t_ref, so its phase average
+    % fills the wake downstream of it: the field at x comes from its bin
+    % at wing phase phi_ref - f (x - x_i) / U (linearly interpolated
+    % between bins, periodic). Each plane's reconstruction is cut off where
+    % the next plane downstream starts; the last one runs on for "Number of
+    % Wingbeats" wingbeats. The bins are binned on the robot's wing phase,
+    % so all planes share the snapshot time: the slider / Play step the
+    % wing phase at the robot (phi_ref = (bin - 1) / N), and the fluid at x
+    % was shed at phi_ref - f x / U whichever plane measured it. Positions
+    % where the case wasn't measured are skipped (the plane upstream then
+    % fills the gap).
+    function plot_merged_3D(obj, plot_panel)
+        ax = findobj(plot_panel.Children, 'Type', 'axes');
+        p = gobjects(0);
+        if obj.plot_hold_bool
+            p = obj.find_isosurface_patch(ax);
+        end
+        obj.slider.Visible = "on";
+        obj.play_button.Visible = "on";
+
+        if any(obj.variable_name == obj.EXTRAP_DIFF_VARS)
+            show_message("Extrapolated - measured is only available for the 2D phase average plots");
+            return
+        end
+        if obj.extrapolate_bool
+            disp("phase avg: 3D all planes uses the measured fields (Extrapolate ignored)")
+        end
+
+        [M, msg] = obj.get_merged_planes();
+        if isempty(M)
+            show_message(msg);
+            return
+        end
+        planes = M.planes;
+
+        N = planes(1).N;   % slider bins: the first plane's
+        if N ~= obj.num_bins
+            obj.num_bins = N;
+            obj.slider.Limits = [1 N];
+            obj.slider.MajorTicks = 1:5:N;
+            obj.slider.MinorTicks = 1:N;
+        end
+        obj.frame_ind = min(max(round(obj.frame_ind), 1), N);
+        obj.slider.Value = obj.frame_ind;
+
+        params = struct();
+        params.clims = obj.get_color_limits(obj.variable_name);
+        params.cb_lab = obj.label_dict(obj.variable_name);
+        params.zero = M.zero;
+        params.movie = false;
+        params.conv_units = true; % plot_3D: equal aspect, all axes in chords
+
+        [surface_data, color_data, xlims] = obj.build_merged_surface(planes, (obj.frame_ind - 1) / N);
+
+        if isscalar(p) && isscalar(ax)
+            p.Vertices = surface_data.vertices;
+            p.Faces = surface_data.faces;
+            p.FaceVertexCData = color_data;
+        else
+            delete(ax);
+            ax = axes(plot_panel);
+            plot_3D(ax, surface_data, color_data, params);
+            p = obj.find_isosurface_patch(ax);
+            obj.plot_hold_bool = true;
+        end
+        setColorBar(ax, params)
+        xlabel(ax, "x/c (downstream of the robot)", FontSize=16)
+        xlim(ax, xlims)
+        obj.draw_merged_planes(ax, planes);
+        set_title();
+
+        while obj.play && (obj.frame_ind < N)
+            obj.frame_ind = obj.frame_ind + 1;
+            obj.slider.Value = obj.frame_ind;
+            [surface_data, color_data] = obj.build_merged_surface(planes, (obj.frame_ind - 1) / N);
+            p.Vertices = surface_data.vertices;
+            p.Faces = surface_data.faces;
+            p.FaceVertexCData = color_data;
+            set_title();
+            obj.apply_remove_small(ax);
+            pause(0.1);
+            if obj.frame_ind == N
+                obj.frame_ind = 0; % reset for next loop iteration
+            end
+        end
+
+        obj.apply_fixed_lims(ax);
+        obj.apply_remove_small(ax);
+        if obj.card_style
+            obj.apply_card_style(ax);
+        end
+
+        function set_title()
+            ax.Title.String = obj.case_name + "  (" + strjoin([planes.type], ", ") + ...
+                "),  wing phase at robot: bin " + max(obj.frame_ind, 1) + " / " + N;
+            ax.Title.Interpreter = 'none';
+            ax.Title.FontSize = 14;
+        end
+
+        function show_message(text_str)
+            delete(findobj(plot_panel.Children, 'Type', 'axes'));
+            ax_msg = axes(plot_panel);
+            text(ax_msg, 0.5, 0.5, text_str, 'HorizontalAlignment', 'center', ...
+                Interpreter='none', FontSize=14);
+            axis(ax_msg, 'off');
+            obj.plot_hold_bool = false;
+        end
+    end
+
+    % Fields of the current case at each downstream position for
+    % plot_merged_3D: centre plane, trimmed / mirrored / filtered like the
+    % 3D plot. Cached in obj.merged_3D; reloaded when the case, a file or a
+    % setting they depend on changes. M = [] (and msg) if nothing to plot.
+    function [M, msg] = get_merged_planes(obj)
+        M = [];
+        msg = "";
+        if strlength(obj.case_name) == 0
+            msg = "No case selected";
+            return
+        end
+        [types, dists] = obj.get_merged_plane_types();
+        case_ids = strings(size(types));
+        for i = 1:numel(types)
+            case_ids(i) = obj.get_merged_case_id(types(i));
+        end
+        found = strlength(case_ids) > 0;
+        if ~any(found)
+            msg = "No phase average of " + obj.case_name + " at any downstream position";
+            return
+        end
+        types = types(found);
+        dists = dists(found);
+        case_ids = case_ids(found);
+        file_bases = strings(size(case_ids));
+        stamps = strings(size(case_ids));
+        for i = 1:numel(case_ids)
+            file_bases(i) = obj.get_phase_file_base(case_ids(i));
+            for ext = [".mat", "_integral.mat"]
+                info = dir(file_bases(i) + ext);
+                if ~isempty(info)
+                    stamps(i) = stamps(i) + sprintf("%.10f;", info(1).datenum);
+                end
+            end
+        end
+
+        key = strjoin([file_bases(:)', stamps(:)', string(obj.variable_name), string(obj.iso_var), ...
+            string(obj.trim_bool), mat2str(obj.trim_y_bounds), mat2str(obj.trim_z_bounds), ...
+            string(obj.mirror_bool), mat2str(obj.mirror_center_y), string(obj.filter_bool), ...
+            string(obj.floor_bool), sprintf("%.10g", obj.thresh), ...
+            string(obj.unc_mask_bool), sprintf("%.10g", obj.unc_mask_thresh), ...
+            mat2str(obj.get_color_limits(obj.variable_name))], "|");
+        if ~isempty(obj.merged_3D) && obj.merged_3D.key == key
+            M = obj.merged_3D;
+            return
+        end
+
+        var_name = obj.variable_name_dict(obj.variable_name);
+        iso_var_name = obj.variable_name_dict(obj.iso_var);
+        is_transport = any(obj.variable_name == [obj.TRANSPORT_VARS, obj.TRANSPORT_SUM_VARS]);
+        transport_pairs = strings(0, 2);
+        transport_own_vort = strings(0, 1);
+        if is_transport
+            [transport_pairs, transport_own_vort] = obj.get_transport_inputs(var_name, false);
+        end
+
+        % background value of the colour variable (as in update_plot)
+        var_clims = obj.get_color_limits(obj.variable_name);
+        if strcmp(var_name, obj.LIFT_WX_FIELD) || is_transport
+            zero = 0;
+        elseif min(var_clims) < -1
+            zero = -1;
+        elseif min(var_clims) < 0.5
+            zero = 0;
+        else
+            zero = 1;
+        end
+        % sign flipped on the mirrored half (as in update_plot)
+        flip_sign = any(contains(["v","ω_z","ω_x"], obj.variable_name));
+
+        plane_list = {};
+        missing = strings(0);
+        for i = 1:numel(types)
+            fprintf("Loading %s (%s, %.3f m downstream)\n", case_ids(i), types(i), dists(i));
+            [P, miss] = obj.load_merged_plane(file_bases(i), var_name, iso_var_name, ...
+                is_transport, transport_pairs, transport_own_vort, zero, flip_sign);
+            if isempty(P)
+                missing(end+1) = case_ids(i) + ": " + miss; %#ok<AGROW>
+                continue
+            end
+            P.type = types(i);
+            P.case_id = case_ids(i);
+            P.x = dists(i);
+            plane_list{end+1} = P; %#ok<AGROW>
+        end
+        planes = [plane_list{:}]; % same fields, same order
+        if ~isempty(missing)
+            fprintf("Skipped (not in the processed file - reprocess the case):\n");
+            fprintf("  %s\n", missing);
+        end
+        if isempty(planes)
+            msg = "None of the planes of " + obj.case_name + " could be loaded:" + newline + strjoin(missing, newline);
+            return
+        end
+
+        % how far each plane's reconstruction reaches, and a check that
+        % the planes agree on frequency / speed
+        for i = 1:numel(planes)
+            lambda = planes(i).U / planes(i).f; % m per wingbeat
+            if i < numel(planes)
+                seg = planes(i+1).x - planes(i).x;
+                fprintf("%s: %.3f to %.3f m (%.2f wingbeats)\n", planes(i).type, planes(i).x, planes(i+1).x, seg / lambda);
+                if seg > lambda
+                    fprintf("  longer than a wingbeat: the periodic phase average repeats along it\n");
+                end
+            else
+                fprintf("%s: %.3f m on, %d wingbeat(s)\n", planes(i).type, planes(i).x, obj.num_cycles);
+            end
+        end
+        f_all = [planes.f];
+        if max(f_all) - min(f_all) > 0.02 * mean(f_all)
+            fprintf("Note: wingbeat frequency differs between planes (%s Hz)\n", mat2str(f_all, 3));
+        end
+
+        M = struct('key', key, 'planes', planes, 'zero', zero);
+        obj.merged_3D = M;
+    end
+
+    % One plane for plot_merged_3D: colour variable (val) and iso variable
+    % (Q) on the centre plane, y x z x bins, with the 3D plot's trim,
+    % mirror, filter, noise floor and uncertainty mask. P = [] and miss =
+    % the missing field if the file doesn't have what's needed.
+    function [P, miss] = load_merged_plane(obj, file_base, var_name, iso_var_name, ...
+            is_transport, transport_pairs, transport_own_vort, zero, flip_sign)
+        P = [];
+        miss = "";
+        vars = ["L","U","num_bins","cycle_freq","z","y"];
+        sec_vars = strings(1, 0);
+        if strcmp(var_name, obj.LIFT_WX_FIELD)
+            vars = [vars, string(obj.get_lift_wx_inputs(false))];
+        elseif is_transport
+            vars = [vars, unique([transport_pairs(:); transport_own_vort(:)])'];
+        elseif contains(obj.variable_name, obj.secondary_vars)
+            sec_vars(end+1) = var_name;
+        else
+            vars(end+1) = var_name;
+        end
+        if contains(obj.iso_var, obj.secondary_vars)
+            sec_vars(end+1) = iso_var_name;
+        else
+            vars(end+1) = iso_var_name;
+        end
+        if obj.unc_mask_bool
+            vars(end+1) = "uncTot_phase_avg";
+        end
+
+        % only ask for fields that are there (no load warnings)
+        main_file = file_base + ".mat";
+        vars = unique(vars, 'stable');
+        vars = vars(ismember(vars, string(who('-file', main_file))));
+        d = load(main_file, vars{:});
+        if ~isempty(sec_vars)
+            integral_file = file_base + "_integral.mat";
+            if isfile(integral_file)
+                sec_vars = unique(sec_vars, 'stable');
+                sec_vars = sec_vars(ismember(sec_vars, string(who('-file', integral_file))));
+                if ~isempty(sec_vars)
+                    d1 = load(integral_file, sec_vars{:});
+                    for fn = string(fieldnames(d1))'
+                        d.(fn) = d1.(fn);
+                    end
+                end
+            end
+        end
+
+        for need = ["L","U","num_bins","cycle_freq","z","y"]
+            if ~isfield(d, need)
+                miss = need;
+                return
+            end
+        end
+        if strcmp(var_name, obj.LIFT_WX_FIELD) && all(isfield(d, cellstr(string(obj.get_lift_wx_inputs(false)))))
+            d.(var_name) = obj.compute_lift_wx_field(d, false);
+        elseif is_transport && all(isfield(d, cellstr([transport_pairs(:); transport_own_vort(:)])))
+            d.(var_name) = obj.compute_transport_field(d, var_name, transport_pairs, transport_own_vort);
+        end
+        if ~isfield(d, var_name)
+            miss = var_name;
+            return
+        end
+        if ~isfield(d, iso_var_name)
+            miss = iso_var_name;
+            return
+        end
+
+        plane_idx = (size(d.y, 1) + 1) / 2;
+        y = squeeze(d.y(plane_idx,:,:));
+        z = squeeze(d.z(plane_idx,:,:));
+        val = d.(var_name);
+        val = squeeze(val(plane_idx,:,:,:));
+        Q = d.(iso_var_name);
+        Q = squeeze(Q(plane_idx,:,:,:));
+        unc = [];
+        if obj.unc_mask_bool
+            if isfield(d, "uncTot_phase_avg")
+                unc = squeeze(mean(d.uncTot_phase_avg(plane_idx,:,:,:), 4, "omitnan"));
+            else
+                fprintf("Unc Mask: uncTot_phase_avg not in %s, not masked\n", file_base);
+            end
+        end
+
+        if obj.trim_bool
+            y_idx = find(y(:,1) > obj.trim_y_bounds(1) & y(:,1) < obj.trim_y_bounds(2));
+            z_idx = find(z(1,:) > obj.trim_z_bounds(1) & z(1,:) < obj.trim_z_bounds(2));
+            y = y(y_idx, z_idx);
+            z = z(y_idx, z_idx);
+            val = val(y_idx, z_idx, :);
+            Q = Q(y_idx, z_idx, :);
+            if ~isempty(unc)
+                unc = unc(y_idx, z_idx);
+            end
+        end
+        if obj.mirror_bool
+            % mirror across the centreline to reconstruct the other side
+            % of the wake, the centreline row only once
+            y_idx_m = find(y(:,1) > obj.mirror_center_y);
+            y = y(y_idx_m, :);
+            z = z(y_idx_m, :);
+            val = val(y_idx_m, :, :);
+            Q = Q(y_idx_m, :, :);
+            y = y - min(y, [], "all");
+            y = [flip(-y(2:end,:), 1); y];
+            z = [flip(z(2:end,:), 1); z];
+            val_add = flip(val(2:end,:,:), 1);
+            if flip_sign
+                val_add = -val_add;
+            end
+            val = [val_add; val];
+            Q = [flip(Q(2:end,:,:), 1); Q];
+            if ~isempty(unc)
+                unc = unc(y_idx_m, :);
+                unc = [flip(unc(2:end,:), 1); unc];
+            end
+        end
+        if obj.filter_bool
+            val = obj.nan_safe_medfilt(val);
+            Q = obj.nan_safe_medfilt(Q);
+        end
+        if obj.floor_bool
+            val(val < (zero + obj.thresh) & val > (zero - obj.thresh)) = zero;
+        end
+        if ~isempty(unc)
+            % masked points get the iso variable's background (median), so
+            % no isosurface forms there (as in the 3D plot)
+            mask3 = repmat(unc > obj.unc_mask_thresh / 100 | isnan(unc), 1, 1, size(Q, 3));
+            Q(mask3) = median(Q(~mask3), "omitnan");
+        end
+
+        P = struct();
+        P.U = d.U;
+        P.L = d.L;
+        P.f = d.cycle_freq;
+        P.N = d.num_bins;
+        P.yv = y(:,1);
+        P.zv = z(1,:)';
+        P.val = val;
+        P.Q = Q;
+    end
+
+    % Isosurface of plot_merged_3D at wing phase phi_ref (cycles): one
+    % frozen-flow segment per plane, from the plane to the next one
+    % downstream (the last: obj.num_cycles wingbeats), joined into a single
+    % patch. xlims: x/c covered.
+    function [s, cdata, xlims] = build_merged_surface(obj, planes, phi_ref)
+        verts = zeros(0, 3);
+        faces = zeros(0, 3);
+        cdata = zeros(0, 1);
+        n = numel(planes);
+        x_end = 0;
+        for i = 1:n
+            P = planes(i);
+            lambda = P.U / P.f;               % wake wavelength, m per wingbeat
+            a = P.x;
+            if i < n
+                b = planes(i+1).x;            % cut off where the next plane starts
+            else
+                b = a + obj.num_cycles * lambda;
+            end
+            x_end = b;
+            dx = lambda / P.N;                % one bin of convection
+            nx = max(2, ceil((b - a) / dx - 1e-9) + 1);
+            xs = linspace(a, b, nx);
+            % fluid at xs crossed the plane (b - a)/U earlier: earlier bins
+            phase = phi_ref - (xs - a) / lambda;
+            Qs = obj.phase_interp(P.Q, phase);
+            Cs = obj.phase_interp(P.val, phase);
+
+            % y x (streamwise) x z for meshgrid(x, y, z) volumes
+            [Xg, Yg, Zg] = meshgrid(xs / P.L, P.yv, P.zv);
+            Qs = permute(Qs, [1 3 2]);
+            Cs = permute(Cs, [1 3 2]);
+            si = isosurface(Xg, Yg, Zg, Qs, obj.iso_val);
+            if isempty(si.vertices)
+                continue
+            end
+            ci = interp3(Xg, Yg, Zg, Cs, si.vertices(:,1), si.vertices(:,2), si.vertices(:,3));
+            faces = [faces; si.faces + size(verts, 1)]; %#ok<AGROW>
+            verts = [verts; si.vertices]; %#ok<AGROW>
+            cdata = [cdata; ci(:)]; %#ok<AGROW>
+        end
+        s = struct('vertices', verts, 'faces', faces);
+        xlims = [planes(1).x, x_end] / planes(1).L;
+    end
+
+    % Phase average A (y x z x N bins, bin k at phase (k-1)/N, periodic)
+    % at the given phases (cycles), linear between neighbouring bins
+    function V = phase_interp(~, A, phase)
+        N = size(A, 3);
+        kf = mod(phase(:)' * N, N);
+        k0 = floor(kf);
+        w = kf - k0;
+        k0 = mod(k0, N);                 % kf can round up to N
+        k1 = mod(k0 + 1, N);
+        V0 = A(:,:,k0 + 1);
+        V1 = A(:,:,k1 + 1);
+        V = V0 .* reshape(1 - w, 1, 1, []) + V1 .* reshape(w, 1, 1, []);
+        on_bin = w == 0;                 % keep NaNs of the other bin out
+        V(:,:,on_bin) = V0(:,:,on_bin);
+    end
+
+    % Dashed outline of each measurement plane (its y-z extent) and its
+    % label, on plot_merged_3D
+    function draw_merged_planes(obj, ax, planes)
+        delete(findall(ax, 'Tag', obj.MERGED_3D_MARKER_TAG));
+        hold(ax, 'on')
+        for i = 1:numel(planes)
+            P = planes(i);
+            x = P.x / P.L;
+            yl = [min(P.yv) max(P.yv)];
+            zl = [min(P.zv) max(P.zv)];
+            h = plot3(ax, x * ones(1, 5), yl([1 2 2 1 1]), zl([1 1 2 2 1]), '--', ...
+                'Color', [0.45 0.45 0.45], 'LineWidth', 1);
+            style(h)
+            h = text(ax, x, mean(yl), zl(2), P.type, 'HorizontalAlignment', 'center', ...
+                'VerticalAlignment', 'bottom', 'FontSize', 12, 'Color', [0.3 0.3 0.3], ...
+                'Interpreter', 'none');
+            style(h)
+        end
+        hold(ax, 'off')
+
+        function style(h)
+            h.Tag = obj.MERGED_3D_MARKER_TAG;
+            h.HandleVisibility = 'off';
+            h.PickableParts = 'none';
         end
     end
 
