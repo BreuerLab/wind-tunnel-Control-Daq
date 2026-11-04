@@ -298,6 +298,10 @@ properties
     % filtered) of the last plot and the settings they depend on (key),
     % so moving through the bins only rebuilds the isosurfaces
     merged_3D;
+    % convection speed (m/s) of the frozen-flow reconstruction on that
+    % plot; [] = each file's freestream U. merged_conv_field: its box.
+    merged_conv_speed;
+    merged_conv_field;
 end
 
 methods
@@ -349,6 +353,7 @@ methods
         obj.label_stroke = false;
         obj.stroke_3D = [];
         obj.merged_3D = [];
+        obj.merged_conv_speed = [];
         obj.card_style = false;
         obj.card_panel_color = [];
         obj.remove_small_bool = false;
@@ -1167,6 +1172,43 @@ methods
         stroke_flip_button.Tooltip = "Off: downstroke centred. On: shifted so the upstroke is centred instead (shift from the stroke reversals in the wing position, since the strokes differ in length). Requires Convection Shift";
         stroke_flip_button.ValueChangedFcn = @(src, event) stroke_flip_change(src, event, plot_area_panel);
 
+        % "phase avg: 3D all planes" only, in place of Convection Shift:
+        % wake convection speed U_c for the frozen-flow reconstruction,
+        % and "U∞" to go back to each file's freestream speed
+        uc_grid = uigridlayout(param_grid, [1, 3]);
+        uc_grid.Layout.Row = 9;
+        uc_grid.Layout.Column = 1;
+        uc_grid.ColumnWidth = {'1x', 56, 36};
+        uc_grid.RowHeight = {'1x'};
+        uc_grid.Padding = [0 0 0 0];
+        uc_grid.ColumnSpacing = 4;
+        uc_grid.Visible = "off";
+
+        uc_label = uilabel(uc_grid);
+        uc_label.Layout.Row = 1;
+        uc_label.Layout.Column = 1;
+        uc_label.Text = "U_c (m/s)";
+        uc_label.HorizontalAlignment = 'right';
+
+        obj.merged_conv_field = uieditfield(uc_grid, "numeric");
+        obj.merged_conv_field.Layout.Row = 1;
+        obj.merged_conv_field.Layout.Column = 2;
+        obj.merged_conv_field.Limits = [0 Inf];
+        obj.merged_conv_field.LowerLimitInclusive = "off";
+        obj.merged_conv_field.ValueDisplayFormat = '%.3g';
+        obj.merged_conv_field.HorizontalAlignment = 'center';
+        obj.merged_conv_field.Tooltip = "Wake convection speed used to turn time into streamwise distance " + ...
+            "(frozen flow) on the all-planes plot. Tune it until the isosurfaces line up where one plane's " + ...
+            "reconstruction meets the next";
+        obj.merged_conv_field.ValueChangedFcn = @(src, event) merged_conv_change(src, event, plot_area_panel);
+
+        uc_reset_button = uibutton(uc_grid);
+        uc_reset_button.Layout.Row = 1;
+        uc_reset_button.Layout.Column = 3;
+        uc_reset_button.Text = "U∞";
+        uc_reset_button.Tooltip = "Back to each file's freestream speed U";
+        uc_reset_button.ButtonPushedFcn = @(src, event) merged_conv_reset(src, event, plot_area_panel);
+
         % Stroke reversal lines, downstroke shading and up/downstroke
         % labels; drawn only in the 2D views that show the x-axis
         % (+/-yz, +/-xz). Needs the convection shift, like phaseAvg_UI.
@@ -1592,6 +1634,9 @@ methods
             conv_units_button.Enable = ~is_merged;
             conv_shift_button.Enable = ~is_merged;
             stroke_flip_button.Enable = obj.conv_shift && ~is_merged;
+            % U_c takes Convection Shift's place on the all-planes plot
+            conv_shift_grid.Visible = ~is_merged;
+            uc_grid.Visible = is_merged;
             label_stroke_button.Enable = obj.conv_shift && ~is_merged;
             if is_merged
                 num_cycles_slider.Tooltip = "Wingbeats of wake reconstructed downstream of the last plane";
@@ -1599,6 +1644,20 @@ methods
                 num_cycles_slider.Tooltip = "";
             end
             set_distance_dropdown_visibility();
+        end
+
+        function merged_conv_change(src, ~, plot_panel)
+            obj.merged_conv_speed = src.Value;
+            if obj.plot_type == obj.MERGED_3D_PLOT
+                obj.update_plot(plot_panel); % same view, new surface
+            end
+        end
+
+        function merged_conv_reset(~, ~, plot_panel)
+            obj.merged_conv_speed = [];
+            if obj.plot_type == obj.MERGED_3D_PLOT
+                obj.update_plot(plot_panel);
+            end
         end
 
         function section_count_change(src, ~, plot_panel)
@@ -4350,6 +4409,18 @@ methods (Access = private)
         params.movie = false;
         params.conv_units = true; % plot_3D: equal aspect, all axes in chords
 
+        % convection speed: the box, or each file's U until one is typed
+        if isempty(obj.merged_conv_speed)
+            obj.merged_conv_field.Value = planes(1).U;
+        else
+            obj.merged_conv_field.Value = obj.merged_conv_speed;
+        end
+        report_key = M.key + "|" + mat2str(obj.merged_conv_speed) + "|" + obj.num_cycles;
+        if ~isfield(M, 'report_key') || ~strcmp(M.report_key, report_key)
+            obj.print_merged_segments(planes);
+            obj.merged_3D.report_key = report_key;
+        end
+
         [surface_data, color_data, xlims] = obj.build_merged_surface(planes, (obj.frame_ind - 1) / N);
 
         if isscalar(p) && isscalar(ax)
@@ -4365,7 +4436,13 @@ methods (Access = private)
         end
         setColorBar(ax, params)
         xlabel(ax, "x/c (downstream of the robot)", FontSize=16)
-        xlim(ax, xlims)
+        % while playing the full reconstructed length (the surface moves),
+        % otherwise cropped to where the isosurface ends
+        if obj.play
+            xlim(ax, xlims)
+        else
+            xlim(ax, obj.tight_merged_xlim(xlims, surface_data.vertices))
+        end
         obj.draw_merged_planes(ax, planes);
         set_title();
 
@@ -4386,13 +4463,19 @@ methods (Access = private)
 
         obj.apply_fixed_lims(ax);
         obj.apply_remove_small(ax);
+        xlim(ax, obj.tight_merged_xlim(xlims, p.Vertices(unique(p.Faces), :)));
         if obj.card_style
             obj.apply_card_style(ax);
         end
 
         function set_title()
+            if isempty(obj.merged_conv_speed)
+                uc_str = "U_c = U = " + sprintf("%.3g", planes(1).U) + " m/s";
+            else
+                uc_str = "U_c = " + sprintf("%.3g", obj.merged_conv_speed) + " m/s";
+            end
             ax.Title.String = obj.case_name + "  (" + strjoin([planes.type], ", ") + ...
-                "),  wing phase at robot: bin " + max(obj.frame_ind, 1) + " / " + N;
+                "),  " + uc_str + ",  wing phase at robot: bin " + max(obj.frame_ind, 1) + " / " + N;
             ax.Title.Interpreter = 'none';
             ax.Title.FontSize = 14;
         end
@@ -4502,23 +4585,14 @@ methods (Access = private)
             return
         end
 
-        % how far each plane's reconstruction reaches, and a check that
-        % the planes agree on frequency / speed
-        for i = 1:numel(planes)
-            lambda = planes(i).U / planes(i).f; % m per wingbeat
-            if i < numel(planes)
-                seg = planes(i+1).x - planes(i).x;
-                fprintf("%s: %.3f to %.3f m (%.2f wingbeats)\n", planes(i).type, planes(i).x, planes(i+1).x, seg / lambda);
-                if seg > lambda
-                    fprintf("  longer than a wingbeat: the periodic phase average repeats along it\n");
-                end
-            else
-                fprintf("%s: %.3f m on, %d wingbeat(s)\n", planes(i).type, planes(i).x, obj.num_cycles);
-            end
-        end
+        % check that the planes agree on frequency / speed
         f_all = [planes.f];
         if max(f_all) - min(f_all) > 0.02 * mean(f_all)
             fprintf("Note: wingbeat frequency differs between planes (%s Hz)\n", mat2str(f_all, 3));
+        end
+        U_all = [planes.U];
+        if max(U_all) - min(U_all) > 0.02 * mean(U_all)
+            fprintf("Note: freestream U differs between planes (%s m/s)\n", mat2str(U_all, 3));
         end
 
         M = struct('key', key, 'planes', planes, 'zero', zero);
@@ -4678,7 +4752,7 @@ methods (Access = private)
         x_end = 0;
         for i = 1:n
             P = planes(i);
-            lambda = P.U / P.f;               % wake wavelength, m per wingbeat
+            lambda = obj.merged_speed(P) / P.f; % wake wavelength, m per wingbeat
             a = P.x;
             if i < n
                 b = planes(i+1).x;            % cut off where the next plane starts
@@ -4709,6 +4783,52 @@ methods (Access = private)
         end
         s = struct('vertices', verts, 'faces', faces);
         xlims = [planes(1).x, x_end] / planes(1).L;
+    end
+
+    % Convection speed (m/s) for one plane of plot_merged_3D: the U_c box,
+    % or the file's freestream U if none was typed
+    function Uc = merged_speed(obj, P)
+        if isempty(obj.merged_conv_speed)
+            Uc = P.U;
+        else
+            Uc = obj.merged_conv_speed;
+        end
+    end
+
+    % What each plane's segment covers (Command Window), in wingbeats of
+    % wake at the convection speed
+    function print_merged_segments(obj, planes)
+        for i = 1:numel(planes)
+            Uc = obj.merged_speed(planes(i));
+            lambda = Uc / planes(i).f; % m per wingbeat
+            if i < numel(planes)
+                seg = planes(i+1).x - planes(i).x;
+                fprintf("%s: %.3f to %.3f m (%.2f wingbeats at U_c = %.3g m/s, f = %.3g Hz)\n", ...
+                    planes(i).type, planes(i).x, planes(i+1).x, seg / lambda, Uc, planes(i).f);
+                if seg > lambda
+                    fprintf("  longer than a wingbeat: the periodic phase average repeats along it\n");
+                end
+            else
+                fprintf("%s: %.3f to %.3f m (%d wingbeat(s), %.3f m each at U_c = %.3g m/s, f = %.3g Hz)\n", ...
+                    planes(i).type, planes(i).x, planes(i).x + obj.num_cycles * lambda, ...
+                    obj.num_cycles, lambda, Uc, planes(i).f);
+            end
+        end
+    end
+
+    % x-limits of plot_merged_3D cropped to the isosurface: from the first
+    % plane to just past the last vertex, never beyond the reconstructed
+    % length (xlims_full); the full length if the surface is empty
+    function xl = tight_merged_xlim(~, xlims_full, verts)
+        xl = xlims_full;
+        if isempty(verts)
+            return
+        end
+        pad = 0.02 * diff(xlims_full);
+        xl(2) = min(xlims_full(2), max(verts(:,1)) + pad);
+        if xl(2) <= xl(1)
+            xl = xlims_full;
+        end
     end
 
     % Phase average A (y x z x N bins, bin k at phase (k-1)/N, periodic)
