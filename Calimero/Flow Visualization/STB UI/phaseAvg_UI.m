@@ -1815,6 +1815,36 @@ methods (Access = private)
         end
     end
 
+    % Identifies the load cell curve of a load cell variable: its index,
+    % the load cell folder (the downstream position prefix of the STB type
+    % is stripped, the load cell is only measured at the robot) and the
+    % frequency. get_force picks the latest repeat in that folder at that
+    % frequency, so cases with the same key plot the same file.
+    function key = get_load_cell_key(obj, index, type, amp, freq)
+        freq_key = string(str2double(string(freq)));
+        try
+            folder = get_force_folder(obj.get_force_path(type), type, amp);
+            key = string(index) + "|" + folder + "|" + freq_key + "Hz";
+        catch
+            % no load cell folder (nothing is plotted anyway)
+            key = string(index) + "|" + type + "_" + amp + "deg_" + freq_key + "Hz";
+        end
+    end
+
+    function tf = shares_load_cell_key(obj, cur_sel, index, key)
+        [amp, type, freq] = parse_name(cur_sel);
+        tf = obj.get_load_cell_key(index, type, amp, freq) == key;
+    end
+
+    % Legend entry of a load cell curve shared by several selected cases
+    % (amplitude and frequency, no downstream position)
+    function legend_entry = get_load_cell_legend_entry(obj, amp, freq, index)
+        legend_entry = strrep(amp + " deg, " + freq + " Hz", "_", " ");
+        if length(obj.inds) > 1
+            legend_entry = legend_entry + " - " + obj.active_types(index);
+        end
+    end
+
     function legend_entry = get_aligned_legend_entry(obj, cur_sel, index)
         case_label = obj.get_case_label(cur_sel);
         index_label = obj.active_types(index);
@@ -2253,8 +2283,10 @@ methods (Access = private)
         hold(ax, 'on');
         hold(ax_target, 'on');
 
-        % Load cell variables depend only on the case (type, amp, freq),
-        % not on the PIV data version, so each is drawn once per case
+        % Load cell variables depend only on the load cell file, not on
+        % the downstream position or the PIV data version, so each is
+        % drawn once per load cell file (e.g. x2 / x3 / x4 of the same
+        % wing, amplitude and frequency share one curve)
         plotted_lc_vars = strings(0);
 
         % Stroke reversals (Label Stroke and "+/-"), and the "+/-" shift
@@ -2279,9 +2311,16 @@ methods (Access = private)
             % Load cell variable: measured at the robot, so no convection
             % or bin-phase correction; one curve per case
             if obj.is_load_cell_index(index)
-                lc_key = string(index) + "|" + type + "_" + amp + "deg_" + freq + "Hz";
+                lc_key = obj.get_load_cell_key(index, type, amp, freq);
                 if ismember(lc_key, plotted_lc_vars)
                     continue
+                end
+                % shared by several selected cases: label it without the
+                % downstream position (and PIV version) of the first one
+                lc_legend = "";
+                num_sharing = sum(arrayfun(@(sel) obj.shares_load_cell_key(sel, index, lc_key), obj.selection));
+                if num_sharing > 1
+                    lc_legend = obj.get_load_cell_legend_entry(amp, freq, index);
                 end
                 [var, time, var_std] = obj.get_load_cell_var_signal(obj.active_names(index), type, amp, freq);
                 if isempty(var)
@@ -2313,10 +2352,13 @@ methods (Access = private)
                         'marker', "",...
                         'y_axis', "",...
                         'std', var_std);
+                    if strlength(lc_legend) > 0
+                        aligned_curves(end).legend_entry = lc_legend;
+                    end
                 end
 
                 if ~align_plot_bool
-                    lc_options = struct('std', var_std);
+                    lc_options = struct('std', var_std, 'legend_entry', lc_legend);
                     obj.plot_data(ax, ax_target, time, var, index, dual_plot, j, cur_sel, color_params, ylabs, lc_options);
                 end
                 continue
