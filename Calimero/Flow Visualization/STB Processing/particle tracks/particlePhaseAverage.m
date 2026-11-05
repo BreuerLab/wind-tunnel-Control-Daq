@@ -23,6 +23,12 @@ function R = particlePhaseAverage(setPath, bin_ind_arr, fitOpts, opts)
 %     bins          []         bins to process; [] = all
 %     numWorkers    0          parallel workers over bins (0 = serial)
 %     binsPerChunk  24         bins whose particles are held in memory at once
+%                              (without a cache; with one, only progress steps)
+%     cacheDir      ""         folder for a one-time MAT-file copy of the
+%                              particles (cacheParticleFrames): built on the
+%                              first run, then the workers read their own
+%                              frames from it in parallel, which is much
+%                              faster than reading through lvpyio
 %     gridMargin    5          mm added around the first pair's extent
 %     saveGradients false      also return the 9 gradient components
 %     frameIndex    []         vc7 file index of each particle block: a
@@ -48,7 +54,7 @@ function R = particlePhaseAverage(setPath, bin_ind_arr, fitOpts, opts)
     if nargin < 4, opts = struct(); end
     o = struct('mode', "average", 'bins', [], 'numWorkers', 0, ...
                'binsPerChunk', 24, 'gridMargin', 5, 'saveGradients', false, ...
-               'frameIndex', []);
+               'frameIndex', [], 'cacheDir', "");
     f = fieldnames(opts);
     for i = 1:numel(f)
         if ~isfield(o, f{i}), error('particlePhaseAverage:opt', 'Unknown option "%s".', f{i}); end
@@ -78,7 +84,7 @@ function R = particlePhaseAverage(setPath, bin_ind_arr, fitOpts, opts)
         error('particlePhaseAverage:frameIndex', 'frameIndex has %d entries for %d sets.', numel(fi), nSet);
     end
     frameSet = zeros(nFrames, 1);  frameBlock = zeros(nFrames, 1);
-    nDup = 0;
+    nDup = 0;  fiAll = cell(nSet, 1);
     for s = 1:nSet
         Ps = loadSTBParticles(setPath(s));       % metadata only
         nBlk = Ps.info.n_blocks;
@@ -95,6 +101,7 @@ function R = particlePhaseAverage(setPath, bin_ind_arr, fitOpts, opts)
             error('particlePhaseAverage:frameIndex', ...
                 'frameIndex{%d} must hold %d integer vc7 indices in 1..%d.', s, nBlk, nFrames);
         end
+        fiAll{s} = f;
         free = frameSet(f) == 0;                 % first set wins for duplicates
         nDup = nDup + nnz(~free);
         frameSet(f(free)) = s;
@@ -110,8 +117,16 @@ function R = particlePhaseAverage(setPath, bin_ind_arr, fitOpts, opts)
     nB = numel(bins);
 
     % ---- common grid and depth plane from the first pair --------------
+    useCache = strlength(string(o.cacheDir)) > 0;
+    if useCache
+        cacheParticleFrames(setPath, fiAll, char(o.cacheDir));
+    end
     f1 = find(covered, 1);
-    P1 = loadSTBParticles(setPath(frameSet(f1)), frameBlock(f1));
+    if useCache
+        P1.data = loadCachedFrames(char(o.cacheDir), f1);
+    else
+        P1 = loadSTBParticles(setPath(frameSet(f1)), frameBlock(f1));
+    end
     if ~isfield(fitOpts, 'depthAxis'), fitOpts.depthAxis = 1; end
     if ~isfield(fitOpts, 'gridSpacing'), fitOpts.gridSpacing = 1; end
     dAx = fitOpts.depthAxis;  pAx = setdiff(1:3, dAx);
@@ -144,25 +159,36 @@ function R = particlePhaseAverage(setPath, bin_ind_arr, fitOpts, opts)
 
     % ---- process bins in chunks ----------------------------------------
     t0 = tic;  tLoad = 0;  tFit = 0;
-    for c0 = 1:o.binsPerChunk:nB
-        cIdx = c0 : min(c0 + o.binsPerChunk - 1, nB);
-        data = cell(numel(cIdx), 1);
-        tl = tic;
-        for k = 1:numel(cIdx)                    % Python I/O stays on the client
-            data{k} = single(loadBinParticles(setPath, frameSet, frameBlock, ...
-                                       find(bin_ind_arr == bins(cIdx(k)) & covered)));
-        end
-        mod = stbPyModule();  mod.close();       % release lvpyio's cached block data
-        tLoad = tLoad + toc(tl);
-
+    step = o.binsPerChunk;
+    if useCache, step = max(step, 4 * max(nw, 1)); end   % workers only hold their own bin
+    for c0 = 1:step:nB
+        cIdx = c0 : min(c0 + step - 1, nB);
         res = cell(numel(cIdx), 1);
         mode = o.mode;  saveG = o.saveGradients;
-        tf = tic;
-        parfor (k = 1:numel(cIdx), nw)
-            res{k} = fitBin(double(data{k}), fitOpts, mode, saveG, sz);
+        if useCache
+            % workers read their own frames from the cache, in parallel
+            binFrames = arrayfun(@(j) find(bin_ind_arr == bins(j) & covered), cIdx, 'UniformOutput', false);
+            cdir = char(o.cacheDir);
+            tf = tic;
+            parfor (k = 1:numel(cIdx), nw)
+                res{k} = fitBin(loadCachedFrames(cdir, binFrames{k}), fitOpts, mode, saveG, sz);
+            end
+            tFit = tFit + toc(tf);
+        else
+            data = cell(numel(cIdx), 1);
+            tl = tic;
+            for k = 1:numel(cIdx)                % Python I/O stays on the client
+                data{k} = single(loadBinParticles(setPath, frameSet, frameBlock, ...
+                                           find(bin_ind_arr == bins(cIdx(k)) & covered)));
+            end
+            tLoad = tLoad + toc(tl);
+            tf = tic;
+            parfor (k = 1:numel(cIdx), nw)
+                res{k} = fitBin(double(data{k}), fitOpts, mode, saveG, sz);
+            end
+            tFit = tFit + toc(tf);
+            data = []; %#ok<NASGU> free the chunk before the next one
         end
-        tFit = tFit + toc(tf);
-        data = []; %#ok<NASGU> free the chunk before the next one
 
         for k = 1:numel(cIdx)
             j = cIdx(k);  B = res{k};
@@ -175,8 +201,12 @@ function R = particlePhaseAverage(setPath, bin_ind_arr, fitOpts, opts)
             end
             if saveG, R.G(:, :, :, :, j) = B.G; end
         end
-        fprintf('bins %d-%d of %d done (%.0f s elapsed: %.0f s reading particles, %.0f s fitting)\n', ...
-                c0, cIdx(end), nB, toc(t0), tLoad, tFit);
+        if useCache
+            fprintf('bins %d-%d of %d done (%.0f s elapsed)\n', c0, cIdx(end), nB, toc(t0));
+        else
+            fprintf('bins %d-%d of %d done (%.0f s elapsed: %.0f s reading particles, %.0f s fitting)\n', ...
+                    c0, cIdx(end), nB, toc(t0), tLoad, tFit);
+        end
     end
 
     R.A1 = A1;  R.A2 = A2;  R.inPlaneAxes = pAx;  R.depthAxis = dAx;
@@ -186,6 +216,17 @@ function R = particlePhaseAverage(setPath, bin_ind_arr, fitOpts, opts)
 end
 
 % -------------------------------------------------------------------------
+function D = loadCachedFrames(cacheDir, frames)
+% particles of the given vc7 frames from the cache; column 10 = vc7 frame
+    parts = cell(numel(frames), 1);
+    for i = 1:numel(frames)
+        S = load(fullfile(cacheDir, sprintf('frame_%05d.mat', frames(i))), 'D');
+        parts{i} = [double(S.D), zeros(size(S.D, 1), 1) + frames(i)];
+    end
+    D = vertcat(parts{:});
+    if isempty(D), D = []; end
+end
+
 function D = loadBinParticles(setPath, frameSet, frameBlock, frames)
 % particles of the given vc7 frames, read set by set; column 10 is set to
 % the vc7 frame index so pairs stay distinct across sets

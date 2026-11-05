@@ -42,7 +42,7 @@ fitOpts.gridSpacing  = 1.5;    % mm (overridden by match_binned_grid)
 % integrals barely depend on sigma, but sigma below ~half the spacing would
 % leave gaps between nodes in the integrals. Set false for fine maps.
 match_binned_grid = true;
-sigma_per_spacing = 0.5;
+sigma_per_spacing = 0.75;      % 0.5 left visible node-to-node noise in the forces
 fitOpts.minParticles = 20;
 fitOpts.maxResid     = 0.5;    % m/s
 fitOpts.mask         = "auto"; % per pair (average) or per bin (pool)
@@ -58,6 +58,11 @@ opts.saveGradients = true;        % needed by main_particle_integrals
 % [] = found automatically for every set (matchParticleBlocksToVc7), or
 % block k = vc7 file k for a single set covering the whole recording.
 opts.frameIndex    = [];
+% one-time MAT-file copy of the particles (~3.6 MB per image pair, ~11 GB
+% for 3000): built on the first run (about as long as reading through
+% lvpyio once), then reruns read from it in parallel. Delete the folder
+% after reprocessing the particles in DaVis. "" = always read via lvpyio.
+opts.cacheDir      = fullfile(save_filepath_local, "particle_cache", PIV_case_name);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
