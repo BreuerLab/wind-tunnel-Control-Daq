@@ -23,7 +23,8 @@ addpath(genpath('.'))
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 PIV_case_name  = 'x2_wings_20deg_8Hz';        % as in main_processing
 binned_version = "";                          % bools.version of the binned run
-particle_mode  = "pool";                   % mode used in main_particle_processing
+particle_mode  = "average";                   % mode used in main_particle_processing
+run_tag        = "";                          % run_tag used in main_particle_processing
 save_filepath_local = "F:\Processed Results\";
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -31,13 +32,15 @@ save_filepath_local = "F:\Processed Results\";
 % avoid "deg" and "Hz" (phaseAvg_UI parses names)
 new_version = "particle";
 if particle_mode == "pool", new_version = "particle_pool"; end
+if strlength(run_tag) > 0, new_version = new_version + "_" + run_tag; end
 if strlength(binned_version) > 0, new_version = binned_version + "_" + new_version; end
 
 phase_dir = fullfile(save_filepath_local, "phase_avg");
 stem_b    = string(PIV_case_name) + suffix(binned_version);
 binned_phase_file    = find_file(save_filepath_local, stem_b + "_phase_avg.mat");
 binned_integral_file = find_file(save_filepath_local, stem_b + "_phase_avg_integral.mat");
-particle_R_file = fullfile(save_filepath_local, stem_b + "_particle_" + particle_mode + "_phase_avg.mat");
+particle_R_file = fullfile(save_filepath_local, stem_b + "_particle_" + particle_mode + ...
+                           suffix(run_tag) + "_phase_avg.mat");
 if ~isfile(particle_R_file)
     error("No %s. Run main_particle_processing first.", particle_R_file);
 end
