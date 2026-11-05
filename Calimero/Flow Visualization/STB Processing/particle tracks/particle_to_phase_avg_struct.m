@@ -100,21 +100,37 @@ function S = particle_to_phase_avg_struct(R, binned_phase_file)
     end
     vX = rs(R.omega_x) * sc;  vY = rs(R.omega_y) * sc;  vZ = rs(R.omega_z) * sc;
 
-    % Holes (no valid particle fit): the binned files hole-fill before
-    % differentiating, so their vorticity/gradients have no NaNs and the
-    % force sums rely on that. Here vorticity and gradients are set to 0
-    % there (no rotation counted where nothing was measured); velocities
-    % keep NaN and are filled by prepare_STB_wake_field as for binned data.
+    % Holes (no valid particle fit). get_wake_lift requires NaN-free
+    % vorticity and, like loadpiv, holes should be interpolated rather than
+    % zeroed: zeroing removes circulation from poorly seeded vortex cores.
+    % Holes enclosed by data (interior) are filled per bin by smooth
+    % interpolation from their surroundings (regionfill); holes connected to
+    % the border of the window (outside the lit region) are set to 0 there.
+    % Velocities keep NaN and are filled by prepare_STB_wake_field.
     holes = isnan(vX) | isnan(vY) | isnan(vZ);
-    fprintf('Particle fit missing at %.1f%% of binned-grid nodes x bins (vorticity set to 0 there)\n', ...
-            100 * mean(holes(:)));
-    vX(holes) = 0;  vY(holes) = 0;  vZ(holes) = 0;
-    for i = 1:3
-        for j = 1:3
-            gij = g.(names{i, j});  gij(isnan(gij)) = 0;  g.(names{i, j}) = gij;
+    g.vX = vX;  g.vY = vY;  g.vZ = vZ;           % fill vorticity and gradients alike
+    fn = fieldnames(g);
+    nInt = 0;
+    for b = 1:nb
+        hb = holes(:, :, b);
+        if ~any(hb(:)), continue; end
+        interior = imclearborder(hb);            % hole regions not touching the border
+        nInt = nInt + nnz(interior);
+        for f = 1:numel(fn)
+            F2 = g.(fn{f})(:, :, b);
+            F2(hb) = 0;
+            if any(interior(:)), F2 = regionfill(F2, interior); end
+            g.(fn{f})(:, :, b) = F2;
         end
     end
-
+    for f = 1:numel(fn)                          % anything left (no fit at all)
+        F = g.(fn{f});  F(isnan(F)) = 0;  g.(fn{f}) = F;
+    end
+    vX = g.vX;  vY = g.vY;  vZ = g.vZ;
+    g = rmfield(g, {'vX', 'vY', 'vZ'});
+    fprintf(['Particle fit missing at %.1f%% of binned-grid nodes x bins: %.1f%% interior ' ...
+             '(interpolated), %.1f%% outside the lit region (vorticity 0)\n'], ...
+            100 * mean(holes(:)), 100 * nInt / numel(holes), 100 * (nnz(holes) - nInt) / numel(holes));
     % ---- assemble [3 ny nz nb] fields ---------------------------------------
     plane = @(f0, dfdx) cat(1, reshape(f0 + dxk(1) * dfdx, [1 ny nz nb]), ...
                                reshape(f0,                 [1 ny nz nb]), ...
