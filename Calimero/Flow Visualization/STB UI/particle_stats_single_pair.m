@@ -17,7 +17,7 @@ addpath(genpath('../'))
 %% ---- settings ---------------------------------------------------------
 setPath = "F:\VC7 Data\September\x2\x2_wings_20deg_8Hz\ShakeTheBox 2-pulse.set";
 block   = 1;      % 1-based image-pair index
-oop     = 3;      % out-of-plane axis: 1 = x, 2 = y, 3 = z
+oop     = 1;      % out-of-plane axis in the analysis frame (x = -z_DaVis); use 3 with frame "davis"
 binW    = 0.25;   % bin width along out-of-plane axis (mm)
 nScatter = 2e4;   % max points drawn per pulse in the scatter plot
 yPct    = 99.5;   % intensity axis upper limit = this percentile of both pulses
