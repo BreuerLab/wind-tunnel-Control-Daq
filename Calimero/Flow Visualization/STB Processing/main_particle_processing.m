@@ -41,8 +41,9 @@ opts.numWorkers    = 16;          % i9-13900K: 24 cores; lower if memory runs ou
 opts.binsPerChunk  = 32;          % bins held in memory at once
 opts.saveGradients = true;        % needed by main_particle_integrals
 % vc7 file of each particle block, if the particle set covers only part of
-% the recording the binning was computed for (e.g. 1:600 of 3000 images).
-% [] = block k is vc7 file k. See the attribute printout below to check.
+% the recording the binning was computed for (e.g. 601:1200 of 3000).
+% [] = found automatically by acquisition time (matchParticleBlocksToVc7)
+% when the counts differ, or block k = vc7 file k when they agree.
 opts.frameIndex    = [];
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -66,23 +67,14 @@ fprintf('%d image pairs in %d phase bins (median %d pairs per bin)\n', ...
         median(accumarray(Sb.bin_ind_arr(:), 1, [double(Sb.num_bins) 1])));
 
 % ---- which recording images does the particle set cover? --------------
+% DaVis numbers particle blocks from 1 in every processing session, so the
+% blocks are matched to vc7 files by acquisition time instead.
 P0 = loadSTBParticles(setPath);
 nBlk = P0.info.n_blocks;
-if nBlk ~= numel(Sb.bin_ind_arr)
-    fprintf(['\nParticle set has %d image pairs, binning has %d. Attributes of the ' ...
-             'first and last blocks that may identify their source images:\n'], ...
-             nBlk, numel(Sb.bin_ind_arr));
-    A = stbBlockAttributes(setPath, [1 nBlk]);
-    for a = A
-        f = fieldnames(a.attr);
-        f = f(contains(f, ["Index", "Time", "Load", "Set", "Source", "Image", "Frame"], 'IgnoreCase', true));
-        fprintf('  block %d:\n', a.block);
-        for i = 1:numel(f), fprintf('    %s = %s\n', f{i}, a.attr.(f{i})); end
-    end
-    if isempty(opts.frameIndex)
-        error(['Set opts.frameIndex to the vc7 file index of each particle block ' ...
-               '(e.g. 1:%d if the particles came from the first %d images).'], nBlk, nBlk);
-    end
+if isempty(opts.frameIndex) && nBlk ~= numel(Sb.bin_ind_arr)
+    fprintf('Particle set has %d image pairs, binning has %d: matching to vc7 files by time...\n', ...
+            nBlk, numel(Sb.bin_ind_arr));
+    opts.frameIndex = matchParticleBlocksToVc7(setPath, get_PIV_paths(PIV_case_name));
 end
 
 % ---- particle phase average ------------------------------------------
