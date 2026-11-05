@@ -92,6 +92,7 @@ function [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name)
     daq_aliases = {
         'x2_wings_20deg_8Hz_VIC', 'x2_wings_20deg_8Hz'
         'x2_wings_20deg_8Hz_VIC3', 'x2_wings_20deg_8Hz'
+        'x2_wings_20deg_8Hz_BIN2', 'x2_wings_20deg_8Hz'
         };
 
     % Retrieve the data: listed cases first, then the September files
