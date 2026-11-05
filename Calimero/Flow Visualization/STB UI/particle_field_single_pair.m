@@ -7,6 +7,7 @@
 % Set opts.kNN = 20 to compare with the adaptive k-nearest-neighbour kernel.
 
 clear
+close all
 cd(fileparts(mfilename('fullpath')));
 addpath(genpath('../'))
 
