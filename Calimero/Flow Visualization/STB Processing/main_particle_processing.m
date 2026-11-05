@@ -12,6 +12,7 @@ close all
 cd(fileparts(mfilename('fullpath')));
 addpath(genpath('../../'))
 addpath(genpath('.'))
+addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path (as main_processing)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % ----------------------- Parameter Selection ------------------------
