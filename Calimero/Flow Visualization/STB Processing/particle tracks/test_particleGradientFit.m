@@ -7,21 +7,26 @@
 % particle_field_single_pair output, then compare how much of the true
 % peak omega_y each setting recovers.
 %
-% Reference result (same model in Python, 60k particles, 4.2 /mm^2,
-% sigma_beam 2.5 mm, noise 0.1 m/s, 12 mm core): peak omega_y recovered
-%   depthOrder 1, sigma 1.5 mm : ~81 %   (-dw/dx term alone ~78 %)
-%   depthOrder 3, sigma 1.5 mm : ~89 %   (-dw/dx term alone ~95 %)
-%   depthOrder 3, kNN = 20     : ~96 %   (noisier, ~8 % scatter)
+% Reference results (same model in Python; sigma_beam 2.5 mm, 12 mm core,
+% 0.1 m/s noise). Peak omega_y recovered / scatter along the vortex axis:
+%   density 4.2 /mm^2 : order 1, sigma 1.5 mm ~81 %;  order 3 ~89 %
+%   density 0.56 /mm^2 (measured, block 1 of x2_wings_20deg_8Hz):
+%       order 3, sigma 1.5 mm : ~90 %, scatter ~6 %
+%       order 3, sigma 2.5 mm : ~82 %, scatter ~3 %
+%       order 3, sigma 3.5 mm : ~72 %, scatter ~2 %
+%       order 1, sigma 1.5 mm : ~82 %, scatter ~5 %
+%   Away from the vortex the omega_y noise floor (0.56 /mm^2, sigma 1.5 mm,
+%   order 3) is ~4 % of peak at 0.1 m/s noise and ~13 % at 0.3 m/s.
 
 clear
 rng(0)
 
 %% ---- match your data ---------------------------------------------------
-density   = 4.2;    % tracked particles per mm^2 in-plane (whole slab)
+density   = 0.56;   % tracked particles per mm^2 in-plane (whole slab), measured
 sigBeam   = 2.5;    % mm, std of particle depth distribution
 noise     = 0.1;    % m/s, per-component velocity noise of a 2-pulse track
 coreDiam  = 12;     % mm, diameter at peak swirl velocity
-Uinf      = 4;      % m/s
+Uinf      = 3.93;   % m/s (1.57 mm in 400 us)
 vtMax     = 1;      % m/s, peak swirl velocity
 
 %% ---- synthetic particles ----------------------------------------------
