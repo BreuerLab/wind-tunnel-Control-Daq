@@ -21,6 +21,9 @@ opts.inPlaneSigma = 1.5;   % mm, Gaussian in-plane kernel width
 opts.gridSpacing  = 1;     % mm
 opts.minParticles = 20;
 opts.kNN          = 0;     % e.g. 20 for adaptive kernel
+opts.mask         = "auto";% fit only the main lit region (found per pair, follows sheet drift)
+opts.maxResid     = 0.5;   % m/s, NaN out nodes with larger fit residual
+opts.parallel     = false; % true = parfor over nodes (needs a parallel pool)
 
 %% ---- load & fit -------------------------------------------------------
 P = loadSTBParticles(setPath, block);
@@ -32,8 +35,8 @@ fprintf('%d tracks, in-plane density %.2f particles/mm^2 over the bounding box\n
 
 tic
 F = particleGradientFit(D, opts);
-fprintf('Fit on %d x %d grid in %.1f s (depth plane at %.2f mm)\n', ...
-        size(F.A1, 1), size(F.A1, 2), toc, F.depthEval);
+fprintf('Fit %d of %d grid nodes (masked) in %.1f s (depth plane at %.2f mm)\n', ...
+        nnz(F.mask), numel(F.mask), toc, F.depthEval);
 
 % local seeding density from the particle count inside each node's
 % neighbourhood (radius = cutoff * sigma); fixed kernel only

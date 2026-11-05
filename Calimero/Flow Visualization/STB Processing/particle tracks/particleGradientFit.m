@@ -23,18 +23,32 @@ function F = particleGradientFit(D, opts)
 %   adaptive sigma = half the distance to the k-th in-plane neighbour).
 %   Optional Gaussian depth weight, sigma = opts.depthSigma (Inf = none).
 %
+% MASK: by default ("auto") only nodes inside the main illuminated region
+%   are fitted. The region is found per call from the particles themselves
+%   (coarse occupancy -> largest connected region -> holes filled), so it
+%   follows the laser sheet if it shifts during a trial, and isolated
+%   islands of particles outside it are skipped. Nodes whose fit residual
+%   exceeds opts.maxResid are also set to NaN.
+%
 % OPTIONS (defaults):
-%   depthAxis     1      out-of-plane axis (1=x, 2=y, 3=z)
-%   depthEval     []     depth at which to evaluate (mm); [] = median depth
-%   depthOrder    3      polynomial order in depth (1, 2 or 3)
-%   depthSigma    Inf    Gaussian depth weight sigma (mm)
-%   inPlaneSigma  1.5    Gaussian in-plane weight sigma (mm)
-%   cutoff        3      neighbourhood radius in units of the in-plane sigma
-%   kNN           0      0 = fixed kernel; k>0 = adaptive kernel with k neighbours
-%   gridSpacing   1      in-plane grid spacing (mm)
-%   gridLimits    []     [a1min a1max a2min a2max] (mm); [] = particle extent
-%   minParticles  20     nodes with fewer particles are NaN
-%   maxCond       1e4    nodes with a worse-conditioned fit are NaN
+%   depthAxis      1      out-of-plane axis (1=x, 2=y, 3=z)
+%   depthEval      []     depth at which to evaluate (mm); [] = median depth
+%   depthOrder     3      polynomial order in depth (1, 2 or 3)
+%   depthSigma     Inf    Gaussian depth weight sigma (mm)
+%   inPlaneSigma   1.5    Gaussian in-plane weight sigma (mm)
+%   cutoff         3      neighbourhood radius in units of the in-plane sigma
+%   kNN            0      0 = fixed kernel; k>0 = adaptive kernel with k neighbours
+%   gridSpacing    1      in-plane grid spacing (mm)
+%   gridLimits     []     [a1min a1max a2min a2max] (mm); [] = particle extent
+%   minParticles   20     nodes with fewer particles are NaN
+%   maxCond        1e4    nodes with a worse-conditioned fit are NaN
+%   mask           "auto" "auto", "none", or a logical array the size of the grid
+%   maskCell       5      coarse cell size for the auto mask (mm)
+%   maskMinDensity []     particles/mm^2 for a coarse cell to count as lit;
+%                         [] = 0.75 * minParticles / (pi*(cutoff*sigma)^2)
+%   maskKeepFrac   0.1    also keep connected regions >= this fraction of the largest
+%   maxResid       0.5    nodes with fit residual above this (m/s) are NaN
+%   parallel       false  parfor over nodes (leave false inside a parfor over blocks)
 %
 % OUTPUT F:
 %   A1, A2        in-plane grid (ndgrid), axes F.inPlaneAxes (e.g. [2 3] = y,z)
@@ -43,6 +57,7 @@ function F = particleGradientFit(D, opts)
 %   G             3 x 3 x n1 x n2, G(i,j,:,:) = du_i/dx_j in GLOBAL x,y,z (1/s)
 %   omega_x/y/z   vorticity (1/s)
 %   N             particles used per node, sigmaUsed (mm), cond, resid (m/s)
+%   mask          nodes that were fitted
 %   opts          options used
 %
 % Example:
@@ -73,92 +88,70 @@ function F = particleGradientFit(D, opts)
     g1 = lim(1):o.gridSpacing:lim(2);
     g2 = lim(3):o.gridSpacing:lim(4);
     [A1, A2] = ndgrid(g1, g2);
-    nNode = numel(A1);
+    sz = size(A1);
 
-    % ---- spatial hash of in-plane positions (no toolbox needed) --------
+    % ---- mask ----------------------------------------------------------
+    if isstring(o.mask) || ischar(o.mask)
+        switch lower(string(o.mask))
+            case "auto", M = autoMask(p1, p2, A1, A2, o);
+            case "none", M = true(sz);
+            otherwise,   error('particleGradientFit:mask', 'mask must be "auto", "none" or logical.');
+        end
+    else
+        M = logical(o.mask);
+        if ~isequal(size(M), sz)
+            error('particleGradientFit:mask', 'mask must be %d x %d.', sz(1), sz(2));
+        end
+    end
+    nodes = find(M);
+
+    % ---- spatial hash of in-plane positions (dense, no toolbox) --------
     if o.kNN > 0
         cellSz = max(o.gridSpacing, 1);          % search grows ring by ring
     else
         cellSz = o.cutoff * o.inPlaneSigma;
     end
-    b1 = min(p1);  b2 = min(p2);                 % hash origin = particle extent
-    c1 = floor((p1 - b1) / cellSz);
-    c2 = floor((p2 - b2) / cellSz);
-    n1c = max(c1) + 2;  c1 = c1 + 1;  c2 = c2 + 1;   % 1-based, room for -1
-    key = c1 + n1c * c2;
-    [key, ord] = sort(key);
-    first = containers.Map('KeyType', 'double', 'ValueType', 'any');
-    [uk, ia] = unique(key, 'first');
-    ib = [ia(2:end) - 1; numel(key)];
-    for q = 1:numel(uk), first(uk(q)) = [ia(q) ib(q)]; end
+    H.b1 = min(p1);  H.b2 = min(p2);  H.cs = cellSz;
+    c1 = floor((p1 - H.b1) / cellSz) + 1;
+    c2 = floor((p2 - H.b2) / cellSz) + 1;
+    H.n1 = max(c1);  H.n2 = max(c2);
+    lin = sub2ind([H.n1 H.n2], c1, c2);
+    [lin, H.ord] = sort(lin);
+    nC = H.n1 * H.n2;
+    H.first = ones(nC, 1);  H.last = zeros(nC, 1);   % empty cell: last < first
+    [ul, ia] = unique(lin, 'first');
+    [~,  ib] = unique(lin, 'last');
+    H.first(ul) = ia;  H.last(ul) = ib;
 
-    % ---- fit every node ------------------------------------------------
-    nP = 4 + max(o.depthOrder - 1, 0);            % c0, Gd, G1, G2, depth^2..
-    Uo = nan(nNode, 3);  Gd = nan(nNode, 3);  G1 = nan(nNode, 3);  G2 = nan(nNode, 3);
-    Nn = zeros(nNode, 1);  sig = nan(nNode, 1);  cnd = nan(nNode, 1);  res = nan(nNode, 1);
-
-    for n = 1:nNode
-        a1n = A1(n);  a2n = A2(n);
-        nc1 = floor((a1n - b1) / cellSz) + 1;
-        nc2 = floor((a2n - b2) / cellSz) + 1;
-
-        if o.kNN > 0
-            % grow the ring of cells until the k-th neighbour is certainly inside
-            ring = 1;
-            while true
-                idx = gather(first, ord, n1c, nc1, nc2, ring);
-                if numel(idx) >= o.kNN
-                    r2 = (p1(idx) - a1n).^2 + (p2(idx) - a2n).^2;
-                    [r2s, so] = sort(r2);
-                    if sqrt(r2s(o.kNN)) <= ring * cellSz, break; end
-                end
-                ring = ring + 1;
-                if ring * cellSz > 20 * max(o.inPlaneSigma, cellSz), idx = []; break; end
-            end
-            if isempty(idx), continue; end
-            idx = idx(so(1:o.kNN));
-            s   = max(sqrt(r2s(o.kNN)) / 2, eps);
-            w   = ones(o.kNN, 1);
-        else
-            idx = gather(first, ord, n1c, nc1, nc2, 1);
-            if isempty(idx), continue; end
-            r2  = (p1(idx) - a1n).^2 + (p2(idx) - a2n).^2;
-            in  = r2 <= (o.cutoff * o.inPlaneSigma)^2;
-            idx = idx(in);  r2 = r2(in);
-            s   = o.inPlaneSigma;
-            w   = exp(-r2 / (2 * s^2));
+    % ---- fit masked nodes ----------------------------------------------
+    nOut = 16;                                   % [U(3) Gd(3) G1(3) G2(3) N sig cond resid]
+    a1n = A1(nodes);  a2n = A2(nodes);
+    out = nan(numel(nodes), nOut);
+    if o.parallel
+        parfor q = 1:numel(nodes)
+            out(q, :) = fitNode(a1n(q), a2n(q), p1, p2, dd, Vel, H, o);
         end
-
-        dz = dd(idx);
-        if isfinite(o.depthSigma), w = w .* exp(-dz.^2 / (2 * o.depthSigma^2)); end
-        Nn(n) = numel(idx);  sig(n) = s;
-        if Nn(n) < max(o.minParticles, nP + 1), continue; end
-
-        A = [ones(Nn(n), 1), dz, p1(idx) - a1n, p2(idx) - a2n];
-        for pw = 2:o.depthOrder, A = [A, dz.^pw]; end %#ok<AGROW>
-        sw = sqrt(w);
-        Aw = A .* sw;
-        [Q, R] = qr(Aw, 0);
-        cR = cond(R);
-        cnd(n) = cR;
-        if ~isfinite(cR) || cR > o.maxCond, continue; end
-        C = R \ (Q' * (Vel(idx, :) .* sw));       % nP x 3
-        Uo(n, :) = C(1, :);
-        Gd(n, :) = C(2, :);  G1(n, :) = C(3, :);  G2(n, :) = C(4, :);
-        rr = Vel(idx, :) - A * C;
-        res(n) = sqrt(sum(w .* sum(rr.^2, 2)) / (3 * sum(w)));
+    else
+        for q = 1:numel(nodes)
+            out(q, :) = fitNode(a1n(q), a2n(q), p1, p2, dd, Vel, H, o);
+        end
     end
+    bad = out(:, 16) > o.maxResid;
+    out(bad, 1:12) = NaN;
+
+    allOut = nan(numel(A1), nOut);
+    allOut(nodes, :) = out;
+    allOut(isnan(allOut(:, 13)), 13) = 0;
 
     % ---- assemble outputs in global x,y,z order ------------------------
-    sz = size(A1);
     F.A1 = A1;  F.A2 = A2;  F.inPlaneAxes = pAx;  F.depthAxis = dAx;
     F.depthEval = o.depthEval;
-    F.U = reshape(Uo(:, 1), sz);  F.V = reshape(Uo(:, 2), sz);  F.W = reshape(Uo(:, 3), sz);
+    F.U = reshape(allOut(:, 1), sz);  F.V = reshape(allOut(:, 2), sz);  F.W = reshape(allOut(:, 3), sz);
 
-    G = nan(3, 3, nNode);                         % (m/s)/mm -> 1/s
-    G(:, dAx,    :) = permute(Gd, [2 3 1]) * 1e3;
-    G(:, pAx(1), :) = permute(G1, [2 3 1]) * 1e3;
-    G(:, pAx(2), :) = permute(G2, [2 3 1]) * 1e3;
+    G = nan(3, 3, numel(A1));                     % (m/s)/mm -> 1/s
+    G(:, dAx,    :) = permute(allOut(:, 4:6),   [2 3 1]) * 1e3;
+    G(:, pAx(1), :) = permute(allOut(:, 7:9),   [2 3 1]) * 1e3;
+    G(:, pAx(2), :) = permute(allOut(:, 10:12), [2 3 1]) * 1e3;
     F.G = reshape(G, [3 3 sz]);
 
     g = @(i, j) reshape(G(i, j, :), sz);
@@ -166,32 +159,124 @@ function F = particleGradientFit(D, opts)
     F.omega_y = g(1, 3) - g(3, 1);                % du/dz - dw/dx
     F.omega_z = g(2, 1) - g(1, 2);                % dv/dx - du/dy
 
-    F.N = reshape(Nn, sz);  F.sigmaUsed = reshape(sig, sz);
-    F.cond = reshape(cnd, sz);  F.resid = reshape(res, sz);
+    F.N = reshape(allOut(:, 13), sz);  F.sigmaUsed = reshape(allOut(:, 14), sz);
+    F.cond = reshape(allOut(:, 15), sz);  F.resid = reshape(allOut(:, 16), sz);
+    F.mask = M;
     F.opts = o;
 end
 
 % -------------------------------------------------------------------------
-function idx = gather(first, ord, n1c, nc1, nc2, ring)
-% particle indices in the (2*ring+1)^2 hash cells around cell (nc1, nc2)
-    idx = [];
-    for a = nc1-ring : nc1+ring
-        if a < 1 || a > n1c, continue; end
-        for b = nc2-ring : nc2+ring
-            k = a + n1c * b;
-            if isKey(first, k)
-                r = first(k);
-                idx = [idx; ord(r(1):r(2))]; %#ok<AGROW>
+function row = fitNode(a1n, a2n, p1, p2, dd, Vel, H, o)
+% weighted local fit at one node; returns
+% [U(1:3) Gd(1:3) G1(1:3) G2(1:3) N sigma cond resid], NaN where not fitted
+    row = nan(1, 16);
+    nc1 = floor((a1n - H.b1) / H.cs) + 1;
+    nc2 = floor((a2n - H.b2) / H.cs) + 1;
+
+    if o.kNN > 0
+        ring = 1;  idx = [];
+        while ring * H.cs <= 20 * max(o.inPlaneSigma, H.cs)
+            cand = gatherCells(H, nc1, nc2, ring);
+            if numel(cand) >= o.kNN
+                r2 = (p1(cand) - a1n).^2 + (p2(cand) - a2n).^2;
+                [r2s, so] = sort(r2);
+                if sqrt(r2s(o.kNN)) <= ring * H.cs
+                    idx = cand(so(1:o.kNN));
+                    s   = max(sqrt(r2s(o.kNN)) / 2, eps);
+                    break
+                end
             end
+            ring = ring + 1;
         end
+        if isempty(idx), row(13) = 0; return; end
+        w = ones(numel(idx), 1);
+    else
+        idx = gatherCells(H, nc1, nc2, 1);
+        if isempty(idx), row(13) = 0; return; end
+        r2  = (p1(idx) - a1n).^2 + (p2(idx) - a2n).^2;
+        in  = r2 <= (o.cutoff * o.inPlaneSigma)^2;
+        idx = idx(in);  r2 = r2(in);
+        s   = o.inPlaneSigma;
+        w   = exp(-r2 / (2 * s^2));
     end
+
+    dz = dd(idx);
+    if isfinite(o.depthSigma), w = w .* exp(-dz.^2 / (2 * o.depthSigma^2)); end
+    n = numel(idx);
+    row(13) = n;  row(14) = s;
+    nP = 4 + max(o.depthOrder - 1, 0);
+    if n < max(o.minParticles, nP + 1), return; end
+
+    A = [ones(n, 1), dz, p1(idx) - a1n, p2(idx) - a2n];
+    for pw = 2:o.depthOrder, A = [A, dz.^pw]; end %#ok<AGROW>
+    sw = sqrt(w);
+    Aw = A .* sw;
+    cn = sqrt(sum(Aw.^2, 1));                     % column scaling, so the
+    cn(cn == 0) = 1;                              % condition number reflects
+    [Q, R] = qr(Aw ./ cn, 0);                     % geometry, not units
+    rc = rcond(R);
+    cR = 1 / rc;
+    row(15) = cR;
+    if ~(rc > 0) || cR > o.maxCond, return; end
+    C = (R \ (Q' * (Vel(idx, :) .* sw))) ./ cn'; % nP x 3
+    rr = Vel(idx, :) - A * C;
+    row(1:12) = [C(1, :), C(2, :), C(3, :), C(4, :)];
+    row(16) = sqrt(sum(w .* sum(rr.^2, 2)) / (3 * sum(w)));
+end
+
+function idx = gatherCells(H, nc1, nc2, ring)
+% particle indices in the (2*ring+1)^2 hash cells around cell (nc1, nc2)
+    i1 = max(nc1 - ring, 1) : min(nc1 + ring, H.n1);
+    i2 = max(nc2 - ring, 1) : min(nc2 + ring, H.n2);
+    if isempty(i1) || isempty(i2), idx = zeros(0, 1); return; end
+    [I1, I2] = ndgrid(i1, i2);
+    k  = sub2ind([H.n1 H.n2], I1(:), I2(:));
+    f  = H.first(k);  l = H.last(k);
+    keep = l >= f;
+    f = f(keep);  l = l(keep);
+    if isempty(f), idx = zeros(0, 1); return; end
+    len = l - f + 1;
+    % concatenate the ranges f(i):l(i) without a loop
+    starts = cumsum([1; len(1:end-1)]);
+    step = ones(sum(len), 1);
+    step(starts(2:end)) = f(2:end) - l(1:end-1);
+    step(1) = f(1);
+    idx = H.ord(cumsum(step));
+end
+
+function M = autoMask(p1, p2, A1, A2, o)
+% main illuminated region from particle occupancy on a coarse grid
+    cs = o.maskCell;
+    e1 = floor(min(p1)) : cs : max(p1) + cs;
+    e2 = floor(min(p2)) : cs : max(p2) + cs;
+    Hc = histcounts2(p1, p2, e1, e2);
+    if isempty(o.maskMinDensity)
+        rhoMin = 0.75 * o.minParticles / (pi * (o.cutoff * o.inPlaneSigma)^2);
+    else
+        rhoMin = o.maskMinDensity;
+    end
+    lit = Hc >= rhoMin * cs^2;
+    CC  = bwconncomp(lit, 8);
+    if CC.NumObjects == 0, M = false(size(A1)); return; end
+    nPix = cellfun(@numel, CC.PixelIdxList);
+    keep = false(size(lit));
+    for k = find(nPix >= o.maskKeepFrac * max(nPix))
+        keep(CC.PixelIdxList{k}) = true;
+    end
+    keep = imfill(keep, 'holes');
+    i1 = discretize(A1, e1);  i2 = discretize(A2, e2);
+    M  = false(size(A1));
+    ok = ~isnan(i1) & ~isnan(i2);
+    M(ok) = keep(sub2ind(size(keep), i1(ok), i2(ok)));
 end
 
 function o = defaults(opts)
     d = struct('depthAxis', 1, 'depthEval', [], 'depthOrder', 3, ...
                'depthSigma', Inf, 'inPlaneSigma', 1.5, 'cutoff', 3, ...
                'kNN', 0, 'gridSpacing', 1, 'gridLimits', [], ...
-               'minParticles', 20, 'maxCond', 1e4);
+               'minParticles', 20, 'maxCond', 1e4, ...
+               'mask', "auto", 'maskCell', 5, 'maskMinDensity', [], ...
+               'maskKeepFrac', 0.1, 'maxResid', 0.5, 'parallel', false);
     o = d;
     f = fieldnames(opts);
     for i = 1:numel(f)
