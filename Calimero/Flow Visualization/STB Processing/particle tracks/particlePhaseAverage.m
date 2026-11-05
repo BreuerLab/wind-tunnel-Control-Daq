@@ -28,6 +28,7 @@ function R = particlePhaseAverage(setPath, bin_ind_arr, fitOpts, opts)
 %   U, V, W, omega_x, omega_y, omega_z
 %   nValid         pairs with a valid fit at each node ("average"), or
 %                  1/0 valid ("pool")
+%   N              mean particles in each node's fit neighbourhood
 %   omega_*_std    std over pairs at each node ("average" only)
 %   G              3 x 3 x n1 x n2 x nBins if saveGradients
 %   nPairs         image pairs per bin; mode, fitOpts, opts, setPath
@@ -81,6 +82,7 @@ function R = particlePhaseAverage(setPath, bin_ind_arr, fitOpts, opts)
     names = ["U" "V" "W" "omega_x" "omega_y" "omega_z"];
     for nm = names, R.(char(nm)) = nan([sz nB], 'single'); end
     R.nValid = zeros([sz nB], 'uint16');
+    R.N = nan([sz nB], 'single');                % mean particles per node (fit neighbourhood)
     if o.mode == "average"
         for nm = ["omega_x" "omega_y" "omega_z"], R.(char(nm + "_std")) = nan([sz nB], 'single'); end
     end
@@ -112,6 +114,7 @@ function R = particlePhaseAverage(setPath, bin_ind_arr, fitOpts, opts)
             if isempty(B), continue; end
             for nm = names, R.(char(nm))(:, :, j) = B.(char(nm)); end
             R.nValid(:, :, j) = B.nValid;
+            R.N(:, :, j) = B.N;
             if o.mode == "average"
                 for nm = ["omega_x" "omega_y" "omega_z"], R.(char(nm + "_std"))(:, :, j) = B.(char(nm + "_std")); end
             end
@@ -135,6 +138,7 @@ function B = fitBin(D, fitOpts, mode, saveG, sz)
         F = particleGradientFit(D(:, 1:6), fitOpts);
         for nm = names, B.(char(nm)) = single(F.(char(nm))); end
         B.nValid = uint16(isfinite(F.U));
+        B.N = single(F.N);
         if saveG, B.G = single(F.G); end
         return
     end
@@ -144,12 +148,13 @@ function B = fitBin(D, fitOpts, mode, saveG, sz)
     S = struct();  S2 = struct();
     for nm = names, S.(char(nm)) = zeros(sz); end
     for nm = ["omega_x" "omega_y" "omega_z"], S2.(char(nm)) = zeros(sz); end
-    cnt = zeros(sz);
+    cnt = zeros(sz);  SN = zeros(sz);
     if saveG, SG = zeros([3 3 sz]); end
     for b = blocks'
         F = particleGradientFit(D(D(:, 10) == b, 1:6), fitOpts);
         ok = isfinite(F.U) & isfinite(F.omega_x) & isfinite(F.omega_y) & isfinite(F.omega_z);
         cnt = cnt + ok;
+        SN  = SN + F.N;
         for nm = names
             v = F.(char(nm));  v(~ok) = 0;  S.(char(nm)) = S.(char(nm)) + v;
         end
@@ -169,5 +174,6 @@ function B = fitBin(D, fitOpts, mode, saveG, sz)
         B.(char(nm + "_std")) = single(sqrt(max(v, 0)));
     end
     B.nValid = uint16(cnt);
+    B.N = single(SN / numel(blocks));
     if saveG, B.G = single(SG ./ reshape(c, [1 1 sz])); end
 end

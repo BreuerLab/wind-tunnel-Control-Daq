@@ -5,7 +5,8 @@
 % num_bins are read from the phase-avg .mat that main_processing ->
 % phase_avg_STB saved. Image pair k = vc7 file k = particle block k.
 %
-% Run main_processing for the case first (it saves the binning).
+% Run main_processing for the case first (it saves the binning). Then run
+% main_particle_integrals to get the integral quantities for the GUIs.
 
 close all
 cd(fileparts(mfilename('fullpath')));
@@ -38,16 +39,19 @@ opts.mode          = "average";   % "average" (fit pairs, then average) or "pool
 opts.bins          = [];          % [] = all bins; e.g. 1:10 for a quick test
 opts.numWorkers    = 16;          % i9-13900K: 24 cores; lower if memory runs out
 opts.binsPerChunk  = 32;          % bins held in memory at once
-opts.saveGradients = false;
+opts.saveGradients = true;        % needed by main_particle_integrals
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % ---- phase binning from the phase-avg file ---------------------------
-phase_file = fullfile(save_filepath_local, string(PIV_case_name) + ...
-                      version_suffix(version) + "_phase_avg.mat");
-if ~isfile(phase_file)
-    error("No phase-avg file %s. Run main_processing for this case first.", phase_file);
+phase_name = string(PIV_case_name) + version_suffix(version) + "_phase_avg.mat";
+cands = [fullfile(save_filepath_local, "phase_avg", phase_name), fullfile(save_filepath_local, phase_name)];
+k = find(arrayfun(@isfile, cands), 1);
+if isempty(k)
+    error("No %s in %s or its phase_avg folder. Run main_processing for this case first.", ...
+          phase_name, save_filepath_local);
 end
+phase_file = cands(k);
 vars = who('-file', char(phase_file));
 if ~all(ismember({'bin_ind_arr', 'num_bins'}, vars))
     error("%s has no bin_ind_arr/num_bins; rerun main_processing.", phase_file);
