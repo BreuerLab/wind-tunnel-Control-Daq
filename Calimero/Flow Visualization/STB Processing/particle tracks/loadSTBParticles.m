@@ -13,7 +13,8 @@ function P = loadSTBParticles(setPath, blocks, lvpyioPath, frame)
 %                (only needed if lvpyio was not pip-installed; [] otherwise)
 %   frame      : "analysis" (default) or "davis"
 %                "analysis" = the frame loadpiv.m produces for binned STB
-%                data: x = -z_DaVis (streamwise, slab normal), y = -x_DaVis,
+%                data: x = -z_DaVis (slab normal, pointing UPSTREAM so the
+%                freestream is u ~ -U), y = -x_DaVis,
 %                z = y_DaVis, and the same rotation for (u,v,w). Positions
 %                stay in mm (loadpiv uses m). "davis" = DaVis physical axes
 %                (slab normal = z).
@@ -78,10 +79,13 @@ function P = loadSTBParticles(setPath, blocks, lvpyioPath, frame)
             % proper rotation, matches loadpiv.m (which flips signs on the raw
             % readimx components; lvpyio positions here are already physical)
             M(:, 1:6) = [-M(:,3), -M(:,1), M(:,2), -M(:,6), -M(:,4), M(:,5)];
-            if median(M(:, 4)) < 0
+            % analysis-frame x points UPSTREAM, so the freestream is u ~ -U
+            % (as in import_STB_data / flowField_UI)
+            if median(M(:, 4)) > 0
                 warning('loadSTBParticles:frame', ...
-                    ['Median streamwise velocity u is negative (%.2f m/s) in the ' ...
-                     'analysis frame. Check the axis mapping against binned data.'], median(M(:,4)));
+                    ['Median streamwise velocity u is positive (%.2f m/s) in the ' ...
+                     'analysis frame, where x points upstream and u ~ -U is ' ...
+                     'expected. Check the axis mapping against binned data.'], median(M(:,4)));
             end
         case "davis"
         otherwise
