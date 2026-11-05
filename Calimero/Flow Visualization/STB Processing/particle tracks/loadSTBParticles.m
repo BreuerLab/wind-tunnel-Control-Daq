@@ -21,10 +21,12 @@ function P = loadSTBParticles(setPath, blocks, lvpyioPath)
 %            units, intensity_scale
 %
 % ONE-TIME SETUP (before the first call in a MATLAB session):
-%   1) Use a Python version that both lvpyio (3.7-3.11) and your MATLAB
-%      release support, e.g. 3.10 or 3.11.
-%   2) Install lvpyio into it, either from PyPI:   python -m pip install lvpyio
-%      or from a wheel shipped with DaVis:         python -m pip install <file>.whl
+%   1) Use a 64-bit python.org Python that both lvpyio and your MATLAB
+%      release support. lvpyio 1.5.0 needs 3.10-3.14 (and numpy >= 2.0);
+%      MATLAB R2023b-R2024a support up to 3.11, R2024b-R2025b up to 3.12,
+%      R2026a up to 3.13. Python 3.11 works with all of R2023b onward.
+%   2) Install the matching LaVision wheel, e.g. for Python 3.11 on Windows:
+%        python -m pip install lvpyio-1.5.0-cp311-cp311-win_amd64.whl
 %   3) In MATLAB:
 %        pyenv('Version','C:\Path\To\Python311\python.exe', ...
 %              'ExecutionMode','InProcess');   % try 'OutOfProcess' if MATLAB crashes
