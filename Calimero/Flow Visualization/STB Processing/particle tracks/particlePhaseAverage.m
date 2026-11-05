@@ -143,20 +143,26 @@ function R = particlePhaseAverage(setPath, bin_ind_arr, fitOpts, opts)
     nw = start_pool(o.numWorkers);
 
     % ---- process bins in chunks ----------------------------------------
-    t0 = tic;
+    t0 = tic;  tLoad = 0;  tFit = 0;
     for c0 = 1:o.binsPerChunk:nB
         cIdx = c0 : min(c0 + o.binsPerChunk - 1, nB);
         data = cell(numel(cIdx), 1);
+        tl = tic;
         for k = 1:numel(cIdx)                    % Python I/O stays on the client
-            data{k} = loadBinParticles(setPath, frameSet, frameBlock, ...
-                                       find(bin_ind_arr == bins(cIdx(k)) & covered));
+            data{k} = single(loadBinParticles(setPath, frameSet, frameBlock, ...
+                                       find(bin_ind_arr == bins(cIdx(k)) & covered)));
         end
+        mod = stbPyModule();  mod.close();       % release lvpyio's cached block data
+        tLoad = tLoad + toc(tl);
 
         res = cell(numel(cIdx), 1);
         mode = o.mode;  saveG = o.saveGradients;
+        tf = tic;
         parfor (k = 1:numel(cIdx), nw)
-            res{k} = fitBin(data{k}, fitOpts, mode, saveG, sz);
+            res{k} = fitBin(double(data{k}), fitOpts, mode, saveG, sz);
         end
+        tFit = tFit + toc(tf);
+        data = []; %#ok<NASGU> free the chunk before the next one
 
         for k = 1:numel(cIdx)
             j = cIdx(k);  B = res{k};
@@ -169,7 +175,8 @@ function R = particlePhaseAverage(setPath, bin_ind_arr, fitOpts, opts)
             end
             if saveG, R.G(:, :, :, :, j) = B.G; end
         end
-        fprintf('bins %d-%d of %d done (%.0f s elapsed)\n', c0, cIdx(end), nB, toc(t0));
+        fprintf('bins %d-%d of %d done (%.0f s elapsed: %.0f s reading particles, %.0f s fitting)\n', ...
+                c0, cIdx(end), nB, toc(t0), tLoad, tFit);
     end
 
     R.A1 = A1;  R.A2 = A2;  R.inPlaneAxes = pAx;  R.depthAxis = dAx;

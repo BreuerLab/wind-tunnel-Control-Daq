@@ -246,19 +246,22 @@ function row = fitNode(a1n, a2n, p1, p2, dd, Vel, H, o)
 end
 
 function [C, cR] = wls(A, V, w, maxCond)
-% weighted least squares with column scaling; C = [] if ill-conditioned
+% weighted least squares via normal equations on column-scaled A (much
+% cheaper than QR for the tall systems of pooled data; scaled columns keep
+% the Gram matrix well conditioned). C = [] if ill-conditioned.
     sw = sqrt(w);
     Aw = A .* sw;
     cn = sqrt(sum(Aw.^2, 1));                     % column scaling, so the
     cn(cn == 0) = 1;                              % condition number reflects
-    [Q, R] = qr(Aw ./ cn, 0);                     % geometry, not units
-    rc = rcond(R);
-    cR = 1 / rc;
+    As = Aw ./ cn;                                % geometry, not units
+    M  = As' * As;
+    rc = rcond(M);
+    cR = 1 / sqrt(rc);                            % ~ condition number of As
     if ~(rc > 0) || cR > maxCond
         C = [];
         return
     end
-    C = (R \ (Q' * (V .* sw))) ./ cn';           % nP x 3
+    C = (M \ (As' * (V .* sw))) ./ cn';           % nP x 3
 end
 
 function idx = gatherCells(H, nc1, nc2, ring)

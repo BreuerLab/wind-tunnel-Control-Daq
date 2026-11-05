@@ -34,8 +34,15 @@ run_tag       = "";
 fitOpts = struct();
 fitOpts.depthAxis    = 1;      % slab normal (analysis frame)
 fitOpts.depthOrder   = 3;      % 3 = cubic; 5 for vortices more compact than ~10 mm along x
-fitOpts.inPlaneSigma = 1.5;    % mm
-fitOpts.gridSpacing  = 1.5;    % mm (~sigma; 1 mm oversamples)
+fitOpts.inPlaneSigma = 1.5;    % mm (overridden by match_binned_grid)
+fitOpts.gridSpacing  = 1.5;    % mm (overridden by match_binned_grid)
+% Fit directly at the nodes of the binned case's grid. main_particle_integrals
+% resamples onto that grid anyway, so a finer fit grid is mostly discarded
+% work. sigma is then set to sigma_per_spacing * grid spacing: the force
+% integrals barely depend on sigma, but sigma below ~half the spacing would
+% leave gaps between nodes in the integrals. Set false for fine maps.
+match_binned_grid = true;
+sigma_per_spacing = 0.5;
 fitOpts.minParticles = 20;
 fitOpts.maxResid     = 0.5;    % m/s
 fitOpts.mask         = "auto"; % per pair (average) or per bin (pool)
@@ -68,6 +75,22 @@ if ~all(ismember({'bin_ind_arr', 'num_bins'}, vars))
     error("%s has no bin_ind_arr/num_bins; rerun main_processing.", phase_file);
 end
 Sb = load(phase_file, 'bin_ind_arr', 'num_bins');
+
+if match_binned_grid
+    G = load(phase_file, 'y', 'z', 'L');
+    ic = (size(G.y, 1) + 1) / 2;
+    yv = squeeze(G.y(ic, :, 1)) * G.L * 1000;    % mm
+    zv = squeeze(G.z(ic, 1, :)) * G.L * 1000;
+    dy = median(abs(diff(yv)));  dz = median(abs(diff(zv)));
+    if abs(dy - dz) > 0.01 * dy
+        warning('Binned grid spacing differs in y (%.3f mm) and z (%.3f mm); using the smaller.', dy, dz);
+    end
+    fitOpts.gridSpacing  = min(dy, dz);
+    fitOpts.gridLimits   = [min(yv) max(yv) min(zv) max(zv)] + [0 1 0 1] * 1e-6 * min(dy, dz);  % keep last node despite round-off
+    fitOpts.inPlaneSigma = sigma_per_spacing * fitOpts.gridSpacing;
+    fprintf('Fitting on the binned grid: %d x %d nodes, spacing %.2f mm, sigma %.2f mm\n', ...
+            numel(yv), numel(zv), fitOpts.gridSpacing, fitOpts.inPlaneSigma);
+end
 fprintf('%d image pairs in %d phase bins (median %d pairs per bin)\n', ...
         numel(Sb.bin_ind_arr), Sb.num_bins, ...
         median(accumarray(Sb.bin_ind_arr(:), 1, [double(Sb.num_bins) 1])));
