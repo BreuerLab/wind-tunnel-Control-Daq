@@ -41,10 +41,13 @@ function [frameIndex, info] = matchParticleBlocksToVc7(setPath, vc7Folder)
         end
     end
     if key == ""
+        % ---- fallback: image number in the source file name (LoadFile) ----
+        [frameIndex, info, why] = matchByLoadFile(pa1, paN, nB, files);
+        if ~isempty(frameIndex), return; end
         error('matchParticleBlocksToVc7:noKey', ...
-            ['No time attribute shared by the particle blocks and the vc7 files changes between ' ...
-             'images.\nParticle block attributes: %s\nvc7 attributes: %s'], ...
-            strjoin(string(fieldnames(pa1)), ', '), strjoin(string(fieldnames(v1)), ', '));
+            ['Could not match particle blocks to vc7 files.\n%s\n' ...
+             'Shared attributes (block 1 | block 2 | block %d || vc7 1):\n%s'], ...
+            why, nB, describeShared(shared, pa1, pa2, paN, v1));
     end
     key = char(key);
     tP1 = parseTime(pa1.(key));  tPN = parseTime(paN.(key));
@@ -79,6 +82,59 @@ function [frameIndex, info] = matchParticleBlocksToVc7(setPath, vc7Folder)
     end
     frameIndex = (k0:kN)';
     fprintf('Particle blocks 1-%d = vc7 files %d-%d (matched on %s)\n', nB, k0, kN, key);
+end
+
+% -------------------------------------------------------------------------
+function [frameIndex, info, why] = matchByLoadFile(pa1, paN, nB, files)
+% Particle blocks usually record the source image in LoadFile (e.g.
+% ...\B00601.im7); its number is the image's index in the recording, not
+% the processing session. vc7 files are numbered the same way (B00601.vc7).
+    frameIndex = [];  info = struct();  why = "";
+    if ~isfield(pa1, 'LoadFile') || ~isfield(paN, 'LoadFile')
+        why = "Particle blocks have no LoadFile attribute.";  return
+    end
+    n1 = fileNumber(pa1.LoadFile);  nN = fileNumber(paN.LoadFile);
+    if isnan(n1) || isnan(nN)
+        why = sprintf("No image number in LoadFile ('%s' ... '%s').", pa1.LoadFile, paN.LoadFile);  return
+    end
+    if nN - n1 ~= nB - 1
+        why = sprintf(['LoadFile numbers %d ... %d do not span %d consecutive images ' ...
+                       '(LoadFile probably names a stream or set, not single images).'], n1, nN, nB);
+        return
+    end
+    vnum = arrayfun(@(f) fileNumber(f.name), files);
+    [ok, frameIndex] = ismember((n1:nN)', vnum);
+    if ~all(ok)
+        why = sprintf('Images %d-%d are not all among the vc7 file numbers (%d-%d).', ...
+                      n1, nN, min(vnum), max(vnum));
+        frameIndex = [];  return
+    end
+    info = struct('key', "LoadFile", 'firstImage', n1, 'lastImage', nN, ...
+                  'firstVc7', frameIndex(1), 'lastVc7', frameIndex(end), 'nVc7', numel(files));
+    fprintf('Particle blocks 1-%d = images %d-%d = vc7 files %d-%d (matched on LoadFile)\n', ...
+            nB, n1, nN, frameIndex(1), frameIndex(end));
+end
+
+function n = fileNumber(pathStr)
+% trailing number of a file name: '...\B00601.im7' -> 601
+    [~, name] = fileparts(char(pathStr));
+    tok = regexp(name, '(\d+)\D*$', 'tokens', 'once');
+    if isempty(tok), n = NaN; else, n = str2double(tok{1}); end
+end
+
+function s = describeShared(shared, pa1, pa2, paN, v1)
+    keys = unique([shared(:); "Timestamp"; "AcqTimeSeries"; "LoadFile"], 'stable');
+    lines = strings(0, 1);
+    for k = keys'
+        c = char(k);
+        gv = @(a) iff(isfield(a, c), @() string(a.(c)), "-");
+        lines(end+1) = sprintf('  %s: %s | %s | %s || %s', c, gv(pa1), gv(pa2), gv(paN), gv(v1)); %#ok<AGROW>
+    end
+    s = strjoin(lines, newline);
+end
+
+function v = iff(cond, f, alt)
+    if cond, v = f(); else, v = alt; end
 end
 
 % -------------------------------------------------------------------------
