@@ -14,9 +14,9 @@ function F = particleGradientFit(D, opts)
 %            + sum_{p=2..depthOrder} cp*(d-d0)^p
 %   d = depth (out-of-plane) coordinate, a1/a2 = in-plane coordinates.
 %   Linear in-plane, polynomial in depth. Because w (and u) vary with
-%   odd symmetry through a vortex cut by the slab, a CUBIC depth term is
-%   what removes most of the bias in the depth gradient; a quadratic alone
-%   does almost nothing for it (verified on a synthetic Lamb-Oseen vortex).
+%   odd symmetry through a vortex cut by the slab, the ODD depth terms
+%   (cubic, quintic) remove the bias in the depth gradient; even terms do
+%   almost nothing for it (verified on a synthetic Lamb-Oseen vortex).
 %   c0 is the velocity at the node, Gd/G1/G2 the gradients there.
 %
 % WEIGHTS: Gaussian in-plane, sigma = opts.inPlaneSigma (or, with kNN, an
@@ -33,7 +33,14 @@ function F = particleGradientFit(D, opts)
 % OPTIONS (defaults):
 %   depthAxis      1      out-of-plane axis (1=x, 2=y, 3=z)
 %   depthEval      []     depth at which to evaluate (mm); [] = median depth
-%   depthOrder     3      polynomial order in depth (1, 2 or 3)
+%   depthOrder     3      polynomial order in depth (1 to 5). 3 suits vortices
+%                         larger than ~10 mm along the slab normal; for more
+%                         compact ones 5 recovers more of the depth gradient
+%                         (integrated omega_y on a synthetic Lamb-Oseen vortex,
+%                         sigma_beam 2.5 mm, 16 pooled pairs:
+%                           core 12 mm: order 1 86%, 3 98%, 5 100%
+%                           core  8 mm: order 1 75%, 3 93%, 5 99%
+%                           core  6 mm: order 1 64%, 3 86%, 5 95%)
 %   depthSigma     Inf    Gaussian depth weight sigma (mm)
 %   inPlaneSigma   1.5    Gaussian in-plane weight sigma (mm)
 %   cutoff         3      neighbourhood radius in units of the in-plane sigma
@@ -314,5 +321,5 @@ function o = defaults(opts)
         if ~isfield(d, f{i}), error('particleGradientFit:opt', 'Unknown option "%s".', f{i}); end
         o.(f{i}) = opts.(f{i});
     end
-    if ~ismember(o.depthOrder, 1:3), error('particleGradientFit:order', 'depthOrder must be 1, 2 or 3.'); end
+    if ~ismember(o.depthOrder, 1:5), error('particleGradientFit:order', 'depthOrder must be 1 to 5.'); end
 end

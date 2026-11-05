@@ -25,11 +25,15 @@ setPath       = "F:\VC7 Data\September\x2\x2_wings_20deg_8Hz\*.set";
 
 save_filepath_local = "F:\Processed Results\";
 save_results  = true;
+% optional tag for this run's settings, so runs don't overwrite each other,
+% e.g. "o5" -> ..._particle_pool_o5_phase_avg.mat (use the same tag in
+% main_particle_integrals; avoid "deg" and "Hz")
+run_tag       = "";
 
 % particleGradientFit options
 fitOpts = struct();
 fitOpts.depthAxis    = 1;      % slab normal (analysis frame)
-fitOpts.depthOrder   = 3;      % cubic through the slab
+fitOpts.depthOrder   = 3;      % 3 = cubic; 5 for vortices more compact than ~10 mm along x
 fitOpts.inPlaneSigma = 1.5;    % mm
 fitOpts.gridSpacing  = 1.5;    % mm (~sigma; 1 mm oversamples)
 fitOpts.minParticles = 20;
@@ -107,7 +111,7 @@ fprintf('Particle phase average (%s mode) done in %.1f min\n', R.mode, toc/60);
 
 if save_results
     out = fullfile(save_filepath_local, string(PIV_case_name) + version_suffix(version) + ...
-                   "_particle_" + R.mode + "_phase_avg.mat");
+                   "_particle_" + R.mode + tag_suffix(run_tag) + "_phase_avg.mat");
     save(out, '-struct', 'R', '-v7.3');
     fprintf('Saved %s\n', out);
 end
@@ -129,6 +133,10 @@ for c = {'omega_x', 'omega_y'}
 end
 nexttile
 bar(R.bins, R.nPairs); xlabel('Phase bin'); ylabel('Image pairs'); title('Pairs per bin'); grid on
+
+function s = tag_suffix(tag)
+    if strlength(string(tag)) > 0, s = "_" + string(tag); else, s = ""; end
+end
 
 function s = version_suffix(v)
     if strlength(string(v)) > 0, s = "_" + string(v); else, s = ""; end
