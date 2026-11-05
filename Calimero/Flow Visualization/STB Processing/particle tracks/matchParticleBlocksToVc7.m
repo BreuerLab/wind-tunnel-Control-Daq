@@ -17,6 +17,7 @@ function [frameIndex, info] = matchParticleBlocksToVc7(setPath, vc7Folder)
 % first block's time, and check that the last block lines up with the
 % contiguous range. Errors (with what it found) if anything doesn't match.
 
+    vc7Folder = char(vc7Folder);              % get_PIV_paths returns a string
     files = dir(fullfile(vc7Folder, '*.vc7'));
     if isempty(files), error('matchParticleBlocksToVc7:noFiles', 'No .vc7 files in %s.', vc7Folder); end
     nF = numel(files);
@@ -90,7 +91,7 @@ end
 
 function s = vc7Attributes(filePath)
 % buffer and first-frame attributes of a vc7 file, names made MATLAB-valid
-    raw = readimx(filePath);
+    raw = readimx(char(filePath));          % MEX needs a char path, not a string
     s = struct();
     lists = {};
     if isfield(raw, 'Attributes'), lists{end+1} = raw.Attributes; end
