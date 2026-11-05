@@ -22,19 +22,36 @@ opts.inPlaneSigma = 1.5;   % mm, Gaussian in-plane kernel width
 opts.gridSpacing  = 1;     % mm
 opts.minParticles = 20;
 opts.kNN          = 0;     % e.g. 20 for adaptive kernel
+opts.mask         = "auto";% fit only the main lit region (found per pair, follows sheet drift)
+opts.maxResid     = 0.5;   % m/s, NaN out nodes with larger fit residual
+opts.parallel     = false; % true = parfor over nodes (needs a parallel pool)
 
 %% ---- load & fit -------------------------------------------------------
 P = loadSTBParticles(setPath, block);
 D = P.data;
 pAx = setdiff(1:3, opts.depthAxis);
 area = range(D(:, pAx(1))) * range(D(:, pAx(2)));
-fprintf('%d tracks, in-plane density %.2f particles/mm^2 (through the whole slab)\n', ...
+fprintf('%d tracks, in-plane density %.2f particles/mm^2 over the bounding box\n', ...
         size(D, 1), size(D, 1) / area);
 
 tic
 F = particleGradientFit(D, opts);
-fprintf('Fit on %d x %d grid in %.1f s (depth plane at %.2f mm)\n', ...
-        size(F.A1, 1), size(F.A1, 2), toc, F.depthEval);
+fprintf('Fit %d of %d grid nodes (masked) in %.1f s (depth plane at %.2f mm)\n', ...
+        nnz(F.mask), numel(F.mask), toc, F.depthEval);
+
+% local seeding density from the particle count inside each node's
+% neighbourhood (radius = cutoff * sigma); fixed kernel only
+if opts.kNN == 0
+    rho = F.N / (pi * (F.opts.cutoff * F.opts.inPlaneSigma)^2);   % particles/mm^2
+    occ = isfinite(F.U);                                           % nodes with a valid fit
+    fprintf(['Seeding density over the %.0f mm^2 with valid fits: median %.2f, ' ...
+             '10-90%% range %.2f-%.2f particles/mm^2\n'], ...
+            nnz(occ) * F.opts.gridSpacing^2, median(rho(occ)), prctile(rho(occ), 10), prctile(rho(occ), 90));
+    fprintf('Median fit residual over valid nodes: %.3f m/s (upper bound on velocity noise)\n', ...
+            median(F.resid(occ), 'omitnan'));
+else
+    rho = F.N;   % kNN: count is fixed, density not meaningful here
+end
 
 %% ---- plots ------------------------------------------------------------
 ax = 'xyz';
@@ -50,7 +67,11 @@ panel(F, Vcomp{opts.depthAxis}, sprintf('%s velocity (m/s)', ax(opts.depthAxis))
 panel(F, F.omega_x, '\omega_x (1/s)', lab1, lab2, true);
 panel(F, F.omega_y, '\omega_y (1/s)', lab1, lab2, true);
 panel(F, F.omega_z, '\omega_z (1/s)', lab1, lab2, true);
-panel(F, F.N, 'Particles per node', lab1, lab2, false);
+if opts.kNN == 0
+    panel(F, rho, 'Seeding density (particles/mm^2)', lab1, lab2, false);
+else
+    panel(F, F.sigmaUsed, 'Adaptive kernel \sigma (mm)', lab1, lab2, false);
+end
 panel(F, F.resid, 'Fit residual (m/s)', lab1, lab2, false);
 
 function panel(F, C, ttl, l1, l2, diverging)
