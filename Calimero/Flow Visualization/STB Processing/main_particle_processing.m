@@ -28,7 +28,7 @@ save_results  = true;
 % optional tag for this run's settings, so runs don't overwrite each other,
 % e.g. "o5" -> ..._particle_pool_o5_phase_avg.mat (use the same tag in
 % main_particle_integrals; avoid "deg" and "Hz")
-run_tag       = "";
+run_tag       = "o3";
 
 % particleGradientFit options
 fitOpts = struct();

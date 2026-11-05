@@ -23,8 +23,8 @@ addpath(genpath('.'))
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 PIV_case_name  = 'x2_wings_20deg_8Hz';        % as in main_processing
 binned_version = "";                          % bools.version of the binned run
-particle_mode  = "average";                   % mode used in main_particle_processing
-run_tag        = "";                          % run_tag used in main_particle_processing
+particle_mode  = "pool";                   % mode used in main_particle_processing
+run_tag        = "o3";                          % run_tag used in main_particle_processing
 save_filepath_local = "F:\Processed Results\";
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
