@@ -19,6 +19,7 @@ block   = 1;      % 1-based image-pair index
 oop     = 1;      % out-of-plane axis: 1 = x, 2 = y, 3 = z
 binW    = 0.25;   % bin width along out-of-plane axis (mm)
 nScatter = 2e4;   % max points drawn per pulse in the scatter plot
+yPct    = 99.5;   % intensity axis upper limit = this percentile of both pulses
 
 %% ---- load -------------------------------------------------------------
 P  = loadSTBParticles(setPath, block);
@@ -69,7 +70,16 @@ figure('Name', 'Particle intensity vs out-of-plane coordinate', 'Color', 'w');
 tiledlayout(1, 2, 'TileSpacing', 'compact');
 plotPulse(1, x1, I1, ctrs, med1, q1a, q1b, nScatter, [0 0.447 0.741]);
 plotPulse(2, x2, I2, ctrs, med2, q2a, q2b, nScatter, [0.85 0.325 0.098]);
-linkaxes(findobj(gcf, 'Type', 'axes'), 'xy');
+axs  = findobj(gcf, 'Type', 'axes');
+linkaxes(axs, 'xy');
+yTop = prctile([I1; I2], yPct);    % ignore the few very bright outliers
+ylim(axs(1), [0 yTop]);
+nAbove = [sum(I1 > yTop) sum(I2 > yTop)];
+for a = axs'
+    text(a, 0.98, 0.98, sprintf('above axis: pulse 1 %d, pulse 2 %d', nAbove), ...
+         'Units', 'normalized', 'HorizontalAlignment', 'right', ...
+         'VerticalAlignment', 'top', 'FontSize', 8);
+end
 
 figure('Name', 'Median intensity profiles', 'Color', 'w');
 hold on
@@ -103,5 +113,5 @@ function plotPulse(p, x, I, ctrs, med, qlo, qhi, nMax, col)
          'FaceAlpha', 0.15, 'EdgeColor', 'none', 'DisplayName', 'IQR');
     plot(ctrs(ok), med(ok), 'k-', 'LineWidth', 1.5, 'DisplayName', 'Median');
     xlabel('Out-of-plane coordinate (mm)'); ylabel('Intensity (raw)');
-    title(sprintf('Pulse %d', p)); legend('Location', 'best'); grid on; box on
+    title(sprintf('Pulse %d', p)); legend('Location', 'northwest'); grid on; box on
 end
