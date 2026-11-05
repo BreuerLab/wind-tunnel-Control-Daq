@@ -15,7 +15,7 @@ setPath = "F:\VC7 Data\September\x2\x2_wings_20deg_8Hz\ShakeTheBox 2-pulse.set";
 block   = 1;
 
 opts = struct();
-opts.depthAxis    = 1;     % x is the slab-normal (streamwise) axis
+opts.depthAxis    = 1;     % slab normal in the analysis frame (x = -z_DaVis, see loadSTBParticles)
 opts.depthOrder   = 3;     % 1 = DaVis-like linear; 3 = removes most depth-gradient bias
 opts.inPlaneSigma = 1.5;   % mm, Gaussian in-plane kernel width
 opts.gridSpacing  = 1;     % mm
