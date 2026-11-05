@@ -10,9 +10,7 @@ function A = stbBlockAttributes(setPath, blocks)
 % LoadSetIndex or TomoVolumeSubSetName are usually copied from the image
 % set the particles were computed from.
 
-    here = fileparts(mfilename('fullpath'));
-    if count(py.sys.path, here) == 0, insert(py.sys.path, int32(0), here); end
-    mod = py.importlib.import_module('stb_tracks');
+    mod = stbPyModule(["block_attributes", "global_attributes"]);
     setPath = strrep(char(setPath), '\', '/');
 
     if nargin < 2 || isempty(blocks)

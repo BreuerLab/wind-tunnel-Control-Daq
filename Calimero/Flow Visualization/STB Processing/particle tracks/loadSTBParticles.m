@@ -40,13 +40,11 @@ function P = loadSTBParticles(setPath, blocks, lvpyioPath, frame)
 %              'ExecutionMode','InProcess');   % try 'OutOfProcess' if MATLAB crashes
 %   stb_tracks.py must stay in the same folder as this file.
 
-    here = fileparts(mfilename('fullpath'));
-    addPyPath(here);
     if nargin >= 3 && ~isempty(lvpyioPath)
         checkLvpyioFolder(lvpyioPath);
         addPyPath(lvpyioPath);
     end
-    mod = py.importlib.import_module('stb_tracks');
+    mod = stbPyModule();                          % reloads stb_tracks.py if updated
 
     setPath = strrep(char(setPath), '\', '/');   % avoid backslash-escape issues
 
