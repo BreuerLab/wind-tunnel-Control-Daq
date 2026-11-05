@@ -38,7 +38,7 @@ fitOpts.mask         = "auto"; % per pair (average) or per bin (pool)
 opts = struct();
 opts.mode          = "average";   % "average" (fit pairs, then average) or "pool"
 opts.bins          = [];          % [] = all bins; e.g. 1:10 for a quick test
-opts.numWorkers    = 16;          % i9-13900K: 24 cores; lower if memory runs out
+opts.numWorkers    = 8;          % i9-13900K: 24 cores; lower if memory runs out
 opts.binsPerChunk  = 32;          % bins held in memory at once
 opts.saveGradients = true;        % needed by main_particle_integrals
 % vc7 file of each particle block, if the particle set covers only part of

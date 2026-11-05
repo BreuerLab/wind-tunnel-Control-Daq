@@ -19,7 +19,7 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 % PIV_case_name = 'x2_wings_10deg_2Hz';
 % PIV_case_name = 'x2_NACA';
 % PIV_case_name = 'freestream';
-PIV_case_name = 'x2_wings_20deg_8Hz_BIN2';
+PIV_case_name = 'x2_wings_20deg_8Hz';
 
 % num_images = 1200; 
 % num_images = 3000;
