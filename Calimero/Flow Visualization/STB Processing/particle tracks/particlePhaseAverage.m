@@ -7,8 +7,9 @@ function R = particlePhaseAverage(setPath, bin_ind_arr, fitOpts, opts)
 %   R = particlePhaseAverage(setPath, bin_ind_arr, fitOpts, opts)
 %
 %   setPath     : DaVis particle set (as for loadSTBParticles)
-%   bin_ind_arr : phase bin of every image pair, e.g. from the phase-avg
-%                 .mat saved by phase_avg_STB (pair k = vc7 file k = block k)
+%   bin_ind_arr : phase bin of every recorded image pair (vc7 file), e.g.
+%                 from the phase-avg .mat saved by phase_avg_STB
+%                 (bin_ind_arr(k) = bin of vc7 file k)
 %   fitOpts     : options for particleGradientFit (struct, may be empty).
 %                 depthEval and gridLimits are fixed from the first pair if
 %                 not given, so every bin shares one grid and depth plane.
@@ -22,6 +23,10 @@ function R = particlePhaseAverage(setPath, bin_ind_arr, fitOpts, opts)
 %     binsPerChunk  24         bins whose particles are held in memory at once
 %     gridMargin    5          mm added around the first pair's extent
 %     saveGradients false      also return the 9 gradient components
+%     frameIndex    []         vc7 file index of each particle block, when
+%                              the particle set covers only part of the
+%                              recording (e.g. 1:600 of 3000). [] = particle
+%                              block k is vc7 file k (counts must match)
 %
 % R (fields stored as single, size n1 x n2 x nBins, bin order = R.bins):
 %   A1, A2, inPlaneAxes, depthEval  grid and evaluation plane
@@ -36,7 +41,8 @@ function R = particlePhaseAverage(setPath, bin_ind_arr, fitOpts, opts)
     if nargin < 3 || isempty(fitOpts), fitOpts = struct(); end
     if nargin < 4, opts = struct(); end
     o = struct('mode', "average", 'bins', [], 'numWorkers', 0, ...
-               'binsPerChunk', 24, 'gridMargin', 5, 'saveGradients', false);
+               'binsPerChunk', 24, 'gridMargin', 5, 'saveGradients', false, ...
+               'frameIndex', []);
     f = fieldnames(opts);
     for i = 1:numel(f)
         if ~isfield(o, f{i}), error('particlePhaseAverage:opt', 'Unknown option "%s".', f{i}); end
@@ -50,10 +56,21 @@ function R = particlePhaseAverage(setPath, bin_ind_arr, fitOpts, opts)
     % ---- binning vs particle set ---------------------------------------
     P0 = loadSTBParticles(setPath);
     bin_ind_arr = bin_ind_arr(:);
-    if numel(bin_ind_arr) ~= P0.info.n_blocks
-        error('particlePhaseAverage:count', ...
-            'bin_ind_arr has %d entries but the particle set has %d image pairs.', ...
-            numel(bin_ind_arr), P0.info.n_blocks);
+    nBlk = P0.info.n_blocks;
+    if isempty(o.frameIndex)
+        if numel(bin_ind_arr) ~= nBlk
+            error('particlePhaseAverage:count', ...
+                ['bin_ind_arr has %d entries (vc7 files) but the particle set has %d image ' ...
+                 'pairs. Set opts.frameIndex to the vc7 file of each particle block ' ...
+                 '(stbBlockAttributes helps identify them).'], numel(bin_ind_arr), nBlk);
+        end
+    else
+        fi = o.frameIndex(:);
+        if numel(fi) ~= nBlk || any(fi < 1 | fi > numel(bin_ind_arr) | fi ~= round(fi))
+            error('particlePhaseAverage:frameIndex', ...
+                'frameIndex must hold %d integer vc7 indices in 1..%d.', nBlk, numel(bin_ind_arr));
+        end
+        bin_ind_arr = bin_ind_arr(fi);           % bin of each particle block
     end
     if isempty(o.bins), o.bins = 1:max(bin_ind_arr); end
     bins = o.bins(:)';

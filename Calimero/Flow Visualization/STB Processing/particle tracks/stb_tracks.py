@@ -109,3 +109,16 @@ def close(path=None):
         pf = _open.pop(k, None)
         if pf is not None and not pf.closed:
             pf.close()
+
+
+def block_attributes(path, block):
+    """DaVis attributes of one block (0-based) as a dict of strings, e.g. to
+    identify which recording image the block came from."""
+    pf = _field(path)
+    return {str(k): str(v) for k, v in pf[int(block)].attributes.items()}
+
+
+def global_attributes(path):
+    """Global DaVis attributes of the particle field as a dict of strings."""
+    pf = _field(path)
+    return {str(k): str(v) for k, v in pf.attributes.items()}
