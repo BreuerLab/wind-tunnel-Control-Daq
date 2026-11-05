@@ -33,14 +33,20 @@ function F = particleGradientFit(D, opts)
 % OPTIONS (defaults):
 %   depthAxis      1      out-of-plane axis (1=x, 2=y, 3=z)
 %   depthEval      []     depth at which to evaluate (mm); [] = median depth
-%   depthOrder     3      polynomial order in depth (1 to 5). 3 suits vortices
-%                         larger than ~10 mm along the slab normal; for more
-%                         compact ones 5 recovers more of the depth gradient
-%                         (integrated omega_y on a synthetic Lamb-Oseen vortex,
-%                         sigma_beam 2.5 mm, 16 pooled pairs:
-%                           core 12 mm: order 1 86%, 3 98%, 5 100%
-%                           core  8 mm: order 1 75%, 3 93%, 5 99%
-%                           core  6 mm: order 1 64%, 3 86%, 5 95%)
+%   depthOrder     3      polynomial order in depth (1 to 7). 3 suits vortices
+%                         larger than ~10 mm along the slab normal; thinner
+%                         structures need 5 or 7 (integrated omega_y on a
+%                         synthetic Lamb-Oseen vortex, sigma_beam 2.5 mm, 16
+%                         pooled pairs, extent along the slab normal):
+%                           12 mm: order 1 86%, 3 98%, 5 100%
+%                            8 mm: order 1 75%, 3 93%, 5 99%
+%                            6 mm: order 3 86%, 5 95%, 7 100%
+%                            4 mm: order 3 70%, 5 85%, 7 94%
+%                            3 mm: order 3 57%, 5 73%, 7 85%
+%                         High orders lean on the sparse particles at the
+%                         slab edges: check them against a frozen-flow
+%                         estimate (overshoot = overfitting) and keep
+%                         robustPasses on.
 %   depthSigma     Inf    Gaussian depth weight sigma (mm)
 %   inPlaneSigma   1.5    Gaussian in-plane weight sigma (mm)
 %   cutoff         3      neighbourhood radius in units of the in-plane sigma
@@ -324,5 +330,5 @@ function o = defaults(opts)
         if ~isfield(d, f{i}), error('particleGradientFit:opt', 'Unknown option "%s".', f{i}); end
         o.(f{i}) = opts.(f{i});
     end
-    if ~ismember(o.depthOrder, 1:5), error('particleGradientFit:order', 'depthOrder must be 1 to 5.'); end
+    if ~ismember(o.depthOrder, 1:7), error('particleGradientFit:order', 'depthOrder must be 1 to 7.'); end
 end

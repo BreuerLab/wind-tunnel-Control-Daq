@@ -33,7 +33,7 @@ run_tag       = "o3";
 % particleGradientFit options
 fitOpts = struct();
 fitOpts.depthAxis    = 1;      % slab normal (analysis frame)
-fitOpts.depthOrder   = 3;      % 3 = cubic; 5 for vortices more compact than ~10 mm along x
+fitOpts.depthOrder   = 5;      % 3, 5 or 7: higher resolves thinner structures along x
 fitOpts.inPlaneSigma = 1.5;    % mm (overridden by match_binned_grid)
 fitOpts.gridSpacing  = 1.5;    % mm (overridden by match_binned_grid)
 % Fit directly at the nodes of the binned case's grid. main_particle_integrals
