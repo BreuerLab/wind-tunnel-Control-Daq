@@ -16,7 +16,7 @@ addpath(genpath('.'))
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % ----------------------- Parameter Selection ------------------------
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-PIV_case_name = 'x2_wings_20deg_8Hz_BIN2';      % as in main_processing
+PIV_case_name = 'x2_wings_20deg_8Hz';           % as in main_processing
 version       = "";                             % bools.version used there (RPCA files not handled)
 setPath       = "F:\VC7 Data\September\x2\x2_wings_20deg_8Hz\ShakeTheBox 2-pulse.set";
 
