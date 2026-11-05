@@ -19,7 +19,9 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path (as main_p
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 PIV_case_name = 'x2_wings_20deg_8Hz';           % as in main_processing
 version       = "";                             % bools.version used there (RPCA files not handled)
-setPath       = "F:\VC7 Data\September\x2\x2_wings_20deg_8Hz\ShakeTheBox 2-pulse.set";
+% particle set(s) of the trial: one .set, a list of batch sets (images
+% 1-600, 601-1200, ...), or a wildcard. Non-particle sets are skipped.
+setPath       = "F:\VC7 Data\September\x2\x2_wings_20deg_8Hz\*.set";
 
 save_filepath_local = "F:\Processed Results\";
 save_results  = true;
@@ -41,10 +43,9 @@ opts.bins          = [];          % [] = all bins; e.g. 1:10 for a quick test
 opts.numWorkers    = 8;          % i9-13900K: 24 cores; lower if memory runs out
 opts.binsPerChunk  = 32;          % bins held in memory at once
 opts.saveGradients = true;        % needed by main_particle_integrals
-% vc7 file of each particle block, if the particle set covers only part of
-% the recording the binning was computed for (e.g. 601:1200 of 3000).
-% [] = found automatically by acquisition time (matchParticleBlocksToVc7)
-% when the counts differ, or block k = vc7 file k when they agree.
+% vc7 file of each particle block (cell array, one vector per set).
+% [] = found automatically for every set (matchParticleBlocksToVc7), or
+% block k = vc7 file k for a single set covering the whole recording.
 opts.frameIndex    = [];
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -67,20 +68,39 @@ fprintf('%d image pairs in %d phase bins (median %d pairs per bin)\n', ...
         numel(Sb.bin_ind_arr), Sb.num_bins, ...
         median(accumarray(Sb.bin_ind_arr(:), 1, [double(Sb.num_bins) 1])));
 
-% ---- which recording images does the particle set cover? --------------
+% ---- which recording images does each particle set cover? -------------
 % DaVis numbers particle blocks from 1 in every processing session, so the
-% blocks are matched to vc7 files by acquisition time instead.
-P0 = loadSTBParticles(setPath);
-nBlk = P0.info.n_blocks;
-if isempty(opts.frameIndex) && nBlk ~= numel(Sb.bin_ind_arr)
-    fprintf('Particle set has %d image pairs, binning has %d: matching to vc7 files by time...\n', ...
-            nBlk, numel(Sb.bin_ind_arr));
-    opts.frameIndex = matchParticleBlocksToVc7(setPath, get_PIV_paths(PIV_case_name));
+% blocks of each set are matched to vc7 files by their source images.
+sets = resolveParticleSets(setPath);
+nAll = numel(Sb.bin_ind_arr);
+fprintf('%d particle set(s):\n', numel(sets));
+if isempty(opts.frameIndex)
+    P1 = loadSTBParticles(sets(1));            % metadata only
+    nBlk1 = P1.info.n_blocks;
+    if isscalar(sets) && nBlk1 == nAll
+        opts.frameIndex = {(1:nAll)'};
+    else
+        opts.frameIndex = cell(numel(sets), 1);
+        vc7Folder = get_PIV_paths(PIV_case_name);
+        for s = 1:numel(sets)
+            fprintf('  %s: ', sets(s));
+            opts.frameIndex{s} = matchParticleBlocksToVc7(sets(s), vc7Folder);
+        end
+    end
 end
+cov = false(nAll, 1);
+for s = 1:numel(opts.frameIndex), cov(opts.frameIndex{s}) = true; end
+gaps = find(diff([0; ~cov; 0]) == 1);  gapEnd = find(diff([0; ~cov; 0]) == -1) - 1;
+fprintf('vc7 files with particle data: %d of %d', nnz(cov), nAll);
+if ~isempty(gaps)
+    fprintf('; missing: %s', strjoin(arrayfun(@(a, b) sprintf('%d-%d', a, b), gaps, gapEnd, ...
+            'UniformOutput', false), ', '));
+end
+fprintf('\n');
 
 % ---- particle phase average ------------------------------------------
 tic
-R = particlePhaseAverage(setPath, Sb.bin_ind_arr, fitOpts, opts);
+R = particlePhaseAverage(sets, Sb.bin_ind_arr, fitOpts, opts);
 R.num_bins = double(Sb.num_bins);
 R.PIV_case_name = string(PIV_case_name);
 fprintf('Particle phase average (%s mode) done in %.1f min\n', R.mode, toc/60);

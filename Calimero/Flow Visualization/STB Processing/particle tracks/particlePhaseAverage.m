@@ -6,7 +6,9 @@ function R = particlePhaseAverage(setPath, bin_ind_arr, fitOpts, opts)
 %   R = particlePhaseAverage(setPath, bin_ind_arr)
 %   R = particlePhaseAverage(setPath, bin_ind_arr, fitOpts, opts)
 %
-%   setPath     : DaVis particle set (as for loadSTBParticles)
+%   setPath     : DaVis particle set (as for loadSTBParticles), or a string
+%                 array of sets when a trial was processed in batches
+%                 (e.g. images 1-600, 601-1200, ...)
 %   bin_ind_arr : phase bin of every recorded image pair (vc7 file), e.g.
 %                 from the phase-avg .mat saved by phase_avg_STB
 %                 (bin_ind_arr(k) = bin of vc7 file k)
@@ -23,10 +25,12 @@ function R = particlePhaseAverage(setPath, bin_ind_arr, fitOpts, opts)
 %     binsPerChunk  24         bins whose particles are held in memory at once
 %     gridMargin    5          mm added around the first pair's extent
 %     saveGradients false      also return the 9 gradient components
-%     frameIndex    []         vc7 file index of each particle block, when
-%                              the particle set covers only part of the
-%                              recording (e.g. 1:600 of 3000). [] = particle
-%                              block k is vc7 file k (counts must match)
+%     frameIndex    []         vc7 file index of each particle block: a
+%                              vector for one set, or a cell array with one
+%                              vector per set (matchParticleBlocksToVc7 gives
+%                              them). [] = single set whose block k is vc7
+%                              file k (counts must match). A vc7 file found
+%                              in more than one set is taken from the first.
 %
 % R (fields stored as single, size n1 x n2 x nBins, bin order = R.bins):
 %   A1, A2, inPlaneAxes, depthEval  grid and evaluation plane
@@ -36,7 +40,9 @@ function R = particlePhaseAverage(setPath, bin_ind_arr, fitOpts, opts)
 %   N              mean particles in each node's fit neighbourhood
 %   omega_*_std    std over pairs at each node ("average" only)
 %   G              3 x 3 x n1 x n2 x nBins if saveGradients
-%   nPairs         image pairs per bin; mode, fitOpts, opts, setPath
+%   nPairs         image pairs per bin; frameSet / frameBlock: set and
+%                  block of every vc7 file (0 = no particles); mode,
+%                  fitOpts, opts, setPath
 
     if nargin < 3 || isempty(fitOpts), fitOpts = struct(); end
     if nargin < 4, opts = struct(); end
@@ -53,31 +59,59 @@ function R = particlePhaseAverage(setPath, bin_ind_arr, fitOpts, opts)
         error('particlePhaseAverage:mode', 'mode must be "average" or "pool".');
     end
 
-    % ---- binning vs particle set ---------------------------------------
-    P0 = loadSTBParticles(setPath);
+    % ---- map vc7 files to (particle set, block) ----------------------------
+    setPath = string(setPath(:));
+    nSet = numel(setPath);
     bin_ind_arr = bin_ind_arr(:);
-    nBlk = P0.info.n_blocks;
-    if isempty(o.frameIndex)
-        if numel(bin_ind_arr) ~= nBlk
-            error('particlePhaseAverage:count', ...
-                ['bin_ind_arr has %d entries (vc7 files) but the particle set has %d image ' ...
-                 'pairs. Set opts.frameIndex to the vc7 file of each particle block ' ...
-                 '(stbBlockAttributes helps identify them).'], numel(bin_ind_arr), nBlk);
-        end
-    else
-        fi = o.frameIndex(:);
-        if numel(fi) ~= nBlk || any(fi < 1 | fi > numel(bin_ind_arr) | fi ~= round(fi))
+    nFrames = numel(bin_ind_arr);
+    fi = o.frameIndex;
+    if isempty(fi)
+        if nSet > 1
             error('particlePhaseAverage:frameIndex', ...
-                'frameIndex must hold %d integer vc7 indices in 1..%d.', nBlk, numel(bin_ind_arr));
+                'With %d particle sets, opts.frameIndex must give one vc7 index vector per set.', nSet);
         end
-        bin_ind_arr = bin_ind_arr(fi);           % bin of each particle block
+        fi = {[]};
+    elseif ~iscell(fi)
+        fi = {fi};
     end
-    if isempty(o.bins), o.bins = 1:max(bin_ind_arr); end
+    if numel(fi) ~= nSet
+        error('particlePhaseAverage:frameIndex', 'frameIndex has %d entries for %d sets.', numel(fi), nSet);
+    end
+    frameSet = zeros(nFrames, 1);  frameBlock = zeros(nFrames, 1);
+    nDup = 0;
+    for s = 1:nSet
+        Ps = loadSTBParticles(setPath(s));       % metadata only
+        nBlk = Ps.info.n_blocks;
+        f = fi{s}(:);
+        if isempty(f)
+            if nBlk ~= nFrames
+                error('particlePhaseAverage:count', ...
+                    ['bin_ind_arr has %d entries (vc7 files) but %s has %d image pairs. ' ...
+                     'Set opts.frameIndex (matchParticleBlocksToVc7).'], nFrames, setPath(s), nBlk);
+            end
+            f = (1:nBlk)';
+        end
+        if numel(f) ~= nBlk || any(f < 1 | f > nFrames | f ~= round(f))
+            error('particlePhaseAverage:frameIndex', ...
+                'frameIndex{%d} must hold %d integer vc7 indices in 1..%d.', s, nBlk, nFrames);
+        end
+        free = frameSet(f) == 0;                 % first set wins for duplicates
+        nDup = nDup + nnz(~free);
+        frameSet(f(free)) = s;
+        frameBlock(f(free)) = find(free);
+    end
+    covered = frameSet > 0;
+    fprintf('Particle data for %d of %d vc7 files from %d set(s)', nnz(covered), nFrames, nSet);
+    if nDup > 0, fprintf(' (%d duplicates ignored)', nDup); end
+    fprintf('\n');
+
+    if isempty(o.bins), o.bins = 1:max(bin_ind_arr); end   % all bins of the case
     bins = o.bins(:)';
     nB = numel(bins);
 
     % ---- common grid and depth plane from the first pair --------------
-    P1 = loadSTBParticles(setPath, 1);
+    f1 = find(covered, 1);
+    P1 = loadSTBParticles(setPath(frameSet(f1)), frameBlock(f1));
     if ~isfield(fitOpts, 'depthAxis'), fitOpts.depthAxis = 1; end
     if ~isfield(fitOpts, 'gridSpacing'), fitOpts.gridSpacing = 1; end
     dAx = fitOpts.depthAxis;  pAx = setdiff(1:3, dAx);
@@ -104,7 +138,7 @@ function R = particlePhaseAverage(setPath, bin_ind_arr, fitOpts, opts)
         for nm = ["omega_x" "omega_y" "omega_z"], R.(char(nm + "_std")) = nan([sz nB], 'single'); end
     end
     if o.saveGradients, R.G = nan([3 3 sz nB], 'single'); end
-    R.nPairs = arrayfun(@(b) nnz(bin_ind_arr == b), bins);
+    R.nPairs = arrayfun(@(b) nnz(bin_ind_arr == b & covered), bins);
 
     nw = start_pool(o.numWorkers);
 
@@ -114,10 +148,8 @@ function R = particlePhaseAverage(setPath, bin_ind_arr, fitOpts, opts)
         cIdx = c0 : min(c0 + o.binsPerChunk - 1, nB);
         data = cell(numel(cIdx), 1);
         for k = 1:numel(cIdx)                    % Python I/O stays on the client
-            frames = find(bin_ind_arr == bins(cIdx(k)));
-            if isempty(frames), continue; end
-            P = loadSTBParticles(setPath, frames);
-            data{k} = P.data;
+            data{k} = loadBinParticles(setPath, frameSet, frameBlock, ...
+                                       find(bin_ind_arr == bins(cIdx(k)) & covered));
         end
 
         res = cell(numel(cIdx), 1);
@@ -142,10 +174,28 @@ function R = particlePhaseAverage(setPath, bin_ind_arr, fitOpts, opts)
 
     R.A1 = A1;  R.A2 = A2;  R.inPlaneAxes = pAx;  R.depthAxis = dAx;
     R.depthEval = fitOpts.depthEval;  R.bins = bins;
-    R.mode = o.mode;  R.fitOpts = fitOpts;  R.opts = o;  R.setPath = string(setPath);
+    R.frameSet = frameSet;  R.frameBlock = frameBlock;
+    R.mode = o.mode;  R.fitOpts = fitOpts;  R.opts = o;  R.setPath = setPath;
 end
 
 % -------------------------------------------------------------------------
+function D = loadBinParticles(setPath, frameSet, frameBlock, frames)
+% particles of the given vc7 frames, read set by set; column 10 is set to
+% the vc7 frame index so pairs stay distinct across sets
+    D = [];
+    if isempty(frames), return; end
+    parts = {};
+    for s = unique(frameSet(frames))'
+        fr = frames(frameSet(frames) == s);
+        P  = loadSTBParticles(setPath(s), frameBlock(fr));
+        blk2frame = zeros(max(frameBlock(fr)), 1);
+        blk2frame(frameBlock(fr)) = fr;
+        P.data(:, 10) = blk2frame(P.data(:, 10));
+        parts{end+1} = P.data; %#ok<AGROW>
+    end
+    D = vertcat(parts{:});
+end
+
 function B = fitBin(D, fitOpts, mode, saveG, sz)
     B = [];
     if isempty(D), return; end
