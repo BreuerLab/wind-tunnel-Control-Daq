@@ -28,12 +28,12 @@ save_results  = true;
 % optional tag for this run's settings, so runs don't overwrite each other,
 % e.g. "o5" -> ..._particle_pool_o5_phase_avg.mat (use the same tag in
 % main_particle_integrals; avoid "deg" and "Hz")
-run_tag       = "o3";
+run_tag       = "o5";
 
 % particleGradientFit options
 fitOpts = struct();
 fitOpts.depthAxis    = 1;      % slab normal (analysis frame)
-fitOpts.depthOrder   = 3;      % 3 = cubic; 5 for vortices more compact than ~10 mm along x
+fitOpts.depthOrder   = 5;      % 3 = cubic; 5 for vortices more compact than ~10 mm along x
 fitOpts.inPlaneSigma = 1.5;    % mm (overridden by match_binned_grid)
 fitOpts.gridSpacing  = 1.5;    % mm (overridden by match_binned_grid)
 % Fit directly at the nodes of the binned case's grid. main_particle_integrals
