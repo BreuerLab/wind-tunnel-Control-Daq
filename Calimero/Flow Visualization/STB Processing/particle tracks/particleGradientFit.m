@@ -48,6 +48,12 @@ function F = particleGradientFit(D, opts)
 %                         [] = 0.75 * minParticles / (pi*(cutoff*sigma)^2)
 %   maskKeepFrac   0.1    also keep connected regions >= this fraction of the largest
 %   maxResid       0.5    nodes with fit residual above this (m/s) are NaN
+%   robustPasses   1      outlier-rejection refits per node (0 = plain least
+%                         squares). Each pass drops particles whose residual
+%                         in any component exceeds robustK robust std (MAD)
+%                         and refits; one pass removes most of the effect of
+%                         ghost/false tracks, a second adds little.
+%   robustK        3      rejection threshold in robust standard deviations
 %   parallel       false  parfor over nodes (leave false inside a parfor over blocks)
 %
 % OUTPUT F:
@@ -56,7 +62,8 @@ function F = particleGradientFit(D, opts)
 %   U, V, W       velocity components along x, y, z at the nodes (m/s)
 %   G             3 x 3 x n1 x n2, G(i,j,:,:) = du_i/dx_j in GLOBAL x,y,z (1/s)
 %   omega_x/y/z   vorticity (1/s)
-%   N             particles used per node, sigmaUsed (mm), cond, resid (m/s)
+%   N             particles used per node (after rejection), sigmaUsed (mm),
+%                 cond, resid (m/s, of the kept particles)
 %   mask          nodes that were fitted
 %   opts          options used
 %
@@ -209,6 +216,30 @@ function row = fitNode(a1n, a2n, p1, p2, dd, Vel, H, o)
 
     A = [ones(n, 1), dz, p1(idx) - a1n, p2(idx) - a2n];
     for pw = 2:o.depthOrder, A = [A, dz.^pw]; end %#ok<AGROW>
+    Vn = Vel(idx, :);
+    keep = true(n, 1);
+    for pass = 0:o.robustPasses
+        [C, cR] = wls(A(keep, :), Vn(keep, :), w(keep), o.maxCond);
+        row(15) = cR;
+        if isempty(C), return; end
+        if pass == o.robustPasses, break; end
+        % reject particles whose residual in any component exceeds
+        % robustK robust standard deviations (MAD), then refit
+        rr = Vn - A * C;
+        sMad = 1.4826 * median(abs(rr(keep, :) - median(rr(keep, :), 1)), 1);
+        newKeep = all(abs(rr) <= o.robustK * max(sMad, eps), 2);
+        if isequal(newKeep, keep) || nnz(newKeep) < max(o.minParticles, nP + 1), break; end
+        keep = newKeep;
+    end
+    rr = Vn(keep, :) - A(keep, :) * C;
+    wk = w(keep);
+    row(13) = nnz(keep);
+    row(1:12) = [C(1, :), C(2, :), C(3, :), C(4, :)];
+    row(16) = sqrt(sum(wk .* sum(rr.^2, 2)) / (3 * sum(wk)));
+end
+
+function [C, cR] = wls(A, V, w, maxCond)
+% weighted least squares with column scaling; C = [] if ill-conditioned
     sw = sqrt(w);
     Aw = A .* sw;
     cn = sqrt(sum(Aw.^2, 1));                     % column scaling, so the
@@ -216,12 +247,11 @@ function row = fitNode(a1n, a2n, p1, p2, dd, Vel, H, o)
     [Q, R] = qr(Aw ./ cn, 0);                     % geometry, not units
     rc = rcond(R);
     cR = 1 / rc;
-    row(15) = cR;
-    if ~(rc > 0) || cR > o.maxCond, return; end
-    C = (R \ (Q' * (Vel(idx, :) .* sw))) ./ cn'; % nP x 3
-    rr = Vel(idx, :) - A * C;
-    row(1:12) = [C(1, :), C(2, :), C(3, :), C(4, :)];
-    row(16) = sqrt(sum(w .* sum(rr.^2, 2)) / (3 * sum(w)));
+    if ~(rc > 0) || cR > maxCond
+        C = [];
+        return
+    end
+    C = (R \ (Q' * (V .* sw))) ./ cn';           % nP x 3
 end
 
 function idx = gatherCells(H, nc1, nc2, ring)
@@ -276,7 +306,8 @@ function o = defaults(opts)
                'kNN', 0, 'gridSpacing', 1, 'gridLimits', [], ...
                'minParticles', 20, 'maxCond', 1e4, ...
                'mask', "auto", 'maskCell', 5, 'maskMinDensity', [], ...
-               'maskKeepFrac', 0.1, 'maxResid', 0.5, 'parallel', false);
+               'maskKeepFrac', 0.1, 'maxResid', 0.5, 'parallel', false, ...
+               'robustPasses', 1, 'robustK', 3);
     o = d;
     f = fieldnames(opts);
     for i = 1:numel(f)
