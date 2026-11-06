@@ -40,9 +40,10 @@ bools.proc_vel = true; % false if just calculating secondary values
 % Processed files: <case>[_<version>]_shared.mat (DAQ, binning, grid, frames)
 % plus <case>[_<version>]_<method>_fields.mat and _<method>_integral.mat
 % per method (bin, bin_hr, particle_pool_hr20, ...) in Processed Results\phase_avg\.
-% true: also write the old combined files the GUIs read (until they read
-% the new layout)
-bools.legacy_files = true;
+% true: also write the old combined files (<case>[_<version>]_phase_avg.mat
+% and _phase_avg_integral.mat). Nothing reads them any more (the GUIs use
+% the files above), so leave false unless older scripts need them.
+bools.legacy_files = false;
 
 % Range of phase-bin counts to search. findBestNumBins2 picks the count
 % in this range (and the bin offset) with the smallest phase spread per

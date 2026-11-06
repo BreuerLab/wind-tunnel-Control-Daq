@@ -84,9 +84,9 @@ S = calc_secondary_vals_common(D, config, bounds);
 % New file layout (bools.stb_paths from phase_avg_STB or the particle
 % steps): the integral file holds the integral quantities and, for the
 % binned method, the per-frame-averaged forces; the DAQ data are in the
-% shared file. With bools.legacy_files (default true) the old combined
+% shared file. With bools.legacy_files (default false) the old combined
 % integral file (with the DAQ data copied in) is written too.
-legacy = ~isfield(bools, 'legacy_files') || bools.legacy_files;
+legacy = isfield(bools, 'legacy_files') && bools.legacy_files;
 if isfield(bools, 'stb_paths')
     P = bools.stb_paths;
     Si = S;

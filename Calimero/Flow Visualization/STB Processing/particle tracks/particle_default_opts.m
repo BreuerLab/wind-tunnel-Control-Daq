@@ -55,7 +55,8 @@ function p = particle_default_opts()
     % binned method whose uncertainty masks the force integrals ("" = the
     % first of "bin", "bin_hr" found); set by process_case to the one just run
     p.binned_method = "";
-    % also write the old combined files (until the GUIs read the new layout)
-    p.legacy_files = true;
+    % also write the old combined files (nothing reads them any more; set from
+    % bools.legacy_files by process_case)
+    p.legacy_files = false;
     p.compress_save = false;   % compressed fields / integral files (set from bools.compress_save by process_case)
 end

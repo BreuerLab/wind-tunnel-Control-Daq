@@ -12,7 +12,7 @@ if isfield(bools, 'version') && strlength(string(bools.version)) > 0
     base_version = string(bools.version);
 end
 method = binned_method_name(bools);
-legacy = ~isfield(bools, 'legacy_files') || bools.legacy_files;
+legacy = isfield(bools, 'legacy_files') && bools.legacy_files;
 D = struct();   % DAQ data (stays empty for turbine runs)
 
 hr = get_hr_settings(bools);
@@ -426,8 +426,8 @@ end
 
 % Save: shared file (DAQ, binning, grid, frames) and this method's flow
 % fields (stb_file_paths); the integral file follows in
-% calc_secondary_vals_phase. With bools.legacy_files (default true until the
-% GUIs read the new layout) the old combined file is written as well.
+% calc_secondary_vals_phase. With bools.legacy_files (default false; nothing
+% reads them any more) the old combined file is written as well.
 t0 = tic;
 P = stb_file_paths(save_filepath_local, PIV_case_name, base_version, method);
 if ~isfolder(P.dir), mkdir(P.dir); end
