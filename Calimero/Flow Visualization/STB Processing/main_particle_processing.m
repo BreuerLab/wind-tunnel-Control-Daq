@@ -42,8 +42,13 @@ fitOpts.gridSpacing  = 1.5;    % mm (overridden by match_binned_grid)
 % integrals barely depend on sigma, but sigma below ~half the spacing would
 % leave gaps between nodes in the integrals. Set false for fine maps.
 match_binned_grid = true;
-sigma_per_spacing = 0.75;      % 0.5 left visible node-to-node noise in the forces
+% In-plane smoothing barely changes the force integrals (synthetic vortex,
+% order 5, 16 pooled pairs: integral 98.0% at sigma 1.8 mm, 97.5% at 3.0 mm)
+% but cuts map noise ~3x; peak values drop like in binned data. 1.25 x 2.41 mm
+% = 3.0 mm ~ the in-plane smoothing of the 48-voxel DaVis bins (~2.8 mm).
+sigma_per_spacing = 1.25;
 fitOpts.minParticles = 20;
+fitOpts.cutoff       = 2.5;    % neighbourhood radius / sigma (weights there 4%); 3 = slower, same result
 fitOpts.maxResid     = 0.5;    % m/s
 fitOpts.mask         = "auto"; % per pair (average) or per bin (pool)
 
