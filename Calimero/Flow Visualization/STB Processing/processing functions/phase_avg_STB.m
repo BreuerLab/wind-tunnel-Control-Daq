@@ -240,23 +240,27 @@ t_loop = toc(t_loop);
 x = R{1}.x; y = R{1}.y; z = R{1}.z;
 grid_size = [size(x,1), size(x,2), size(x,3), num_bins];
 
+% The 4-D (x, y, z, bin) fields are assembled one at a time, each bin's
+% copy freed as it's copied in, so at most one extra field is in memory on
+% top of the per-bin results (allocating every field up front needed about
+% twice the memory and ran out on 64 GB).
 for f = 1:length(fields)
-    S.([fields{f} '_phase_avg']) = zeros(grid_size);
-    S.([fields{f} '_phase_std']) = zeros(grid_size);
+    [S.([fields{f} '_phase_avg']), R] = gather_bins(R, grid_size, 'avg', f);
+    [S.([fields{f} '_phase_std']), R] = gather_bins(R, grid_size, 'std', f);
 end
 stress_names = fieldnames(R{1}.stress);
 for k = 1:length(stress_names)
-    S.(stress_names{k}) = zeros(grid_size);
+    [S.(stress_names{k}), R] = gather_bins(R, grid_size, 'stress', stress_names{k});
 end
 Q_names = {'Qx_inst_avg', 'Qy_inst_avg', 'Qz_inst_avg', 'Q_inst_avg',...
     'Qx_inst_std', 'Qy_inst_std', 'Qz_inst_std', 'Q_inst_std'};
 if calc_Q_inst
     for k = 1:length(Q_names)
-        S.(Q_names{k}) = zeros(grid_size);
+        [S.(Q_names{k}), R] = gather_bins(R, grid_size, 'Q', k);
     end
 end
 if calc_div_std
-    S.div_phase_std = zeros(grid_size);
+    [S.div_phase_std, R] = gather_bins(R, grid_size, 'div_std', []);
 end
 
 if ~bools.turbine
@@ -285,22 +289,6 @@ for i = 1:num_bins
     end
     bin_count(i) = B.bin_count;
     bin_std(i) = B.bin_std;
-
-    for f = 1:length(fields)
-        S.([fields{f} '_phase_avg'])(:,:,:,i) = B.avg{f};
-        S.([fields{f} '_phase_std'])(:,:,:,i) = B.std{f};
-    end
-    for k = 1:length(stress_names)
-        S.(stress_names{k})(:,:,:,i) = B.stress.(stress_names{k});
-    end
-    if calc_Q_inst
-        for k = 1:length(Q_names)
-            S.(Q_names{k})(:,:,:,i) = B.Q{k};
-        end
-    end
-    if calc_div_std
-        S.div_phase_std(:,:,:,i) = B.div_std;
-    end
 
     if ~bools.turbine
         for f = 1:length(lift_fields)
@@ -676,4 +664,24 @@ if hr.H < 1
     error("bools.num_harmonics must be at least 1, got %g", bools.num_harmonics)
 end
 hr.save_coef = isfield(bools, 'hr_save_coef') && bools.hr_save_coef;
+end
+
+% One 4-D (x, y, z, bin) field from the per-bin results R, freeing each
+% bin's copy as it goes. kind: 'avg' / 'std' / 'Q' (cell, index key),
+% 'stress' (struct, field name key) or 'div_std' (array).
+function [A, R] = gather_bins(R, grid_size, kind, key)
+    A = zeros(grid_size);
+    for i = 1:numel(R)
+        switch kind
+            case {'avg', 'std', 'Q'}
+                A(:,:,:,i) = R{i}.(kind){key};
+                R{i}.(kind){key} = [];
+            case 'stress'
+                A(:,:,:,i) = R{i}.stress.(key);
+                R{i}.stress.(key) = [];
+            otherwise
+                A(:,:,:,i) = R{i}.(kind);
+                R{i}.(kind) = [];
+        end
+    end
 end
