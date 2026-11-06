@@ -1202,11 +1202,14 @@ methods (Access = private)
         end
     end
 
-    % Read the given .vc7 frames (indices into the case's vc7 folder)
+    % Read the given .vc7 frames (indices into the case's frames in
+    % recording order: its vc7 folder, or its batch folders, see
+    % get_case_frames)
     function [x, y, z, data] = read_frames(obj, case_id, frames)
         fields = get_STB_processing_fields();
         data = cell(1, numel(fields));
-        file_path = get_PIV_paths(case_id);
+        FR = get_case_frames(case_id);
+        file_path = FR.vc7;
         [x, y, z, data{:}] = import_STB_data(file_path, true, obj.U_INF, obj.L_CHORD, frames, false);
     end
 

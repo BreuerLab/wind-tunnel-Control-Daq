@@ -199,12 +199,20 @@ if isempty(reportedFolders), reportedFolders = strings(0); end
 
 nargoutchk(1, 2);
 
+% folderPIV is either a folder of .vc7 files (frames in name order) or a
+% list of .vc7 file paths (string array / cellstr, frames in list order),
+% e.g. the frames of a trial processed in DaVis in batches, from
+% get_case_frames. frameRange / frameSelect index into that order.
+fileList = strings(0, 1);
 if nargin < 1 || isempty(folderPIV)
     error('Missing input argument: "folderPIV".');
+elseif iscellstr(folderPIV) || (isstring(folderPIV) && (numel(folderPIV) > 1 || endsWith(folderPIV, ".vc7", 'IgnoreCase', true)))
+    fileList = string(folderPIV(:));
+    folderPIV = char(fileparts(fileList(1)));    % for messages
 elseif isstring(folderPIV)
     folderPIV = convertStringsToChars(folderPIV);
 elseif ~ischar(folderPIV)
-    error('Input "folderPIV" must be a character vector or string scalar.');
+    error('Input "folderPIV" must be a folder (character vector or string scalar) or a list of .vc7 files.');
 end
 
 options = parseInputs(varargin{:});
@@ -218,9 +226,15 @@ end
 originalFolder = cd();
 restoreFolder = onCleanup(@() cd(originalFolder));
 
-files = dir(fullfile(folderPIV, '*.vc7'));
-if isempty(files)
-    error('No ".vc7" files found in specified directory "folderPIV". Check path.')
+if isempty(fileList)
+    files = dir(fullfile(folderPIV, '*.vc7'));
+    if isempty(files)
+        error('No ".vc7" files found in specified directory "folderPIV". Check path.')
+    end
+    filePaths = string(fullfile({files.folder}, {files.name}))';
+else
+    filePaths = fileList;
+    files = struct('name', cellstr(filePaths));   % only its length is used below
 end
 
 selectedFrames = options.selectedFrames;
@@ -234,7 +248,7 @@ configureReadimxPath();
 numSelectedFrames = length(selectedFrames);
 for frameCounter = 1:numSelectedFrames
     fileIndex = selectedFrames(frameCounter);
-    rawFrame = readimx(fullfile(folderPIV, files(fileIndex).name));
+    rawFrame = readimx(char(filePaths(fileIndex)));
 
     if nargout == 2
         attributes = rawFrame.Frames{1}.Attributes;

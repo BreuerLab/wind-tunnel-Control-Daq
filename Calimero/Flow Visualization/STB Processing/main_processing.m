@@ -63,6 +63,22 @@ bools.harmonic_reg = false;
 bools.num_harmonics = 10; % 2*10+1 = 21 coefficients per point and field
 bools.hr_save_coef = false; % save coefficients (to evaluate fit / exact d/dt at any phase); large files
 
+% Particle-based phase average (particle tracks\particle_process_case):
+% velocity and vorticity fitted directly to the STB particle tracks (local
+% polynomial through the slab depth, so d/dx across the thin slab is
+% resolved much better than by binning), then the same integral quantities
+% as for the binned data, saved as its own version for phaseAvg_UI /
+% flowField_UI (e.g. particle_pool_hr20). Runs after the binned
+% phase average of each case, which supplies the phase binning, grid,
+% uncertainty mask and DAQ data. Time-averaged cases are skipped.
+% All settings and their meaning: particle_default_opts.m
+bools.particle = particle_default_opts();
+bools.particle.run  = false;   % true: add the particle processing
+bools.particle.only = false;   % true: only the particle processing (binned files must exist)
+% bools.particle.run_tag      = "o3";     % tag non-default fit settings in the file names
+% bools.particle.fit.depthOrder = 5;
+% bools.particle.hr_harmonics = 20;     % harmonic regression across bins, 0 = off
+
 % If you want to make plots here, you can. However, it is NOT recommended.
 % Intead, use main_analysis to produce plots easily in a GUI interface.
 bools.PIV_plot = false;
