@@ -4,9 +4,9 @@ function p = particle_default_opts()
 % in main_processing / main_processing_batch and by the standalone
 % main_particle_processing / main_particle_integrals scripts.
 %
-% Saved version name (phaseAvg_UI): [<binned version>_]particle[_pool]
-% [_<run_tag>][_hr<hr_harmonics>], e.g. particle_pool_hr20 (default
-% settings) or particle_pool_o3_hr20 (run_tag "o3").
+% Method name: particle[_pool][_<run_tag>][_hr<hr_harmonics>], e.g.
+% particle_pool_hr20 (default settings) or particle_pool_o3_hr20 (run_tag
+% "o3"). Files: stb_file_paths(save, case, version, method).
 
     % ---- what to run ------------------------------------------------------
     p.run  = false;   % run the particle steps after the binned phase average
@@ -52,4 +52,9 @@ function p = particle_default_opts()
 
     % ---- integrals (particle_integrals_case) -----------------------------
     p.hr_harmonics = 20;       % harmonic regression across bins, 0 = off
+    % binned method whose uncertainty masks the force integrals ("" = the
+    % first of "bin", "bin_hr" found); set by process_case to the one just run
+    p.binned_method = "";
+    % also write the old combined files (until the GUIs read the new layout)
+    p.legacy_files = true;
 end

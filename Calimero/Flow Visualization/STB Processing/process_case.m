@@ -38,7 +38,6 @@ if FR.layout == "folder"
     file_path = FR.folders(1);
 else
     file_path = FR.vc7;
-    fprintf('%s: %d frames from %d batch folders\n', PIV_case_name, numel(FR.vc7), numel(FR.folders));
 end
 if num_images > numel(FR.vc7)
     error('process_case:numImages', '%s has %d frames, fewer than num_images = %d.', ...
@@ -57,7 +56,7 @@ switch avg_type
             disp("Particle processing needs phase bins; skipping time-averaged case " + PIV_case_name)
             return
         end
-        disp("Time Average: Loading file: " + file_path)
+        disp("Time Average: loading " + describe_frames(FR))
         S = time_avg_STB(file_path, U, L, save_filepath_local,...
             PIV_case_name, num_images, bools, bounds);
         
@@ -69,7 +68,7 @@ switch avg_type
         end
     case 1
         if ~particle_only
-            disp("Phase Average: Loading file: " + file_path)
+            disp("Phase Average: loading " + describe_frames(FR))
             S = phase_avg_STB(file_path, U, L, save_filepath_local,...
                 PIV_case_name, num_images, bools, bounds);
 
@@ -79,9 +78,40 @@ switch avg_type
             end
         end
         if particle
-            particle_process_case(PIV_case_name, save_filepath_local, ...
-                binned_version_name(bools), bools.particle);
+            if ~particle_only
+                bools.particle.binned_method = binned_method_name(bools);   % uncertainty mask from this run
+            end
+            if isfield(bools, 'legacy_files'), bools.particle.legacy_files = bools.legacy_files; end
+            version = "";
+            if isfield(bools, 'version'), version = string(bools.version); end
+            particle_process_case(PIV_case_name, save_filepath_local, version, bools.particle);
         end
 end
 
 end
+
+% -------------------------------------------------------------------------
+% One line per binning folder: first and last file and whether the files
+% in between are numbered consecutively, instead of every file name
+function txt = describe_frames(FR)
+    lines = sprintf("%d frames", numel(FR.vc7));
+    for k = 1:numel(FR.folders)
+        if numel(FR.folders) == 1
+            f = FR.vc7;
+        else
+            f = FR.vc7(startsWith(FR.vc7, FR.folders(k) + filesep, 'IgnoreCase', true));
+            if isempty(f), continue; end
+        end
+        [~, n1, e1] = fileparts(f(1));  [~, nN, eN] = fileparts(f(end));
+        num = str2double(regexp(cellstr(f), '(\d+)(?=\.vc7$)', 'match', 'once'));
+        if all(isfinite(num)) && all(diff(num) == 1)
+            order = "numbered consecutively";
+        else
+            order = "numbering not consecutive";
+        end
+        lines(end+1) = sprintf("  %s: %s%s ... %s%s (%d files, %s)", FR.folders(k), ...
+                               n1, e1, nN, eN, numel(f), order); %#ok<AGROW>
+    end
+    txt = strjoin(lines, newline);
+end
+

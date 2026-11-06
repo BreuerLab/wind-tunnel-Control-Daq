@@ -1,87 +1,90 @@
-function new_version = particle_integrals_case(PIV_case_name, save_filepath_local, binned_version, p)
-% PARTICLE_INTEGRALS_CASE  Integral quantities (wake lift/drag terms incl.
-% x*omega_y, Q, planar averages, ...) for a case's particle-based phase
-% average, computed by the SAME calc_secondary_vals_phase as the binned
-% data, and saved as its own version so phaseAvg_UI / flowField_UI list it
-% next to the binned result:
-%   <save>\phase_avg\<case>_<version>_phase_avg.mat
-%   <save>\phase_avg\<case>_<version>_phase_avg_integral.mat
+function method = particle_integrals_case(PIV_case_name, save_filepath_local, version, p)
+% PARTICLE_INTEGRALS_CASE  Flow fields and integral quantities (wake
+% lift/drag terms incl. x*omega_y, Q, planar averages, ...) of a case's
+% particle-based phase average, computed by the SAME
+% calc_secondary_vals_phase as the binned data and saved in the new layout
+% (stb_file_paths):
+%   <save>\phase_avg\<case>[_<version>]_<method>_phase_avg.mat   flow fields
+%   <save>\phase_avg\<case>[_<version>]_<method>_integral.mat    integrals
+% next to the case's shared file. With p.legacy_files the old combined
+% files (version <version>_<method>) are written too.
 %
-%   new_version = particle_integrals_case(PIV_case_name, save_filepath_local, binned_version, p)
+%   method = particle_integrals_case(PIV_case_name, save_filepath_local, version, p)
 %
-% Needs the binned *_phase_avg.mat and *_phase_avg_integral.mat and the
-% particle phase average from particle_phase_avg_case (same p). With
-% p.hr_harmonics > 0 the particle fields are first smoothed across phase
-% bins by harmonic regression (particleHarmonicSmooth).
+% Needs the case's shared file and a binned flow-field file (for the
+% uncertainty mask; p.binned_method, or the first of bin, bin_hr found),
+% and the particle fit from particle_phase_avg_case (same p). With
+% p.hr_harmonics > 0 the fit is first smoothed across phase bins by
+% harmonic regression (particleHarmonicSmooth).
 
     PIV_case_name = string(PIV_case_name);
-    stem = PIV_case_name + suffix(binned_version);
-    new_version = particle_version_name(binned_version, p);
+    method = particle_method_name(p);
+    P = stb_file_paths(save_filepath_local, PIV_case_name, version, method);
+    p_fit = p;  p_fit.hr_harmonics = 0;
+    Pfit = stb_file_paths(save_filepath_local, PIV_case_name, version, particle_method_name(p_fit));
 
-    phase_dir = fullfile(save_filepath_local, "phase_avg");
-    if ~isfolder(phase_dir), mkdir(phase_dir); end
-    binned_phase_file    = find_file(save_filepath_local, stem + "_phase_avg.mat");
-    binned_integral_file = find_file(save_filepath_local, stem + "_phase_avg_integral.mat");
-    R_file = fullfile(save_filepath_local, stem + "_particle_" + p.mode + ...
-                      suffix(p.run_tag) + "_phase_avg.mat");
-    if ~isfile(R_file)
-        error("No %s. Run the particle phase average first (particle_phase_avg_case).", R_file);
+    if ~isfile(P.shared)
+        error("No shared file %s. Run main_processing for the case (or convert_legacy_STB_files).", P.shared);
     end
+    if ~isfile(Pfit.fit)
+        error("No particle fit %s. Run the particle phase average first (particle_phase_avg_case).", Pfit.fit);
+    end
+    binned_fields = find_binned_fields(save_filepath_local, PIV_case_name, version, p);
 
-    % ---- particle result, optionally smoothed across bins ----------------
-    fprintf('Loading %s\n', R_file);
-    R = load(R_file);
+    % ---- particle fit, optionally smoothed across bins -------------------
+    fprintf('Loading %s\n', Pfit.fit);
+    R = load(Pfit.fit);
     if p.hr_harmonics > 0
-        vars_b = who('-file', char(binned_phase_file));
-        bp = [];
-        if ismember('bin_placement', vars_b)
-            Bp = load(binned_phase_file, 'bin_placement');  bp = Bp.bin_placement;
-        end
+        Bp = load(P.shared, 'bin_placement');      % where the frames of each bin sit
         fprintf('Harmonic regression across phase bins: %d harmonics\n', p.hr_harmonics);
-        R = particleHarmonicSmooth(R, p.hr_harmonics, bp);
+        R = particleHarmonicSmooth(R, p.hr_harmonics, Bp.bin_placement);
     end
-    S = particle_to_phase_avg_struct(R, binned_phase_file);
+    S = particle_to_phase_avg_struct(R, P.shared, binned_fields);
     clear R
 
-    bools = struct('version', new_version, 'RPCA', false, 'turbine', false, ...
-                   'compress_save', false);
-    out_phase = fullfile(phase_dir, string(S.PIV_case_name) + "_" + new_version + "_phase_avg.mat");
-    fprintf('Saving %s\n', out_phase);
-    save_STB_struct(out_phase, S, bools);
+    % ---- flow-field file --------------------------------------------------
+    [~, Sf] = split_phase_avg_struct(S);
+    clear S
+    Sf.method = method;  Sf.version = string(version);
+    save_opts = struct('compress_save', false);
+    fprintf('Saving %s flow fields to %s\n', method, P.fields);
+    save_STB_struct(P.fields, Sf, save_opts);
 
-    % ---- DAQ kinematics / power copied from the binned integral file -----
-    daq_names = {'freq_avg', 'norm_time_speed', 'phase_avg_pos', 'phase_std_pos', ...
-        'phase_avg_speed', 'phase_std_speed', 'phase_avg_acc', 'phase_std_acc', ...
-        'phase_avg_wing_pos', 'phase_std_wing_pos', 'phase_avg_wing_speed', 'phase_std_wing_speed', ...
-        'phase_avg_wing_acc', 'phase_std_wing_acc', 'bin_count_speed', 'bin_std_speed', ...
-        'phase_avg_volt', 'phase_std_volt', 'phase_avg_cur', 'phase_std_cur', ...
-        'phase_avg_speed_error', 'phase_avg_power', 'phase_avg_volt_model'};
-    vars = who('-file', char(binned_integral_file));
-    daq_names = daq_names(ismember(daq_names, vars));
-    Fdaq = load(binned_integral_file, daq_names{:});
-    fprintf('Copied %d DAQ fields from %s\n', numel(daq_names), binned_integral_file);
-
-    % ---- secondary values, exactly as for the binned data ----------------
-    calc_secondary_vals_phase(S, Fdaq, bools, phase_dir, default_trim_bounds());
-    fprintf('Done. In phaseAvg_UI pick version "%s" for this case.\n', new_version);
+    % ---- integral quantities, exactly as for the binned data -------------
+    Sh = load(P.shared);
+    Sm = merge_stb_structs(Sh, Sf);
+    clear Sf
+    [shared_names, ~] = stb_shared_names();
+    daq = shared_names(find(strcmp(shared_names, 'freq_avg')):end);
+    Fdaq = struct();
+    for k = 1:numel(daq)
+        if isfield(Sh, daq{k}), Fdaq.(daq{k}) = Sh.(daq{k}); end
+    end
+    clear Sh
+    legacy_version = particle_version_name(version, p);
+    bools = struct('version', legacy_version, 'RPCA', false, 'turbine', false, ...
+                   'compress_save', false, 'stb_paths', P, 'legacy_files', p.legacy_files);
+    if p.legacy_files
+        legacy_file = fullfile(P.dir, string(PIV_case_name) + "_" + legacy_version + "_phase_avg.mat");
+        fprintf('Saving legacy combined file %s\n', legacy_file);
+        save_STB_struct(legacy_file, Sm, bools);
+    end
+    calc_secondary_vals_phase(Sm, Fdaq, bools, P.dir, default_trim_bounds());
+    fprintf('Done: method "%s" for %s.\n', method, PIV_case_name);
 end
 
 % -------------------------------------------------------------------------
-function s = suffix(v)
-    if strlength(string(v)) > 0, s = "_" + string(v); else, s = ""; end
-end
-
-function f = find_file(root, name)
-% the UIs read Processed Results\phase_avg\; phase_avg_STB saves in the
-% root. If both exist, the newer one (e.g. just reprocessed) is used.
-    cands = [fullfile(root, "phase_avg", name), fullfile(root, name)];
-    ok = arrayfun(@isfile, cands);
-    if ~any(ok)
-        error("Could not find %s in %s or its phase_avg folder. Run the binned processing first.", name, root);
+function f = find_binned_fields(save_root, case_name, version, p)
+% binned flow-field file supplying the uncertainty for the force mask
+    if isfield(p, 'binned_method') && strlength(string(p.binned_method)) > 0
+        cands = string(p.binned_method);
+    else
+        cands = ["bin", "bin_hr"];
     end
-    cands = cands(ok);
-    t = zeros(size(cands));
-    for i = 1:numel(cands), d = dir(cands(i)); t(i) = d.datenum; end
-    [~, k] = max(t);
-    f = cands(k);
+    for m = cands
+        Pb = stb_file_paths(save_root, case_name, version, m);
+        if isfile(Pb.fields), f = Pb.fields; return; end
+    end
+    error("No binned flow-field file (%s) for %s. Run main_processing for the case first.", ...
+          strjoin(cands, ", "), case_name);
 end

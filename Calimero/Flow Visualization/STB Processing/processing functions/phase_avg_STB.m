@@ -5,6 +5,16 @@ tic
 % harmonic_regression_STB). Results are saved under their own version
 % name (bools.version + "_hr", or "hr") so they never overwrite the
 % bin-averaged files and phaseAvg_UI lists them separately.
+% binning variant (bools.version) and method name for the new file layout
+% (stb_file_paths), before harmonic regression adds "_hr" to the legacy name
+base_version = "";
+if isfield(bools, 'version') && strlength(string(bools.version)) > 0
+    base_version = string(bools.version);
+end
+method = binned_method_name(bools);
+legacy = ~isfield(bools, 'legacy_files') || bools.legacy_files;
+D = struct();   % DAQ data (stays empty for turbine runs)
+
 hr = get_hr_settings(bools);
 if hr.on
     if isfield(bools, 'version') && strlength(string(bools.version)) > 0
@@ -397,6 +407,13 @@ S.bin_ind_arr = bin_ind_arr; S.bin_count = bin_count; S.bin_std = bin_std;
 S.bin_phase_var = bin_phase_var; S.phase_res = phase_res; S.bin_placement = bin_placement; % % of bin width
 S.num_clusters = num_clusters; S.phase_spread_ratio = phase_spread_ratio;
 S.PIV_case_name = PIV_case_name;
+% for the shared file: every frame's phase, the bin offset, the frames used
+S.norm_frame_pos = norm_frame_pos; S.bin_offset = bin_offset; S.num_images = num_images;
+try
+    S.frame_table = get_case_frames(PIV_case_name);
+catch
+    S.frame_table = struct();
+end
 
 if ~bools.turbine
 % before-averaging (BA) forces: computed per frame, then averaged per bin
@@ -407,11 +424,26 @@ S.lift_before_std = lift_before_std; S.drag_before_std = drag_before_std;
 S.lift_vel_before_std = lift_vel_before_std; S.drag_vel_before_std = drag_vel_before_std;
 end
 
-% Save the entire structure
-disp("Saving data to: " + save_path)
+% Save: shared file (DAQ, binning, grid, frames) and this method's flow
+% fields (stb_file_paths); the integral file follows in
+% calc_secondary_vals_phase. With bools.legacy_files (default true until the
+% GUIs read the new layout) the old combined file is written as well.
 t0 = tic;
-save_STB_struct(save_path, S, bools);
+P = stb_file_paths(save_filepath_local, PIV_case_name, base_version, method);
+if ~isfolder(P.dir), mkdir(P.dir); end
+[Sh, Sf] = split_phase_avg_struct(S, D);
+Sf.method = method;  Sf.version = base_version;
+disp("Saving shared data to: " + P.shared)
+save_STB_struct(P.shared, Sh, bools);
+disp("Saving " + method + " flow fields to: " + P.fields)
+save_STB_struct(P.fields, Sf, bools);
+clear Sh Sf
+if legacy
+    disp("Saving legacy combined file to: " + save_path)
+    save_STB_struct(save_path, S, bools);
+end
 t_stage.save = toc(t0);
+bools.stb_paths = P;   % calc_secondary_vals_phase saves the integral file there
 
 fprintf('Processing and saving data took %.4f seconds.\n', toc);
 if num_workers > 0
@@ -433,8 +465,22 @@ calc_secondary_vals_phase(S, D, bools, save_filepath_local, bounds);
 
 else
 
-% load in processed velocity field struct from an earlier run
-S = load(save_path);
+% load in processed velocity field struct from an earlier run: the new
+% layout (shared + fields, with the per-frame-averaged forces from the
+% integral file) if it exists, else the legacy combined file
+P = stb_file_paths(save_filepath_local, PIV_case_name, base_version, method);
+if isfile(P.shared) && isfile(P.fields)
+    S = merge_stb_structs(load(P.shared), load(P.fields));
+    if isfile(P.integral)
+        [~, before_avg] = stb_shared_names();
+        vars = who('-file', char(P.integral));
+        have = before_avg(ismember(before_avg, vars));
+        if ~isempty(have), S = merge_stb_structs(S, load(P.integral, have{:})); end
+    end
+    bools.stb_paths = P;
+else
+    S = load(save_path);
+end
 
 % Calculate secondary values (Q, power, integral values) and save in
 % separate file

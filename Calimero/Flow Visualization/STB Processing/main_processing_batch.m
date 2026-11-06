@@ -62,6 +62,12 @@ bools.num_workers = 8; % parallel workers for phase bins / time-avg frame chunks
 bools.frames_per_chunk = 20; % time averages: frames loaded and processed per call on each worker; lower if out of memory
 bools.compress_save = false; % true = MATLAB's compressed .mat (smaller, much slower to save)
 bools.proc_vel = true; % false if just calculating secondary values
+% Processed files: <case>[_<version>]_shared.mat (DAQ, binning, grid, frames)
+% plus <case>[_<version>]_<method>_phase_avg.mat and _<method>_integral.mat
+% per method (bin, bin_hr, particle_pool_hr20, ...) in Processed Results\phase_avg\.
+% true: also write the old combined files the GUIs read (until they read
+% the new layout)
+bools.legacy_files = true;
 
 % Range of phase-bin counts to search. findBestNumBins2 picks the count
 % in this range (and the bin offset) with the smallest phase spread per
@@ -279,10 +285,8 @@ function cases = scan_cases(names, num_images, save_folder, bools, skip_processe
     % particle processing only: static cases have nothing to do, and
     % skip_processed looks for the particle integral file
     particle_only = isfield(bools, 'particle') && bools.particle.run && bools.particle.only;
-    if particle_only
-        particle_file_end = "_" + particle_version_name(binned_version_name(bools), bools.particle) + ...
-            "_phase_avg_integral.mat";
-    end
+    base_version = "";
+    if isfield(bools, 'version'), base_version = string(bools.version); end
 
     for k = 1:n
         name = cases.name(k);
@@ -329,10 +333,20 @@ function cases = scan_cases(names, num_images, save_folder, bools, skip_processe
             end
         end
 
-        if skip_processed && particle_only
-            if isfile(fullfile(save_folder, "phase_avg", name + particle_file_end))
-                cases.status(k) = "skipped";
+        % new layout (stb_file_paths): the method's integral file is written last
+        if skip_processed && cases.avg_type(k) == "phase"
+            if particle_only
+                Pn = stb_file_paths(save_folder, name, base_version, particle_method_name(bools.particle));
+            else
+                Pn = stb_file_paths(save_folder, name, base_version, binned_method_name(bools));
             end
+            if isfile(Pn.integral)
+                cases.status(k) = "skipped";
+                continue
+            end
+        end
+        if skip_processed && particle_only
+            % (legacy names are not checked for particle-only runs)
         elseif skip_processed
             % new files are saved in save_folder itself; processed ones are
             % kept in its time_avg\ / phase_avg\ (and phase_avg\RPCA\)
