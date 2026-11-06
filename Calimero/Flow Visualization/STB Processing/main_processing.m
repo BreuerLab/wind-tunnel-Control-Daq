@@ -22,8 +22,8 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 PIV_case_name = 'x2_wings_20deg_8Hz';
 
 % num_images = 1200; 
-% num_images = 3000;
-num_images = 600;
+num_images = 3000;
+% num_images = 600;
 
 % save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
 save_filepath_local = "F:\Processed Results\";
@@ -48,7 +48,7 @@ bools.bin_range = [180 200]; % [180 210]
 % x3_wings_20deg_6Hz_coarse_phase_avg.mat (and _integral.mat); phaseAvg_UI
 % lists it under that name in its version dropdown. "" = default (no
 % suffix). Phase averages only; avoid "deg" and "Hz" in the name.
-bools.version = "";
+bools.version = "layout_test";
 
 % Harmonic regression instead of bin averaging. Each point's time series
 % is fitted over ALL frames at their actual phases with a Fourier series
