@@ -1,6 +1,12 @@
-function [trimmed_results, core_idx] = trim_data(results, rec_wingbeats, num_wingbeats, pad_samples)
+function [trimmed_results, core_idx] = trim_data(results, rec_wingbeats, num_wingbeats, pad_samples, learning_revs)
 % Trims the recording to the num_wingbeats steady wingbeats, dropping the
 % acceleration and padding wingbeats at either end.
+%
+% Optional learning_revs: also drop this many wingbeats at the start of
+% the steady wingbeats, while the iterative learning controller is still
+% adapting the motor command (ILC: the first 20 steady wingbeats, see
+% revsLearn_TEMP in benchtop_test_FF_ILC.dmc). num_wingbeats -
+% learning_revs wingbeats are then kept.
 %
 % Optional pad_samples: keep up to this many extra samples on each side of
 % the steady wingbeats (limited to the data available). Filters can then
@@ -9,6 +15,9 @@ function [trimmed_results, core_idx] = trim_data(results, rec_wingbeats, num_win
 % rows of trimmed_results holding just the steady wingbeats.
 if nargin < 4
     pad_samples = 0;
+end
+if nargin < 5
+    learning_revs = 0;
 end
 
 OC_pulse_step = 4; % in ticks
@@ -32,7 +41,14 @@ disp(rec_wingbeats + " revs expected")
 disp(length(nextRev_idx) + " revs counted")
 
 padding = ((rec_wingbeats - num_wingbeats) / 2);
-startIdx = nextRev_idx(padding); % first padding revs ignored
+% first padding revs ignored, plus the ILC learning revs. The Galil starts
+% learning once acceleration + padding_revs are done (revsRec_TEMP, which
+% is never later than padding), so starting padding + learning_revs in
+% always clears the learning wingbeats.
+startIdx = nextRev_idx(padding + learning_revs);
+if learning_revs > 0
+    disp("Skipping " + learning_revs + " ILC learning wingbeats")
+end
 endIdx = nextRev_idx(end - padding); % last padding revs ignored
 
 if length(nextRev_idx) == (rec_wingbeats - 1)

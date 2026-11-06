@@ -67,7 +67,18 @@ else
 % trim off period when acceleration + padding, keeping up to two
 % wingbeats of padding on each side for filtering
 pad_samples = 2 * frame_rate / wing_freq;
-[trimmed_results, core_idx] = trim_data(results, rec_wingbeats, num_wingbeats, pad_samples);
+% The iterative learning controller adapts the motor command over the
+% first 20 steady wingbeats of each trial (run_trial uses it for >= 1 Hz,
+% and only since the ILC was added: commit 5708caa, 30 Jul 2026). Those
+% wingbeats are left out of the phase and time averages.
+ILC_LEARNING_REVS = 20;
+ILC_FIRST_DAY = datetime(2026, 7, 30);
+learning_revs = 0;
+if wing_freq >= 1 && timeStr2num(time_stamp) >= ILC_FIRST_DAY
+    learning_revs = ILC_LEARNING_REVS;
+end
+[trimmed_results, core_idx] = trim_data(results, rec_wingbeats, num_wingbeats, pad_samples, learning_revs);
+num_wingbeats = num_wingbeats - learning_revs; % wingbeats kept for averaging
 end
 
 async = true; % We are doing async method of collecting data
