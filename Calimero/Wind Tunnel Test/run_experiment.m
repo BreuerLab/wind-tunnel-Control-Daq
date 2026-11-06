@@ -5,8 +5,8 @@ time_now.Format = 'yyyy-MM-dd HH-mm-ss';
 diary("data\output logs\" + speed + "ms_" + string(time_now) + ".txt")
 
 % DAQ Parameters
-rate = 15000; % measurement rate of NI DAQ, in Hz
-offset_duration = 6; % in seconds
+rate = 9000; % measurement rate of NI DAQ, in Hz
+offset_duration = 8; % in seconds
 calibration_filepath = "../DAQ/Calibration Files/Mini40/FT52907.cal"; 
 voltage = 5; % 5 or 10 volts for load cell
 async = true;
