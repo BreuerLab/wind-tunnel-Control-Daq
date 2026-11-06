@@ -2,7 +2,7 @@ clear
 close all
 
 % Change current working directory to the directory where this file is
-cd(fileparts(mfilename('fullpath')));
+cd(fileparts(mfilename('fullpath'))); 
 addpath(genpath('../../'))
 addpath(genpath('.'))
 addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
