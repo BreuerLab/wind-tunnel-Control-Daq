@@ -18,13 +18,13 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 
 % Alternatively, select cases by filter. Leave a filter empty to accept
 % any value. Uncomment the line below the filters to use them.
-positions = ["x2"];        % "x1"-"x5", "MPS", "UP_one", "UP_two", "" = old 0.9 m cases (no prefix)
+positions = ["x2","x4"];        % "x1"-"x5", "MPS", "UP_one", "UP_two", "" = old 0.9 m cases (no prefix)
 amps = [20];               % flapping amplitude (deg)
 freqs = [2 4 6 8];         % wingbeat frequency (Hz), 0 = gliding
 sel_case_names = select_cases(get_PIV_paths(), positions, amps, freqs);
 % All cases found (every listed case and every September\<pos>\<case>
 % folder): set the three filters above to [] or uncomment this line
-sel_case_names = get_PIV_paths();
+% sel_case_names = get_PIV_paths();
 
 % Keep only flapping or only static cases from the selection above
 % (whichever way it was made):
@@ -37,7 +37,7 @@ sel_case_names = get_PIV_paths();
 % cases without an amplitude or frequency (ring, freestream, ...) only
 % pass empty amps / freqs filters above, e.g. for every static case:
 % positions = []; amps = []; freqs = []; motion = "static";
-motion = "all";
+motion = "flapping";
 
 % Number of images per case: "auto" counts the .vc7 files in each case's
 % data folder (get_PIV_paths) and uses that; a number uses it for every
@@ -60,14 +60,14 @@ bools.vort_uavg = false; % vorticity of the averaged velocity (vort*_uavg)
 bools.div_std = true; % frame-to-frame std of the velocity divergence: per bin (div_phase_std), or over all frames for time averages (std_div); quick
 bools.num_workers = 8; % parallel workers for phase bins / time-avg frame chunks (0 = serial); lower if out of memory
 bools.frames_per_chunk = 20; % time averages: frames loaded and processed per call on each worker; lower if out of memory
-bools.compress_save = false; % true = compressed -v7.3 .mat (smaller, slower to save); compress_STB_files for files already saved
+bools.compress_save = true; % true = compressed -v7.3 .mat (smaller, slower to save); compress_STB_files for files already saved
 bools.proc_vel = true; % false if just calculating secondary values
 % Processed files: <case>[_<version>]_shared.mat (DAQ, binning, grid, frames)
 % plus <case>[_<version>]_<method>_fields.mat and _<method>_integral.mat
 % per method (bin, bin_hr, particle_pool_hr20, ...) in Processed Results\phase_avg\.
 % true: also write the old combined files the GUIs read (until they read
 % the new layout)
-bools.legacy_files = true;
+bools.legacy_files = false;
 
 % Range of phase-bin counts to search. findBestNumBins2 picks the count
 % in this range (and the bin offset) with the smallest phase spread per
@@ -104,7 +104,7 @@ bools.hr_save_coef = false; % save coefficients (to evaluate fit / exact d/dt at
 % uncertainty mask and DAQ data. Time-averaged cases are skipped.
 % All settings and their meaning: particle_default_opts.m
 bools.particle = particle_default_opts();
-bools.particle.run  = false;   % true: add the particle processing
+bools.particle.run  = true;   % true: add the particle processing
 bools.particle.only = false;   % true: only the particle processing (binned files must exist)
 % bools.particle.run_tag      = "o3";     % tag non-default fit settings in the file names
 % bools.particle.fit.depthOrder = 5;
