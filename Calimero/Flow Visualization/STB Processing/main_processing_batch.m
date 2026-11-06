@@ -60,7 +60,7 @@ bools.vort_uavg = false; % vorticity of the averaged velocity (vort*_uavg)
 bools.div_std = true; % frame-to-frame std of the velocity divergence: per bin (div_phase_std), or over all frames for time averages (std_div); quick
 bools.num_workers = 8; % parallel workers for phase bins / time-avg frame chunks (0 = serial); lower if out of memory
 bools.frames_per_chunk = 20; % time averages: frames loaded and processed per call on each worker; lower if out of memory
-bools.compress_save = false; % true = MATLAB's compressed .mat (smaller, much slower to save)
+bools.compress_save = false; % true = compressed -v7.3 .mat (smaller, slower to save); compress_STB_files for files already saved
 bools.proc_vel = true; % false if just calculating secondary values
 % Processed files: <case>[_<version>]_shared.mat (DAQ, binning, grid, frames)
 % plus <case>[_<version>]_<method>_fields.mat and _<method>_integral.mat

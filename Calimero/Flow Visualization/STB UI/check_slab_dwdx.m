@@ -74,9 +74,9 @@ cases = {};
 for type = types
     for f = freqs
         case_name = type + "_" + amp + "deg_" + f + "Hz";
-        file = data_root + "Processed Results\phase_avg\" + case_name + "_phase_avg.mat";
-        if ~stb_isfile(file)
-            fprintf("%s: no file (%s), skipped\n", case_name, file);
+        file = stb_file_paths(data_root + "Processed Results", case_name, "", "bin");
+        if ~stb_exists(file)
+            fprintf("%s: no file (%s), skipped\n", case_name, file.fields);
             continue
         end
         R = slab_check_case(file, case_name, conv_speed, min_valid, n_harm);
@@ -129,7 +129,7 @@ if nx < 3
 end
 
 % lift integration window (same bounds as the stored forces)
-[~, stem] = fileparts(file);
+stem = stb_name(file);
 bounds = old_flapper_compat("trim_bounds_for", stem, default_trim_bounds());
 yv = squeeze(d.y(1, :, 1));
 zv = squeeze(d.z(1, 1, :))';

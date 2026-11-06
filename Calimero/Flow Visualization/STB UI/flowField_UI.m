@@ -132,15 +132,14 @@ properties
     time_new_flapper_stems;
     phase_avg_case_ids;
     time_avg_case_ids;
-    phase_avg_RPCA_file_path;   % optional subfolder phase_avg\RPCA\
-    % Data roots (e.g. ["F:\", "C:\...\STB Round 1\"]) and the folder
-    % holding each case's files, keyed "<phase|time|rpca>|<case id>"
-    % (get_case_dir). The first root is the primary one; a case found in
-    % several roots is taken from the first.
+    % Data roots (e.g. ["F:\", "C:\...\STB Round 1\"]), the folder of each
+    % time-averaged case (keyed "time|<case id>", get_case_dir) and the
+    % files of each phase-averaged case (keyed by case id, a stb_file_paths
+    % struct). The first root is the primary one; a case found in several
+    % roots is taken from the first.
     data_roots;
     case_dir_map;
-    phase_avg_main_case_ids;    % case ids found directly in phase_avg\
-    phase_avg_RPCA_case_ids;    % case ids found in phase_avg\RPCA\ (must end in _RPCA)
+    phase_case_map;
     current_downstream_type;
     downstream_types;
     distance_labels;
@@ -323,7 +322,6 @@ methods
         obj.variable_name = "";
         obj.phase_avg_file_path = file_path + "Processed Results\phase_avg\";
         obj.time_avg_file_path = file_path + "Processed Results\time_avg\";
-        obj.phase_avg_RPCA_file_path = obj.phase_avg_file_path + "RPCA\";
         obj.file_path = obj.phase_avg_file_path;
         obj.source_modes = strings(0);
         obj.source_mode = "";
@@ -388,36 +386,31 @@ methods
 
         obj.file_suffix = "_phase_avg";
 
-        % Cases from every data root; each case's folder is recorded in
-        % case_dir_map. RPCA phase averages may also live in a
-        % phase_avg\RPCA\ subfolder. Only files named *_RPCA_phase_avg.mat
-        % are used as RPCA cases there.
+        % Cases from every data root. Phase averages: one per
+        % <stem>_<method>_fields.mat (+ _shared, _integral), under the case
+        % id stb_list_phase_avg gives it (its label, e.g.
+        % x2_wings_20deg_8Hz_hr); time averages: *_time_avg.mat.
         obj.case_dir_map = containers.Map('KeyType', 'char', 'ValueType', 'char');
+        obj.phase_case_map = containers.Map('KeyType', 'char', 'ValueType', 'any');
         phase_avg_stems = strings(1, 0);
         time_avg_stems = strings(1, 0);
-        rpca_ids = strings(1, 0);
         for r = 1:numel(obj.data_roots)
             phase_dir = obj.data_roots(r) + "Processed Results\phase_avg\";
             time_dir = obj.data_roots(r) + "Processed Results\time_avg\";
-            rpca_dir = phase_dir + "RPCA\";
-            % new layout: <stem>_<method>_fields.mat (+ _shared, _integral),
-            % listed under GUI names <case id>_phase_avg.mat (see stb_resolve)
-            stems = obj.get_file_stems(stb_list_phase_avg(phase_dir), "_phase_avg");
-            obj.register_case_dirs("phase", stems, phase_dir);
-            phase_avg_stems = [phase_avg_stems, stems]; %#ok<AGROW>
+            cases = stb_list_phase_avg(phase_dir);
+            for k = 1:numel(cases)
+                if ~isKey(obj.phase_case_map, char(cases(k).label))
+                    obj.phase_case_map(char(cases(k).label)) = cases(k).files;
+                end
+            end
+            phase_avg_stems = [phase_avg_stems, reshape(string({cases.label}), 1, [])]; %#ok<AGROW>
             stems = obj.get_file_stems(dir(time_dir + "*.mat"), "_time_avg");
             obj.register_case_dirs("time", stems, time_dir);
             time_avg_stems = [time_avg_stems, stems]; %#ok<AGROW>
-            stems = obj.get_file_stems(stb_list_phase_avg(rpca_dir), "_RPCA_phase_avg") + "_RPCA";
-            obj.register_case_dirs("rpca", stems, rpca_dir);
-            rpca_ids = [rpca_ids, stems]; %#ok<AGROW>
         end
         phase_avg_stems = unique(phase_avg_stems, 'stable');
         time_avg_stems = unique(time_avg_stems, 'stable');
 
-        obj.phase_avg_main_case_ids = phase_avg_stems;
-        obj.phase_avg_RPCA_case_ids = unique(rpca_ids, 'stable');
-        phase_avg_stems = unique([phase_avg_stems, obj.phase_avg_RPCA_case_ids], 'stable');
         obj.phase_avg_case_ids = phase_avg_stems;
         obj.time_avg_case_ids = time_avg_stems;
 
@@ -467,7 +460,7 @@ methods
         obj.time_turbine_case_name_list = obj.get_turbine_case_names(time_turbine_stems);
         obj.source_modes = obj.get_available_source_modes();
         if isempty(obj.source_modes)
-            error("No STB average files found. Expected *_<method>_fields.mat (new layout) or *_time_avg.mat files in Processed Results\\phase_avg\\ or time_avg\\ of %s.", strjoin(obj.data_roots, ", "))
+            error("No STB average files found. Expected *_<method>_fields.mat or *_time_avg.mat files in Processed Results\\phase_avg\\ or time_avg\\ of %s.", strjoin(obj.data_roots, ", "))
         end
         obj.source_mode = obj.source_modes(1);
         obj.set_downstream_options_for_source_mode(obj.source_mode);
@@ -2872,14 +2865,13 @@ methods (Access = private)
     % Stroke reversals for the 3D plot from the phase-averaged wing
     % position (max = top of the stroke, upstroke -> downstroke; min =
     % bottom, downstroke -> upstroke), in flow bins. [] if not saved.
-    function S = get_stroke_info_3D(obj, file_base, num_bins)
+    function S = get_stroke_info_3D(obj, case_files, num_bins)
         S = [];
-        integral_file = file_base + "_integral.mat";
         wing_pos = [];
-        if stb_isfile(integral_file)
-            vars = stb_who(integral_file);
+        if stb_exists(case_files)
+            vars = stb_who(case_files);
             if ismember("phase_avg_wing_pos", vars)
-                d = stb_load(integral_file, "phase_avg_wing_pos");
+                d = stb_load(case_files, "phase_avg_wing_pos");
                 wing_pos = d.phase_avg_wing_pos(:)';
             end
         end
@@ -2906,16 +2898,8 @@ methods (Access = private)
     % variable and colour limits
     function key = get_3D_geometry_key(obj, use_extrapolated_data)
         % file modification times too, so a reprocessed case isn't reused
-        file_base = string(obj.get_current_file_base());
-        stamps = strings(1, 2);
-        files = file_base + [".mat", "_integral.mat"];
-        for k = 1:2
-            info = stb_dir(files(k));
-            if ~isempty(info)
-                stamps(k) = sprintf("%.10f", info(1).datenum);
-            end
-        end
-        parts = [file_base, stamps, string(obj.iso_var), ...
+        case_files = obj.get_current_case();
+        parts = [stb_name(case_files), stb_file_stamp(case_files), string(obj.iso_var), ...
             sprintf("%.10g", obj.iso_val), string(obj.num_cycles), ...
             string(obj.conv_units_bool), string(obj.trim_bool), ...
             mat2str(obj.trim_y_bounds), mat2str(obj.trim_z_bounds), ...
@@ -3530,13 +3514,14 @@ methods (Access = private)
         case_id = "";
     end
 
-    % <folder>\<case id>_phase_avg (no extension) of a phase average case
-    function file_base = get_phase_file_base(obj, case_id)
-        if ~any(obj.phase_avg_main_case_ids == case_id) && any(obj.phase_avg_RPCA_case_ids == case_id)
-            file_base = obj.get_case_dir("rpca", case_id) + case_id + "_phase_avg";
-        else
-            file_base = obj.get_case_dir("phase", case_id) + case_id + "_phase_avg";
+    % Files of a phase average case (stb_file_paths struct: .shared,
+    % .fields, .integral)
+    function case_files = get_phase_case(obj, case_id)
+        key = char(string(case_id));
+        if ~isKey(obj.phase_case_map, key)
+            error("No phase-averaged files for %s (expected <case>[_<version>]_<method>_fields.mat in Processed Results\\phase_avg\\).", key)
         end
+        case_files = obj.phase_case_map(key);
     end
 
     % downstream_type (optional): only cases at that downstream position
@@ -3654,18 +3639,20 @@ methods (Access = private)
         case_id = obj.with_variant_suffix(base_case_id);
     end
 
-    function file_base = get_current_file_base(obj)
+    % Files of the selected case: the phase average, or the time average
+    % (stb_time_avg_case) when that is what's plotted. Either way a struct
+    % for stb_load / stb_who.
+    function case_files = get_current_case(obj)
+        case_id = obj.get_current_case_id();
         if obj.is_time_avg_file_selected()
-            case_id = obj.get_current_case_id();
-            file_base = obj.get_case_dir("time", case_id) + case_id + "_time_avg";
+            case_files = obj.get_time_case(case_id);
         else
-            case_id = obj.get_current_case_id();
-            if ~any(obj.phase_avg_main_case_ids == case_id) && any(obj.phase_avg_RPCA_case_ids == case_id)
-                file_base = obj.get_case_dir("rpca", case_id) + case_id + "_phase_avg";
-            else
-                file_base = obj.get_case_dir("phase", case_id) + case_id + "_phase_avg";
-            end
+            case_files = obj.get_phase_case(case_id);
         end
+    end
+
+    function case_files = get_time_case(obj, case_id)
+        case_files = stb_time_avg_case(obj.get_case_dir("time", case_id) + case_id + "_time_avg");
     end
 
     % Message in the plot area instead of a plot, when the selected case's
@@ -3691,9 +3678,8 @@ methods (Access = private)
         end
     end
 
-    % Folder holding a case's files: kind "phase" (phase_avg\), "rpca"
-    % (phase_avg\RPCA\) or "time" (time_avg\). Falls back to the primary
-    % root's folder for a case that wasn't found.
+    % Folder holding a time-averaged case's files (kind "time"). Falls back
+    % to the primary root's folder for a case that wasn't found.
     function folder = get_case_dir(obj, kind, case_id)
         key = char(string(kind) + "|" + string(case_id));
         if ~isempty(obj.case_dir_map) && isKey(obj.case_dir_map, key)
@@ -3702,7 +3688,6 @@ methods (Access = private)
         end
         switch string(kind)
             case "time", folder = obj.time_avg_file_path;
-            case "rpca", folder = obj.phase_avg_RPCA_file_path;
             otherwise,   folder = obj.phase_avg_file_path;
         end
     end
@@ -3956,17 +3941,17 @@ methods (Access = private)
             return
         end
 
-        full_file_path = obj.get_current_file_base();
+        case_files = obj.get_current_case();
 
         % field of view of the extrapolation (newer files), for the crop / box
         if use_extrapolated_data && ~is_extrap_diff && ismember(plot_idx, [1, 2])
-            integral_vars = stb_who(full_file_path + "_integral.mat");
+            integral_vars = stb_who(case_files);
             if all(ismember({'y_B_fov', 'z_B_fov'}, integral_vars))
                 cur_secondary_vars = [cur_secondary_vars, {"y_B_fov", "z_B_fov"}];
             end
         end
         if is_extrap_diff
-            integral_vars = stb_who(full_file_path + "_integral.mat");
+            integral_vars = stb_who(case_files);
             if ~ismember(char(var_name), integral_vars)
                 delete(findobj(plot_panel.Children, 'Type', 'axes'));
                 ax = axes(plot_panel);
@@ -3981,9 +3966,9 @@ methods (Access = private)
         if plot_idx == 8
             % wake forces: data is loaded by get_PIV_force below
         elseif ~isempty(cur_secondary_vars)
-            d1 = stb_load(full_file_path + "_integral.mat", cur_secondary_vars{:});
+            d1 = stb_load(case_files, cur_secondary_vars{:});
             if ~isempty(vars)
-            d2 = stb_load(full_file_path + ".mat", vars{:});
+            d2 = stb_load(case_files, vars{:});
     
             % Combine by converting to cell arrays of names/values and back to struct
             d = cell2struct([struct2cell(d1); struct2cell(d2)], [fieldnames(d1); fieldnames(d2)], 1);
@@ -3991,7 +3976,7 @@ methods (Access = private)
                 d = d1;
             end
         else
-            d = stb_load(full_file_path + ".mat", vars{:});
+            d = stb_load(case_files, vars{:});
         end
 
         if plot_idx == 2 || plot_idx == 4 || plot_idx == 5
@@ -4385,7 +4370,7 @@ methods (Access = private)
             % once the convection shift is applied.
             obj.stroke_3D = [];
             if obj.conv_shift
-                obj.stroke_3D = obj.get_stroke_info_3D(full_file_path, d.num_bins);
+                obj.stroke_3D = obj.get_stroke_info_3D(case_files, d.num_bins);
             end
 
             % Stroke order (UDU / DUD / DU / UD). It moves the flow and
@@ -4530,7 +4515,7 @@ methods (Access = private)
             avg_type = 1;
             norm_bool = false;
             case_id = obj.get_current_case_id();
-            val = get_PIV_force(full_file_path, case_id, var_name, avg_type, norm_bool, default_trim_bounds());
+            val = get_PIV_force(case_files, case_id, var_name, avg_type, norm_bool, default_trim_bounds());
 
             plot(ax, val)
             hold(ax, "on")
@@ -4715,19 +4700,16 @@ methods (Access = private)
         types = types(found);
         dists = dists(found);
         case_ids = case_ids(found);
-        file_bases = strings(size(case_ids));
+        plane_cases = cell(size(case_ids));
+        names = strings(size(case_ids));
         stamps = strings(size(case_ids));
         for i = 1:numel(case_ids)
-            file_bases(i) = obj.get_phase_file_base(case_ids(i));
-            for ext = [".mat", "_integral.mat"]
-                info = stb_dir(file_bases(i) + ext);
-                if ~isempty(info)
-                    stamps(i) = stamps(i) + sprintf("%.10f;", info(1).datenum);
-                end
-            end
+            plane_cases{i} = obj.get_phase_case(case_ids(i));
+            names(i) = stb_name(plane_cases{i});
+            stamps(i) = stb_file_stamp(plane_cases{i});
         end
 
-        key = strjoin([file_bases(:)', stamps(:)', string(obj.variable_name), string(obj.iso_var), ...
+        key = strjoin([names(:)', stamps(:)', string(obj.variable_name), string(obj.iso_var), ...
             string(obj.trim_bool), mat2str(obj.trim_y_bounds), mat2str(obj.trim_z_bounds), ...
             string(obj.mirror_bool), mat2str(obj.mirror_center_y), string(obj.filter_bool), ...
             string(obj.floor_bool), sprintf("%.10g", obj.thresh), ...
@@ -4766,7 +4748,7 @@ methods (Access = private)
         missing = strings(0);
         for i = 1:numel(types)
             fprintf("Loading %s (%s, %.3f m downstream)\n", case_ids(i), types(i), dists(i));
-            [P, miss] = obj.load_merged_plane(file_bases(i), var_name, iso_var_name, ...
+            [P, miss] = obj.load_merged_plane(plane_cases{i}, var_name, iso_var_name, ...
                 is_transport, transport_pairs, transport_own_vort, zero, flip_sign);
             if isempty(P)
                 missing(end+1) = case_ids(i) + ": " + miss; %#ok<AGROW>
@@ -4805,7 +4787,7 @@ methods (Access = private)
     % (Q) on the centre plane, y x z x bins, with the 3D plot's trim,
     % mirror, filter, noise floor and uncertainty mask. P = [] and miss =
     % the missing field if the file doesn't have what's needed.
-    function [P, miss] = load_merged_plane(obj, file_base, var_name, iso_var_name, ...
+    function [P, miss] = load_merged_plane(obj, case_files, var_name, iso_var_name, ...
             is_transport, transport_pairs, transport_own_vort, zero, flip_sign)
         P = [];
         miss = "";
@@ -4830,23 +4812,10 @@ methods (Access = private)
         end
 
         % only ask for fields that are there (no load warnings)
-        main_file = file_base + ".mat";
-        vars = unique(vars, 'stable');
-        vars = vars(ismember(vars, string(stb_who(main_file))));
-        d = stb_load(main_file, vars{:});
-        if ~isempty(sec_vars)
-            integral_file = file_base + "_integral.mat";
-            if stb_isfile(integral_file)
-                sec_vars = unique(sec_vars, 'stable');
-                sec_vars = sec_vars(ismember(sec_vars, string(stb_who(integral_file))));
-                if ~isempty(sec_vars)
-                    d1 = stb_load(integral_file, sec_vars{:});
-                    for fn = string(fieldnames(d1))'
-                        d.(fn) = d1.(fn);
-                    end
-                end
-            end
-        end
+        file_vars = string(stb_who(case_files));
+        vars = unique([vars, sec_vars], 'stable');
+        vars = vars(ismember(vars, file_vars));
+        d = stb_load(case_files, vars{:});
 
         for need = ["L","U","num_bins","cycle_freq","z","y"]
             if ~isfield(d, need)
@@ -4880,7 +4849,7 @@ methods (Access = private)
             if isfield(d, "uncTot_phase_avg")
                 unc = squeeze(mean(d.uncTot_phase_avg(plane_idx,:,:,:), 4, "omitnan"));
             else
-                fprintf("Unc Mask: uncTot_phase_avg not in %s, not masked\n", file_base);
+                fprintf("Unc Mask: uncTot_phase_avg not in %s, not masked\n", stb_name(case_files));
             end
         end
 
@@ -5128,11 +5097,11 @@ methods (Access = private)
         % mean of the per-frame products.
         case_id = obj.get_current_case_id();
         if obj.current_case_has_phase_avg()
-            file_base = obj.get_current_file_base(); % phase_avg\ (or its RPCA\ subfolder)
+            case_files = obj.get_phase_case(case_id);
             avg_type = 1;
             avg_label = "Time averaged";
         elseif obj.current_case_has_time_avg()
-            file_base = obj.get_case_dir("time", case_id) + case_id + "_time_avg";
+            case_files = obj.get_time_case(case_id);
             avg_type = 0;
             avg_label = "Time averaged (0 Hz file)";
         else
@@ -5141,7 +5110,7 @@ methods (Access = private)
 
         ax = axes(plot_panel);
         force_var = obj.force_var_name_dict(char(obj.variable_name));
-        [~, ~, I] = get_PIV_force(file_base, case_id, force_var, avg_type, false, default_trim_bounds());
+        [~, ~, I] = get_PIV_force(case_files, case_id, force_var, avg_type, false, default_trim_bounds());
         if isempty(I.field)
             text(ax, 0.5, 0.5, string(obj.variable_name) + " is not a plane integral", ...
                 'HorizontalAlignment', 'center', FontSize=16);
@@ -5242,12 +5211,12 @@ methods (Access = private)
     function plot_section_flow(obj, plot_panel)
         case_id = obj.get_current_case_id();
         if obj.current_case_has_phase_avg()
-            file_base = obj.get_current_file_base();
+            case_files = obj.get_phase_case(case_id);
             var_name = obj.variable_name_dict(char(obj.variable_name));
             unc_name = "uncTot_phase_avg";
             avg_label = "Time averaged";
         elseif obj.current_case_has_time_avg()
-            file_base = obj.get_case_dir("time", case_id) + case_id + "_time_avg";
+            case_files = obj.get_time_case(case_id);
             var_name = obj.time_avg_var_name_dict(char(obj.variable_name));
             unc_name = "mean_uncTot";
             avg_label = "Time averaged (0 Hz file)";
@@ -5255,8 +5224,7 @@ methods (Access = private)
             return
         end
 
-        file_name = file_base + ".mat";
-        file_vars = string(stb_who(file_name));
+        file_vars = string(stb_who(case_files));
         if ~ismember(var_name, file_vars)
             obj.show_missing_variable(plot_panel, var_name);
             return
@@ -5266,10 +5234,10 @@ methods (Access = private)
         if has_unc
             load_vars{end+1} = char(unc_name);
         end
-        d = stb_load(file_name, load_vars{:});
+        d = stb_load(case_files, load_vars{:});
 
         % same trim as get_PIV_force
-        [~, file_stem] = fileparts(file_base);
+        file_stem = stb_name(case_files);
         bounds = old_flapper_compat("trim_bounds_for", file_stem, default_trim_bounds());
         [y_tr, z_tr, val] = trim_vel_field(d.y, d.z, d.(var_name), bounds);
         field = mean(val, 3, "omitnan");   % cycle average, bins weighted equally, [ny nz]
@@ -5445,7 +5413,7 @@ methods (Access = private)
         if strlength(obj.case_name) == 0 || ~obj.current_case_has_phase_avg()
             return
         end
-        file = obj.get_current_file_base() + ".mat";
+        file = obj.get_phase_case(obj.get_current_case_id());
 
         ax = axes(plot_panel);
         try

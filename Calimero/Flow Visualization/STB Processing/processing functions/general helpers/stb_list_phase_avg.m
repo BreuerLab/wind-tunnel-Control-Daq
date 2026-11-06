@@ -1,24 +1,25 @@
-function files = stb_list_phase_avg(phase_dir)
-% STB_LIST_PHASE_AVG  Phase-averaged results in a folder, under GUI names.
+function cases = stb_list_phase_avg(phase_dir)
+% STB_LIST_PHASE_AVG  Phase-averaged cases in a ...\Processed Results\phase_avg\ folder.
 %
-%   files = stb_list_phase_avg(phase_dir)
+%   cases = stb_list_phase_avg(phase_dir)
 %
-%   Lists the new-layout flow-field files <stem>_<method>_fields.mat in
-%   phase_dir (a ...\Processed Results\phase_avg\ folder) and returns them
-%   as dir()-like structs whose .name is the GUI-style name
-%   <sel>_phase_avg.mat that stb_resolve maps back:
-%       <stem>_bin_fields.mat              -> <stem>_phase_avg.mat
-%       <stem>_bin_hr_fields.mat           -> <stem>_hr_phase_avg.mat
-%       <stem>_bin_RPCA_fields.mat         -> <stem>_RPCA_phase_avg.mat
-%       <stem>_bin_hr_RPCA_fields.mat      -> <stem>_hr_RPCA_phase_avg.mat
-%       <stem>_particle_..._fields.mat     -> <stem>_particle_..._phase_avg.mat
-%   (.fields_file holds the real file). Legacy *_phase_avg.mat files are not
-%   listed.
+%   One entry per <stem>_<method>_fields.mat (column struct array):
+%     .label   selection label the GUIs list and pick cases by:
+%              <stem>              method bin
+%              <stem>_hr           bin_hr       (HR button)
+%              <stem>_RPCA         bin_RPCA     (RPCA button)
+%              <stem>_hr_RPCA      bin_hr_RPCA
+%              <stem>_<method>     particle methods, e.g. _particle_pool_hr20
+%              where <stem> = <case>[_<version>]
+%     .stem, .method
+%     .files   case struct (stb_file_paths): .shared, .fields, .integral
+%   A label is only a name for the selection; the files come from .files.
 
-    files = struct('name', {}, 'folder', {}, 'date', {}, 'bytes', {}, ...
-        'isdir', {}, 'datenum', {}, 'fields_file', {});
-    files = files(:);   % column, like dir
-    contents = dir(fullfile(char(phase_dir), "*_fields.mat"));
+    cases = struct('label', {}, 'stem', {}, 'method', {}, 'files', {});
+    cases = cases(:);
+    phase_dir = string(phase_dir);
+    save_root = fileparts(regexprep(char(phase_dir), '[\\/]+$', ''));   % ...\Processed Results
+    contents = dir(fullfile(phase_dir, "*_fields.mat"));
     for i = 1:numel(contents)
         name = string(contents(i).name);
         base = extractBefore(name, strlength(name) - strlength("_fields.mat") + 1);
@@ -32,12 +33,12 @@ function files = stb_list_phase_avg(phase_dir)
         if startsWith(method, "particle")
             suffix = "_" + method;
         else
-            suffix = erase(method, "bin");   % "", "_hr", "_RPCA", "_hr_RPCA"
+            suffix = extractAfter(method, "bin");   % "", "_hr", "_RPCA", "_hr_RPCA"
             if ~ismember(suffix, ["", "_hr", "_RPCA", "_hr_RPCA"]), continue; end
         end
-        e = contents(i);
-        e.name = char(stem + suffix + "_phase_avg.mat");
-        e.fields_file = fullfile(contents(i).folder, contents(i).name);
-        files(end+1, 1) = e; %#ok<AGROW>
+        P = stb_file_paths(save_root, stem, "", method);
+        P.kind = "phase";
+        cases(end+1, 1) = struct('label', stem + suffix, 'stem', stem, ...
+            'method', method, 'files', P); %#ok<AGROW>
     end
 end

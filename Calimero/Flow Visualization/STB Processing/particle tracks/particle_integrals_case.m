@@ -46,7 +46,7 @@ function method = particle_integrals_case(PIV_case_name, save_filepath_local, ve
     [~, Sf] = split_phase_avg_struct(S);
     clear S
     Sf.method = method;  Sf.version = string(version);
-    save_opts = struct('compress_save', false);
+    save_opts = struct('compress_save', isfield(p, 'compress_save') && p.compress_save);
     fprintf('Saving %s flow fields to %s\n', method, P.fields);
     save_STB_struct(P.fields, Sf, save_opts);
 
@@ -63,7 +63,7 @@ function method = particle_integrals_case(PIV_case_name, save_filepath_local, ve
     clear Sh
     legacy_version = particle_version_name(version, p);
     bools = struct('version', legacy_version, 'RPCA', false, 'turbine', false, ...
-                   'compress_save', false, 'stb_paths', P, 'legacy_files', p.legacy_files);
+                   'compress_save', save_opts.compress_save, 'stb_paths', P, 'legacy_files', p.legacy_files);
     if p.legacy_files
         legacy_file = fullfile(P.dir, string(PIV_case_name) + "_" + legacy_version + "_phase_avg.mat");
         fprintf('Saving legacy combined file %s\n', legacy_file);

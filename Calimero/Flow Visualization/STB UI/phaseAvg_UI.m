@@ -46,6 +46,7 @@ properties
     % read from that root's Force Measurements)
     data_roots;
     type_root_map;
+    phase_case_map;   % selection label -> case files (stb_file_paths struct)
 
     inds;
 
@@ -302,11 +303,17 @@ methods
         % names of the phase averaged files in every data root
         obj.available_selections = cell(0, 4);
         obj.type_root_map = containers.Map('KeyType', 'char', 'ValueType', 'char');
+        obj.phase_case_map = containers.Map('KeyType', 'char', 'ValueType', 'any');
         for r = 1:numel(obj.data_roots)
-            % new layout: <stem>_<method>_fields.mat (+ _shared, _integral),
-            % listed under GUI names <sel>_phase_avg.mat (see stb_resolve)
-            files = stb_list_phase_avg(obj.data_roots(r) + "Processed Results\phase_avg\");
-            root_selections = obj.get_phase_avg_selections_from_files(files);
+            % one case per <stem>_<method>_fields.mat (+ _shared, _integral);
+            % the first root holding a label wins
+            cases = stb_list_phase_avg(obj.data_roots(r) + "Processed Results\phase_avg\");
+            for k = 1:numel(cases)
+                if ~isKey(obj.phase_case_map, char(cases(k).label))
+                    obj.phase_case_map(char(cases(k).label)) = cases(k).files;
+                end
+            end
+            root_selections = obj.get_phase_avg_selections_from_labels(string({cases.label}));
             for k = 1:size(root_selections, 1)
                 key = char(string(root_selections{k, 1}));
                 if ~isKey(obj.type_root_map, key)
@@ -1104,18 +1111,18 @@ methods (Access = private)
         end
     end
 
-    function available_selections = get_phase_avg_selections_from_files(obj, files)
-        available_selections = cell(length(files), 4);
+    % labels: stb_list_phase_avg's selection labels
+    function available_selections = get_phase_avg_selections_from_labels(obj, labels)
+        labels = string(labels);
+        available_selections = cell(numel(labels), 4);
 
-        for i = 1:length(files)
-            name = string(files(i).name);
+        for i = 1:numel(labels)
+            name = labels(i);
 
-            % Skip body/ring cases and secondary files.
-            if ~contains(name, "Hz") || contains(name, "integral")
+            % Skip body/ring cases
+            if ~contains(name, "Hz")
                 continue
             end
-
-            name = erase(name, ["_time_avg.mat", "_phase_avg.mat"]);
             [base_name, version] = obj.extract_file_version(name);
             [amp, type, freq] = parse_name(base_name);
 
@@ -1595,26 +1602,14 @@ methods (Access = private)
         end
     end
 
-    % Path (without .mat) to a case's phase averaged file. RPCA cases are
-    % looked for in phase_avg\ first, then in the phase_avg\RPCA\ subfolder.
-    % Either way the file must be named *_RPCA_phase_avg.mat.
-    % With several data roots, the first root holding the case is used.
-    function file_base = get_phase_avg_file_base(obj, cur_sel)
-        cur_sel = string(cur_sel);
-        for r = 1:numel(obj.data_roots)
-            phase_dir = obj.data_roots(r) + "Processed Results\phase_avg\";
-            candidates = phase_dir + cur_sel + "_phase_avg";
-            if endsWith(cur_sel, "_RPCA")
-                candidates(end+1) = phase_dir + "RPCA\" + cur_sel + "_phase_avg"; %#ok<AGROW>
-            end
-            for c = candidates
-                if stb_isfile(c + ".mat") || stb_isfile(c + "_integral.mat")
-                    file_base = c;
-                    return
-                end
-            end
+    % Files of the selected phase-averaged case (stb_file_paths struct:
+    % .shared, .fields, .integral), from the cases found at start-up
+    function case_files = get_phase_avg_case(obj, cur_sel)
+        key = char(string(cur_sel));
+        if ~isKey(obj.phase_case_map, key)
+            error("No phase-averaged files for %s (expected <case>[_<version>]_<method>_fields.mat in Processed Results\\phase_avg\\).", key)
         end
-        file_base = obj.PIV_path + "phase_avg\" + cur_sel + "_phase_avg";
+        case_files = obj.phase_case_map(key);
     end
 
     % True if a .mat file holds the variable (for "a.b" names, the struct a)
@@ -1627,10 +1622,10 @@ methods (Access = private)
     % fitted curve (phase_avg_STB marks them in hr.before_std_type).
     % Older HR files hold the scatter about the bin means: noted in the
     % Command Window (reprocess for the residual band).
-    function tf = has_hr_residual_std(obj, file_path, cur_sel)
+    function tf = has_hr_residual_std(obj, case_files, cur_sel)
         tf = false;
-        if obj.file_has_var(file_path, "hr")
-            d = stb_load(file_path, "hr");
+        if obj.file_has_var(case_files, "hr")
+            d = stb_load(case_files, "hr");
             tf = isfield(d.hr, 'before_std_type') && string(d.hr.before_std_type) == "residual";
         end
         if ~tf
@@ -1639,10 +1634,10 @@ methods (Access = private)
         end
     end
 
-    function var_std = get_ba_force_std(obj, file_path, var_name, n, cur_sel)
+    function var_std = get_ba_force_std(obj, case_files, var_name, n, cur_sel)
         var_std = [];
         std_name = replace(string(var_name), "_before_avg", "_before_std");
-        if ~obj.file_has_var(file_path, std_name)
+        if ~obj.file_has_var(case_files, std_name)
             disp("No BA SD (" + std_name + ") saved for " + cur_sel + ...
                 " - reprocess with phase_avg_STB for a band")
             return
@@ -1651,7 +1646,7 @@ methods (Access = private)
         if contains(std_name, ".")
             top_name = extractBefore(std_name, ".");
         end
-        d = stb_load(file_path, top_name);
+        d = stb_load(case_files, top_name);
         var_std = eval("d." + std_name);
         if numel(var_std) ~= n
             var_std = [];
@@ -1668,9 +1663,9 @@ methods (Access = private)
     % Planar average of a phase-averaged velocity gradient over the
     % trimmed plane, as calc_secondary_vals_common saves it (for files
     % processed before all nine were saved)
-    function var = get_gradient_planar_avg(~, file_path, var_name)
+    function var = get_gradient_planar_avg(~, case_files, var_name)
         field = erase(string(var_name), "_avg") + "_phase_avg";
-        d = stb_load(file_path, "y", "z", field);
+        d = stb_load(case_files, "y", "z", field);
         [~, ~, T] = trim_vel_field(d.y, d.z, d.(field), default_trim_bounds());
         var = squeeze(mean(T, [1, 2]));
     end
@@ -1687,19 +1682,19 @@ methods (Access = private)
         end
     end
 
-    function tf = can_compute_transport_term(obj, file_path, var_name)
+    function tf = can_compute_transport_term(obj, case_files, var_name)
         [vort, grad] = obj.transport_term_fields(var_name);
-        tf = strlength(vort) > 0 && obj.file_has_var(file_path, vort) && ...
-            obj.file_has_var(file_path, grad);
+        tf = strlength(vort) > 0 && obj.file_has_var(case_files, vort) && ...
+            obj.file_has_var(case_files, grad);
     end
 
     % Planar integral of omega_j du_i/dx_j over the trimmed plane, as
     % calc_secondary_vals_common saves it (for files whose _integral file
     % predates the term). Same trimming (trim_vel_field) and trapz
     % integration as the saved values.
-    function var = get_transport_term(obj, file_path, var_name)
+    function var = get_transport_term(obj, case_files, var_name)
         [vort, grad] = obj.transport_term_fields(var_name);
-        d = stb_load(file_path, "y", "z", vort, grad);
+        d = stb_load(case_files, "y", "z", vort, grad);
         bounds = default_trim_bounds();
         [y_tr, z_tr, W] = trim_vel_field(d.y, d.z, d.(vort), bounds);
         [~, ~, G] = trim_vel_field(d.y, d.z, d.(grad), bounds);
@@ -1715,31 +1710,31 @@ methods (Access = private)
     % drag_ff.*, the planar averages *_ff_avg and the divergence check
     % div_slab_* / div_ff_*, computed from the main file for cases whose
     % _integral file predates them
-    function tf = can_compute_frozen_var(obj, file_path, var_name)
+    function tf = can_compute_frozen_var(obj, case_files, var_name)
         var_name = string(var_name);
         is_div = ismember(var_name, ["div_slab_avg", "div_ff_avg", "div_slab_rms", "div_ff_rms"]);
         is_ff = startsWith(var_name, ["lift_ff.", "drag_ff."]) || endsWith(var_name, "_ff_avg") || is_div;
-        tf = is_ff && obj.file_has_var(file_path, "dvdx_phase_avg") && ...
-            obj.file_has_var(file_path, "dwdx_phase_avg");
+        tf = is_ff && obj.file_has_var(case_files, "dvdx_phase_avg") && ...
+            obj.file_has_var(case_files, "dwdx_phase_avg");
         if tf && (endsWith(var_name, "_ff_avg") || is_div)
-            tf = obj.file_has_var(file_path, "dudx_phase_avg");
+            tf = obj.file_has_var(case_files, "dudx_phase_avg");
         end
         if tf && is_div
-            tf = obj.file_has_var(file_path, "dvdy_phase_avg") && ...
-                obj.file_has_var(file_path, "dwdz_phase_avg");
+            tf = obj.file_has_var(case_files, "dvdy_phase_avg") && ...
+                obj.file_has_var(case_files, "dwdz_phase_avg");
         end
     end
 
     % Returns a struct d1 with d1.<var_name> (dotted names nested), as
     % loaded from the _integral file. Same trimming and steps as
     % calc_secondary_vals_common.
-    function d1 = get_frozen_var(~, file_path, case_name, var_name)
+    function d1 = get_frozen_var(~, case_files, case_name, var_name)
         var_name = string(var_name);
         d1 = struct();
         if startsWith(var_name, "div_")
             % div_<slab|ff>_<avg|rms>
             parts = split(var_name, "_");
-            R = get_frozen_flow_fields(file_path, case_name, default_trim_bounds());
+            R = get_frozen_flow_fields(case_files, case_name, default_trim_bounds());
             div = R.(parts(2)).div;
             if parts(3) == "avg"
                 d1.(var_name) = squeeze(mean(div, [1, 2]));
@@ -1748,21 +1743,17 @@ methods (Access = private)
             end
         elseif endsWith(var_name, "_ff_avg")
             q = erase(extractBefore(var_name, "_ff_avg"), "_");
-            R = get_frozen_flow_fields(file_path, case_name, default_trim_bounds());
+            R = get_frozen_flow_fields(case_files, case_name, default_trim_bounds());
             d1.(var_name) = squeeze(mean(R.ff.(q), [1, 2]));
         else
-            val = get_PIV_force(file_path, case_name, var_name, 1, false, default_trim_bounds());
+            val = get_PIV_force(case_files, case_name, var_name, 1, false, default_trim_bounds());
             parts = split(var_name, ".");
             d1.(parts(1)).(parts(2)) = val;
         end
     end
 
-    function tf = file_has_var(~, file, var_name)
-        var_name = string(var_name);
-        if contains(var_name, ".")
-            var_name = extractBefore(var_name, ".");
-        end
-        tf = stb_isfile(file) && ismember(char(var_name), stb_who(file));
+    function tf = file_has_var(~, src, var_name)
+        tf = stb_has_var(src, var_name);
     end
 
     % Load cell folder for a wing type: Force Measurements of the data root
@@ -2414,9 +2405,7 @@ methods (Access = private)
                 continue
             end
 
-            file_base = obj.get_phase_avg_file_base(cur_sel);
-            file_path = file_base + ".mat";
-            secondary_file_path = file_base + "_integral.mat";
+            case_files = obj.get_phase_avg_case(cur_sel);
 
             var_name = obj.active_names(index);
             % frame-to-frame SD within each bin, BA forces only
@@ -2430,66 +2419,62 @@ methods (Access = private)
                 avg_type = 1;
                 norm_bool = false;
                 % Compute forces from flow field live
-                [var, err] = get_PIV_force(file_path, cur_sel, var_name, avg_type, norm_bool, default_trim_bounds());
+                [var, err] = get_PIV_force(case_files, cur_sel, var_name, avg_type, norm_bool, default_trim_bounds());
             else
                 % skip cases whose processed file doesn't hold the variable
                 % (e.g. old flapper cases processed with older code)
-                if is_ba_var
-                    stored_file = file_path;
-                else
-                    stored_file = secondary_file_path;
-                end
+                stored_file = case_files;
                 % velocity gradient planar averages not in the _integral
                 % file (older processing): computed from the main file
                 live_grad = ~obj.file_has_var(stored_file, var_name) && ...
                     obj.is_gradient_var(var_name) && ...
-                    obj.file_has_var(file_path, erase(var_name, "_avg") + "_phase_avg");
+                    obj.file_has_var(case_files, erase(var_name, "_avg") + "_phase_avg");
                 % same for the vorticity transport terms (e.g. wy_stretch)
                 live_transport = ~obj.file_has_var(stored_file, var_name) && ...
-                    obj.can_compute_transport_term(file_path, var_name);
+                    obj.can_compute_transport_term(case_files, var_name);
                 % and the frozen-flow forces / planar averages (lift_ff,
                 % drag_ff, *_ff_avg)
                 live_ff = ~obj.file_has_var(stored_file, var_name) && ...
-                    obj.can_compute_frozen_var(file_path, var_name);
+                    obj.can_compute_frozen_var(case_files, var_name);
                 % Q_x centroid not in the _integral file (older
                 % processing): computed from the saved Q_x
                 live_qx = ~obj.file_has_var(stored_file, var_name) && ...
                     ismember(var_name, ["Qxcomp_y", "Qxcomp_z"]) && ...
-                    obj.file_has_var(secondary_file_path, "Qx");
+                    obj.file_has_var(case_files, "Qx");
                 if ~live_grad && ~live_transport && ~live_ff && ~live_qx && ~obj.file_has_var(stored_file, var_name)
                     disp(var_name + " not saved for " + cur_sel + " (older processing) - not plotted")
                     continue
                 end
                 vars = {"L","U"};
-                d2 = stb_load(file_path, vars{:});
+                d2 = stb_load(case_files, vars{:});
                 if is_ba_var
                     if contains(var_name, ".")
                         abbrv_name = extractBefore(var_name, ".");
-                        d2 = stb_load(file_path, abbrv_name);
+                        d2 = stb_load(case_files, abbrv_name);
                     else
-                        d2 = stb_load(file_path, var_name);
+                        d2 = stb_load(case_files, var_name);
                     end
                     var = eval("d2." + var_name);
                     if obj.std_band
-                        var_std = obj.get_ba_force_std(file_path, var_name, numel(var), cur_sel);
+                        var_std = obj.get_ba_force_std(case_files, var_name, numel(var), cur_sel);
                         if obj.is_HR_selection(cur_sel)
-                            obj.has_hr_residual_std(file_path, cur_sel); % note if it's the older bin SD
+                            obj.has_hr_residual_std(case_files, cur_sel); % note if it's the older bin SD
                         end
                     end
                 else
                 if live_grad
-                    d1 = struct(char(var_name), obj.get_gradient_planar_avg(file_path, var_name));
+                    d1 = struct(char(var_name), obj.get_gradient_planar_avg(case_files, var_name));
                 elseif live_transport
-                    d1 = struct(char(var_name), obj.get_transport_term(file_path, var_name));
+                    d1 = struct(char(var_name), obj.get_transport_term(case_files, var_name));
                 elseif live_ff
-                    d1 = obj.get_frozen_var(file_path, cur_sel, var_name);
+                    d1 = obj.get_frozen_var(case_files, cur_sel, var_name);
                 elseif live_qx
-                    d1 = struct(char(var_name), get_Q_centroid(file_path, secondary_file_path, var_name, default_trim_bounds()));
+                    d1 = struct(char(var_name), get_Q_centroid(case_files, case_files, var_name, default_trim_bounds()));
                 elseif contains(var_name, ".")
                     abbrv_name = extractBefore(var_name, ".");
-                    d1 = stb_load(secondary_file_path, abbrv_name);
+                    d1 = stb_load(case_files, abbrv_name);
                 else
-                    d1 = stb_load(secondary_file_path, var_name);
+                    d1 = stb_load(case_files, var_name);
                 end
 
                 var = eval("d1." + var_name);
@@ -2504,7 +2489,7 @@ methods (Access = private)
                 % omega_x centroid: drop bins where the net omega_x is
                 % near zero (ratio blows up there); shows as gaps
                 if ismember(var_name, ["wx_y", "wx_z"])
-                    dv = stb_load(secondary_file_path, "vortX_avg");
+                    dv = stb_load(case_files, "vortX_avg");
                     var = mask_vortex_centroid(var, dv.vortX_avg, cur_sel);
                 end
             end
@@ -2513,16 +2498,16 @@ methods (Access = private)
             % the scatter of the per-frame force about its fit
             if obj.std_band && isempty(var_std) && obj.is_HR_selection(cur_sel) && ...
                     index <= length(obj.force_var_types) && ismember(var_name, obj.HR_BAND_FORCE_NAMES)
-                if obj.has_hr_residual_std(file_path, cur_sel)
+                if obj.has_hr_residual_std(case_files, cur_sel)
                     ba_name = regexprep(var_name, '\.', '_before_avg.', 'once');
-                    var_std = obj.get_ba_force_std(file_path, ba_name, numel(var), cur_sel);
+                    var_std = obj.get_ba_force_std(case_files, ba_name, numel(var), cur_sel);
                 end
             end
             
             % vars_kin = {"phase_avg_pos", "phase_avg_speed", "phase_avg_acc"};
             vars_kin = {"phase_avg_speed", "phase_avg_wing_pos",...
                 "phase_avg_wing_speed", "phase_avg_wing_acc", "u_avg"};
-            kin = stb_load(secondary_file_path, vars_kin{:});
+            kin = stb_load(case_files, vars_kin{:});
             phase_avg_speed = kin.phase_avg_speed;
             phase_avg_wing_pos = kin.phase_avg_wing_pos;
             phase_avg_wing_speed = kin.phase_avg_wing_speed;
@@ -2588,8 +2573,8 @@ methods (Access = private)
             % bin_placement in % of a bin width) for imaging-plane curves;
             % zeros = nominal, evenly spaced bins. Shifted with var below.
             placement_pct = zeros(size(var));
-            if obj.is_imaging_plane_index(index) && ismember('bin_placement', stb_who(file_path))
-                pp = stb_load(file_path, 'bin_placement');
+            if obj.is_imaging_plane_index(index) && ismember('bin_placement', stb_who(case_files))
+                pp = stb_load(case_files, 'bin_placement');
                 if numel(pp.bin_placement) == numel(var)
                     placement_pct = reshape(double(pp.bin_placement), size(var));
                     placement_pct(~isfinite(placement_pct)) = 0;
@@ -2803,9 +2788,8 @@ methods (Access = private)
         for i = 1:length(obj.selection)
             cur_sel = obj.selection(i);
             [amp, type, freq] = parse_name(cur_sel);
-            secondary_file_path = obj.get_phase_avg_file_base(cur_sel) + "_integral.mat";
             try
-                d = stb_load(secondary_file_path, "phase_avg_wing_pos");
+                d = stb_load(obj.get_phase_avg_case(cur_sel), "phase_avg_wing_pos");
                 wing_pos = d.phase_avg_wing_pos(:)';
             catch
                 disp("No wing position for " + cur_sel + ", stroke not labeled from it")

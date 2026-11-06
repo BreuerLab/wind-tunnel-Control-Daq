@@ -82,6 +82,7 @@ switch avg_type
                 bools.particle.binned_method = binned_method_name(bools);   % uncertainty mask from this run
             end
             if isfield(bools, 'legacy_files'), bools.particle.legacy_files = bools.legacy_files; end
+            if isfield(bools, 'compress_save'), bools.particle.compress_save = bools.compress_save; end
             version = "";
             if isfield(bools, 'version'), version = string(bools.version); end
             particle_process_case(PIV_case_name, save_filepath_local, version, bools.particle);

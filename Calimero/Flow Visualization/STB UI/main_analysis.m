@@ -37,7 +37,7 @@ c.dynamic_plotting();
 % Diagnostic recommendations from Claude
 
 % case_name = "x3_wings_20deg_6Hz";
-% file = data_file_path + "Processed Results\phase_avg\" + case_name + "_phase_avg.mat";
+% file = stb_file_paths(data_file_path + "Processed Results", case_name, "", "bin");   % or "particle_pool_hr20"
 % o.taper = 0.75;   % taper width in chords
 % B = wake_lift_budget(file, case_name, default_trim_bounds(), o);
 

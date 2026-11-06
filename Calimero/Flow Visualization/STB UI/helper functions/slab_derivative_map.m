@@ -5,7 +5,8 @@ function M = slab_derivative_map(file_path, bounds)
 %   M = slab_derivative_map(file_path)
 %   M = slab_derivative_map(file_path, bounds)
 %
-%   file_path  the *_phase_avg.mat file (same one wake_lift_budget uses)
+%   file_path  the case: stb_file_paths struct (or a .mat path), e.g. from
+%              stb_list_phase_avg (same one wake_lift_budget uses)
 %   bounds     trim bounds (default: default_trim_bounds())
 %
 %   Plots, on the centre plane:

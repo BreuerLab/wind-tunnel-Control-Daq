@@ -49,6 +49,7 @@ classdef timeAvg_UI < handle
         % data is read from that root's Force Measurements)
         data_roots;
         type_root_map;
+        phase_case_map;   % selection label -> case files (stb_file_paths struct)
         source_modes; % data sets present, new flapper first
         source_mode;  % data set the case dropdowns list
 
@@ -334,13 +335,19 @@ classdef timeAvg_UI < handle
             obj.available_selections = cell(0, 3);
             obj.plain_steady_types = strings(0, 1);
             obj.type_root_map = containers.Map('KeyType', 'char', 'ValueType', 'char');
+            obj.phase_case_map = containers.Map('KeyType', 'char', 'ValueType', 'any');
             for r = 1:numel(obj.data_roots)
                 phase_dir = obj.data_roots(r) + "Processed Results\phase_avg\";
                 time_dir = obj.data_roots(r) + "Processed Results\time_avg\";
-                % new layout: <stem>_<method>_fields.mat, listed under GUI
-                % names <sel>_phase_avg.mat (see stb_resolve)
-                files = stb_list_phase_avg(phase_dir);
-                files = rmfield(files, 'fields_file');
+                % phase averages: one case per <stem>_<method>_fields.mat
+                % (+ _shared, _integral), found by its label
+                cases = stb_list_phase_avg(phase_dir);
+                for k = 1:numel(cases)
+                    if ~isKey(obj.phase_case_map, char(cases(k).label))
+                        obj.phase_case_map(char(cases(k).label)) = cases(k).files;
+                    end
+                end
+                files = struct('name', cellstr(string({cases.label})'));
                 contents_t = [];
                 if isfolder(time_dir)
                     contents_t = dir(time_dir);
@@ -348,7 +355,8 @@ classdef timeAvg_UI < handle
                     % 0 Hz cases named like the flapping ones (plain-named
                     % steady cases are added below)
                     is_zero_hz = ~cellfun(@isempty, regexp({contents_t.name}, '_0Hz_time_avg\.mat$', 'once'));
-                    files = [files; contents_t(is_zero_hz)]; %#ok<AGROW>
+                    zero_hz = contents_t(is_zero_hz);
+                    files = [files; struct('name', {zero_hz.name}')]; %#ok<AGROW>
                 end
 
                 % Get amps, freqs, types from file names
@@ -390,7 +398,7 @@ classdef timeAvg_UI < handle
             end
 
             if isempty(obj.available_selections)
-                error("No STB files found in Processed Results of %s. Expected *_phase_avg.mat or *_time_avg.mat files.", strjoin(obj.data_roots, ", "))
+                error("No STB files found in Processed Results of %s. Expected *_<method>_fields.mat or *_time_avg.mat files.", strjoin(obj.data_roots, ", "))
             end
 
             % full frequency range to start (0 to 8 Hz for the current data)
@@ -2081,13 +2089,12 @@ classdef timeAvg_UI < handle
             points.lc_only = [points.lc_only, true(1, n)];
         end
 
-        function U = get_nominal_speed(~, filepath)
+        function U = get_nominal_speed(~, case_files)
             % nominal freestream speed the STB "pitot U" (U_act) is
-            % normalised by; 4 m/s unless the case file says otherwise
+            % normalised by; 4 m/s unless the case's files say otherwise
             U = 4;
-            if strlength(filepath) > 0 && stb_isfile(filepath) &&...
-                    ismember('U', stb_who(filepath))
-                d = stb_load(filepath, "U");
+            if stb_has_var(case_files, "U")
+                d = stb_load(case_files, "U");
                 U = d.U;
             end
         end
@@ -2232,9 +2239,7 @@ classdef timeAvg_UI < handle
                     else
                         suffix = "_phase_avg";
                     end
-                    file_base = obj.get_case_file_base(name, suffix);
-                    filepath = file_base + ".mat";
-                    secondary_filepath = file_base + "_integral.mat";
+                    case_files = obj.get_case(name, suffix);
 
                     if freq == 0
                         avg_type = 0;
@@ -2242,8 +2247,8 @@ classdef timeAvg_UI < handle
                         errs(j) = 0;
                     else
                         avg_type = 1;
-                        d = stb_load(filepath, "U", "L", "U_act", "rho_act");
-                        F = stb_load(secondary_filepath, "freq_avg");
+                        d = stb_load(case_files, "U", "L", "U_act", "rho_act", "freq_avg");
+                        F = d;
                         measured_freqs(j) = mean(F.freq_avg);
                         wind_speed = d.U;
                         density = d.rho_act;
@@ -2254,22 +2259,22 @@ classdef timeAvg_UI < handle
 
                     if obj.is_load_cell_var(force_var)
                         var = obj.get_load_cell_signal(force_var, type, amp, freq, false);
-                    elseif obj.is_live_Q_centroid(force_var, secondary_filepath)
+                    elseif obj.is_live_Q_centroid(force_var, case_files)
                         % Q / Q_x centroid with the Live Calc bounds and
                         % uncertainty mask (get_Q_centroid)
-                        var = get_Q_centroid(filepath, secondary_filepath, force_var, obj.get_Q_centroid_bounds());
+                        var = get_Q_centroid(case_files, case_files, force_var, obj.get_Q_centroid_bounds());
                         if obj.PIV_sub
-                            [bod_filepath, bod_secondary_filepath] = obj.get_PIV_sub_file_paths(type, amp);
-                            var = var - get_Q_centroid(bod_filepath, bod_secondary_filepath, force_var, obj.get_Q_centroid_bounds());
+                            bod_case = obj.get_PIV_sub_case(type, amp);
+                            var = var - get_Q_centroid(bod_case, bod_case, force_var, obj.get_Q_centroid_bounds());
                         end
                     elseif (obj.calc_bool && obj.is_piv_force_variable(force_var)) || obj.is_tavg_force_var(force_var) ||...
-                            obj.needs_live_ff(force_var, secondary_filepath)
-                        [var, err] = get_PIV_force(filepath, name, force_var, avg_type, obj.y_norm, obj.trim_bounds);
+                            obj.needs_live_ff(force_var, case_files)
+                        [var, err] = get_PIV_force(case_files, name, force_var, avg_type, obj.y_norm, obj.trim_bounds);
                         is_live = true;
 
                         if obj.PIV_sub
-                            [bod_filepath, ~] = obj.get_PIV_sub_file_paths(type, amp);
-                            [bod_var, ~] = get_PIV_force(bod_filepath, "", force_var, 0, obj.y_norm, obj.trim_bounds);
+                            bod_case = obj.get_PIV_sub_case(type, amp);
+                            [bod_var, ~] = get_PIV_force(bod_case, "", force_var, 0, obj.y_norm, obj.trim_bounds);
                             var = var - bod_var;
                         end
                     else
@@ -2277,12 +2282,7 @@ classdef timeAvg_UI < handle
                         % lift.vortY for a 0 Hz mean flow field) are
                         % replaced with zero
                         % look in the expected file first, then the other
-                        if contains(force_var, ".")
-                            var_files = [secondary_filepath, filepath];
-                        else
-                            var_file = obj.get_stored_var_file(force_var, filepath, secondary_filepath);
-                            var_files = [var_file, setdiff([filepath, secondary_filepath], var_file)];
-                        end
+                        var_files = obj.get_stored_var_files(force_var, case_files);
                         var = obj.load_stored_var(var_files, force_var);
 
                         % omega_x centroid: drop bins where the net
@@ -2296,8 +2296,8 @@ classdef timeAvg_UI < handle
                         % var = var * (1/2) * density * wind_speed^3 * area;
 
                         if obj.PIV_sub
-                            [bod_filepath, bod_secondary_filepath] = obj.get_PIV_sub_file_paths(type, amp);
-                            bod_var = obj.load_stored_var([bod_secondary_filepath, bod_filepath], force_var);
+                            bod_case = obj.get_PIV_sub_case(type, amp);
+                            bod_var = obj.load_stored_var(stb_case_files(bod_case, "integral"), force_var);
                             var = var - bod_var;
                         end
                     end
@@ -2308,17 +2308,17 @@ classdef timeAvg_UI < handle
                     % Error bar: standard error of the plotted mean (random
                     % uncertainty only; see get_mean_se)
                     if ~obj.is_load_cell_var(force_var)
-                        se = obj.get_mean_se(force_var, filepath, secondary_filepath, freq, name);
+                        se = obj.get_mean_se(force_var, case_files, freq, name);
                         if is_live && obj.y_norm
-                            se = se / obj.get_force_norm_factor(filepath, freq);
+                            se = se / obj.get_force_norm_factor(case_files, freq);
                         end
                         if obj.PIV_sub && se > 0
                             % difference of two independent means: their
                             % variances add
-                            [bod_filepath, bod_secondary_filepath] = obj.get_PIV_sub_file_paths(type, amp);
-                            bod_se = obj.get_mean_se(force_var, bod_filepath, bod_secondary_filepath, 0, "PIV sub case");
+                            bod_case = obj.get_PIV_sub_case(type, amp);
+                            bod_se = obj.get_mean_se(force_var, bod_case, 0, "PIV sub case");
                             if is_live && obj.y_norm
-                                bod_se = bod_se / obj.get_force_norm_factor(bod_filepath, 0);
+                                bod_se = bod_se / obj.get_force_norm_factor(bod_case, 0);
                             end
                             se = hypot(se, bod_se);
                         end
@@ -2343,7 +2343,7 @@ classdef timeAvg_UI < handle
                         amp = points.amps(k);
                         freq = points.freqs(k);
                         name = obj.get_case_name(type, amp, freq);
-                        d = stb_load(obj.get_case_file_base(name, "_phase_avg") + ".mat", "U", "U_act");
+                        d = stb_load(obj.get_case(name, "_phase_avg"), "U", "U_act");
                         wind_speed_acts(k) = d.U_act * d.U;
                     end
                 end
@@ -2669,12 +2669,10 @@ classdef timeAvg_UI < handle
             name = obj.get_case_name(type, amp, freq);
             name = obj.add_variant_suffix(name, HR, RPCA);
             suffix = "_phase_avg";
-            file_base = obj.get_case_file_base(name, suffix);
-            filepath = file_base + ".mat";
-            secondary_filepath = file_base + "_integral.mat";
+            case_files = obj.get_case(name, suffix);
 
-            d = stb_load(filepath, "U", "U_act");
-            F = stb_load(secondary_filepath, "freq_avg");
+            d = stb_load(case_files, "U", "U_act", "freq_avg");
+            F = d;
             measured_freq = mean(F.freq_avg);
             wind_speed_act = d.U_act * d.U;
 
@@ -2683,18 +2681,13 @@ classdef timeAvg_UI < handle
                 var = obj.get_load_cell_signal(force_var, type, amp, freq, true);
                 var = double(var(:)');
                 return
-            elseif obj.is_live_Q_centroid(force_var, secondary_filepath)
-                var = get_Q_centroid(filepath, secondary_filepath, force_var, obj.get_Q_centroid_bounds());
+            elseif obj.is_live_Q_centroid(force_var, case_files)
+                var = get_Q_centroid(case_files, case_files, force_var, obj.get_Q_centroid_bounds());
             elseif (obj.calc_bool && obj.is_piv_force_variable(force_var)) || obj.is_tavg_force_var(force_var) ||...
-                    obj.needs_live_ff(force_var, secondary_filepath)
-                var = get_PIV_force(filepath, name, force_var, 1, obj.y_norm, obj.trim_bounds);
+                    obj.needs_live_ff(force_var, case_files)
+                var = get_PIV_force(case_files, name, force_var, 1, obj.y_norm, obj.trim_bounds);
             else
-                if contains(force_var, ".")
-                    var_files = [secondary_filepath, filepath];
-                else
-                    var_file = obj.get_stored_var_file(force_var, filepath, secondary_filepath);
-                    var_files = [var_file, setdiff([filepath, secondary_filepath], var_file)];
-                end
+                var_files = obj.get_stored_var_files(force_var, case_files);
                 var = obj.load_stored_var(var_files, force_var);
                 if ismember(force_var, ["wx_y", "wx_z"])
                     vortX_avg = obj.load_stored_var(var_files, "vortX_avg");
@@ -2831,7 +2824,7 @@ classdef timeAvg_UI < handle
                 else
                     suffix = "_phase_avg";
                 end
-                signal = signal / obj.get_nominal_speed(obj.get_case_file_base(name, suffix) + ".mat");
+                signal = signal / obj.get_nominal_speed(obj.get_case(name, suffix));
             end
 
             if obj.force_sub && ismember(quantity, ["drag", "lift", "pitch"])
@@ -2994,14 +2987,13 @@ classdef timeAvg_UI < handle
         % with Live Calculate on, recomputed from the saved Q / Q_x with the
         % Live Calc bounds and uncertainty mask. Also computed (default
         % bounds) when the _integral file predates the variable.
-        function tf = is_live_Q_centroid(obj, force_var, secondary_filepath)
+        function tf = is_live_Q_centroid(obj, force_var, case_files)
             force_var = string(force_var);
             tf = false;
             if ~ismember(force_var, ["Qx_y", "Qx_z", "Qxcomp_y", "Qxcomp_z"])
                 return
             end
-            tf = obj.calc_bool || ~stb_isfile(secondary_filepath) ||...
-                ~ismember(force_var, string(stb_who(secondary_filepath)));
+            tf = obj.calc_bool || ~stb_has_var(case_files, force_var);
         end
 
         function bounds = get_Q_centroid_bounds(obj)
@@ -3029,45 +3021,47 @@ classdef timeAvg_UI < handle
 
         % Frozen-flow forces (lift_ff.*) of a file processed before they
         % were saved: calculated live by get_PIV_force instead
-        function tf = needs_live_ff(~, force_var, secondary_filepath)
+        function tf = needs_live_ff(~, force_var, case_files)
             tf = startsWith(string(force_var), ["lift_ff.", "drag_ff."]) && ...
-                (~stb_isfile(secondary_filepath) || ...
-                 ~ismember('lift_ff', stb_who(secondary_filepath)));
+                ~stb_has_var(case_files, "lift_ff");
         end
 
-        % Path (without .mat) to a case's file. RPCA cases not found in
-        % phase_avg\ or time_avg\ are looked for in the phase_avg\RPCA\
-        % subfolder. Either way the file name must contain _RPCA.
-        function file_base = get_case_file_base(obj, name, suffix)
+        % Files of a case (struct for stb_load / stb_who): a phase average
+        % (suffix "_phase_avg", found by its selection label among the
+        % <stem>_<method>_fields.mat files) or a time average ("_time_avg",
+        % <case>_time_avg.mat + _integral.mat)
+        function case_files = get_case(obj, name, suffix)
             name = string(name);
-            file_base = obj.get_case_dir(name, suffix) + name + suffix;
-            if stb_isfile(file_base + ".mat") || stb_isfile(file_base + "_integral.mat") || ~endsWith(name, "_RPCA")
+            if string(suffix) == "_phase_avg"
+                if ~isKey(obj.phase_case_map, char(name))
+                    error("timeAvg_UI:caseNotFound", "No phase-averaged files for %s (expected <case>[_<version>]_<method>_fields.mat in Processed Results\\phase_avg\\).", name)
+                end
+                case_files = obj.phase_case_map(char(name));
                 return
             end
+            % time averages: time_avg\ (or, older, next to the phase
+            % averages), first data root holding the case
+            case_dir = obj.data_roots(1) + "Processed Results\time_avg\";
             for r = 1:numel(obj.data_roots)
-                rpca_base = obj.data_roots(r) + "Processed Results\phase_avg\RPCA\" + name + suffix;
-                if stb_isfile(rpca_base + ".mat") || stb_isfile(rpca_base + "_integral.mat")
-                    file_base = rpca_base;
-                    return
-                end
-            end
-        end
-
-        function case_dir = get_case_dir(obj, name, suffix)
-            % Folder holding a case: phase_avg\ first, then time_avg\
-            % (where the 0 Hz mean flow field cases are saved), in each
-            % data root in turn (first match wins). Defaults to the primary
-            % root's phase_avg\.
-            case_dir = obj.PIV_path;
-            for r = 1:numel(obj.data_roots)
-                for d = [obj.data_roots(r) + "Processed Results\phase_avg\",...
-                         obj.data_roots(r) + "Processed Results\time_avg\"]
-                    if stb_isfile(d + name + suffix + ".mat") || stb_isfile(d + name + suffix + "_integral.mat")
+                found = false;
+                for d = [obj.data_roots(r) + "Processed Results\time_avg\",...
+                         obj.data_roots(r) + "Processed Results\phase_avg\"]
+                    if isfile(d + name + suffix + ".mat") || isfile(d + name + suffix + "_integral.mat")
                         case_dir = d;
-                        return
+                        found = true;
+                        break
                     end
                 end
+                if found, break; end
             end
+            case_files = stb_time_avg_case(case_dir + name + suffix);
+        end
+
+        % Files of the PIV subtraction case (time average, see
+        % get_PIV_sub_file_paths) as a case struct
+        function case_files = get_PIV_sub_case(obj, type, amp)
+            [file_path, ~] = obj.get_PIV_sub_file_paths(type, amp);
+            case_files = stb_time_avg_case(extractBefore(file_path, strlength(file_path) - strlength(".mat") + 1));
         end
 
         % Load cell folder for a wing type: Force Measurements of the data
@@ -3105,13 +3099,15 @@ classdef timeAvg_UI < handle
             end
         end
 
-        function file = get_stored_var_file(~, force_var, filepath, secondary_filepath)
-            % a few variables are stored in the main file, the rest in
-            % the secondary (integral) file
-            if ismember(force_var, ["U_act", "rho_act", "num_bins","num_clusters","phase_spread_ratio"])
-                file = filepath;
+        function files = get_stored_var_files(~, force_var, case_files)
+            % a case's files in the order to look for a stored variable: a
+            % few (not nested) are kept with the flow fields / shared data,
+            % the rest in the integral file
+            if ~contains(force_var, ".") && ...
+                    ismember(force_var, ["U_act", "rho_act", "num_bins","num_clusters","phase_spread_ratio"])
+                files = stb_case_files(case_files);
             else
-                file = secondary_filepath;
+                files = stb_case_files(case_files, "integral");
             end
         end
 
@@ -3121,7 +3117,7 @@ classdef timeAvg_UI < handle
             % file and its _integral file hold different variables). If
             % none of them define it for this case, return 0 and say so.
             requested = string(files);
-            files = requested(stb_isfile(requested));
+            files = requested(isfile(requested));
             if isempty(files)
                 error("timeAvg_UI:fileNotFound", "None of these files were found:\n  %s",...
                     strjoin(requested, "\n  "));
@@ -3390,7 +3386,7 @@ classdef timeAvg_UI < handle
                     file_path = search_dirs(m) + case_names(k) + "_time_avg.mat";
                     secondary_file_path = search_dirs(m) + case_names(k) + "_time_avg_integral.mat";
                     tried(end+1) = file_path; %#ok<AGROW>
-                    if stb_isfile(file_path) || stb_isfile(secondary_file_path)
+                    if isfile(file_path) || isfile(secondary_file_path)
                         return
                     end
                 end
@@ -3424,7 +3420,7 @@ classdef timeAvg_UI < handle
         % random error. Forces with no BA version ((u avg), vortY, edge /
         % taper, extrapolated) and other flow variables get no bar. Only
         % for the "mean" operation (range / rmse: no bar yet).
-        function se = get_mean_se(obj, var_name, filepath, secondary_filepath, freq, case_name)
+        function se = get_mean_se(obj, var_name, case_files, freq, case_name)
             se = 0;
             if obj.operation ~= "mean"
                 return
@@ -3432,7 +3428,7 @@ classdef timeAvg_UI < handle
             var_name = string(var_name);
             if ismember(var_name, ["u_avg", "v_avg", "w_avg"])
                 se_name = var_name + "_se";
-                files = [secondary_filepath, filepath];
+                files = stb_case_files(case_files, "integral");
                 combine_bins = freq ~= 0;
             else
                 ba_name = obj.get_ba_force_name(var_name);
@@ -3446,9 +3442,8 @@ classdef timeAvg_UI < handle
                     se_name = replace(ba_name, "_before_avg", "_before_std");
                     combine_bins = true;
                 end
-                files = [filepath, secondary_filepath];
+                files = stb_case_files(case_files);
             end
-            files = files(stb_isfile(files));
             se_vals = [];
             for f = 1:numel(files)
                 parts = split(se_name, ".");
@@ -3477,7 +3472,7 @@ classdef timeAvg_UI < handle
 
             % BA force SD per bin -> SE per bin
             if combine_bins && endsWith(extractBefore(se_name + ".", "."), "_before_std")
-                c = stb_load(filepath, "bin_count");
+                c = stb_load(case_files, "bin_count");
                 n = double(c.bin_count(:));
                 if numel(n) ~= numel(se_vals)
                     disp("bin_count does not match " + se_name + " for " + case_name + " - no error bar")
@@ -3517,17 +3512,16 @@ classdef timeAvg_UI < handle
         end
 
         % Factor get_PIV_force divides by when normalizing (y_norm)
-        function factor = get_force_norm_factor(~, filepath, freq)
+        function factor = get_force_norm_factor(~, case_files, freq)
             if freq == 0
-                d = stb_load(filepath, "L");
+                d = stb_load(case_files, "L");
                 density = 1.225;
                 U_act = 1;
-                w = stb_who(filepath);
-                if ismember('U_act', w)
-                    u = stb_load(filepath, "U_act"); U_act = u.U_act;
+                if stb_has_var(case_files, "U_act")
+                    u = stb_load(case_files, "U_act"); U_act = u.U_act;
                 end
             else
-                d = stb_load(filepath, "L", "U_act", "rho_act");
+                d = stb_load(case_files, "L", "U_act", "rho_act");
                 density = d.rho_act;
                 U_act = d.U_act;
             end

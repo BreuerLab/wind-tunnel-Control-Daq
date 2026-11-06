@@ -13,7 +13,7 @@ function [var, err, I] = get_PIV_force(file_name, case_name, force_var_name, avg
 
         % old flapper cases (STB Round 1) use the trim bounds they were
         % analysed with (old_flapper_compat), not the new flapper ones
-        [~, file_stem] = fileparts(string(file_name));
+        file_stem = stb_name(file_name);
         bounds = old_flapper_compat("trim_bounds_for", file_stem, bounds);
 
         % *_tavg (e.g. lift_tavg.vortX, lift_vel_tavg): average the phase
@@ -82,7 +82,7 @@ function [var, err, I] = get_PIV_force(file_name, case_name, force_var_name, avg
             missing = grad_vars(~ismember(grad_vars, stb_who(file_name)));
             if ~isempty(missing)
                 error("get_PIV_force: %s not in %s, needed for the frozen-flow forces", ...
-                    strjoin(missing, ", "), file_name)
+                    strjoin(missing, ", "), stb_name(file_name))
             end
             vars = [vars, cellstr(grad_vars)];
         end
@@ -270,7 +270,7 @@ function [var, err, I] = get_PIV_force(file_name, case_name, force_var_name, avg
         if isstruct(var) && isfield(var, parts(k))
             var = var.(parts(k));
         else
-            [~, file_label] = fileparts(file_name);
+            file_label = stb_name(file_name);
             fprintf("%s not defined for %s, using 0\n", force_var_name, file_label);
             var = 0;
             break

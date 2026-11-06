@@ -30,7 +30,7 @@ switch var_name
 end
 
 % old flapper cases use the bounds they were analysed with
-[~, file_stem] = fileparts(string(file_name));
+file_stem = stb_name(file_name);
 bounds = old_flapper_compat("trim_bounds_for", file_stem, bounds);
 
 file_vars = string(stb_who(file_name));
@@ -46,7 +46,7 @@ if unc_name ~= "", load_vars{end+1} = char(unc_name); end
 d = stb_load(file_name, load_vars{:});
 
 if ~ismember(q_name, string(stb_who(secondary_file_name)))
-    error("get_Q_centroid: %s not in %s, reprocess the case", q_name, secondary_file_name)
+    error("get_Q_centroid: %s not in %s, reprocess the case", q_name, stb_name(secondary_file_name))
 end
 q = stb_load(secondary_file_name, char(q_name));
 

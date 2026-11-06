@@ -57,4 +57,5 @@ function p = particle_default_opts()
     p.binned_method = "";
     % also write the old combined files (until the GUIs read the new layout)
     p.legacy_files = true;
+    p.compress_save = false;   % compressed fields / integral files (set from bools.compress_save by process_case)
 end

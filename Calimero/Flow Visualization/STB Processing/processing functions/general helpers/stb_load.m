@@ -1,40 +1,35 @@
-function S = stb_load(file, varargin)
-% STB_LOAD  load() for processed STB files, always returning a struct.
+function S = stb_load(src, varargin)
+% STB_LOAD  Load variables of a processed STB case into a struct.
 %
-%   S = stb_load(file)              every variable
-%   S = stb_load(file, "a", "b")    the named variables
+%   S = stb_load(C, "a", "b")    from a case struct (stb_file_paths or
+%                                stb_time_avg_case): each variable from the
+%                                first of its files holding it (fields,
+%                                integral, shared; see stb_case_files)
+%   S = stb_load(C)              every variable (earlier files win)
+%   S = stb_load(file, ...)      a plain .mat file: same as load
 %
-%   For a GUI-style phase-average path (see stb_resolve) each variable is
-%   read from the first of the case's new files holding it (fields path:
-%   fields, shared, integral; integral path: integral, shared, fields), so
-%   callers written for the legacy combined files keep working. A missing
-%   variable gives load's warning and is left out of S, as with load.
-%   Any other path (e.g. time-averaged files) is passed to load unchanged.
+%   A missing variable gives a warning and is left out of S, as with load.
 
-    R = stb_resolve(file);
-    if ~R.virtual
+    if ~isstruct(src)
         args = cellfun(@char, varargin, 'UniformOutput', false);
-        S = load(char(file), args{:});
+        S = load(char(src), args{:});
         return
     end
-    if ~isfile(R.primary)
-        error("stb_load:notFound", "No processed file %s (for %s).", R.primary, file);
+    files = stb_case_files(src);
+    if isempty(files)
+        error("stb_load:notFound", "No processed files for %s.", stb_name(src));
     end
 
-    files = R.files(isfile(R.files));
+    S = struct();
     if isempty(varargin)
-        % every variable, earlier files winning
-        S = struct();
-        for f = flipud(files(:)).'
+        for f = flipud(files).'
             S = merge_into(S, load(char(f)));
         end
         return
     end
 
-    names = cellfun(@char, varargin, 'UniformOutput', false);
-    S = struct();
-    remaining = names;
-    for f = files(:).'
+    remaining = cellfun(@char, varargin, 'UniformOutput', false);
+    for f = files.'
         if isempty(remaining), break; end
         here = remaining(ismember(remaining, stb_who_cached(f)));
         if isempty(here), continue; end
@@ -42,7 +37,7 @@ function S = stb_load(file, varargin)
         remaining = setdiff(remaining, here, 'stable');
     end
     for k = 1:numel(remaining)
-        warning("stb_load:varNotFound", "Variable '%s' not found in %s.", remaining{k}, file);
+        warning("stb_load:varNotFound", "Variable '%s' not found in %s.", remaining{k}, stb_name(src));
     end
 end
 

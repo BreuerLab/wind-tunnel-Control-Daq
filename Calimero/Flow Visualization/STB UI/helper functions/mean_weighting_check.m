@@ -16,20 +16,21 @@ if nargin < 2, case_filter = ""; end
 if nargin < 3, force_var = "lift.vortX"; end
 
 folder = data_path + "Processed Results\phase_avg\";
-files = stb_list_phase_avg(folder);   % new layout, GUI names
-names = erase(string({files.name}), "_phase_avg.mat");
-names = names(~contains(names, "turbine"));
+cases = stb_list_phase_avg(folder);
+keep = ~contains(string({cases.label}), "turbine");
 if strlength(case_filter) > 0
-    names = names(contains(names, case_filter));
+    keep = keep & contains(string({cases.label}), case_filter);
 end
+cases = cases(keep);
+names = string({cases.label});
 if isempty(names)
-    error("No *_phase_avg.mat cases found in %s matching '%s'", folder, case_filter);
+    error("No *_fields.mat cases found in %s matching '%s'", folder, case_filter);
 end
 
 n = numel(names);
 freq = nan(n,1); m_equal = nan(n,1); m_time = nan(n,1); has_p = false(n,1);
 for i = 1:n
-    file = folder + names(i) + "_phase_avg.mat";
+    file = cases(i).files;   % case struct (stb_file_paths)
     [~, ~, freq(i)] = parse_name(names(i));
 
     F = get_PIV_force(file, names(i), force_var, 1, false, default_trim_bounds());

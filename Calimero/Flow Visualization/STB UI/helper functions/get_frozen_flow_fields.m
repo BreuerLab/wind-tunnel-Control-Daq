@@ -29,7 +29,7 @@ need = ["u_phase_avg", "v_phase_avg", "w_phase_avg", "vortY_phase_avg", "vortZ_p
 have = string(stb_who(file_name));
 missing = need(~ismember(need, have));
 if ~isempty(missing)
-    error("get_frozen_flow_fields: %s not in %s", strjoin(missing, ", "), file_name)
+    error("get_frozen_flow_fields: %s not in %s", strjoin(missing, ", "), stb_name(file_name))
 end
 optional = ["dvdy_phase_avg", "dwdz_phase_avg"];   % divergence check
 optional = optional(ismember(optional, have));
@@ -66,7 +66,7 @@ if isempty(bounds)
         P.(n) = reshape(d.(n + "_phase_avg")(ip, :, :, :), [size(R.y), nb]);
     end
 else
-    [~, file_stem] = fileparts(string(file_name));
+    file_stem = stb_name(file_name);
     bounds = old_flapper_compat("trim_bounds_for", file_stem, bounds);
     for n = names
         [R.y, R.z, P.(n)] = trim_vel_field(d.y, d.z, d.(n + "_phase_avg"), bounds);
