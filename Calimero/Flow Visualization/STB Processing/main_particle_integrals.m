@@ -29,7 +29,7 @@ run_tag        = "o5s30";                          % run_tag used in main_partic
 % node's bin-to-bin series is replaced by a fit of hr_harmonics wingbeat
 % harmonics, as bools.harmonic_reg does for binned data. 0 = off. Saved as
 % its own version (e.g. particle_pool_o5s30_hr10).
-hr_harmonics   = 10;
+hr_harmonics   = 20;
 save_filepath_local = "F:\Processed Results\";
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
