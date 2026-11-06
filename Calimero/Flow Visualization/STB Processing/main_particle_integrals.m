@@ -25,6 +25,11 @@ PIV_case_name  = 'x2_wings_20deg_8Hz';        % as in main_processing
 binned_version = "";                          % bools.version of the binned run
 particle_mode  = "pool";                   % mode used in main_particle_processing
 run_tag        = "o7";                          % run_tag used in main_particle_processing
+% Harmonic regression across phase bins (particleHarmonicSmooth): each
+% node's bin-to-bin series is replaced by a fit of hr_harmonics wingbeat
+% harmonics, as bools.harmonic_reg does for binned data. 0 = off. Saved as
+% its own version (e.g. particle_pool_o5s30_hr10).
+hr_harmonics   = 10;
 save_filepath_local = "F:\Processed Results\";
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -33,6 +38,7 @@ save_filepath_local = "F:\Processed Results\";
 new_version = "particle";
 if particle_mode == "pool", new_version = "particle_pool"; end
 if strlength(run_tag) > 0, new_version = new_version + "_" + run_tag; end
+if hr_harmonics > 0, new_version = new_version + "_hr" + hr_harmonics; end
 if strlength(binned_version) > 0, new_version = binned_version + "_" + new_version; end
 
 phase_dir = fullfile(save_filepath_local, "phase_avg");
@@ -48,6 +54,16 @@ end
 % ---- repackage particle result like phase_avg_STB ---------------------
 fprintf('Loading %s\n', particle_R_file);
 R = load(particle_R_file);
+if hr_harmonics > 0
+    vars_b = who('-file', char(binned_phase_file));
+    if ismember('bin_placement', vars_b)
+        Bp = load(binned_phase_file, 'bin_placement');  bp = Bp.bin_placement;
+    else
+        bp = [];
+    end
+    fprintf('Harmonic regression across phase bins: %d harmonics\n', hr_harmonics);
+    R = particleHarmonicSmooth(R, hr_harmonics, bp);
+end
 S = particle_to_phase_avg_struct(R, binned_phase_file);
 clear R
 
