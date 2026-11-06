@@ -16,7 +16,7 @@ if nargin < 2, case_filter = ""; end
 if nargin < 3, force_var = "lift.vortX"; end
 
 folder = data_path + "Processed Results\phase_avg\";
-files = dir(folder + "*_phase_avg.mat");
+files = stb_list_phase_avg(folder);   % new layout, GUI names
 names = erase(string({files.name}), "_phase_avg.mat");
 names = names(~contains(names, "turbine"));
 if strlength(case_filter) > 0
@@ -36,11 +36,11 @@ for i = 1:n
     F = F(:);
     m_equal(i) = mean(F, "omitnan");
 
-    d = load(file, 'cycle_freq');
+    d = stb_load(file, 'cycle_freq');
     period = 1 / d.cycle_freq;
     placement = [];
-    if ismember('bin_placement', who('-file', file))
-        p = load(file, 'bin_placement');
+    if ismember('bin_placement', stb_who(file))
+        p = stb_load(file, 'bin_placement');
         placement = p.bin_placement;
         has_p(i) = true;
     end

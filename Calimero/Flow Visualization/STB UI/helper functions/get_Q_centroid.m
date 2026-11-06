@@ -33,7 +33,7 @@ end
 [~, file_stem] = fileparts(string(file_name));
 bounds = old_flapper_compat("trim_bounds_for", file_stem, bounds);
 
-file_vars = string(who('-file', file_name));
+file_vars = string(stb_who(file_name));
 if ismember("mean_uncTot", file_vars)
     unc_name = "mean_uncTot";
 elseif ismember("uncTot_phase_avg", file_vars)
@@ -43,12 +43,12 @@ else
 end
 load_vars = {'y', 'z'};
 if unc_name ~= "", load_vars{end+1} = char(unc_name); end
-d = load(file_name, load_vars{:});
+d = stb_load(file_name, load_vars{:});
 
-if ~ismember(q_name, string(who('-file', secondary_file_name)))
+if ~ismember(q_name, string(stb_who(secondary_file_name)))
     error("get_Q_centroid: %s not in %s, reprocess the case", q_name, secondary_file_name)
 end
-q = load(secondary_file_name, char(q_name));
+q = stb_load(secondary_file_name, char(q_name));
 
 [y_tr, z_tr, Q_tr] = trim_vel_field(d.y, d.z, q.(q_name), bounds);
 Q_pos = max(Q_tr, 0);

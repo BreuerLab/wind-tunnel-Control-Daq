@@ -303,8 +303,9 @@ methods
         obj.available_selections = cell(0, 4);
         obj.type_root_map = containers.Map('KeyType', 'char', 'ValueType', 'char');
         for r = 1:numel(obj.data_roots)
-            contents = dir(obj.data_roots(r) + "Processed Results\phase_avg\");
-            files = contents(~[contents.isdir]);
+            % new layout: <stem>_<method>_fields.mat (+ _shared, _integral),
+            % listed under GUI names <sel>_phase_avg.mat (see stb_resolve)
+            files = stb_list_phase_avg(obj.data_roots(r) + "Processed Results\phase_avg\");
             root_selections = obj.get_phase_avg_selections_from_files(files);
             for k = 1:size(root_selections, 1)
                 key = char(string(root_selections{k, 1}));
@@ -316,7 +317,7 @@ methods
         end
 
         if isempty(obj.available_selections)
-            error("No STB files found in Processed Results\\phase_avg\\ of %s. Expected *_phase_avg.mat files.", strjoin(obj.data_roots, ", "))
+            error("No STB files found in Processed Results\\phase_avg\\ of %s. Expected *_<method>_fields.mat files (new layout).", strjoin(obj.data_roots, ", "))
         end
 
         obj.source_modes = obj.get_available_source_modes();
@@ -1607,7 +1608,7 @@ methods (Access = private)
                 candidates(end+1) = phase_dir + "RPCA\" + cur_sel + "_phase_avg"; %#ok<AGROW>
             end
             for c = candidates
-                if isfile(c + ".mat") || isfile(c + "_integral.mat")
+                if stb_isfile(c + ".mat") || stb_isfile(c + "_integral.mat")
                     file_base = c;
                     return
                 end
@@ -1629,7 +1630,7 @@ methods (Access = private)
     function tf = has_hr_residual_std(obj, file_path, cur_sel)
         tf = false;
         if obj.file_has_var(file_path, "hr")
-            d = load(file_path, "hr");
+            d = stb_load(file_path, "hr");
             tf = isfield(d.hr, 'before_std_type') && string(d.hr.before_std_type) == "residual";
         end
         if ~tf
@@ -1650,7 +1651,7 @@ methods (Access = private)
         if contains(std_name, ".")
             top_name = extractBefore(std_name, ".");
         end
-        d = load(file_path, top_name);
+        d = stb_load(file_path, top_name);
         var_std = eval("d." + std_name);
         if numel(var_std) ~= n
             var_std = [];
@@ -1669,7 +1670,7 @@ methods (Access = private)
     % processed before all nine were saved)
     function var = get_gradient_planar_avg(~, file_path, var_name)
         field = erase(string(var_name), "_avg") + "_phase_avg";
-        d = load(file_path, "y", "z", field);
+        d = stb_load(file_path, "y", "z", field);
         [~, ~, T] = trim_vel_field(d.y, d.z, d.(field), default_trim_bounds());
         var = squeeze(mean(T, [1, 2]));
     end
@@ -1698,7 +1699,7 @@ methods (Access = private)
     % integration as the saved values.
     function var = get_transport_term(obj, file_path, var_name)
         [vort, grad] = obj.transport_term_fields(var_name);
-        d = load(file_path, "y", "z", vort, grad);
+        d = stb_load(file_path, "y", "z", vort, grad);
         bounds = default_trim_bounds();
         [y_tr, z_tr, W] = trim_vel_field(d.y, d.z, d.(vort), bounds);
         [~, ~, G] = trim_vel_field(d.y, d.z, d.(grad), bounds);
@@ -1761,7 +1762,7 @@ methods (Access = private)
         if contains(var_name, ".")
             var_name = extractBefore(var_name, ".");
         end
-        tf = isfile(file) && ismember(char(var_name), who('-file', file));
+        tf = stb_isfile(file) && ismember(char(var_name), stb_who(file));
     end
 
     % Load cell folder for a wing type: Force Measurements of the data root
@@ -2460,13 +2461,13 @@ methods (Access = private)
                     continue
                 end
                 vars = {"L","U"};
-                d2 = load(file_path, vars{:});
+                d2 = stb_load(file_path, vars{:});
                 if is_ba_var
                     if contains(var_name, ".")
                         abbrv_name = extractBefore(var_name, ".");
-                        d2 = load(file_path, abbrv_name);
+                        d2 = stb_load(file_path, abbrv_name);
                     else
-                        d2 = load(file_path, var_name);
+                        d2 = stb_load(file_path, var_name);
                     end
                     var = eval("d2." + var_name);
                     if obj.std_band
@@ -2486,9 +2487,9 @@ methods (Access = private)
                     d1 = struct(char(var_name), get_Q_centroid(file_path, secondary_file_path, var_name, default_trim_bounds()));
                 elseif contains(var_name, ".")
                     abbrv_name = extractBefore(var_name, ".");
-                    d1 = load(secondary_file_path, abbrv_name);
+                    d1 = stb_load(secondary_file_path, abbrv_name);
                 else
-                    d1 = load(secondary_file_path, var_name);
+                    d1 = stb_load(secondary_file_path, var_name);
                 end
 
                 var = eval("d1." + var_name);
@@ -2503,7 +2504,7 @@ methods (Access = private)
                 % omega_x centroid: drop bins where the net omega_x is
                 % near zero (ratio blows up there); shows as gaps
                 if ismember(var_name, ["wx_y", "wx_z"])
-                    dv = load(secondary_file_path, "vortX_avg");
+                    dv = stb_load(secondary_file_path, "vortX_avg");
                     var = mask_vortex_centroid(var, dv.vortX_avg, cur_sel);
                 end
             end
@@ -2521,7 +2522,12 @@ methods (Access = private)
             % vars_kin = {"phase_avg_pos", "phase_avg_speed", "phase_avg_acc"};
             vars_kin = {"phase_avg_speed", "phase_avg_wing_pos",...
                 "phase_avg_wing_speed", "phase_avg_wing_acc", "u_avg"};
-            load(secondary_file_path, vars_kin{:})
+            kin = stb_load(secondary_file_path, vars_kin{:});
+            phase_avg_speed = kin.phase_avg_speed;
+            phase_avg_wing_pos = kin.phase_avg_wing_pos;
+            phase_avg_wing_speed = kin.phase_avg_wing_speed;
+            phase_avg_wing_acc = kin.phase_avg_wing_acc;
+            if isfield(kin, "u_avg"), u_avg = kin.u_avg; end %#ok<NASGU>
             freq_cor = mean(phase_avg_speed);
             % added_mass = get_added_mass(phase_avg_pos, phase_avg_speed, phase_avg_acc);
             added_mass = get_added_mass(phase_avg_wing_pos, phase_avg_wing_speed, phase_avg_wing_acc);
@@ -2567,9 +2573,9 @@ methods (Access = private)
                     end
                     if contains(var_name, ".")
                         abbrv_name = extractBefore(var_name, ".");
-                        d2 = load(sub_file, abbrv_name);
+                        d2 = stb_load(sub_file, abbrv_name);
                     else
-                        d2 = load(sub_file, var_name);
+                        d2 = stb_load(sub_file, var_name);
                     end
 
                     body_var = eval("d2." + var_name);
@@ -2582,8 +2588,8 @@ methods (Access = private)
             % bin_placement in % of a bin width) for imaging-plane curves;
             % zeros = nominal, evenly spaced bins. Shifted with var below.
             placement_pct = zeros(size(var));
-            if obj.is_imaging_plane_index(index) && ismember('bin_placement', who('-file', file_path))
-                pp = load(file_path, 'bin_placement');
+            if obj.is_imaging_plane_index(index) && ismember('bin_placement', stb_who(file_path))
+                pp = stb_load(file_path, 'bin_placement');
                 if numel(pp.bin_placement) == numel(var)
                     placement_pct = reshape(double(pp.bin_placement), size(var));
                     placement_pct(~isfinite(placement_pct)) = 0;
@@ -2799,7 +2805,7 @@ methods (Access = private)
             [amp, type, freq] = parse_name(cur_sel);
             secondary_file_path = obj.get_phase_avg_file_base(cur_sel) + "_integral.mat";
             try
-                d = load(secondary_file_path, "phase_avg_wing_pos");
+                d = stb_load(secondary_file_path, "phase_avg_wing_pos");
                 wing_pos = d.phase_avg_wing_pos(:)';
             catch
                 disp("No wing position for " + cur_sel + ", stroke not labeled from it")

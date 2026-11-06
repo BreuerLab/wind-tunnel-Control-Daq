@@ -58,10 +58,10 @@ if ~isfield(opts, 'taper'), opts.taper = 0; end
 vars = {"L","U","U_act","rho_act","cycle_freq","y","z", ...
         "u_phase_avg","w_phase_avg", ...
         "vortX_phase_avg","vortY_phase_avg","vortZ_phase_avg"};
-has_dwdx = ismember('dwdx_phase_avg', who('-file', file_path));
+has_dwdx = ismember('dwdx_phase_avg', stb_who(file_path));
 if has_dwdx, vars{end+1} = "dwdx_phase_avg"; end
-if ismember('bin_placement', who('-file', file_path)), vars{end+1} = "bin_placement"; end
-d = load(file_path, vars{:});
+if ismember('bin_placement', stb_who(file_path)), vars{end+1} = "bin_placement"; end
+d = stb_load(file_path, vars{:});
 
 U   = d.U_act * d.U;
 rho = d.rho_act;

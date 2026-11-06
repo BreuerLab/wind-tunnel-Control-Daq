@@ -400,13 +400,15 @@ methods
             phase_dir = obj.data_roots(r) + "Processed Results\phase_avg\";
             time_dir = obj.data_roots(r) + "Processed Results\time_avg\";
             rpca_dir = phase_dir + "RPCA\";
-            stems = obj.get_file_stems(dir(phase_dir + "*.mat"), "_phase_avg");
+            % new layout: <stem>_<method>_fields.mat (+ _shared, _integral),
+            % listed under GUI names <case id>_phase_avg.mat (see stb_resolve)
+            stems = obj.get_file_stems(stb_list_phase_avg(phase_dir), "_phase_avg");
             obj.register_case_dirs("phase", stems, phase_dir);
             phase_avg_stems = [phase_avg_stems, stems]; %#ok<AGROW>
             stems = obj.get_file_stems(dir(time_dir + "*.mat"), "_time_avg");
             obj.register_case_dirs("time", stems, time_dir);
             time_avg_stems = [time_avg_stems, stems]; %#ok<AGROW>
-            stems = obj.get_file_stems(dir(rpca_dir + "*.mat"), "_RPCA_phase_avg") + "_RPCA";
+            stems = obj.get_file_stems(stb_list_phase_avg(rpca_dir), "_RPCA_phase_avg") + "_RPCA";
             obj.register_case_dirs("rpca", stems, rpca_dir);
             rpca_ids = [rpca_ids, stems]; %#ok<AGROW>
         end
@@ -465,7 +467,7 @@ methods
         obj.time_turbine_case_name_list = obj.get_turbine_case_names(time_turbine_stems);
         obj.source_modes = obj.get_available_source_modes();
         if isempty(obj.source_modes)
-            error("No STB average files found. Expected *_phase_avg.mat or *_time_avg.mat files in Processed Results\\phase_avg\\ or time_avg\\ of %s.", strjoin(obj.data_roots, ", "))
+            error("No STB average files found. Expected *_<method>_fields.mat (new layout) or *_time_avg.mat files in Processed Results\\phase_avg\\ or time_avg\\ of %s.", strjoin(obj.data_roots, ", "))
         end
         obj.source_mode = obj.source_modes(1);
         obj.set_downstream_options_for_source_mode(obj.source_mode);
@@ -2874,10 +2876,10 @@ methods (Access = private)
         S = [];
         integral_file = file_base + "_integral.mat";
         wing_pos = [];
-        if isfile(integral_file)
-            vars = who("-file", integral_file);
+        if stb_isfile(integral_file)
+            vars = stb_who(integral_file);
             if ismember("phase_avg_wing_pos", vars)
-                d = load(integral_file, "phase_avg_wing_pos");
+                d = stb_load(integral_file, "phase_avg_wing_pos");
                 wing_pos = d.phase_avg_wing_pos(:)';
             end
         end
@@ -2908,7 +2910,7 @@ methods (Access = private)
         stamps = strings(1, 2);
         files = file_base + [".mat", "_integral.mat"];
         for k = 1:2
-            info = dir(files(k));
+            info = stb_dir(files(k));
             if ~isempty(info)
                 stamps(k) = sprintf("%.10f", info(1).datenum);
             end
@@ -3958,13 +3960,13 @@ methods (Access = private)
 
         % field of view of the extrapolation (newer files), for the crop / box
         if use_extrapolated_data && ~is_extrap_diff && ismember(plot_idx, [1, 2])
-            integral_vars = who('-file', full_file_path + "_integral.mat");
+            integral_vars = stb_who(full_file_path + "_integral.mat");
             if all(ismember({'y_B_fov', 'z_B_fov'}, integral_vars))
                 cur_secondary_vars = [cur_secondary_vars, {"y_B_fov", "z_B_fov"}];
             end
         end
         if is_extrap_diff
-            integral_vars = who('-file', full_file_path + "_integral.mat");
+            integral_vars = stb_who(full_file_path + "_integral.mat");
             if ~ismember(char(var_name), integral_vars)
                 delete(findobj(plot_panel.Children, 'Type', 'axes'));
                 ax = axes(plot_panel);
@@ -3979,9 +3981,9 @@ methods (Access = private)
         if plot_idx == 8
             % wake forces: data is loaded by get_PIV_force below
         elseif ~isempty(cur_secondary_vars)
-            d1 = load(full_file_path + "_integral.mat", cur_secondary_vars{:});
+            d1 = stb_load(full_file_path + "_integral.mat", cur_secondary_vars{:});
             if ~isempty(vars)
-            d2 = load(full_file_path + ".mat", vars{:});
+            d2 = stb_load(full_file_path + ".mat", vars{:});
     
             % Combine by converting to cell arrays of names/values and back to struct
             d = cell2struct([struct2cell(d1); struct2cell(d2)], [fieldnames(d1); fieldnames(d2)], 1);
@@ -3989,7 +3991,7 @@ methods (Access = private)
                 d = d1;
             end
         else
-            d = load(full_file_path + ".mat", vars{:});
+            d = stb_load(full_file_path + ".mat", vars{:});
         end
 
         if plot_idx == 2 || plot_idx == 4 || plot_idx == 5
@@ -4718,7 +4720,7 @@ methods (Access = private)
         for i = 1:numel(case_ids)
             file_bases(i) = obj.get_phase_file_base(case_ids(i));
             for ext = [".mat", "_integral.mat"]
-                info = dir(file_bases(i) + ext);
+                info = stb_dir(file_bases(i) + ext);
                 if ~isempty(info)
                     stamps(i) = stamps(i) + sprintf("%.10f;", info(1).datenum);
                 end
@@ -4830,15 +4832,15 @@ methods (Access = private)
         % only ask for fields that are there (no load warnings)
         main_file = file_base + ".mat";
         vars = unique(vars, 'stable');
-        vars = vars(ismember(vars, string(who('-file', main_file))));
-        d = load(main_file, vars{:});
+        vars = vars(ismember(vars, string(stb_who(main_file))));
+        d = stb_load(main_file, vars{:});
         if ~isempty(sec_vars)
             integral_file = file_base + "_integral.mat";
-            if isfile(integral_file)
+            if stb_isfile(integral_file)
                 sec_vars = unique(sec_vars, 'stable');
-                sec_vars = sec_vars(ismember(sec_vars, string(who('-file', integral_file))));
+                sec_vars = sec_vars(ismember(sec_vars, string(stb_who(integral_file))));
                 if ~isempty(sec_vars)
-                    d1 = load(integral_file, sec_vars{:});
+                    d1 = stb_load(integral_file, sec_vars{:});
                     for fn = string(fieldnames(d1))'
                         d.(fn) = d1.(fn);
                     end
@@ -5254,7 +5256,7 @@ methods (Access = private)
         end
 
         file_name = file_base + ".mat";
-        file_vars = string(who('-file', file_name));
+        file_vars = string(stb_who(file_name));
         if ~ismember(var_name, file_vars)
             obj.show_missing_variable(plot_panel, var_name);
             return
@@ -5264,7 +5266,7 @@ methods (Access = private)
         if has_unc
             load_vars{end+1} = char(unc_name);
         end
-        d = load(file_name, load_vars{:});
+        d = stb_load(file_name, load_vars{:});
 
         % same trim as get_PIV_force
         [~, file_stem] = fileparts(file_base);

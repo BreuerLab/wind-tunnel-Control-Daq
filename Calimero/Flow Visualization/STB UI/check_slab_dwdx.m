@@ -75,7 +75,7 @@ for type = types
     for f = freqs
         case_name = type + "_" + amp + "deg_" + f + "Hz";
         file = data_root + "Processed Results\phase_avg\" + case_name + "_phase_avg.mat";
-        if ~isfile(file)
+        if ~stb_isfile(file)
             fprintf("%s: no file (%s), skipped\n", case_name, file);
             continue
         end
@@ -104,11 +104,11 @@ end
 % =========================================================================
 
 function R = slab_check_case(file, case_name, conv_speed, min_valid, n_harm)
-have = string(who('-file', file));
+have = string(stb_who(file));
 vars = ["w_phase_avg", "x", "y", "z", "L", "U", "cycle_freq"];
 opt = ["U_act", "bin_placement", "dwdx_phase_avg", "vortY_phase_avg"];
 vars = [vars, opt(ismember(opt, have))];
-d = load(file, vars{:});
+d = stb_load(file, vars{:});
 
 speed = d.U;
 if isfield(d, "U_act"), speed = d.U_act * d.U; end

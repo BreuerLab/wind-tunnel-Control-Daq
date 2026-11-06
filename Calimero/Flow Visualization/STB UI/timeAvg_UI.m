@@ -337,8 +337,10 @@ classdef timeAvg_UI < handle
             for r = 1:numel(obj.data_roots)
                 phase_dir = obj.data_roots(r) + "Processed Results\phase_avg\";
                 time_dir = obj.data_roots(r) + "Processed Results\time_avg\";
-                files = dir(phase_dir);
-                files = files(~[files.isdir]);
+                % new layout: <stem>_<method>_fields.mat, listed under GUI
+                % names <sel>_phase_avg.mat (see stb_resolve)
+                files = stb_list_phase_avg(phase_dir);
+                files = rmfield(files, 'fields_file');
                 contents_t = [];
                 if isfolder(time_dir)
                     contents_t = dir(time_dir);
@@ -2083,9 +2085,9 @@ classdef timeAvg_UI < handle
             % nominal freestream speed the STB "pitot U" (U_act) is
             % normalised by; 4 m/s unless the case file says otherwise
             U = 4;
-            if strlength(filepath) > 0 && isfile(filepath) &&...
-                    ismember('U', who('-file', filepath))
-                d = load(filepath, "U");
+            if strlength(filepath) > 0 && stb_isfile(filepath) &&...
+                    ismember('U', stb_who(filepath))
+                d = stb_load(filepath, "U");
                 U = d.U;
             end
         end
@@ -2240,8 +2242,8 @@ classdef timeAvg_UI < handle
                         errs(j) = 0;
                     else
                         avg_type = 1;
-                        d = load(filepath, "U", "L", "U_act", "rho_act");
-                        F = load(secondary_filepath, "freq_avg");
+                        d = stb_load(filepath, "U", "L", "U_act", "rho_act");
+                        F = stb_load(secondary_filepath, "freq_avg");
                         measured_freqs(j) = mean(F.freq_avg);
                         wind_speed = d.U;
                         density = d.rho_act;
@@ -2341,7 +2343,7 @@ classdef timeAvg_UI < handle
                         amp = points.amps(k);
                         freq = points.freqs(k);
                         name = obj.get_case_name(type, amp, freq);
-                        d = load(obj.get_case_file_base(name, "_phase_avg") + ".mat", "U", "U_act");
+                        d = stb_load(obj.get_case_file_base(name, "_phase_avg") + ".mat", "U", "U_act");
                         wind_speed_acts(k) = d.U_act * d.U;
                     end
                 end
@@ -2671,8 +2673,8 @@ classdef timeAvg_UI < handle
             filepath = file_base + ".mat";
             secondary_filepath = file_base + "_integral.mat";
 
-            d = load(filepath, "U", "U_act");
-            F = load(secondary_filepath, "freq_avg");
+            d = stb_load(filepath, "U", "U_act");
+            F = stb_load(secondary_filepath, "freq_avg");
             measured_freq = mean(F.freq_avg);
             wind_speed_act = d.U_act * d.U;
 
@@ -2998,8 +3000,8 @@ classdef timeAvg_UI < handle
             if ~ismember(force_var, ["Qx_y", "Qx_z", "Qxcomp_y", "Qxcomp_z"])
                 return
             end
-            tf = obj.calc_bool || ~isfile(secondary_filepath) ||...
-                ~ismember(force_var, string(who('-file', secondary_filepath)));
+            tf = obj.calc_bool || ~stb_isfile(secondary_filepath) ||...
+                ~ismember(force_var, string(stb_who(secondary_filepath)));
         end
 
         function bounds = get_Q_centroid_bounds(obj)
@@ -3029,8 +3031,8 @@ classdef timeAvg_UI < handle
         % were saved: calculated live by get_PIV_force instead
         function tf = needs_live_ff(~, force_var, secondary_filepath)
             tf = startsWith(string(force_var), ["lift_ff.", "drag_ff."]) && ...
-                (~isfile(secondary_filepath) || ...
-                 ~ismember('lift_ff', who('-file', secondary_filepath)));
+                (~stb_isfile(secondary_filepath) || ...
+                 ~ismember('lift_ff', stb_who(secondary_filepath)));
         end
 
         % Path (without .mat) to a case's file. RPCA cases not found in
@@ -3039,12 +3041,12 @@ classdef timeAvg_UI < handle
         function file_base = get_case_file_base(obj, name, suffix)
             name = string(name);
             file_base = obj.get_case_dir(name, suffix) + name + suffix;
-            if isfile(file_base + ".mat") || isfile(file_base + "_integral.mat") || ~endsWith(name, "_RPCA")
+            if stb_isfile(file_base + ".mat") || stb_isfile(file_base + "_integral.mat") || ~endsWith(name, "_RPCA")
                 return
             end
             for r = 1:numel(obj.data_roots)
                 rpca_base = obj.data_roots(r) + "Processed Results\phase_avg\RPCA\" + name + suffix;
-                if isfile(rpca_base + ".mat") || isfile(rpca_base + "_integral.mat")
+                if stb_isfile(rpca_base + ".mat") || stb_isfile(rpca_base + "_integral.mat")
                     file_base = rpca_base;
                     return
                 end
@@ -3060,7 +3062,7 @@ classdef timeAvg_UI < handle
             for r = 1:numel(obj.data_roots)
                 for d = [obj.data_roots(r) + "Processed Results\phase_avg\",...
                          obj.data_roots(r) + "Processed Results\time_avg\"]
-                    if isfile(d + name + suffix + ".mat") || isfile(d + name + suffix + "_integral.mat")
+                    if stb_isfile(d + name + suffix + ".mat") || stb_isfile(d + name + suffix + "_integral.mat")
                         case_dir = d;
                         return
                     end
@@ -3087,14 +3089,14 @@ classdef timeAvg_UI < handle
             var = [];
             grads = ["dudx", "dvdy", "dwdz"];
             for f = 1:numel(files)
-                vars_in_file = string(who('-file', files(f)));
+                vars_in_file = string(stb_who(files(f)));
                 for names = {"mean_" + grads, grads + "_phase_avg"}
                     fields = names{1};
                     if ~all(ismember(fields, vars_in_file)) || ...
                             ~all(ismember(["y", "z"], vars_in_file))
                         continue
                     end
-                    d = load(files(f), "y", "z", fields{:});
+                    d = stb_load(files(f), "y", "z", fields{:});
                     div = d.(fields(1)) + d.(fields(2)) + d.(fields(3));
                     [~, ~, T] = trim_vel_field(d.y, d.z, div, obj.trim_bounds);
                     var = squeeze(mean(T, [1, 2]));
@@ -3119,7 +3121,7 @@ classdef timeAvg_UI < handle
             % file and its _integral file hold different variables). If
             % none of them define it for this case, return 0 and say so.
             requested = string(files);
-            files = requested(isfile(requested));
+            files = requested(stb_isfile(requested));
             if isempty(files)
                 error("timeAvg_UI:fileNotFound", "None of these files were found:\n  %s",...
                     strjoin(requested, "\n  "));
@@ -3127,10 +3129,10 @@ classdef timeAvg_UI < handle
 
             parts = split(string(var_name), ".");
             for f = 1:numel(files)
-                if ~ismember(char(parts(1)), who('-file', files(f)))
+                if ~ismember(char(parts(1)), stb_who(files(f)))
                     continue
                 end
-                d = load(files(f), parts(1));
+                d = stb_load(files(f), parts(1));
                 var = d.(parts(1));
                 for k = 2:numel(parts)
                     if isstruct(var) && isfield(var, parts(k))
@@ -3159,7 +3161,7 @@ classdef timeAvg_UI < handle
             % before it existed: leave the point out rather than plot 0
             in_any = false;
             for f = 1:numel(files)
-                in_any = in_any || ismember(char(parts(1)), who('-file', files(f)));
+                in_any = in_any || ismember(char(parts(1)), stb_who(files(f)));
             end
             if ~in_any && old_flapper_compat("is_old", file_name)
                 fprintf("%s not saved for %s (older processing), not plotted\n", var_name, file_name);
@@ -3388,7 +3390,7 @@ classdef timeAvg_UI < handle
                     file_path = search_dirs(m) + case_names(k) + "_time_avg.mat";
                     secondary_file_path = search_dirs(m) + case_names(k) + "_time_avg_integral.mat";
                     tried(end+1) = file_path; %#ok<AGROW>
-                    if isfile(file_path) || isfile(secondary_file_path)
+                    if stb_isfile(file_path) || stb_isfile(secondary_file_path)
                         return
                     end
                 end
@@ -3446,14 +3448,14 @@ classdef timeAvg_UI < handle
                 end
                 files = [filepath, secondary_filepath];
             end
-            files = files(isfile(files));
+            files = files(stb_isfile(files));
             se_vals = [];
             for f = 1:numel(files)
                 parts = split(se_name, ".");
-                if ~ismember(char(parts(1)), who('-file', files(f)))
+                if ~ismember(char(parts(1)), stb_who(files(f)))
                     continue
                 end
-                d = load(files(f), parts(1));
+                d = stb_load(files(f), parts(1));
                 se_vals = d.(parts(1));
                 for k = 2:numel(parts)
                     if isstruct(se_vals) && isfield(se_vals, parts(k))
@@ -3475,7 +3477,7 @@ classdef timeAvg_UI < handle
 
             % BA force SD per bin -> SE per bin
             if combine_bins && endsWith(extractBefore(se_name + ".", "."), "_before_std")
-                c = load(filepath, "bin_count");
+                c = stb_load(filepath, "bin_count");
                 n = double(c.bin_count(:));
                 if numel(n) ~= numel(se_vals)
                     disp("bin_count does not match " + se_name + " for " + case_name + " - no error bar")
@@ -3517,15 +3519,15 @@ classdef timeAvg_UI < handle
         % Factor get_PIV_force divides by when normalizing (y_norm)
         function factor = get_force_norm_factor(~, filepath, freq)
             if freq == 0
-                d = load(filepath, "L");
+                d = stb_load(filepath, "L");
                 density = 1.225;
                 U_act = 1;
-                w = who('-file', filepath);
+                w = stb_who(filepath);
                 if ismember('U_act', w)
-                    u = load(filepath, "U_act"); U_act = u.U_act;
+                    u = stb_load(filepath, "U_act"); U_act = u.U_act;
                 end
             else
-                d = load(filepath, "L", "U_act", "rho_act");
+                d = stb_load(filepath, "L", "U_act", "rho_act");
                 density = d.rho_act;
                 U_act = d.U_act;
             end

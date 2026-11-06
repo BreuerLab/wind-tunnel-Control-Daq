@@ -79,7 +79,7 @@ function [var, err, I] = get_PIV_force(file_name, case_name, force_var_name, avg
             else
                 grad_vars = ["dvdx_phase_avg", "dwdx_phase_avg"];
             end
-            missing = grad_vars(~ismember(grad_vars, who('-file', file_name)));
+            missing = grad_vars(~ismember(grad_vars, stb_who(file_name)));
             if ~isempty(missing)
                 error("get_PIV_force: %s not in %s, needed for the frozen-flow forces", ...
                     strjoin(missing, ", "), file_name)
@@ -87,7 +87,7 @@ function [var, err, I] = get_PIV_force(file_name, case_name, force_var_name, avg
             vars = [vars, cellstr(grad_vars)];
         end
 
-        d = load(file_name, vars{:});
+        d = stb_load(file_name, vars{:});
         switch avg_type
             case 0
                 speed = d.U;
@@ -112,8 +112,8 @@ function [var, err, I] = get_PIV_force(file_name, case_name, force_var_name, avg
             % actual time of each bin: the mean phase of its frames
             % (bin_placement), not the bin centre; nominal if not saved
             placement = [];
-            if ismember('bin_placement', who('-file', file_name))
-                p = load(file_name, 'bin_placement');
+            if ismember('bin_placement', stb_who(file_name))
+                p = stb_load(file_name, 'bin_placement');
                 placement = p.bin_placement;
             end
             t_bins = bin_times(num_bins, period, placement);
@@ -219,8 +219,8 @@ function [var, err, I] = get_PIV_force(file_name, case_name, force_var_name, avg
             'dvdx', dvdx_tr, 'dwdx', dwdx_tr);
         % harmonic regression files: exact d/dt of the fitted series
         ff_opts = struct();
-        if avg_type ~= 0 && ismember('hr', who('-file', file_name))
-            h = load(file_name, 'hr');
+        if avg_type ~= 0 && ismember('hr', stb_who(file_name))
+            h = stb_load(file_name, 'hr');
             if isstruct(h.hr) && isfield(h.hr, 'H'), ff_opts.H = h.hr.H; end
         end
         G_ff = frozen_flow_gradients(ff_in, t_ff, period, d.L, speed, ff_opts);

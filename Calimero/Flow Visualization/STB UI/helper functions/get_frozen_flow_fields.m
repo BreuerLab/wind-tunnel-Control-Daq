@@ -26,7 +26,7 @@ if nargin < 3, bounds = []; end
 
 need = ["u_phase_avg", "v_phase_avg", "w_phase_avg", "vortY_phase_avg", "vortZ_phase_avg", ...
         "dudx_phase_avg", "dvdx_phase_avg", "dwdx_phase_avg"];
-have = string(who('-file', file_name));
+have = string(stb_who(file_name));
 missing = need(~ismember(need, have));
 if ~isempty(missing)
     error("get_frozen_flow_fields: %s not in %s", strjoin(missing, ", "), file_name)
@@ -38,7 +38,7 @@ vars = ["L", "U", "cycle_freq", "y", "z", need, optional];
 if ismember("U_act", have), vars(end+1) = "U_act"; end
 if ismember("hr", have), vars(end+1) = "hr"; end
 if ismember("bin_placement", have), vars(end+1) = "bin_placement"; end
-d = load(file_name, vars{:});
+d = stb_load(file_name, vars{:});
 
 speed = d.U;
 if isfield(d, 'U_act'), speed = d.U_act * d.U; end

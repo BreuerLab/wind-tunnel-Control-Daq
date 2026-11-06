@@ -16,11 +16,11 @@ function M = slab_derivative_map(file_path, bounds)
 
 if nargin < 2 || isempty(bounds), bounds = default_trim_bounds(); end
 
-d  = load(file_path, 'dwdx_phase_avg', 'w_phase_avg', 'U', 'U_act', 'L', ...
+d  = stb_load(file_path, 'dwdx_phase_avg', 'w_phase_avg', 'U', 'U_act', 'L', ...
           'cycle_freq', 'y', 'z');
 placement = [];
-if ismember('bin_placement', who('-file', file_path))
-    p = load(file_path, 'bin_placement'); placement = p.bin_placement;
+if ismember('bin_placement', stb_who(file_path))
+    p = stb_load(file_path, 'bin_placement'); placement = p.bin_placement;
 end
 U  = d.U_act * d.U;
 nb = size(d.w_phase_avg, 4);
