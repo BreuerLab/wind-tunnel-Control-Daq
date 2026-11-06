@@ -163,6 +163,8 @@ function R = particlePhaseAverage(setPath, bin_ind_arr, fitOpts, opts)
     R.nPairs = arrayfun(@(b) nnz(bin_ind_arr == b & covered), bins);
 
     nw = start_pool(o.numWorkers);
+    % close the particle sets Python keeps open once done (or on error)
+    releasePy = onCleanup(@() stbPyRelease()); %#ok<NASGU>
 
     % ---- process bins in chunks ----------------------------------------
     t0 = tic;  tLoad = 0;  tFit = 0;

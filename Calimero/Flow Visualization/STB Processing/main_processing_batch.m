@@ -122,6 +122,12 @@ bools.plot = false;
 % true: keep going if a case errors and report it at the end
 continue_on_error = true;
 
+% true: after each case, shut down the parallel pool and MATLAB's Python
+% process, so memory held by the workers and by Python (particle tracks)
+% is freed before the next case. They restart on their own (~1 min per
+% case). Without it, cases after the first can run out of memory.
+reset_between_cases = true;
+
 % Every run is appended to this log: the settings, each case's name, data
 % folder, number of .vc7 files / images used, status and time, so it can
 % be reviewed later which cases were processed and how
@@ -164,7 +170,8 @@ log_line(log_file, "Code version: " + code_version())
 log_line(log_file, "Save folder: " + save_filepath_local)
 log_line(log_file, "motion: " + motion)
 log_line(log_file, "num_images: " + string(num_images) + ...
-    ", skip_processed: " + string(skip_processed) + ", continue_on_error: " + string(continue_on_error))
+    ", skip_processed: " + string(skip_processed) + ", continue_on_error: " + string(continue_on_error) + ...
+    ", reset_between_cases: " + string(reset_between_cases))
 log_line(log_file, "Settings: " + bools_to_text(bools))
 log_line(log_file, sprintf("%d case(s) selected, %d to process:", numel(cases.name), num_cases))
 for k = 1:numel(cases.name)
@@ -212,6 +219,9 @@ for i = 1:num_cases
         log_line(log_file, "      error: " + replace(message, newline, " "))
     end
     close all
+    if reset_between_cases && i < num_cases
+        release_memory()
+    end
 end
 elapsed = toc(myFuncTimer);
 
@@ -367,6 +377,16 @@ function cases = scan_cases(names, num_images, save_folder, bools, skip_processe
             end
         end
     end
+end
+
+% Free the memory held between cases: the parallel pool's workers keep
+% their memory after a parfor, and Python keeps the particle data it read
+function release_memory()
+    pool = gcp('nocreate');
+    if ~isempty(pool)
+        delete(pool);
+    end
+    stbPyRelease(true);
 end
 
 % True for cases that are time averaged (static: 0 Hz, or no frequency
