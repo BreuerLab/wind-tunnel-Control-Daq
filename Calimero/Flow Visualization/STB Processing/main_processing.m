@@ -54,7 +54,7 @@ bools.bin_range = [180 200]; % [180 210]
 % x3_wings_20deg_6Hz_coarse_phase_avg.mat (and _integral.mat); phaseAvg_UI
 % lists it under that name in its version dropdown. "" = default (no
 % suffix). Phase averages only; avoid "deg" and "Hz" in the name.
-bools.version = "layout_test";
+bools.version = "";
 
 % Harmonic regression instead of bin averaging. Each point's time series
 % is fitted over ALL frames at their actual phases with a Fourier series
@@ -79,7 +79,7 @@ bools.hr_save_coef = false; % save coefficients (to evaluate fit / exact d/dt at
 % uncertainty mask and DAQ data. Time-averaged cases are skipped.
 % All settings and their meaning: particle_default_opts.m
 bools.particle = particle_default_opts();
-bools.particle.run  = false;   % true: add the particle processing
+bools.particle.run  = true;   % true: add the particle processing
 bools.particle.only = false;   % true: only the particle processing (binned files must exist)
 % bools.particle.run_tag      = "o3";     % tag non-default fit settings in the file names
 % bools.particle.fit.depthOrder = 5;
