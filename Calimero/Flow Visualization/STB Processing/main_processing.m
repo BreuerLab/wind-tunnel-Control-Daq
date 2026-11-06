@@ -38,7 +38,7 @@ bools.frames_per_chunk = 20; % time averages: frames loaded and processed per ca
 bools.compress_save = false; % true = MATLAB's compressed .mat (smaller, much slower to save)
 bools.proc_vel = true; % false if just calculating secondary values
 % Processed files: <case>[_<version>]_shared.mat (DAQ, binning, grid, frames)
-% plus <case>[_<version>]_<method>_phase_avg.mat and _<method>_integral.mat
+% plus <case>[_<version>]_<method>_fields.mat and _<method>_integral.mat
 % per method (bin, bin_hr, particle_pool_hr20, ...) in Processed Results\phase_avg\.
 % true: also write the old combined files the GUIs read (until they read
 % the new layout)

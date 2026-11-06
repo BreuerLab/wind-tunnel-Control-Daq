@@ -13,7 +13,9 @@ function P = stb_file_paths(save_root, PIV_case_name, version, method)
 %
 %   P.dir      <save_root>\phase_avg
 %   P.shared   <case>[_<version>]_shared.mat           DAQ, binning, grid, frames
-%   P.fields   <case>[_<version>]_<method>_phase_avg.mat  flow fields
+%   P.fields   <case>[_<version>]_<method>_fields.mat     phase-averaged flow fields
+%              (not *_phase_avg.mat, so they can't collide with the legacy
+%              combined files and the legacy GUIs don't list them)
 %   P.integral <case>[_<version>]_<method>_integral.mat   integral quantities
 %   P.fit      <save_root>\particle_fits\<case>[_<version>]_<method>_fit.mat
 %              (particle methods: the fit on its own grid, before resampling)
@@ -27,7 +29,7 @@ function P = stb_file_paths(save_root, PIV_case_name, version, method)
     P.method = string(method);
     P.shared = fullfile(P.dir, stem + "_shared.mat");
     if strlength(P.method) > 0
-        P.fields   = fullfile(P.dir, stem + "_" + P.method + "_phase_avg.mat");
+        P.fields   = fullfile(P.dir, stem + "_" + P.method + "_fields.mat");
         P.integral = fullfile(P.dir, stem + "_" + P.method + "_integral.mat");
         P.fit      = fullfile(string(save_root), "particle_fits", stem + "_" + P.method + "_fit.mat");
     else
