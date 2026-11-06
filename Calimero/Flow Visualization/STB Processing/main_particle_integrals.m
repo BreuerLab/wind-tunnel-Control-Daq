@@ -3,7 +3,7 @@
 % (particle_integrals_case), for running it on its own: optional harmonic
 % regression across bins, repackaging like phase_avg_STB, then
 % calc_secondary_vals_phase. Saved in Processed Results\phase_avg\ as its
-% own version (e.g. particle_pool_o5s30_hr20) for phaseAvg_UI / flowField_UI.
+% own version (e.g. particle_pool_hr20) for phaseAvg_UI / flowField_UI.
 % Use the same settings as main_particle_processing (mode, run_tag).
 
 close all
@@ -17,7 +17,7 @@ binned_version      = "";                     % version part of the binned files
 save_filepath_local = "F:\Processed Results\";
 
 p = particle_default_opts();                  % all settings: particle_default_opts.m
-% p.run_tag = "o5s30";
+% p.run_tag = "o3";                           % same tag as main_particle_processing
 % p.hr_harmonics = 20;                        % 0 = no harmonic regression
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

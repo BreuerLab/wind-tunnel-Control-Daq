@@ -5,7 +5,8 @@ function p = particle_default_opts()
 % main_particle_processing / main_particle_integrals scripts.
 %
 % Saved version name (phaseAvg_UI): [<binned version>_]particle[_pool]
-% [_<run_tag>][_hr<hr_harmonics>], e.g. particle_pool_o5s30_hr20.
+% [_<run_tag>][_hr<hr_harmonics>], e.g. particle_pool_hr20 (default
+% settings) or particle_pool_o3_hr20 (run_tag "o3").
 
     % ---- what to run ------------------------------------------------------
     p.run  = false;   % run the particle steps after the binned phase average
@@ -29,7 +30,8 @@ function p = particle_default_opts()
     p.mode         = "pool";   % "pool" (particles of a bin fitted together) or "average"
     p.numWorkers   = 8;
     p.binsPerChunk = 16;       % only matters without the cache
-    p.run_tag      = "o5s30";  % names this set of fit settings in the saved files
+    p.run_tag      = "";       % optional tag for non-default fit settings, e.g. "o3"
+                               % (keeps them from overwriting the default files)
 
     % ---- local fit (particleGradientFit) ---------------------------------
     p.fit = struct();

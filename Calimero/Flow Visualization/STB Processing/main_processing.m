@@ -68,14 +68,14 @@ bools.hr_save_coef = false; % save coefficients (to evaluate fit / exact d/dt at
 % polynomial through the slab depth, so d/dx across the thin slab is
 % resolved much better than by binning), then the same integral quantities
 % as for the binned data, saved as its own version for phaseAvg_UI /
-% flowField_UI (e.g. particle_pool_o5s30_hr20). Runs after the binned
+% flowField_UI (e.g. particle_pool_hr20). Runs after the binned
 % phase average of each case, which supplies the phase binning, grid,
 % uncertainty mask and DAQ data. Time-averaged cases are skipped.
 % All settings and their meaning: particle_default_opts.m
 bools.particle = particle_default_opts();
 bools.particle.run  = false;   % true: add the particle processing
 bools.particle.only = false;   % true: only the particle processing (binned files must exist)
-% bools.particle.run_tag      = "o5s30";  % names the fit settings in the file names
+% bools.particle.run_tag      = "o3";     % tag non-default fit settings in the file names
 % bools.particle.fit.depthOrder = 5;
 % bools.particle.hr_harmonics = 20;     % harmonic regression across bins, 0 = off
 

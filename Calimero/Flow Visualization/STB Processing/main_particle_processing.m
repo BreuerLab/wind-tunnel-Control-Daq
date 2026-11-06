@@ -21,7 +21,7 @@ save_filepath_local = "F:\Processed Results\";
 
 p = particle_default_opts();                  % all settings: particle_default_opts.m
 p.plot = true;
-% p.run_tag = "o5s30";  p.fit.depthOrder = 5;  p.sigma_per_spacing = 1.25;
+% p.run_tag = "o3";  p.fit.depthOrder = 3;      % tag non-default settings
 % p.set_pattern = "F:\VC7 Data\September\x2\x2_wings_20deg_8Hz\*.set";   % default: the case folder
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
