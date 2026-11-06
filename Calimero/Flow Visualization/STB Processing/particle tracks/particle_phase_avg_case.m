@@ -14,6 +14,7 @@ function R_file = particle_phase_avg_case(PIV_case_name, save_filepath_local, ve
 %   p       : particle_default_opts()
 
     PIV_case_name = string(PIV_case_name);
+    stbPyStart();   % before any parallel pool (see stbPyStart)
     p_fit = p;  p_fit.hr_harmonics = 0;
     P = stb_file_paths(save_filepath_local, PIV_case_name, version, particle_method_name(p_fit));
 

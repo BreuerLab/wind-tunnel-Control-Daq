@@ -125,7 +125,8 @@ continue_on_error = true;
 % true: after each case, shut down the parallel pool and MATLAB's Python
 % process, so memory held by the workers and by Python (particle tracks)
 % is freed before the next case. They restart on their own (~1 min per
-% case). Without it, cases after the first can run out of memory.
+% case; Python is started before the pool, see stbPyStart). Without it,
+% cases after the first can run out of memory.
 reset_between_cases = true;
 
 % Every run is appended to this log: the settings, each case's name, data
