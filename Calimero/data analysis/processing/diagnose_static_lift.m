@@ -40,13 +40,14 @@ cd(fileparts(mfilename('fullpath')));
 addpath(genpath('../../'))
 
 sessions = [
-    "F:\Force Measurements\10 deg wings\4 m.s\wings_2026_09_27"
-    "F:\Force Measurements\20 deg wings\4 m.s\wings_2026_09_26"
-    "F:\Force Measurements\30 deg wings\4 m.s\wings_2026_09_27"
-    "F:\Force Measurements\10 deg body\4 m.s\body_2026_09_27"
-    "F:\Force Measurements\20 deg body\4 m.s\body_2026_09_27"
-    "F:\Force Measurements\30 deg body\4 m.s\body_2026_09_27"
-    "F:\Force Measurements\NACA\4 m.s\NACA_2026_09_27"   % NACA 0012 wing (static)
+    % "F:\Force Measurements\10 deg wings\4 m.s\wings_2026_09_27"
+    % "F:\Force Measurements\20 deg wings\4 m.s\wings_2026_09_26"
+    % "F:\Force Measurements\30 deg wings\4 m.s\wings_2026_09_27"
+    % "F:\Force Measurements\10 deg body\4 m.s\body_2026_09_27"
+    % "F:\Force Measurements\20 deg body\4 m.s\body_2026_09_27"
+    % "F:\Force Measurements\30 deg body\4 m.s\body_2026_09_27"
+    % "F:\Force Measurements\NACA\4 m.s\NACA_2026_09_27"   % NACA 0012 wing (static)
+    "C:\Users\rgissler\Documents\DAQ Data\30 deg wings data\4 m.s\wings_2026_11_06"
     ];
 % a type's folder (like NACA above) is searched for its session folder(s)
 sessions = find_lc_sessions(sessions);
