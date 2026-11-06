@@ -51,7 +51,9 @@ function T = convert_legacy_STB_files(save_root, opts)
         cname = case_names(find(stem == case_names | startsWith(stem, case_names + "_"), 1));
         if isempty(cname), continue; end
         if ~isempty(opts.cases) && ~ismember(cname, string(opts.cases)), continue; end
-        if ismember('method', who('-file', char(files(k)))), continue; end   % already new layout
+        vars = who('-file', char(files(k)));
+        if ismember('method', vars), continue; end      % already new layout
+        if ismember('fitOpts', vars), continue; end     % particle fit (particlePhaseAverage), not a phase average
         v = extractAfter(stem, strlength(cname));
         v = regexprep(v, "^_", "");
         [ver, method] = legacy_version_to_method(v);
