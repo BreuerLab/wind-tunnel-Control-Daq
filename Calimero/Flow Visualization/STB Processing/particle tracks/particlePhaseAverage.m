@@ -97,15 +97,22 @@ function R = particlePhaseAverage(setPath, bin_ind_arr, fitOpts, opts)
             end
             f = (1:nBlk)';
         end
-        if numel(f) ~= nBlk || any(f < 1 | f > nFrames | f ~= round(f))
+        if numel(f) ~= nBlk || any(f < 1 | f ~= round(f))
             error('particlePhaseAverage:frameIndex', ...
-                'frameIndex{%d} must hold %d integer vc7 indices in 1..%d.', s, nBlk, nFrames);
+                'frameIndex{%d} must hold %d positive integer vc7 indices.', s, nBlk);
         end
-        fiAll{s} = f;
-        free = frameSet(f) == 0;                 % first set wins for duplicates
+        inRange = f <= nFrames;                  % binning may cover fewer images
+        if ~all(inRange)
+            fprintf(['  %s: %d image pairs beyond the %d binned images are not used ' ...
+                     '(binned run with fewer images?)\n'], setPath(s), nnz(~inRange), nFrames);
+        end
+        f(~inRange) = 0;
+        fiAll{s} = f;                            % 0 = block not used
+        blk  = find(inRange);
+        free = frameSet(f(blk)) == 0;            % first set wins for duplicates
         nDup = nDup + nnz(~free);
-        frameSet(f(free)) = s;
-        frameBlock(f(free)) = find(free);
+        frameSet(f(blk(free))) = s;
+        frameBlock(f(blk(free))) = blk(free);
     end
     covered = frameSet > 0;
     fprintf('Particle data for %d of %d vc7 files from %d set(s)', nnz(covered), nFrames, nSet);

@@ -88,6 +88,22 @@ bools.harmonic_reg = false;
 bools.num_harmonics = 10; % 2*10+1 = 21 coefficients per point and field
 bools.hr_save_coef = false; % save coefficients (to evaluate fit / exact d/dt at any phase); large files
 
+% Particle-based phase average (particle tracks\particle_process_case):
+% velocity and vorticity fitted directly to the STB particle tracks (local
+% polynomial through the slab depth, so d/dx across the thin slab is
+% resolved much better than by binning), then the same integral quantities
+% as for the binned data, saved as its own version for phaseAvg_UI /
+% flowField_UI (e.g. particle_pool_o5s30_hr20). Runs after the binned
+% phase average of each case, which supplies the phase binning, grid,
+% uncertainty mask and DAQ data. Time-averaged cases are skipped.
+% All settings and their meaning: particle_default_opts.m
+bools.particle = particle_default_opts();
+bools.particle.run  = false;   % true: add the particle processing
+bools.particle.only = false;   % true: only the particle processing (binned files must exist)
+% bools.particle.run_tag      = "o5s30";  % names the fit settings in the file names
+% bools.particle.fit.depthOrder = 5;
+% bools.particle.hr_harmonics = 20;     % harmonic regression across bins, 0 = off
+
 % If you want to make plots here, you can. However, it is NOT recommended.
 % Intead, use main_analysis to produce plots easily in a GUI interface.
 bools.PIV_plot = false;
@@ -260,12 +276,24 @@ function cases = scan_cases(names, num_images, save_folder, bools, skip_processe
         version = version + "_RPCA";
     end
 
+    % particle processing only: static cases have nothing to do, and
+    % skip_processed looks for the particle integral file
+    particle_only = isfield(bools, 'particle') && bools.particle.run && bools.particle.only;
+    if particle_only
+        particle_file_end = "_" + particle_version_name(binned_version_name(bools), bools.particle) + ...
+            "_phase_avg_integral.mat";
+    end
+
     for k = 1:n
         name = cases.name(k);
         if is_static_case(name)
             cases.avg_type(k) = "time"; % same rule as process_case
         else
             cases.avg_type(k) = "phase";
+        end
+        if particle_only && cases.avg_type(k) == "time"
+            cases.status(k) = "static";   % no phase bins for the particle steps
+            continue
         end
 
         try
@@ -290,7 +318,11 @@ function cases = scan_cases(names, num_images, save_folder, bools, skip_processe
             end
         end
 
-        if skip_processed
+        if skip_processed && particle_only
+            if isfile(fullfile(save_folder, "phase_avg", name + particle_file_end))
+                cases.status(k) = "skipped";
+            end
+        elseif skip_processed
             % new files are saved in save_folder itself; processed ones are
             % kept in its time_avg\ / phase_avg\ (and phase_avg\RPCA\)
             if cases.avg_type(k) == "time"
@@ -334,6 +366,10 @@ function txt = bools_to_text(bools)
     parts = strings(numel(names), 1);
     for k = 1:numel(names)
         v = bools.(names{k});
+        if isstruct(v) && isscalar(v)
+            parts(k) = names{k} + ".{" + bools_to_text(v) + "}";   % e.g. particle settings
+            continue
+        end
         if isstring(v) || ischar(v)
             v = '"' + string(v) + '"'; % quoted, e.g. version="coarse"
         elseif isnumeric(v) || islogical(v)

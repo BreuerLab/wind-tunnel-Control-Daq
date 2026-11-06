@@ -24,8 +24,8 @@ function cacheParticleFrames(setPath, frameIndex, cacheDir, blocksPerRead)
 
     t0 = tic;  nNew = 0;
     for s = 1:numel(setPath)
-        fi = frameIndex{s}(:);
-        todo = find(~arrayfun(@(f) isfile(cacheFile(cacheDir, f)), fi));
+        fi = frameIndex{s}(:);                   % 0 = block not used
+        todo = find(fi > 0 & ~arrayfun(@(f) f > 0 && isfile(cacheFile(cacheDir, f)), fi));
         if isempty(todo), continue; end
         fprintf('Caching %d image pairs from %s\n', numel(todo), setPath(s));
         for c0 = 1:blocksPerRead:numel(todo)
