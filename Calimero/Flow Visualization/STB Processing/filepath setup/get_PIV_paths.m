@@ -1,5 +1,12 @@
-function file_path = get_PIV_paths(PIV_case_name)
+function [file_path, case_folder] = get_PIV_paths(PIV_case_name)
     % file_path = get_PIV_paths(PIV_case_name): path to the case's data
+    %   (its combined binning folder of .vc7 files)
+    % [file_path, case_folder] = get_PIV_paths(PIV_case_name): also the
+    %   case folder (the binning folder's parent), where a trial processed
+    %   in batches keeps its particle sets, each with its own binning
+    %   folder inside its Shake-the-Box folder. Use get_case_frames for the
+    %   case's frames in either layout; file_path is "" when there is no
+    %   combined binning folder but the case folder exists.
     % case_names = get_PIV_paths(): list of all available case names
     %
     % September cases are found from their names, in one folder per
@@ -113,7 +120,12 @@ function file_path = get_PIV_paths(PIV_case_name)
         error('PIV Case "%s" not recognized.', PIV_case_name);
     end
 
+    case_folder = string(fileparts(char(file_path)));
     if ~isfolder(file_path)
+        if nargout >= 2 && isfolder(case_folder)
+            file_path = "";      % batch layout: frames from get_case_frames
+            return
+        end
         error('get_PIV_paths:missingFolder', ...
             'PIV data folder for "%s" not found:\n  %s', PIV_case_name, file_path);
     end

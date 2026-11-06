@@ -43,22 +43,39 @@ function R_file = particle_phase_avg_case(PIV_case_name, save_filepath_local, bi
             median(accumarray(Sb.bin_ind_arr(:), 1, [double(Sb.num_bins) 1])));
 
     % ---- particle sets and their vc7 files -------------------------------
-    vc7Folder = get_PIV_paths(PIV_case_name);
+    % Batch layout (each particle set with its own binning folder): the
+    % frame table gives every frame's set and block directly. Otherwise the
+    % particle sets are matched to the vc7 files of the combined folder.
+    FR = get_case_frames(PIV_case_name);
     pattern = string(p.set_pattern);
-    if strlength(pattern) == 0
-        pattern = fullfile(fileparts(char(vc7Folder)), '*.set');   % the case folder
-    end
-    sets = resolveParticleSets(pattern);
-    fprintf('%d particle set(s):\n', numel(sets));
-    P1 = loadSTBParticles(sets(1));                % metadata only
-    if isscalar(sets) && P1.info.n_blocks == nAll
-        frameIndex = {(1:nAll)'};
-        fprintf('  %s: blocks = vc7 files 1-%d\n', sets(1), nAll);
-    else
+    if FR.layout == "batches" && strlength(pattern) == 0
+        sets = FR.sets;
         frameIndex = cell(numel(sets), 1);
+        fprintf('%d particle set(s) (frame table):\n', numel(sets));
         for s = 1:numel(sets)
-            fprintf('  %s: ', sets(s));
-            frameIndex{s} = matchParticleBlocksToVc7(sets(s), vc7Folder);
+            rows = find(FR.set == sets(s));
+            fi = zeros(max(FR.block(rows)), 1);
+            fi(FR.block(rows)) = rows;               % block -> frame (row of FR)
+            frameIndex{s} = fi;
+            fprintf('  %s: images %d-%d\n', sets(s), FR.image(rows(1)), FR.image(rows(end)));
+        end
+    else
+        vc7Folder = FR.folders(1);
+        if strlength(pattern) == 0
+            pattern = fullfile(FR.case_folder, '*.set');
+        end
+        sets = resolveParticleSets(pattern);
+        fprintf('%d particle set(s):\n', numel(sets));
+        P1 = loadSTBParticles(sets(1));            % metadata only
+        if isscalar(sets) && P1.info.n_blocks == nAll
+            frameIndex = {(1:nAll)'};
+            fprintf('  %s: blocks = vc7 files 1-%d\n', sets(1), nAll);
+        else
+            frameIndex = cell(numel(sets), 1);
+            for s = 1:numel(sets)
+                fprintf('  %s: ', sets(s));
+                frameIndex{s} = matchParticleBlocksToVc7(sets(s), vc7Folder);
+            end
         end
     end
     cov = false(nAll, 1);

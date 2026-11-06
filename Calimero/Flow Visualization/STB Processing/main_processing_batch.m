@@ -297,12 +297,23 @@ function cases = scan_cases(names, num_images, save_folder, bools, skip_processe
         end
 
         try
-            cases.folder(k) = get_PIV_paths(name);
-        catch
-            cases.status(k) = "no folder";
+            FR = get_case_frames(name);           % combined folder or batch folders
+            if FR.layout == "folder"
+                cases.folder(k) = FR.folders(1);
+            else
+                cases.folder(k) = FR.case_folder + sprintf(" (%d batches)", numel(FR.folders));
+            end
+            cases.num_vc7(k) = numel(FR.vc7);
+        catch err
+            if any(err.identifier == ["get_case_frames:noVc7", "get_case_frames:count", ...
+                                      "get_case_frames:gaps", "get_case_frames:duplicates"])
+                cases.status(k) = "bad frames";
+                fprintf(2, '%s: %s\n', name, err.message);
+            else
+                cases.status(k) = "no folder";
+            end
             continue
         end
-        cases.num_vc7(k) = numel(dir(fullfile(cases.folder(k), "*.vc7")));
         if cases.num_vc7(k) == 0
             cases.status(k) = "no vc7";
             continue
