@@ -9,6 +9,8 @@ Written for 2-pulse Shake-the-Box particle fields (type DOUBLE_PULSE).
 Particle fields are read with lvpyio.read_particles, which expects the path of
 a DaVis particle set (the folder next to the .set file, no extension).
 """
+import gc
+
 import numpy as np
 import lvpyio as lv
 
@@ -109,6 +111,7 @@ def close(path=None):
         pf = _open.pop(k, None)
         if pf is not None and not pf.closed:
             pf.close()
+    gc.collect()   # free what the closed fields held right away
 
 
 def block_attributes(path, block):

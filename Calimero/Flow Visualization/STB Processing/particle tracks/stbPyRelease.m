@@ -12,7 +12,8 @@ function stbPyRelease(terminate_python)
     pe = pyenv;
     if pe.Status ~= "Loaded", return; end
     try
-        mod = py.sys.modules.get('stb_tracks');
+        mods = py.sys.modules;   % (MATLAB can't index py.sys.modules.get directly)
+        mod = mods.get('stb_tracks');
         if ~isa(mod, 'py.NoneType') && logical(py.hasattr(mod, 'close'))
             mod.close();
         end
