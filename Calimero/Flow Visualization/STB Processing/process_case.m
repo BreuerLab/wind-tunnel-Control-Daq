@@ -49,6 +49,12 @@ end
 % bools.particle.only skips the binned processing (its files must exist).
 particle = isfield(bools, 'particle') && bools.particle.run;
 particle_only = particle && isfield(bools.particle, 'only') && bools.particle.only;
+% Start Python now, before the binned processing: started after it, the
+% Python process failed to launch (CreateProcessW [system:87]) although it
+% starts fine in a fresh MATLAB. Once running it is kept for the session.
+if particle && avg_type == 1
+    stbPyStart();
+end
 
 switch avg_type
     case 0
