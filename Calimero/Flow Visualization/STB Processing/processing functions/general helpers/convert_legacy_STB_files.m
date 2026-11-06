@@ -3,7 +3,7 @@ function T = convert_legacy_STB_files(save_root, opts)
 % (stb_file_paths) from existing combined phase-average files:
 %   <case>[_<v>]_phase_avg.mat + <case>[_<v>]_phase_avg_integral.mat
 %   ->  <case>[_<ver>]_shared.mat
-%       <case>[_<ver>]_<method>_phase_avg.mat
+%       <case>[_<ver>]_<method>_fields.mat
 %       <case>[_<ver>]_<method>_integral.mat
 % The old files are left in place.
 %

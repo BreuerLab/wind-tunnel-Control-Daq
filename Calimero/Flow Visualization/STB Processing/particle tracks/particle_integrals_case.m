@@ -4,7 +4,7 @@ function method = particle_integrals_case(PIV_case_name, save_filepath_local, ve
 % particle-based phase average, computed by the SAME
 % calc_secondary_vals_phase as the binned data and saved in the new layout
 % (stb_file_paths):
-%   <save>\phase_avg\<case>[_<version>]_<method>_phase_avg.mat   flow fields
+%   <save>\phase_avg\<case>[_<version>]_<method>_fields.mat   flow fields
 %   <save>\phase_avg\<case>[_<version>]_<method>_integral.mat    integrals
 % next to the case's shared file. With p.legacy_files the old combined
 % files (version <version>_<method>) are written too.
