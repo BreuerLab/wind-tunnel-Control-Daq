@@ -16,7 +16,7 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path (as main_p
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 PIV_case_name       = 'x2_wings_20deg_8Hz';   % as in main_processing
-binned_version      = "";                     % version part of the binned files (binned_version_name(bools))
+version             = "";                     % binning variant (bools.version in main_processing)
 save_filepath_local = "F:\Processed Results\";
 
 p = particle_default_opts();                  % all settings: particle_default_opts.m
@@ -25,4 +25,4 @@ p.plot = true;
 % p.set_pattern = "F:\VC7 Data\September\x2\x2_wings_20deg_8Hz\*.set";   % default: the case folder
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-particle_phase_avg_case(PIV_case_name, save_filepath_local, binned_version, p);
+particle_phase_avg_case(PIV_case_name, save_filepath_local, version, p);

@@ -81,7 +81,32 @@ end
 
 S = calc_secondary_vals_common(D, config, bounds);
 
-% copy over data from phase averaged kinematics and power
+% New file layout (bools.stb_paths from phase_avg_STB or the particle
+% steps): the integral file holds the integral quantities and, for the
+% binned method, the per-frame-averaged forces; the DAQ data are in the
+% shared file. With bools.legacy_files (default true) the old combined
+% integral file (with the DAQ data copied in) is written too.
+legacy = ~isfield(bools, 'legacy_files') || bools.legacy_files;
+if isfield(bools, 'stb_paths')
+    P = bools.stb_paths;
+    Si = S;
+    [~, before_avg] = stb_shared_names();
+    for k = 1:numel(before_avg)
+        if isfield(D, before_avg{k}), Si.(before_avg{k}) = D.(before_avg{k}); end
+    end
+    Si.method = P.method;
+    Si.PIV_case_name = string(D.PIV_case_name);
+    disp("Saving integral quantities to: " + P.integral)
+    save_STB_struct(P.integral, Si, bools);
+    clear Si
+    if ~legacy
+        fprintf('Secondary file: Processing and saving data took %.4f seconds.\n', toc);
+        return
+    end
+end
+
+% legacy combined integral file: copy over data from phase averaged
+% kinematics and power
 fnames = fieldnames(F);
 for i = 1:numel(fnames)
     S.(fnames{i}) = F.(fnames{i});

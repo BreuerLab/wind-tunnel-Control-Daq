@@ -37,6 +37,12 @@ bools.num_workers = 8; % parallel workers for phase bins / time-avg frame chunks
 bools.frames_per_chunk = 20; % time averages: frames loaded and processed per call on each worker; lower if out of memory
 bools.compress_save = false; % true = MATLAB's compressed .mat (smaller, much slower to save)
 bools.proc_vel = true; % false if just calculating secondary values
+% Processed files: <case>[_<version>]_shared.mat (DAQ, binning, grid, frames)
+% plus <case>[_<version>]_<method>_phase_avg.mat and _<method>_integral.mat
+% per method (bin, bin_hr, particle_pool_hr20, ...) in Processed Results\phase_avg\.
+% true: also write the old combined files the GUIs read (until they read
+% the new layout)
+bools.legacy_files = true;
 
 % Range of phase-bin counts to search. findBestNumBins2 picks the count
 % in this range (and the bin offset) with the smallest phase spread per

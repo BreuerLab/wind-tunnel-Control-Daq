@@ -1,9 +1,14 @@
-function S = particle_to_phase_avg_struct(R, binned_phase_file)
+function S = particle_to_phase_avg_struct(R, binned_phase_file, binned_fields_file)
 % PARTICLE_TO_PHASE_AVG_STRUCT  Repackage a particlePhaseAverage result R in
 % the layout phase_avg_STB saves, so calc_secondary_vals_phase, flowField_UI
 % and phaseAvg_UI can use it unchanged (saved under its own version name).
 %
 %   S = particle_to_phase_avg_struct(R, binned_phase_file)
+%   S = particle_to_phase_avg_struct(R, shared_file, binned_fields_file)
+%
+% With two files (new layout, stb_file_paths): metadata, binning and grid
+% come from the case's shared file and the uncertainty from the binned
+% method's flow-field file. With one file: the legacy combined file.
 %
 % R must come from particlePhaseAverage with opts.saveGradients = true and
 % all bins (R.bins = 1:num_bins).
@@ -42,15 +47,21 @@ function S = particle_to_phase_avg_struct(R, binned_phase_file)
             'tick_frame_pos', 'full_cycle', 'bin_ind_arr', 'bin_count', 'bin_std', ...
             'bin_phase_var', 'phase_res', 'bin_placement', 'num_clusters', ...
             'phase_spread_ratio', 'PIV_case_name'};
+    if nargin < 3 || isempty(binned_fields_file), binned_fields_file = binned_phase_file; end
+    need_meta = {'L', 'U', 'U_act', 'rho_act', 'num_bins', 'PIV_case_name', 'x', 'y', 'z'};
+    need_unc  = {'uncU_phase_avg', 'uncV_phase_avg', 'uncW_phase_avg'};
     vars = who('-file', char(binned_phase_file));
-    need = {'L', 'U', 'U_act', 'rho_act', 'num_bins', 'PIV_case_name', 'x', 'y', 'z', ...
-            'uncU_phase_avg', 'uncV_phase_avg', 'uncW_phase_avg'};
-    miss = setdiff(need, vars);
+    miss = setdiff(need_meta, vars);
     if ~isempty(miss)
         error('particle_to_phase_avg_struct:meta', '%s lacks: %s', binned_phase_file, strjoin(miss, ', '));
     end
-    B = load(binned_phase_file, meta{ismember(meta, vars)}, 'x', 'y', 'z', ...
-             'uncU_phase_avg', 'uncV_phase_avg', 'uncW_phase_avg');
+    varsF = who('-file', char(binned_fields_file));
+    miss = setdiff(need_unc, varsF);
+    if ~isempty(miss)
+        error('particle_to_phase_avg_struct:unc', '%s lacks: %s', binned_fields_file, strjoin(miss, ', '));
+    end
+    B = merge_stb_structs(load(binned_phase_file, meta{ismember(meta, vars)}, 'x', 'y', 'z'), ...
+                          load(binned_fields_file, need_unc{:}));
     for k = 1:numel(meta)
         if isfield(B, meta{k}), S.(meta{k}) = B.(meta{k}); end
     end

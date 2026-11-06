@@ -78,8 +78,13 @@ switch avg_type
             end
         end
         if particle
-            particle_process_case(PIV_case_name, save_filepath_local, ...
-                binned_version_name(bools), bools.particle);
+            if ~particle_only
+                bools.particle.binned_method = binned_method_name(bools);   % uncertainty mask from this run
+            end
+            if isfield(bools, 'legacy_files'), bools.particle.legacy_files = bools.legacy_files; end
+            version = "";
+            if isfield(bools, 'version'), version = string(bools.version); end
+            particle_process_case(PIV_case_name, save_filepath_local, version, bools.particle);
         end
 end
 

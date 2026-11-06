@@ -13,7 +13,7 @@ addpath(genpath('.'))
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 PIV_case_name       = 'x2_wings_20deg_8Hz';   % as in main_processing
-binned_version      = "";                     % version part of the binned files
+version             = "";                     % binning variant (bools.version in main_processing)
 save_filepath_local = "F:\Processed Results\";
 
 p = particle_default_opts();                  % all settings: particle_default_opts.m
@@ -21,4 +21,4 @@ p = particle_default_opts();                  % all settings: particle_default_o
 % p.hr_harmonics = 20;                        % 0 = no harmonic regression
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-particle_integrals_case(PIV_case_name, save_filepath_local, binned_version, p);
+particle_integrals_case(PIV_case_name, save_filepath_local, version, p);

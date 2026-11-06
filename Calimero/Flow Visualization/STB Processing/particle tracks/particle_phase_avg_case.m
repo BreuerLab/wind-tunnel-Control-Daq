@@ -1,21 +1,28 @@
-function R_file = particle_phase_avg_case(PIV_case_name, save_filepath_local, binned_version, p)
+function R_file = particle_phase_avg_case(PIV_case_name, save_filepath_local, version, p)
 % PARTICLE_PHASE_AVG_CASE  Particle-based phase average of one case
 % (particlePhaseAverage), with the SAME phase binning as its binned phase
-% average: bin_ind_arr / num_bins come from the binned *_phase_avg.mat that
-% phase_avg_STB saved. Saves <save>\<case>[_<version>]_particle_<mode>
-% [_<run_tag>]_phase_avg.mat and returns its path.
+% average: bin_ind_arr / num_bins and the grid come from the case's shared
+% file (stb_file_paths; the legacy combined *_phase_avg.mat if there is no
+% shared file yet). Saves the fit on its own grid to
+% <save>\particle_fits\<case>[_<version>]_<method>_fit.mat (method without
+% the harmonic-regression suffix, which is applied in
+% particle_integrals_case) and returns its path.
 %
-%   R_file = particle_phase_avg_case(PIV_case_name, save_filepath_local, binned_version, p)
+%   R_file = particle_phase_avg_case(PIV_case_name, save_filepath_local, version, p)
 %
-%   binned_version : suffix of the binned files ("" for none; with
-%                    harmonic regression / RPCA as phase_avg_STB names them)
-%   p              : particle_default_opts()
+%   version : binning variant (bools.version, "" = default)
+%   p       : particle_default_opts()
 
     PIV_case_name = string(PIV_case_name);
-    stem = PIV_case_name + suffix(binned_version);
+    p_fit = p;  p_fit.hr_harmonics = 0;
+    P = stb_file_paths(save_filepath_local, PIV_case_name, version, particle_method_name(p_fit));
 
-    % ---- phase binning (and grid) from the binned phase-avg file -------
-    phase_file = find_file(save_filepath_local, stem + "_phase_avg.mat");
+    % ---- phase binning (and grid) from the shared file -------------------
+    if isfile(P.shared)
+        phase_file = P.shared;
+    else
+        phase_file = find_file(save_filepath_local, P.stem + "_phase_avg.mat");   % legacy
+    end
     vars = who('-file', char(phase_file));
     if ~all(ismember({'bin_ind_arr', 'num_bins'}, vars))
         error("%s has no bin_ind_arr/num_bins; rerun main_processing.", phase_file);
@@ -105,8 +112,8 @@ function R_file = particle_phase_avg_case(PIV_case_name, save_filepath_local, bi
     R.PIV_case_name = PIV_case_name;
     fprintf('Particle phase average (%s mode) done in %.1f min\n', R.mode, toc(t0)/60);
 
-    R_file = fullfile(save_filepath_local, stem + "_particle_" + p.mode + ...
-                      suffix(p.run_tag) + "_phase_avg.mat");
+    R_file = P.fit;
+    if ~isfolder(fileparts(R_file)), mkdir(fileparts(R_file)); end
     save(R_file, '-struct', 'R', '-v7.3');
     fprintf('Saved %s\n', R_file);
 
