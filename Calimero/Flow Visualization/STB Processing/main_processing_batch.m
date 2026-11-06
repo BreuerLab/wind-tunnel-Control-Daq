@@ -122,11 +122,11 @@ bools.plot = false;
 % true: keep going if a case errors and report it at the end
 continue_on_error = true;
 
-% true: after each case, shut down the parallel pool and MATLAB's Python
-% process, so memory held by the workers and by Python (particle tracks)
-% is freed before the next case. They restart on their own (~1 min per
-% case; Python is started before the pool, see stbPyStart). Without it,
-% cases after the first can run out of memory.
+% true: after each case, shut down the parallel pool (its workers keep
+% their memory) and close the particle sets Python holds, so that memory
+% is freed before the next case. The pool restarts on its own (~30 s per
+% case); Python keeps running, since it couldn't be restarted mid-batch.
+% Without it, cases after the first can run out of memory.
 reset_between_cases = true;
 
 % Every run is appended to this log: the settings, each case's name, data
@@ -387,7 +387,7 @@ function release_memory()
     if ~isempty(pool)
         delete(pool);
     end
-    stbPyRelease(true);
+    stbPyRelease();   % close the particle sets; Python itself keeps running
 end
 
 % True for cases that are time averaged (static: 0 Hz, or no frequency

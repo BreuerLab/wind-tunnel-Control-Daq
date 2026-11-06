@@ -1,21 +1,22 @@
 function stbPyStart()
-% STBPYSTART  Start MATLAB's Python (and load stb_tracks.py) at the start
-% of the particle steps, with a clear message if it can't be started.
+% STBPYSTART  Start MATLAB's Python (and load stb_tracks.py) for the
+% particle steps, with a clear message if it can't be started.
 %
-% If MATLAB's out-of-process Python host (MATLABPyHost.exe) died during a
-% session, e.g. when the PC ran out of memory, MATLAB can fail to start a
-% new one for the rest of that session with
+% process_case calls it before the binned phase average: started after
+% the binned processing, MATLAB's out-of-process Python host
+% (MATLABPyHost.exe) failed to launch with
 %   Unable to launch Simple server ... CreateProcessW: The parameter is
 %   incorrect [system:87]
-% Restarting MATLAB fixes it. Does nothing if Python is already running.
+% although it starts fine in a fresh MATLAB. Does nothing if Python is
+% already running.
     pe = pyenv;
     if pe.Status == "Loaded", return; end
     try
         stbPyModule();
     catch err
         error("stbPyStart:launch", ['Could not start Python (%s).\n' ...
-            'If MATLAB''s Python process crashed earlier in this session (e.g. out of memory), ' ...
-            'close MATLAB, end any MATLABPyHost.exe left in Task Manager, and start MATLAB again.'], ...
+            'Try it in a fresh MATLAB: py.list({1}). If that works, start Python before ' ...
+            'anything else in the session (process_case does this for the particle steps).'], ...
             strtrim(err.message))
     end
 end
