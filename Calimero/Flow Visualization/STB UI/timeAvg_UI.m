@@ -15,6 +15,9 @@ classdef timeAvg_UI < handle
         % old flapper (Feb 2026) / new flapper (Aug-Sep 2026) data sets, as
         % in phaseAvg_UI: new flapper case types start with these prefixes
         OLD_FLAPPER_SOURCE_MODE = "old flapper";
+        % particle-track method the HRPP button selects (particle pool fit
+        % with harmonic regression across bins): <case>_particle_pool_hr20
+        HRPP_METHOD = "particle_pool_hr20";
         NEW_FLAPPER_SOURCE_MODE = "new flapper";
         new_flapper_downstream_types = ["x1";"x2";"x3";"x4";"x5";"MPS"];
         x_axis_types = ["wingbeat frequency", "wingbeat amplitude", "downstream distance"];
@@ -93,6 +96,9 @@ classdef timeAvg_UI < handle
         RPCA;
         % harmonic regression files (_hr, from bools.harmonic_reg)
         HR;
+        % particle pool + harmonic regression files (HRPP_METHOD, from
+        % bools.particle); replaces HR / RPCA, which are binned variants
+        HRPP;
         % Difference: plot variable 1 minus variables 2 (and 3)
         diff_bool;
         % Sub First: subtract each curve's first point (lowest x, e.g. the
@@ -297,6 +303,7 @@ classdef timeAvg_UI < handle
             obj.all_lc_repeats_bool = false;
             obj.RPCA = false;
             obj.HR = false;
+            obj.HRPP = false;
             obj.filt_num = 3;
             obj.operation = "mean";
 
@@ -520,11 +527,12 @@ classdef timeAvg_UI < handle
             obj.reset_fixed_variable_defaults();
             obj.update_fixed_dropdowns(fixed_dropdowns);
 
-            % RPCA and HR (harmonic regression) buttons share a row
-            variant_grid = uigridlayout(sidebar_grid, [1, 2]);
+            % RPCA, HR (harmonic regression) and HRPP (particle pool
+            % harmonic regression) buttons share a row
+            variant_grid = uigridlayout(sidebar_grid, [1, 3]);
             variant_grid.Layout.Row = 6;
             variant_grid.Layout.Column = 1;
-            variant_grid.ColumnWidth = {'1x', '1x'};
+            variant_grid.ColumnWidth = {'1x', '1x', '1x'};
             variant_grid.RowHeight = {'1x'};
             variant_grid.Padding = [0 0 0 0];
             variant_grid.ColumnSpacing = 8;
@@ -545,6 +553,15 @@ classdef timeAvg_UI < handle
             hr_button.Tooltip = "Harmonic regression files (_hr) for the flapping cases";
             hr_button.BackgroundColor = obj.get_button_color(obj.HR);
             hr_button.ValueChangedFcn = @(src, event) HR_change(src, event);
+
+            hrpp_button = uibutton(variant_grid, "state");
+            hrpp_button.Layout.Row = 1;
+            hrpp_button.Layout.Column = 3;
+            hrpp_button.Text = "HRPP";
+            hrpp_button.FontSize = 18;
+            hrpp_button.Tooltip = "Particle pool harmonic regression files (_" + obj.HRPP_METHOD + ") for the flapping cases";
+            hrpp_button.BackgroundColor = obj.get_button_color(obj.HRPP);
+            hrpp_button.ValueChangedFcn = @(src, event) HRPP_change(src, event);
 
             % Button to add entry
             entry_button_grid = uigridlayout(sidebar_grid, [1, 2]);
@@ -1038,14 +1055,36 @@ classdef timeAvg_UI < handle
                 end
             end
 
+            % HRPP is a different method from the binned HR / RPCA
+            % variants, so it can't be combined with them
             function RPCA_change(src, ~)
                 obj.RPCA = src.Value;
                 src.BackgroundColor = obj.get_button_color(obj.RPCA);
+                if obj.RPCA, set_HRPP(false); end
             end
 
             function HR_change(src, ~)
                 obj.HR = src.Value;
                 src.BackgroundColor = obj.get_button_color(obj.HR);
+                if obj.HR, set_HRPP(false); end
+            end
+
+            function HRPP_change(src, ~)
+                set_HRPP(src.Value);
+                if obj.HRPP
+                    obj.HR = false;
+                    hr_button.Value = false;
+                    hr_button.BackgroundColor = obj.get_button_color(false);
+                    obj.RPCA = false;
+                    rpca_button.Value = false;
+                    rpca_button.BackgroundColor = obj.get_button_color(false);
+                end
+            end
+
+            function set_HRPP(value)
+                obj.HRPP = value;
+                hrpp_button.Value = value;
+                hrpp_button.BackgroundColor = obj.get_button_color(value);
             end
 
             function force_sub_change(src, ~, plot_panel)
@@ -1137,6 +1176,9 @@ classdef timeAvg_UI < handle
                     end
                     if obj.RPCA
                         selection_key = selection_key + "|RPCA=true";
+                    end
+                    if obj.HRPP
+                        selection_key = selection_key + "|HRPP=true";
                     end
                     case_name = obj.get_selection_label(selection_key);
 
@@ -1731,7 +1773,7 @@ classdef timeAvg_UI < handle
 
         function info = decode_selection(obj, selection_key)
             parts = split(string(selection_key), "|");
-            info = struct("x_axis_type", parts(1), "type", "", "model", "", "position", "", "amp", NaN, "freq", NaN, "RPCA", false, "HR", false, "source", "");
+            info = struct("x_axis_type", parts(1), "type", "", "model", "", "position", "", "amp", NaN, "freq", NaN, "RPCA", false, "HR", false, "HRPP", false, "source", "");
             has_position = false;
 
             for i = 2:length(parts)
@@ -1753,6 +1795,8 @@ classdef timeAvg_UI < handle
                         info.RPCA = string(value) == "true";
                     case "HR"
                         info.HR = string(value) == "true";
+                    case "HRPP"
+                        info.HRPP = string(value) == "true";
                     case "source"
                         info.source = string(value);
                 end
@@ -1785,6 +1829,9 @@ classdef timeAvg_UI < handle
             end
             if info.RPCA
                 label = label + " | RPCA";
+            end
+            if info.HRPP
+                label = label + " | HRPP";
             end
         end
 
@@ -1960,6 +2007,9 @@ classdef timeAvg_UI < handle
             end
             if info.RPCA
                 label = label + " - RPCA";
+            end
+            if info.HRPP
+                label = label + " - HRPP";
             end
         end
 
@@ -2157,7 +2207,7 @@ classdef timeAvg_UI < handle
             for var_idx = 1:num_vars % Loop through each selected variable
                 force_var = selected_force_vars(var_idx);
                 % The load cell is measured at one position, so selections
-                % that differ only in downstream position (or RPCA / HR) share
+                % that differ only in downstream position (or RPCA / HR / HRPP) share
                 % one load cell series: their points are merged into the
                 % first such selection's series, each case once (positions
                 % may cover different frequencies). Difference mode still
@@ -2230,9 +2280,9 @@ classdef timeAvg_UI < handle
                     end
 
                     name = obj.get_case_name(type, amp, freq);
-                    % RPCA and HR only apply to phase averaged cases
+                    % RPCA, HR and HRPP only apply to phase averaged cases
                     if freq ~= 0
-                        name = obj.add_variant_suffix(name, info.HR, info.RPCA);
+                        name = obj.add_variant_suffix(name, info);
                     end
                     if freq == 0
                         suffix = "_time_avg";
@@ -2599,7 +2649,7 @@ classdef timeAvg_UI < handle
                     sigs = cell(1, num_vars);
                     for k = 1:num_vars
                         [sigs{k}, measured_freqs(j), wind_speed_acts(j)] = ...
-                            obj.get_phase_avg_signal(force_vars(k), type, amp, freq, info.RPCA, info.HR);
+                            obj.get_phase_avg_signal(force_vars(k), type, amp, freq, info);
                         if obj.conv_shift
                             sigs{k} = obj.apply_convection_shift(sigs{k}, force_vars(k), type, measured_freqs(j));
                         end
@@ -2664,10 +2714,10 @@ classdef timeAvg_UI < handle
 
         % Phase-averaged signal of a variable for one flapping case, with
         % the case's measured wingbeat frequency and wind speed
-        function [var, measured_freq, wind_speed_act] = get_phase_avg_signal(obj, force_var, type, amp, freq, RPCA, HR)
-            if nargin < 7, HR = false; end
+        % (info: the selection, for its HR / RPCA / HRPP variant)
+        function [var, measured_freq, wind_speed_act] = get_phase_avg_signal(obj, force_var, type, amp, freq, info)
             name = obj.get_case_name(type, amp, freq);
-            name = obj.add_variant_suffix(name, HR, RPCA);
+            name = obj.add_variant_suffix(name, info);
             suffix = "_phase_avg";
             case_files = obj.get_case(name, suffix);
 
@@ -2711,7 +2761,7 @@ classdef timeAvg_UI < handle
 
         % Selection without what the load cell doesn't depend on: the
         % downstream position prefix (x1_, MPS_, ...; get_force strips it
-        % too), RPCA and HR
+        % too), RPCA, HR and HRPP
         function info = strip_load_cell_position(~, info)
             prefix = get_downstream_prefix(info.type);
             if strlength(prefix) > 0
@@ -2719,16 +2769,22 @@ classdef timeAvg_UI < handle
             end
             info.RPCA = false;
             info.HR = false;
+            info.HRPP = false;
         end
 
-        % Case name with the processing-variant suffixes in the order
-        % phase_avg_STB saves them: <case>_hr_RPCA_phase_avg.mat
-        % (harmonic regression with the default version name, then RPCA)
-        function name = add_variant_suffix(~, name, HR, RPCA)
-            if HR
+        % Selection label of a case's processing variant, as
+        % stb_list_phase_avg names them: <case>_hr_RPCA (binned: harmonic
+        % regression, then RPCA) or <case>_particle_pool_hr20 (HRPP:
+        % particle pool fit with harmonic regression; no binned variants)
+        function name = add_variant_suffix(obj, name, info)
+            if isfield(info, 'HRPP') && info.HRPP
+                name = name + "_" + obj.HRPP_METHOD;
+                return
+            end
+            if info.HR
                 name = name + "_hr";
             end
-            if RPCA
+            if info.RPCA
                 name = name + "_RPCA";
             end
         end
