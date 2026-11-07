@@ -22,7 +22,7 @@ addpath(genpath("../"))
 % case_name = wing_type + "_" + speed + "m.s_" + AoA_vals(j) + "deg_" + freq_vals(i) + "Hz";
 
 % Galil Setup
-galil_bool = false;
+galil_bool = true;
 galil_IP_address = "192.168.1.3";
 DR_bool = false; % false - store data in arrays (RA), true - data record packets (DR)
 dmc_params.ticksPerRev = 18432;
@@ -30,7 +30,7 @@ freq = 0; % Hz
 acc = 3; % Hz
 measure_revs = 40;
 padding_revs = 4;
-hold_time = 50; % sec
+hold_time = 150; % sec
 dmc_params.wait_time = 1000; % ms
 dmc_params.OC_pulse_step = 4; % in ticks
 % REMEMBER MOTOR WIRES NEED TO BE FLIPPED TOO WHEN CHANGING DIRECTION
@@ -52,10 +52,10 @@ dmc_home_filename = "home_move.dmc";
 dmc_get_FF_filename = "obtain_cycle_torque.dmc";
 dmc_play_FF_filename = "benchtop_test_FF.dmc";
 
-amp = 30;
-speed = 4;
+amp = 10;
+speed = 0;
 AoA = 10;
-wing_type = "x1_ring";
+wing_type = "ringdownLTip10g_2";
 % wing_type = "TEST";
 case_name = wing_type + "_" + amp + "_" + speed + "m.s_" + AoA + "deg_" + freq + "Hz_";
 % case_name = "UP_two_PIV_flexible_20_" + 4 + "m.s_" + 10 + "deg_" + freq + "Hz_";

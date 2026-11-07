@@ -26,7 +26,7 @@ addpath(genpath("../."))
 % AoA = [8 8.5:0.5:11.5]; % angle of attack, set by MPS system
 % AoA = flip(AoA);
 % AoA = ladder_sort(AoA); % rearrange in nonascending ladder order
-AoA = 10*ones(1,6);
+AoA = 10*ones(1,7);
 % [-16:1.5:-12 -12:1:-8 -8:0.5:8 8:1:12 12:1.5:16]
 freq = [4, 0, 2, 0.1, 8, 6]; % freq2 = freq(randperm(length(freq)))
 % freq = [4, 0, 2, 0.1, 6]; % freq2 = freq(randperm(length(freq)))
