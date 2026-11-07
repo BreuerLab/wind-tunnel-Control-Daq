@@ -1,4 +1,4 @@
-function S = calc_secondary_vals_common(D, config)
+function S = calc_secondary_vals_common(D, config, bounds)
 % Shared secondary calculations for STB averages.
 
 config = set_defaults(config);
@@ -9,6 +9,7 @@ dy = abs(D.y(1,2,1) - D.y(1,1,1));
 dz = abs(D.z(1,1,2) - D.z(1,1,1));
 
 % Compute Q-Criterion
+disp("Calculating Q...")
 [Qx,Qy,Qz,Q] = calQlate3D(D.(config.uField), D.(config.vField), D.(config.wField), dx,dy,dz);
 S.Qx = Qx; S.Qy = Qy; S.Qz = Qz; S.Q = Q;
 
@@ -23,21 +24,106 @@ trim_source.w = D.(config.wField);
 trim_source.vortX = D.(config.vortXField);
 trim_source.vortY = D.(config.vortYField);
 trim_source.vortZ = D.(config.vortZField);
-trim_source.unc = D.(config.uncField);
+trim_source.uncTot = D.(config.uncField);
 trim_source.Utot = D.(config.UtotField);
 trim_source.Utot_diff = D.(config.UtotDiffField);
 trim_source.vortTot = D.(config.vortTotField);
 trim_source.numP = D.(config.numPField);
 trim_source.hel = D.(config.helField);
 trim_source.dudx = D.(config.dudxField);
+trim_source.dudy = D.(config.dudyField);
+trim_source.dudz = D.(config.dudzField);
 trim_source.dvdx = D.(config.dvdxField);
 trim_source.dwdx = D.(config.dwdxField);
+% remaining velocity gradients, for their planar averages (d*d*_avg)
+for g = ["dvdy", "dvdz", "dwdy", "dwdz"]
+    field = g + "Field";
+    if isfield(config, field) && isfield(D, config.(field))
+        trim_source.(g) = D.(config.(field));
+    end
+end
 trim_source.KE_diff = S.KE_diff_field;
 trim_source.power = S.power_field;
+trim_source.Q = Q; % trimmed like the other fields, for the Q centroid
+trim_source.Qx = Qx; % same, for the Q_x centroid
+
+% vorticity of the averaged velocity (only in files processed after it
+% was added)
+has_uavg = isfield(config, 'vortXUavgField') && isfield(D, config.vortXUavgField);
+if has_uavg
+    trim_source.vortX_uavg = D.(config.vortXUavgField);
+    trim_source.vortY_uavg = D.(config.vortYUavgField);
+    trim_source.vortZ_uavg = D.(config.vortZUavgField);
+else
+    disp("No vorticity of the averaged velocity in this file; lift_uavg / drag_uavg skipped")
+end
+
+% standard error of u, v, w at each point (only in files processed after
+% it was added), for u_avg_se etc. below
+has_se = isfield(config, 'uSeField') && isfield(D, config.uSeField);
+if has_se
+    trim_source.u_se = D.(config.uSeField);
+    trim_source.v_se = D.(config.vSeField);
+    trim_source.w_se = D.(config.wSeField);
+end
+
+% TURNED OFF TEMPORARILY SINCE NOT SUPPORTED BY TIME AVERAGE
+% trim_source.uu = D.(config.uuField);
+% trim_source.vv = D.(config.vvField);
+% trim_source.ww = D.(config.wwField);
+% trim_source.uv = D.(config.uvField);
+% trim_source.uw = D.(config.uwField);
+% trim_source.vw = D.(config.vwField);
+% trim_source.uwx = D.(config.uwxField);
+% trim_source.uwy = D.(config.uwyField);
 
 print_dim_bool = false;
 fill_velocity_nans = true;
-[F, y_tr, z_tr, T] = prepare_STB_wake_field(D.L, D.y, D.z, print_dim_bool, trim_source, config.xConv, fill_velocity_nans);
+[F, y_tr, z_tr, T] = prepare_STB_wake_field(D.L, D.y, D.z, print_dim_bool, trim_source, config.xConvBins, bounds, fill_velocity_nans);
+F.period = config.period;
+
+% Frozen-flow streamwise gradients, d/dx = (1/U) d/dt along the phase
+% bins, and omega_y, omega_z rebuilt with them (frozen_flow_gradients),
+% for comparison with the slab derivatives across the measured volume.
+% From the hole-filled velocity, before the uncertainty mask. Zero for a
+% time average (no time axis). For harmonic regression files (D.hr) d/dt
+% is the exact derivative of the fitted series rather than a finite
+% difference between bins.
+t_bins = [];
+if numel(config.xConvBins) >= 3
+    t_bins = config.xConvBins(:) / config.speed;   % x = U t
+end
+ff_in = struct('u', F.u, 'v', F.v, 'w', F.w, 'vortY', F.vortY, 'vortZ', F.vortZ, ...
+    'dvdx', T.dvdx, 'dwdx', T.dwdx, 'dudx', T.dudx);
+if isfield(T, 'dvdy') && isfield(T, 'dwdz')   % for the divergence check
+    ff_in.dvdy = T.dvdy;
+    ff_in.dwdz = T.dwdz;
+end
+ff_opts = struct();
+if isfield(D, 'hr') && isstruct(D.hr) && isfield(D.hr, 'H')
+    ff_opts.H = D.hr.H;
+end
+G_ff = frozen_flow_gradients(ff_in, t_bins, config.period, config.length, config.speed, ff_opts);
+S.ff_ddt_method = G_ff.ddt_method;
+
+% Uncertainty mask for every force below (bounds.unc_mask, set in
+% default_trim_bounds): points whose time averaged total uncertainty is
+% above the threshold are set to undisturbed freestream so they add
+% nothing to the integrals (apply_unc_mask). The extrapolated-field
+% forces (helm_decomp) start from these masked fields too. The planar
+% averages and integral quantities further down use the unmasked T.
+unc_thresh = [];
+unc_mode = "threshold";
+if isfield(bounds, 'unc_mask'), unc_thresh = bounds.unc_mask; end
+if isfield(bounds, 'unc_mask_mode'), unc_mode = bounds.unc_mask_mode; end
+[F, unc_mask] = apply_unc_mask(F, T.uncTot, unc_thresh, unc_mode);
+S.unc_mask = unc_mask;            % [ny nz] logical on the trimmed grid ([] = off)
+S.unc_mask_thresh = unc_thresh;   % fraction of the freestream speed
+S.unc_mask_mode = unc_mode;
+if ~isempty(unc_mask)
+    fprintf("Uncertainty mask (%.3g U): %.1f%% of the trimmed plane left out of the forces\n", ...
+        unc_thresh, 100 * mean(unc_mask(:)));
+end
 
 y_arr = squeeze(y_tr(:,1));
 z_arr = squeeze(z_tr(1,:));
@@ -48,9 +134,79 @@ S.lift_vel = lift_vel; S.drag_vel = drag_vel;
 [lift, drag] = get_wake_lift(config.speed, config.length, F, true, config.density);
 S.lift = lift; S.drag = drag;
 
+% Same forces using the vorticity of the averaged velocity
+if has_uavg
+    F_uavg = F;
+    F_uavg.vortX = T.vortX_uavg;
+    F_uavg.vortY = T.vortY_uavg;
+    F_uavg.vortZ = T.vortZ_uavg;
+    F_uavg = apply_unc_mask(F_uavg, T.uncTot, unc_thresh, unc_mode);
+    [lift_uavg, drag_uavg] = get_wake_lift(config.speed, config.length, F_uavg, true, config.density);
+    S.lift_uavg = lift_uavg; S.drag_uavg = drag_uavg;
+end
+
+% Same forces with the frozen-flow omega_y, omega_z (omega_x unchanged):
+% lift_ff.vortY / vortY_edge and drag_ff.vortY / vortZ / tot are the terms
+% that change; the rest equal lift / drag.
+F_ff = F;
+F_ff.vortY = G_ff.vortY_ff;
+F_ff.vortZ = G_ff.vortZ_ff;
+F_ff = apply_unc_mask(F_ff, T.uncTot, unc_thresh, unc_mode);
+[lift_ff, drag_ff] = get_wake_lift(config.speed, config.length, F_ff, true, config.density);
+S.lift_ff = lift_ff; S.drag_ff = drag_ff;
+
 if config.includeHelmDecomp
-    [y_B, z_B, velX_B, velY_B, velZ_B] = helm_decomp(config.xConv, y_arr, z_arr, config.length, F);
+    [y_B, z_B, velX_B, velY_B, velZ_B, iy_B, iz_B] = helm_decomp(config.xConv, y_arr, z_arr, config.length, F);
     S.y_B = y_B; S.z_B = z_B; S.velX_B = velX_B; S.velY_B = velY_B; S.velZ_B = velZ_B;
+
+    % Velocity-only lift/drag (same as lift_vel / drag_vel, vort_bool
+    % false) but on the extrapolated field instead of the measured window.
+    % velX_B is the induced perturbation (u + U)/U, so the full streamwise
+    % velocity is velX_B - 1 (x points upstream, u ~ -U), as in
+    % flowField_UI. Fields are stored [time y z]; get_wake_lift wants
+    % [y z time].
+    F_B.x = config.xConv;
+    F_B.y = y_B;
+    F_B.z = z_B;
+    F_B.u = permute(velX_B, [2 3 1]) - 1;
+    F_B.v = permute(velY_B, [2 3 1]);
+    F_B.w = permute(velZ_B, [2 3 1]);
+    [lift_vel_B, drag_vel_B] = get_wake_lift(config.speed, config.length, F_B, false, config.density);
+    % get_wake_lift integrates a half plane and doubles it, but y_B/z_B
+    % cover the full mirrored plane. The integrands (u*w, u*(u+U)) are
+    % symmetric about the centreline, so halve the full-plane result
+    % rather than cutting the plane (y_B need not have a row at y = 0).
+    S.lift_vel_B = lift_vel_B / 2;
+    S.drag_vel_B = drag_vel_B / 2;
+
+    % Same again on a filled field: the measured velocity inside the field
+    % of view, the extrapolated velocity only outside it. The measured
+    % half plane (F, already hole-filled) is mirrored like the vorticity in
+    % helm_decomp and put where helm_decomp placed the field of view
+    % (iy_B, iz_B; same grid spacing), so the two line up point for point.
+    % Mirroring y -> -y: u and w are even, v is odd.
+    F_fill = F_B;
+    u_meas = mirror_half_plane(F.u, 1);
+    v_meas = mirror_half_plane(F.v, -1);
+    w_meas = mirror_half_plane(F.w, 1);
+    y_fov = iy_B;
+    z_fov = iz_B;
+    F_fill.u(y_fov, z_fov, :) = u_meas;
+    F_fill.v(y_fov, z_fov, :) = v_meas;
+    F_fill.w(y_fov, z_fov, :) = w_meas;
+    [lift_vel_B_fill, drag_vel_B_fill] = get_wake_lift(config.speed, config.length, F_fill, false, config.density);
+    % full mirrored plane, halved as above
+    S.lift_vel_B_fill = lift_vel_B_fill / 2;
+    S.drag_vel_B_fill = drag_vel_B_fill / 2;
+
+    % Extrapolated minus measured velocity on the field of view, / U, for
+    % checking the extrapolation (flowField_UI: "u/v/w: extrap - meas").
+    % Same [time y z] layout as velX_B, on the grid y_B_fov, z_B_fov.
+    S.y_B_fov = y_B(y_fov, z_fov);
+    S.z_B_fov = z_B(y_fov, z_fov);
+    S.velX_B_diff = permute(F_B.u(y_fov, z_fov, :) - u_meas, [3 1 2]);
+    S.velY_B_diff = permute(F_B.v(y_fov, z_fov, :) - v_meas, [3 1 2]);
+    S.velZ_B_diff = permute(F_B.w(y_fov, z_fov, :) - w_meas, [3 1 2]);
 
     Utot_full = velX_B.^2 + velY_B.^2 + velZ_B.^2;
     KE_tot_field = permute(Utot_full,[2 3 1]);
@@ -67,28 +223,137 @@ S.enst = integrate_planar(y_arr, z_arr, T.vortTot.^2);
 S.div = D.(config.dudxField) + D.(config.dvdyField) + D.(config.dwdzField);
 
 % Planar averages
-S.u_avg = mean(T.u, [1, 2]);
-S.v_avg = mean(T.v, [1, 2]);
-S.w_avg = mean(T.w, [1, 2]);
-S.vortX_avg = mean(T.vortX, [1, 2]);
-S.vortY_avg = mean(T.vortY, [1, 2]);
-S.vortZ_avg = mean(T.vortZ, [1, 2]);
-S.numP_avg = mean(T.numP, [1, 2]);
-S.unc_avg = mean(T.unc, [1, 2]);
-S.hel_avg = mean(T.hel, [1, 2]);
-S.dudx_avg = mean(T.dudx, [1, 2]);
-S.dvdx_avg = mean(T.dvdx, [1, 2]);
-S.dwdx_avg = mean(T.dwdx, [1, 2]);
+S.u_avg = squeeze(mean(T.u, [1, 2]));
+S.v_avg = squeeze(mean(T.v, [1, 2]));
+S.w_avg = squeeze(mean(T.w, [1, 2]));
+% Standard error of the planar averages above (per bin): the plane
+% average of the per-point SE. Neighbouring points are correlated (STB
+% binning), so this treats them as fully correlated - an upper bound;
+% assuming independence would divide by sqrt(points) and be too small.
+if has_se
+    S.u_avg_se = squeeze(mean(T.u_se, [1, 2], "omitnan"));
+    S.v_avg_se = squeeze(mean(T.v_se, [1, 2], "omitnan"));
+    S.w_avg_se = squeeze(mean(T.w_se, [1, 2], "omitnan"));
+end
+S.vortX_avg = squeeze(mean(T.vortX, [1, 2]));
+S.vortY_avg = squeeze(mean(T.vortY, [1, 2]));
+S.vortZ_avg = squeeze(mean(T.vortZ, [1, 2]));
+if has_uavg
+    S.vortX_uavg_avg = squeeze(mean(T.vortX_uavg, [1, 2]));
+    S.vortY_uavg_avg = squeeze(mean(T.vortY_uavg, [1, 2]));
+    S.vortZ_uavg_avg = squeeze(mean(T.vortZ_uavg, [1, 2]));
+end
+S.numP_avg = squeeze(mean(T.numP, [1, 2]));
+S.unc_avg = squeeze(mean(T.uncTot, [1, 2]));
+S.hel_avg = squeeze(mean(T.hel, [1, 2]));
+% planar averages of all nine velocity gradients (those present)
+for g = ["dudx", "dudy", "dudz", "dvdx", "dvdy", "dvdz", "dwdx", "dwdy", "dwdz"]
+    if isfield(T, g)
+        S.(g + "_avg") = squeeze(mean(T.(g), [1, 2]));
+    end
+end
+% planar average of the divergence du/dx + dv/dy + dw/dz (c/U), e.g. as a
+% check of the gradients (zero for incompressible flow)
+if all(isfield(T, ["dudx", "dvdy", "dwdz"]))
+    S.div_avg = squeeze(mean(T.dudx + T.dvdy + T.dwdz, [1, 2]));
+end
+% planar averages of the frozen-flow gradients and vorticity (compare
+% with dudx_avg, dvdx_avg, dwdx_avg, vortY_avg, vortZ_avg)
+for g = ["dudx_ff", "dvdx_ff", "dwdx_ff", "vortY_ff", "vortZ_ff"]
+    S.(g + "_avg") = squeeze(mean(G_ff.(g), [1, 2]));
+end
+% continuity check, du/dx + dv/dy + dw/dz with the slab or the frozen-flow
+% du/dx: plane average and plane rms (the average lets positive and
+% negative regions cancel; the rms doesn't)
+if isfield(G_ff, 'div_slab')
+    for g = ["div_slab", "div_ff"]
+        S.(g + "_avg") = squeeze(mean(G_ff.(g), [1, 2]));
+        S.(g + "_rms") = squeeze(sqrt(mean(G_ff.(g).^2, [1, 2])));
+    end
+end
+
+% TURNED OFF TEMPORARILY SINCE NOT SUPPORTED BY TIME AVERAGE
+% S.uu_avg = squeeze(mean(T.uu, [1, 2]));
+% S.vv_avg = squeeze(mean(T.vv, [1, 2]));
+% S.ww_avg = squeeze(mean(T.ww, [1, 2]));
+% S.uv_avg = squeeze(mean(T.uv, [1, 2]));
+% S.uw_avg = squeeze(mean(T.uw, [1, 2]));
+% S.vw_avg = squeeze(mean(T.vw, [1, 2]));
+% S.uwx_avg = squeeze(mean(T.uwx, [1, 2]));
+% S.uwy_avg = squeeze(mean(T.uwy, [1, 2]));
+
+% Vortex centroids from streamwise vorticity, perhaps a flawed metric since
+% this has a singularity when the planar average of vorticity is zero
+S.wx_z = integrate_planar(y_arr, z_arr, z_tr .* T.vortX) ./ integrate_planar(y_arr, z_arr, T.vortX);
+S.wx_y = integrate_planar(y_arr, z_arr, y_tr .* T.vortX) ./ integrate_planar(y_arr, z_arr, T.vortX);
+
+% Vortex core centroids weighted by positive Q only (Q > 0 marks vortex
+% cores; the negative, strain-dominated regions would partly cancel the
+% denominator). Q is trimmed and recentred like y_tr, z_tr. Points removed
+% by the uncertainty mask (unc_mask, as for the forces) carry no weight.
+% get_Q_centroid repeats this for timeAvg_UI's Live Calculate.
+Q_pos = max(T.Q, 0);
+if ~isempty(unc_mask)
+    Q_pos(repmat(unc_mask, 1, 1, size(Q_pos, 3))) = 0;
+end
+S.Qx_z = integrate_planar(y_arr, z_arr, z_tr .* Q_pos) ./ integrate_planar(y_arr, z_arr, Q_pos);
+S.Qx_y = integrate_planar(y_arr, z_arr, y_tr .* Q_pos) ./ integrate_planar(y_arr, z_arr, Q_pos);
+
+% Same centroid weighted by positive Q_x (calQlate3D) instead of Q. Note
+% Qx_y / Qx_z above are the Q centroid; Qxcomp_* are the Q_x centroid.
+Qx_pos = max(T.Qx, 0);
+if ~isempty(unc_mask)
+    Qx_pos(repmat(unc_mask, 1, 1, size(Qx_pos, 3))) = 0;
+end
+S.Qxcomp_z = integrate_planar(y_arr, z_arr, z_tr .* Qx_pos) ./ integrate_planar(y_arr, z_arr, Qx_pos);
+S.Qxcomp_y = integrate_planar(y_arr, z_arr, y_tr .* Qx_pos) ./ integrate_planar(y_arr, z_arr, Qx_pos);
+
+% Vortex stretching/tilting terms of the vorticity transport equation,
+% (omega . grad) u, integrated over the plane:
+%   D(omega_i)/Dt = omega_x du_i/dx + omega_y du_i/dy + omega_z du_i/dz
+% Stretching is the term with i's own direction, the others are tilting.
+% Terms whose gradient isn't in the file (older processing) are skipped.
+% The omega_x terms are also saved weighted by y (from the mirror
+% centreline, as in the lift integral), *_ymom: these are the sources of
+% the omega_x lift integral, int y omega_x dA, so they show how stretching
+% and tilting change the Trefftz-plane lift estimate with x.
+transport_terms = transport_term_list();
+for k = 1:size(transport_terms, 1)
+    name = char(transport_terms{k, 1});
+    vort = char(transport_terms{k, 2});
+    grad = char(transport_terms{k, 3});
+    if isfield(T, vort) && isfield(T, grad)
+        term = T.(vort) .* T.(grad);
+        S.(name) = integrate_planar(y_arr, z_arr, term);
+        if startsWith(name, "wx_")
+            S.([name '_ymom']) = integrate_planar(y_arr, z_arr, y_tr .* term);
+        end
+    end
+end
+
 end
 
 function config = set_defaults(config)
 if ~isfield(config, 'xConv')
     config.xConv = 0;
 end
+if ~isfield(config, 'xConvBins')
+    config.xConvBins = config.xConv;
+end
+if ~isfield(config, 'period')
+    config.period = NaN;
+end
 
 if ~isfield(config, 'includeHelmDecomp')
     config.includeHelmDecomp = false;
 end
+end
+
+function full = mirror_half_plane(half, parity)
+% Reflect a [y z time] half-plane field about its first y row (the
+% centreline), as in helm_decomp, skipping that row so it isn't doubled.
+% parity is 1 for components even in y (u, w) and -1 for odd ones (v).
+full = cat(1, parity * flip(half(2:end,:,:), 1), half);
 end
 
 function value = integrate_planar(y_arr, z_arr, field)

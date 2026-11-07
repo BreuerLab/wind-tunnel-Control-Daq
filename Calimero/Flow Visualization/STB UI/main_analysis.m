@@ -1,23 +1,46 @@
-clear
 close all force
+clear
+clear phaseAvg_UI
 
 % Change current working directory to the directory where this file is
 cd(fileparts(mfilename('fullpath')));
-addpath(genpath('../../../'))
+addpath(genpath('../../'))
 
 % Data should be moved locally. Using this GUI with data stored on the LRS
 % is slow
-data_file_path = "Y:\";
+% One data root, or several as a string array: cases from all of them are
+% listed together (a case in more than one root comes from the first).
+% STB Round 1 holds the old flapper (February 2026) data; what differs for
+% those cases is in helper functions\old_flapper_compat.m
+% data_file_path = "C:\Users\rgissler\Documents\STB Round 1\";
+% data_file_path = "F:\";
+data_file_path = ["F:\", "C:\Users\rgissler\Documents\STB Round 1\"];
 % data_file_path = "R:\ENG_Breuer_Shared\group\Wind turbine\Turbine_STB\Turbine_STB_02_17_2026\Processed Data\";
 
 % GUI for plotting vector fields and wake topology
-c = flowField_UI(2,data_file_path);
+a = flowField_UI(data_file_path);
+a.dynamic_plotting();
+
+% GUI for plotting instantaneous vector fields before phase averaging
+% b = flowFieldInst_UI(data_file_path);
+% b.dynamic_plotting();
+
+% GUI for plotting phase averaged quantities
+c = phaseAvg_UI(data_file_path);
 c.dynamic_plotting();
 
-% % GUI for plotting phase averaged quantities
-% a = phaseAvg_UI(2,data_file_path);
-% a.dynamic_plotting();
-
 % % GUI for plotting time averaged quantities
-% b = timeAvg_UI(2, data_file_path);
-% b.dynamic_plotting();
+% d = timeAvg_UI(data_file_path);
+% d.dynamic_plotting();
+
+% ----------------------------------------------
+% Diagnostic recommendations from Claude
+
+% case_name = "x3_wings_20deg_6Hz";
+% file = stb_file_paths(data_file_path + "Processed Results", case_name, "", "bin");   % or "particle_pool_hr20"
+% o.taper = 0.75;   % taper width in chords
+% B = wake_lift_budget(file, case_name, default_trim_bounds(), o);
+
+% M = slab_derivative_map(file);
+
+% T = mean_weighting_check(data_file_path, "x3_wings_20deg");

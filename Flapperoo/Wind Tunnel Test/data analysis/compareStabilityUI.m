@@ -967,7 +967,7 @@ methods (Access = private)
                     end
 
                     if (obj.y_var == 1)
-                        y_vals = slopes_pos;
+                        y_vals = -slopes_pos; % added temp - to flip sign on 07/14/2026
                     elseif (obj.y_var == 2)
                         y_vals = x_ints;
                     end
@@ -1058,10 +1058,10 @@ methods (Access = private)
                     % amplitude_list = 40*(pi/180);
                 end
                 % higher resolution wingbeat frequency
-                % wing_freqs_fine = [0:0.005:0.02 linspace(0.1, max(wing_freqs), 15) linspace(max(wing_freqs) + 0.1, 15, 15)];
+                wing_freqs_fine = [0:0.005:0.02 linspace(0.1, max(wing_freqs), 15) linspace(max(wing_freqs) + 0.1, 15, 15)];
                 % wing_freqs_fine = wing_freqs;
                 % wing_freqs_fine = [0.6390, 0.7378, 6.3898, 4.0581];
-                wing_freqs_fine = [0.6390, 4.0581];
+                % wing_freqs_fine = [0.6390, 4.0581];
 
                 mod_slopes = zeros(length(amplitude_list), length(wing_freqs_fine));
                 mod_err_slopes = zeros(length(amplitude_list), length(wing_freqs_fine));
@@ -1184,11 +1184,11 @@ methods (Access = private)
             end
 
             if (obj.y_var == 1)
-                y_vals = slopes;
+                y_vals = -slopes;
                 err_vals = err_slopes;
                 disp("PRINTING DATA ERR")
                 disp(err_slopes*(10^5))
-                y_vals_mod = mod_slopes;
+                y_vals_mod = -mod_slopes;
                 err_vals_mod = mod_err_slopes;
                 disp("PRINTING MOD ERR")
                 disp(mod_err_slopes*(10^5))
@@ -1317,7 +1317,7 @@ methods (Access = private)
                     % % s.HandleVisibility = "off";
                     % s.DisplayName = "Model: " + abbr_sel(i);
 
-                    reducedMod = true;
+                    reducedMod = false;
                     % Only plot 3 m/s as this is the longest line
                     if (wind_speed == 3 && reducedMod)
                         % Data slopes are in pitch / deg. These slopes are

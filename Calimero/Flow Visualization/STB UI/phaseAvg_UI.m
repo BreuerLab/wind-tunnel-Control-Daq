@@ -9,15 +9,44 @@ classdef phaseAvg_UI < handle
         COLOR_ACTIVE = [0.3010 0.7450 0.9330];
         COLOR_INACTIVE = [1 1 1];
 
+        OLD_FLAPPER_SOURCE_MODE = "old flapper";
+        NEW_FLAPPER_SOURCE_MODE = "new flapper";
+        DEFAULT_VERSION_LABEL = "default";
+        % Harmonic regression (HR) cases: force curves computed from the
+        % fitted fields that get the +/- 1 SD band of their BA version
+        % (scatter of the per-frame force about its fit). Only forces
+        % linear in the field: for those the integral of the fitted field
+        % is the fit of the per-frame integral, so the two share their
+        % scatter. Products of velocities (lift.vel_diff, lift_vel,
+        % drag_vel, Bernoulli) are left out; their BA versions have bands.
+        HR_BAND_FORCE_NAMES = ["lift.vortX", "drag.tot", "drag.vortY", "drag.vortZ"];
+        NUM_VARS = 4; % variables plotted at once (Variables panel)
         cur_types = ["flexible";"UP_one_flexible";"UP_two_flexible"];
+        downstream_distance_labels = ["x = 0.9m"; "x = 1.3m"; "x = 1.7m"];
+        new_flapper_downstream_types = ["x1";"x2";"x3";"x4";"x5";"MPS"];
+        new_flapper_distance_labels = ["x1";"x2";"x3";"x4";"x5";"MPS"];
+
+        % Streamwise separation (m) between the robot and the imaging
+        % plane, used for the convection phase shift. Entries line up
+        % with cur_types / new_flapper_downstream_types. Set an entry to
+        % NaN if unknown (no shift applied). Set in plane_downstream_dists
+        % (shared with timeAvg_UI and flowField_UI).
+        downstream_dists = plane_downstream_dists("old"); % flexible, UP_one, UP_two
+        new_flapper_downstream_dists = plane_downstream_dists("new"); % x1-x5, MPS
+        conv_speed = plane_downstream_dists("conv_speed"); % m/s, convection speed of the wake
     end
 
 properties
-    mon_num; % 1 or 2, monitor to display plot on
 
-    root_path; % file path to data
+    root_path; % file path to data (the primary data root)
     PIV_path;
     force_path;
+    % All data roots (e.g. ["F:\", "C:\...\STB Round 1\"]) and, for each
+    % wing type, the root its STB cases came from (its load cell data is
+    % read from that root's Force Measurements)
+    data_roots;
+    type_root_map;
+    phase_case_map;   % selection label -> case files (stb_file_paths struct)
 
     inds;
 
@@ -25,24 +54,133 @@ properties
     active_names;
     active_labels;
 
-    force_var_types = ["y*\omega_x", "x*\omega_y", "u*w",...
-        "Drag - Vorticity", "z*\omega_y", "y*\omega_z", "(u-U)*u"];
+    force_var_types = ["y*w_x", "x*w_y", "(u-U)*w", "u*w",...
+        "Drag - Vorticity", "z*w_y", "y*w_z", "(u-U)*u",...
+        "y*w_x (u avg)", "Drag - Vorticity (u avg)",... % (u avg): vorticity of the phase-averaged velocity
+        "x*w_y (edge)", "y*w_x (taper)",... % omega_y lift with the tapered edge terms / omega_x lift with the same edge taper (get_wake_lift)
+        "u*w (extrap)", "(u-U)*u (extrap)",... % velocity-only forces on the Helmholtz-extrapolated field
+        "u*w (extrap fill)", "(u-U)*u (extrap fill)",... % same, measured velocity inside the FOV, extrapolated outside
+        "x*w_y (frozen)", "x*w_y (edge, frozen)",... % frozen flow: omega_y, omega_z with d/dx = (1/U) d/dt instead of the slab derivative
+        "Drag - Vorticity (frozen)", "z*w_y (frozen)", "y*w_z (frozen)"];
+    flow_var_types = ["u", "v", "w", "wx", "wy", "wz", "hel", "wx - z", "wx - y", ...
+                "wx - stretch", "wx - y-tilt", "wx - z-tilt", ...
+                "wy - x-tilt", "wy - stretch", "wy - z-tilt", ...
+                "wz - x-tilt", "wz - y-tilt", "wz - stretch", ...
+                "y * wx - stretch", "y * wx - y-tilt", "y * wx - z-tilt", ...
+                "u'u'","v'v'","w'w'","u'v'","u'w'","v'w'", "u'w_x'","u'w_y'",...
+                "Q - z", "Q - y", "Qx - z", "Qx - y", "wx (u avg)", "wy (u avg)", "wz (u avg)",...
+                "du/dx", "du/dy", "du/dz", "dv/dx", "dv/dy", "dv/dz", "dw/dx", "dw/dy", "dw/dz",...
+                "du/dx (frozen)", "dv/dx (frozen)", "dw/dx (frozen)", "wy (frozen)", "wz (frozen)",...
+                "div (slab)", "div (frozen)", "div rms (slab)", "div rms (frozen)"];
     kin_var_types = ["Speed", "Speed Error", "Acceleration",...
                 "Wing Position", "Wing Speed", "Wing Acceleration",...
-                "Voltage", "Current", "Power"];
+                "Voltage", "Modeled Voltage", "Current", "Power"];
 
-    force_var_names = ["lift.vortX", "lift.vortY", "lift_vel",...
-                    "drag.tot", "drag.vortY", "drag.vortZ", "drag_vel"];
+    force_var_names = ["lift.vortX", "lift.vortY", "lift.vel_diff", "lift_vel",...
+                    "drag.tot", "drag.vortY", "drag.vortZ", "drag_vel",...
+                    "lift_uavg.vortX", "drag_uavg.tot",...
+                    "lift.vortY_edge", "lift.vortX_taper",...
+                    "lift_vel_B", "drag_vel_B", "lift_vel_B_fill", "drag_vel_B_fill",...
+                    "lift_ff.vortY", "lift_ff.vortY_edge",...
+                    "drag_ff.tot", "drag_ff.vortY", "drag_ff.vortZ"];
+    % forces that are only stored (_integral file, from the Helmholtz
+    % extrapolation in processing), never calculated live. Time averages
+    % processed after the extrapolation was added for them have these
+    % too, so PIV Body Sub can subtract them
+    stored_only_force_names = ["lift_vel_B", "drag_vel_B", "lift_vel_B_fill", "drag_vel_B_fill"];
+    flow_var_names = ["u_avg", "v_avg", "w_avg",...
+                    "vortX_avg", "vortY_avg","vortZ_avg", "hel_avg",...
+                    "wx_z", "wx_y","wx_stretch","wx_tilt_y","wx_tilt_z",...
+                    "wy_tilt_x","wy_stretch","wy_tilt_z",...
+                    "wz_tilt_x","wz_tilt_y","wz_stretch",...
+                    "wx_stretch_ymom","wx_tilt_y_ymom","wx_tilt_z_ymom",...
+                    "uu_avg","vv_avg","ww_avg","uv_avg","uw_avg","vw_avg",...
+                    "uwx_avg","uwy_avg",...
+                    "Qx_z", "Qx_y",...
+                    "Qxcomp_z", "Qxcomp_y",... % Q_x (not Q) centroid
+                    "vortX_uavg_avg", "vortY_uavg_avg", "vortZ_uavg_avg",...
+                    "dudx_avg", "dudy_avg", "dudz_avg", "dvdx_avg", "dvdy_avg", "dvdz_avg", "dwdx_avg", "dwdy_avg", "dwdz_avg",...
+                    "dudx_ff_avg", "dvdx_ff_avg", "dwdx_ff_avg", "vortY_ff_avg", "vortZ_ff_avg",...
+                    "div_slab_avg", "div_ff_avg", "div_slab_rms", "div_ff_rms"];
     kin_var_names = ["phase_avg_speed", "phase_avg_speed_error",...
                          "phase_avg_acc", "phase_avg_wing_pos",...
                          "phase_avg_wing_speed", "phase_avg_wing_acc",...
-                         "phase_avg_volt", "phase_avg_cur", "phase_avg_volt"];
+                         "phase_avg_volt", "phase_avg_volt_model", "phase_avg_cur", "phase_avg_power"];
 
-    force_y_labels = ["Lift (N)","Lift (N)","Lift (N)",...
-        "Drag (N)", "Drag (N)", "Drag (N)", "Drag (N)"];
+    force_y_labels = ["Lift (N)","Lift (N)","Lift (N)","Lift (N)",...
+        "Drag (N)", "Drag (N)", "Drag (N)", "Drag (N)",...
+        "Lift (N)", "Drag (N)",...
+        "Lift (N)", "Lift (N)",...
+        "Lift (N)", "Drag (N)", "Lift (N)", "Drag (N)",...
+        "Lift (N)", "Lift (N)",...
+        "Drag (N)", "Drag (N)", "Drag (N)"];
+    flow_y_labels = ["$\overline{u} \; / \; U$", "$\overline{v} \; / \; U$",...
+                    "$\overline{w} \; / \; U$", "\boldmath$\frac{\omega_x c}{U_{\infty}}$",...
+                    "\boldmath$\frac{\omega_y c}{U_{\infty}}$", "\boldmath$\frac{\omega_z c}{U_{\infty}}$",...
+                    "helicity", "z/L", "y/L", ...
+                    "$\omega_x \frac{\partial u}{\partial x}$",...
+                    "$\omega_y \frac{\partial u}{\partial y}$",...
+                    "$\omega_z \frac{\partial u}{\partial z}$",...
+                    "$\omega_x \frac{\partial v}{\partial x}$",...
+                    "$\omega_y \frac{\partial v}{\partial y}$",...
+                    "$\omega_z \frac{\partial v}{\partial z}$",...
+                    "$\omega_x \frac{\partial w}{\partial x}$",...
+                    "$\omega_y \frac{\partial w}{\partial y}$",...
+                    "$\omega_z \frac{\partial w}{\partial z}$",...
+                    "$\int y \, \omega_x \frac{\partial u}{\partial x} \, dA$",...
+                    "$\int y \, \omega_y \frac{\partial u}{\partial y} \, dA$",...
+                    "$\int y \, \omega_z \frac{\partial u}{\partial z} \, dA$",...
+                    "$\overline{u'u'} \; / \; U^2$",...
+                    "$\overline{v'v'} \; / \; U^2$",...
+                    "$\overline{w'w'} \; / \; U^2$",...
+                    "$\overline{u'v'} \; / \; U^2$",...
+                    "$\overline{u'w'} \; / \; U^2$",...
+                    "$\overline{v'w'} \; / \; U^2$",...
+                    "$\overline{u'\omega_x'} \; \frac{c}{U_{\infty}^2}$",...
+                    "$\overline{u'\omega_y'} \; \frac{c}{U_{\infty}^2}$",...
+                    "Q centroid $z/L$", "Q centroid $y/L$",...
+                    "$Q_x$ centroid $z/L$", "$Q_x$ centroid $y/L$",...
+                    "\boldmath$\frac{\omega_x c}{U_{\infty}}$ (u avg)",...
+                    "\boldmath$\frac{\omega_y c}{U_{\infty}}$ (u avg)",...
+                    "\boldmath$\frac{\omega_z c}{U_{\infty}}$ (u avg)",...
+                    "$\overline{\partial u / \partial x} \; c / U$",...
+                    "$\overline{\partial u / \partial y} \; c / U$",...
+                    "$\overline{\partial u / \partial z} \; c / U$",...
+                    "$\overline{\partial v / \partial x} \; c / U$",...
+                    "$\overline{\partial v / \partial y} \; c / U$",...
+                    "$\overline{\partial v / \partial z} \; c / U$",...
+                    "$\overline{\partial w / \partial x} \; c / U$",...
+                    "$\overline{\partial w / \partial y} \; c / U$",...
+                    "$\overline{\partial w / \partial z} \; c / U$",...
+                    "$\overline{\partial u / \partial x} \; c / U$ (frozen)",...
+                    "$\overline{\partial v / \partial x} \; c / U$ (frozen)",...
+                    "$\overline{\partial w / \partial x} \; c / U$ (frozen)",...
+                    "\boldmath$\frac{\omega_y c}{U_{\infty}}$ (frozen)",...
+                    "\boldmath$\frac{\omega_z c}{U_{\infty}}$ (frozen)",...
+                    "$\overline{\nabla \cdot \mathbf{u}} \; c / U$ (slab $\partial u / \partial x$)",...
+                    "$\overline{\nabla \cdot \mathbf{u}} \; c / U$ (frozen $\partial u / \partial x$)",...
+                    "$\mathrm{rms}(\nabla \cdot \mathbf{u}) \; c / U$ (slab $\partial u / \partial x$)",...
+                    "$\mathrm{rms}(\nabla \cdot \mathbf{u}) \; c / U$ (frozen $\partial u / \partial x$)"];
     kin_y_labels = ["Speed (Hz)", "Speed Error (Hz)", "Acceleration (Hz^2)", ...
         "Position (rad)", "Speed (rad/s)", "Acceleration (rad/s^2)",...
+        "Voltage (V)", "Voltage (V)", "Current (mA)", "Power (mW)"];
+
+    % Load cell variables: wingbeat-averaged load cell data (the Force Data
+    % filter in the Load Cell panel), measured at the robot. Names start
+    % with "LC_" (same as timeAvg_UI).
+    lc_var_types = ["drag (LC)", "lift (LC)", "pitch (LC)",...
+        "voltage (LC)", "current (LC)", "electric power (LC)"];
+    lc_var_names = ["LC_drag", "LC_lift", "LC_pitch", "LC_volt", "LC_cur", "LC_power"];
+    lc_y_labels = ["Drag (N)", "Lift (N)", "Pitch Moment (N m)",...
         "Voltage (V)", "Current (mA)", "Power (mW)"];
+
+    load_cell_types = ["no filter", "fc = 10*fw", "fc = 5*fw", "fc = 2*fw"];
+    load_cell_names = ["wingbeat_avg_forces_raw",...
+                     "wingbeat_avg_forces",...
+                     "wingbeat_avg_forces_smoother",...
+                     "wingbeat_avg_forces_smoothest"];
+    load_cell_dict;
+
 
     % boolean, normalization/non-dimensionalization on or off
     norm;
@@ -52,7 +190,16 @@ properties
     pitch_shift;
     % boolean, subtraction on or off
     PIV_sub;
+    % which steady case to subtract: "ring", "body", "gliding" or "freestream"
+    PIV_sub_case;
     force_sub;
+    % boolean, shade +/- 1 standard deviation around the curves that have
+    % one: load cell (wingbeat-to-wingbeat, wingbeat_std_forces*) and BA
+    % PIV forces (frame-to-frame within each bin, *_before_std)
+    std_band;
+    RPCA;
+    HR;    % harmonic regression files (_hr, from bools.harmonic_reg)
+    load_cell_force_var;
     % boolean, spectrum plot overrides phase averaged plot
     spectrum;
     % boolean, scale frequencies of spectrum by wingbeat freq
@@ -65,21 +212,39 @@ properties
     % 3 - Filtered - 10*wingbeat frequency cutoff frequency
     filt_num;
     saveFig;
-    y_cen;
 
     calc_bool;
+    % boolean, phase shift PIV force curves by the time the wake takes
+    % to convect from the robot to the imaging plane
+    conv_shift;
+    % boolean, mark stroke reversals and shade the downstroke (only
+    % available with conv_shift, since only then are all curves in the
+    % robot's wing phase)
+    label_stroke;
+    % with conv_shift, order of the strokes across the plotted wingbeat
+    % (dropdown next to Convection Shift, see get_stroke_shift_frac):
+    % "UDU" downstroke centred (no extra shift), "DUD" upstroke centred,
+    % "DU" starts at the top of the stroke (downstroke then upstroke),
+    % "UD" starts at the bottom (upstroke then downstroke)
+    stroke_order;
     align_bool;
-    force_bool;
+    % boolean, with align_bool: plot the cross-correlations used for the
+    % alignment instead of the aligned curves
+    corr_bool;
     separate_y_axis_bool;
+    mean_subtraction_bool;
     % used to calculate forces from vector field data
 
     % ------- Available parameters user can select from -------
     available_selections;
+    source_mode;
+    source_modes;
 
     selection; % list of selected cases
     sel_type;
     sel_freq;
     sel_amp;
+    sel_version;
 
     % Curves currently displayed on plot
     plot_curves;
@@ -92,9 +257,11 @@ end
 methods
     % Constructor Function
     % Defines constants and default values for parameters
-    function obj = phaseAvg_UI(mon_num, data_path)
-        obj.mon_num = mon_num;
-        obj.root_path = data_path;
+    function obj = phaseAvg_UI(data_path)
+        % data_path: one data root, or several as a string array (e.g. the
+        % new flapper data and the old flapper STB Round 1 folder)
+        obj.data_roots = string(data_path(:))';
+        obj.root_path = obj.data_roots(1);
         obj.PIV_path = obj.root_path + "Processed Results\";
         obj.force_path = obj.root_path + "Force Measurements\";
 
@@ -102,236 +269,469 @@ methods
         [obj.active_types, obj.active_names, obj.active_labels] = obj.get_all_variable_options();
         % bj.force_var_types = ["Lift - Vorticity", "y*\omega_x", "x*\omega_y", "u*w", "BA: y*\omega_x",...
         %     "Drag - Vorticity", "z*\omega_y", "y*\omega_z", "(u-U)*u", "BA: (u-U)*u"];
-        % obj.force_var_names = ["lift.tot", "lift.vortX", "lift.vortY", "lift_vel", "lift_phase_avg.vortX",...
-        %             "drag.tot", "drag.vortY", "drag.vortZ", "drag_vel", "drag_phase_avg"];
+        % obj.force_var_names = ["lift.tot", "lift.vortX", "lift.vortY", "lift_vel", "lift_before_avg.vortX",...
+        %             "drag.tot", "drag.vortY", "drag.vortZ", "drag_vel", "drag_before_avg"];
 
         obj.norm = false;
         obj.norm_period = true;
         obj.PIV_sub = false;
+        obj.PIV_sub_case = "ring";
         obj.force_sub = false;
+        obj.std_band = true;
+        obj.RPCA = false;
+        obj.HR = false;
+        obj.load_cell_force_var = "wingbeat_avg_forces_smoothest";
         obj.freq_scale = false;
         obj.log_scale = false;
         obj.filt_num = 3;
         obj.saveFig = false;
-        obj.y_cen = -2.26; % -2.16, 2.55, -0.142 / d.L;
 
-        obj.force_bool = false;
         obj.calc_bool = false;
+        obj.conv_shift = false;
+        obj.stroke_order = "UDU";
+        obj.label_stroke = false;
         obj.align_bool = false;
+        obj.corr_bool = false;
         obj.separate_y_axis_bool = false;
+        obj.mean_subtraction_bool = false;
+
+        obj.load_cell_dict = containers.Map(cellstr(obj.load_cell_types), cellstr(obj.load_cell_names));
 
         % Search through files in path to get types and speeds
 
-        contents = dir(obj.PIV_path);
-        files = contents(~[contents.isdir]);
+        % Get types, amplitudes, frequencies, and file versions from the
+        % names of the phase averaged files in every data root
+        obj.available_selections = cell(0, 4);
+        obj.type_root_map = containers.Map('KeyType', 'char', 'ValueType', 'char');
+        obj.phase_case_map = containers.Map('KeyType', 'char', 'ValueType', 'any');
+        for r = 1:numel(obj.data_roots)
+            % one case per <stem>_<method>_fields.mat (+ _shared, _integral);
+            % the first root holding a label wins
+            cases = stb_list_phase_avg(obj.data_roots(r) + "Processed Results\phase_avg\");
+            for k = 1:numel(cases)
+                if ~isKey(obj.phase_case_map, char(cases(k).label))
+                    obj.phase_case_map(char(cases(k).label)) = cases(k).files;
+                end
+            end
+            root_selections = obj.get_phase_avg_selections_from_labels(string({cases.label}));
+            for k = 1:size(root_selections, 1)
+                key = char(string(root_selections{k, 1}));
+                if ~isKey(obj.type_root_map, key)
+                    obj.type_root_map(key) = char(obj.data_roots(r));
+                end
+            end
+            obj.available_selections = [obj.available_selections; root_selections];
+        end
 
-        % Get amps, freqs, types from file names
-        obj.available_selections = get_sel_from_file(files);
+        if isempty(obj.available_selections)
+            error("No STB files found in Processed Results\\phase_avg\\ of %s. Expected *_<method>_fields.mat files (new layout).", strjoin(obj.data_roots, ", "))
+        end
 
-        obj.sel_type = obj.available_selections{1,1};
-        obj.sel_amp = obj.available_selections{1,2};
-        obj.sel_freq = obj.available_selections{1,3};
+        obj.source_modes = obj.get_available_source_modes();
+        if isempty(obj.source_modes)
+            error("No old or new flapper STB files found in %s.", strjoin(obj.data_roots, ", "))
+        end
+        obj.source_mode = obj.source_modes(1);
 
         obj.plot_curves = [];
         % attachFileListsToBird(path, cur_bird);
 
-        obj.sel_type = obj.cur_types(1);
-        if ~isequal(sort(obj.cur_types), sort(unique(string(obj.available_selections(:, 1)))))
-            error("Downstream type mismatch. Check types...")
-        end
-
-        obj.distance_labels = ["x = 0.9m","x = 1.3m","x = 1.7m"];
-        obj.distance_type_dict = containers.Map(obj.distance_labels, obj.cur_types);
-        obj.type_distance_dict = containers.Map(obj.cur_types, obj.distance_labels);
+        obj.reset_type_options_for_source();
     end
 
     % Builds figure with all UI elements and defines all callback
     % functions to be used when user clicks on UI elements
     function dynamic_plotting(obj)
-        % Create a GUI figure with a grid layout
-        [option_panel, plot_panel, screen_size] = setupFig(obj.mon_num);
+        % Create a GUI figure with a grid layout.  The option sidebar uses
+        % layout managers so controls stay accessible as the window changes
+        % size instead of relying on monitor-dependent pixel positions.
+        [option_panel, plot_panel, ~] = setupFig();
+        option_panel.AutoResizeChildren = true;
+        if isprop(option_panel, "Scrollable")
+            option_panel.Scrollable = "on";
+        end
 
-        screen_height = screen_size(4);
-        unit_height = round(0.03*screen_height);
-        unit_spacing = round(0.005*screen_height);
+        sidebar_grid = uigridlayout(option_panel, [20, 1]);
+        sidebar_grid.ColumnWidth = {'1x'};
+        sidebar_grid.RowHeight = {30, 30, 30, 30, 30, 30, 30, 110, 30, 346, 30, 0, 30, 30, 30, 30, 24, 30, 30, 30};
+        sidebar_grid.Padding = [10 10 10 10];
+        sidebar_grid.RowSpacing = 6;
+        if isprop(sidebar_grid, "Scrollable")
+            sidebar_grid.Scrollable = "on";
+        end
+
+        % Dropdown box for old/new flapper source selection
+        source_dropdown = uidropdown(sidebar_grid);
+        source_dropdown.Layout.Row = 1;
+        source_dropdown.Layout.Column = 1;
+        source_dropdown.Items = obj.source_modes;
+        source_dropdown.Value = obj.source_mode;
 
         % Dropdown box for flapper type selection
-        drop_y1 = screen_height*0.875 - unit_spacing;
-        d1 = uidropdown(option_panel);
-        d1.Position = [10 drop_y1 180 30];
-        d1.ValueChangedFcn = @(src, event) type_change(src, event);
-        d1.Items = [obj.distance_labels, "all"];
+        d1 = uidropdown(sidebar_grid);
+        d1.Layout.Row = 2;
+        d1.Layout.Column = 1;
+        d1.Items = [obj.distance_labels(:); "all"];
 
         % Dropdown box for wingbeat frequency selection
-        drop_y2 = drop_y1 - (unit_height + unit_spacing);
-        d2 = uidropdown(option_panel);
-        d2.Position = [10 drop_y2 180 unit_height];
-        cur_freqs = obj.available_selections(cell2mat(obj.available_selections(:,2)) == obj.sel_amp ...
-            & strcmp(string(obj.available_selections(:,1)), obj.sel_type),3);
-        freqs_string = string(cur_freqs) + " Hz";
+        d2 = uidropdown(sidebar_grid);
+        d2.Layout.Row = 3;
+        d2.Layout.Column = 1;
+        cur_freqs = obj.get_freq_options(obj.sel_type, obj.sel_amp);
+        freqs_string = string(cur_freqs(:)) + " Hz";
         d2.Items = [freqs_string; "all"];
 
         % Dropdown box for wingbeat amplitude selection
-        drop_y3 = drop_y2 - (unit_height + unit_spacing);
-        d3 = uidropdown(option_panel);
-        d3.Position = [10 drop_y3 180 unit_height];
-        cur_amps = obj.available_selections(cell2mat(obj.available_selections(:,3)) == obj.sel_freq ...
-            & strcmp(string(obj.available_selections(:,1)), obj.sel_type),2);
-        d3.Items = [string(cur_amps) + " deg"; "all"];
+        d3 = uidropdown(sidebar_grid);
+        d3.Layout.Row = 4;
+        d3.Layout.Column = 1;
+        cur_amps = obj.get_amp_options(obj.sel_type, obj.sel_freq);
+        d3.Items = [string(cur_amps(:)) + " deg"; "all"];
 
-        d2.ValueChangedFcn = @(src, event) freq_change(src, event, d3);
-        d3.ValueChangedFcn = @(src, event) amp_change(src, event, d2);
+        % Dropdown box for file version selection
+        d4 = uidropdown(sidebar_grid);
+        d4.Layout.Row = 5;
+        d4.Layout.Column = 1;
+        obj.update_version_dropdown(d4);
+
+        source_dropdown.ValueChangedFcn = @(src, event) source_change(src, event, d1, d2, d3, d4, plot_panel);
+        d1.ValueChangedFcn = @(src, event) type_change(src, event, d2, d3, d4);
+        d2.ValueChangedFcn = @(src, event) freq_change(src, event, d3, d4);
+        d3.ValueChangedFcn = @(src, event) amp_change(src, event, d2, d4);
+        d4.ValueChangedFcn = @(src, event) version_change(src, event);
+
+        % RPCA and HR (harmonic regression) buttons share a row
+        variant_grid = uigridlayout(sidebar_grid, [1, 2]);
+        variant_grid.Layout.Row = 6;
+        variant_grid.Layout.Column = 1;
+        variant_grid.ColumnWidth = {'1x', '1x'};
+        variant_grid.RowHeight = {'1x'};
+        variant_grid.Padding = [0 0 0 0];
+        variant_grid.ColumnSpacing = 8;
+
+        rpca_button = uibutton(variant_grid, "state");
+        rpca_button.Layout.Row = 1;
+        rpca_button.Layout.Column = 1;
+        rpca_button.Text = "RPCA";
+        rpca_button.FontSize = 18;
+        rpca_button.BackgroundColor = obj.get_button_color(obj.RPCA);
+        rpca_button.ValueChangedFcn = @(src, event) RPCA_change(src, event);
+
+        hr_button = uibutton(variant_grid, "state");
+        hr_button.Layout.Row = 1;
+        hr_button.Layout.Column = 2;
+        hr_button.Text = "HR";
+        hr_button.FontSize = 18;
+        hr_button.Tooltip = "Harmonic regression files (_hr)";
+        hr_button.BackgroundColor = obj.get_button_color(obj.HR);
+        hr_button.ValueChangedFcn = @(src, event) HR_change(src, event);
 
         % Button to add entry defined by selected type,
         % frequency, angle, and speed to list of plotted cases
-        button2_y = drop_y3 - (unit_height + unit_spacing);
-        b2 = uibutton(option_panel);
-        b2.Position = [15 button2_y 80 unit_height];
+        entry_button_grid = uigridlayout(sidebar_grid, [1, 2]);
+        entry_button_grid.Layout.Row = 7;
+        entry_button_grid.Layout.Column = 1;
+        entry_button_grid.ColumnWidth = {'1x', '1x'};
+        entry_button_grid.RowHeight = {'1x'};
+        entry_button_grid.Padding = [0 0 0 0];
+        entry_button_grid.ColumnSpacing = 8;
+
+        b2 = uibutton(entry_button_grid);
+        b2.Layout.Row = 1;
+        b2.Layout.Column = 1;
         b2.BackgroundColor = [1 1 1];
         b2.Text = "Add entry";
 
         % Button to remove entry defined by selected type,
         % frequency, angle, and speed from list of plotted cases
-        b3 = uibutton(option_panel);
-        b3.Position = [105 button2_y 80 unit_height];
+        b3 = uibutton(entry_button_grid);
+        b3.Layout.Row = 1;
+        b3.Layout.Column = 2;
         b3.BackgroundColor = [1 1 1];
         b3.Text = "Delete entry";
 
         % List of cases currently displayed on the plots
-        list_y = button2_y - (3*(unit_height + unit_spacing) + unit_spacing);
-        lbox = uilistbox(option_panel);
+        lbox = uilistbox(sidebar_grid);
+        lbox.Layout.Row = 8;
+        lbox.Layout.Column = 1;
         lbox.Items = strings(0);
-        lbox.Position = [10 list_y 180 3*(unit_height + unit_spacing)];
 
         b2.ButtonPushedFcn = @(src, event) addToList(src, event, plot_panel, lbox);
         b3.ButtonPushedFcn = @(src, event) removeFromList(src, event, plot_panel, lbox);
 
-        button33_y = list_y - (unit_height + unit_spacing);
-        b33 = uibutton(option_panel);
+        b33 = uibutton(sidebar_grid);
+        b33.Layout.Row = 9;
+        b33.Layout.Column = 1;
         b33.Text = "Clear Entries";
         b33.FontSize = 18;
-        b33.Position = [20 button33_y 160 unit_height];
         b33.BackgroundColor = [1 1 1];
         b33.ButtonPushedFcn = @(src, event) clearList(src, event, plot_panel, lbox);
 
-        param_panel_height = 180;
-        param_panel_width = 180;
-        param_panel_y = button33_y - unit_spacing - param_panel_height;
-        param_panel = uipanel(option_panel);
+        param_panel = uipanel(sidebar_grid);
+        param_panel.Layout.Row = 10;
+        param_panel.Layout.Column = 1;
         param_panel.Title = "Plot Parameters";
         param_panel.TitlePosition = 'centertop';
-        param_panel.Position = [10 param_panel_y param_panel_width param_panel_height];
 
-        var_type_label = uilabel(param_panel);
-        var_type_label.Text = "Variable Type";
-        var_type_label.Position = [15 132 150 22];
+        param_grid = uigridlayout(param_panel, [5, 1]);
+        param_grid.ColumnWidth = {'1x'};
+        param_grid.RowHeight = {175, 30, 25, 30, 30};
+        param_grid.Padding = [10 8 10 8];
+        param_grid.RowSpacing = 4;
 
-        var_type_dropdown = uidropdown(param_panel);
-        var_type_dropdown.Items = ["kinematics", "force", "BA: force"];
+        % Variables: the type (filters the lists) and up to NUM_VARS
+        % variables, numbered in plot order (variable 1 takes the left
+        % y-axis when the axes are separate)
+        var_panel = uipanel(param_grid);
+        var_panel.Layout.Row = 1;
+        var_panel.Layout.Column = 1;
+        var_panel.Title = "Variables";
+
+        var_grid = uigridlayout(var_panel, [obj.NUM_VARS + 1, 2]);
+        % label column only as wide as "Type" ('fit'), the rest for the
+        % variable names
+        var_grid.ColumnWidth = {'fit', '1x'};
+        var_grid.RowHeight = repmat({25}, 1, obj.NUM_VARS + 1);
+        var_grid.Padding = [4 6 6 6];
+        var_grid.RowSpacing = 4;
+        var_grid.ColumnSpacing = 3;
+
+        var_type_label = uilabel(var_grid);
+        var_type_label.Layout.Row = 1;
+        var_type_label.Layout.Column = 1;
+        var_type_label.Text = "Type";
+
+        var_type_dropdown = uidropdown(var_grid);
+        var_type_dropdown.Layout.Row = 1;
+        var_type_dropdown.Layout.Column = 2;
+        var_type_dropdown.Items = ["kinematics", "flow", "force", "BA: force", "load cell"];
         var_type_dropdown.Value = "kinematics";
-        var_type_dropdown.Position = [15 107 150 25];
 
         [init_types, ~, ~] = obj.get_variable_options(var_type_dropdown.Value);
         init_options = ["none", init_types];
 
-        var_label1 = uilabel(param_panel);
-        var_label1.Text = "Variable 1";
-        var_label1.Position = [15 82 150 22];
+        var_dropdowns = gobjects(1, obj.NUM_VARS);
+        for k = 1:obj.NUM_VARS
+            var_num_label = uilabel(var_grid);
+            var_num_label.Layout.Row = k + 1;
+            var_num_label.Layout.Column = 1;
+            var_num_label.Text = string(k);
+            var_num_label.HorizontalAlignment = "center";
 
-        var_dropdown1 = uidropdown(param_panel);
-        var_dropdown1.Items = init_options;
-        var_dropdown1.Value = "none";
-        var_dropdown1.Position = [15 57 150 25];
+            var_dropdowns(k) = uidropdown(var_grid);
+            var_dropdowns(k).Layout.Row = k + 1;
+            var_dropdowns(k).Layout.Column = 2;
+            var_dropdowns(k).Items = init_options;
+            var_dropdowns(k).Value = "none";
+        end
 
-        var_label2 = uilabel(param_panel);
-        var_label2.Text = "Variable 2";
-        var_label2.Position = [15 32 150 22];
-
-        var_dropdown2 = uidropdown(param_panel);
-        var_dropdown2.Items = init_options;
-        var_dropdown2.Value = "none";
-        var_dropdown2.Position = [15 7 150 25];
-
-        var_dropdown1.ValueChangedFcn = @(src, event) updateVariableSelection(src, event, plot_panel, var_dropdown1, var_dropdown2);
-        var_dropdown2.ValueChangedFcn = @(src, event) updateVariableSelection(src, event, plot_panel, var_dropdown1, var_dropdown2);
-        var_type_dropdown.ValueChangedFcn = @(src, event) updateVariableType(src, event, plot_panel, var_dropdown1, var_dropdown2);
-
-        button4_y = param_panel_y - (unit_height + unit_spacing);
-        b4 = uibutton(option_panel, "state");
-        b4.Text = "Show Force";
-        b4.FontSize = 18;
-        b4.Position = [20 button4_y 160 unit_height];
-        b4.BackgroundColor = [1 1 1];
-        b4.ValueChangedFcn = @(src, event) force_change(src, event, plot_panel);
-
-        button6_y = button4_y - (unit_height + unit_spacing);
-        b6 = uibutton(option_panel, "state");
+        b6 = uibutton(param_grid, "state");
+        b6.Layout.Row = 2;
+        b6.Layout.Column = 1;
         b6.Text = "PIV Body Sub";
         b6.FontSize = 18;
-        b6.Position = [20 button6_y 160 unit_height];
         b6.BackgroundColor = [1 1 1];
         b6.ValueChangedFcn = @(src, event) PIV_sub_change(src, event, plot_panel);
 
-        button7_y = button6_y - (unit_height + unit_spacing);
-        b7 = uibutton(option_panel, "state");
+        % Steady case used for the subtraction, matched to each
+        % selection's downstream position (and amplitude for body/gliding)
+        PIV_sub_dropdown = uidropdown(param_grid);
+        PIV_sub_dropdown.Layout.Row = 3;
+        PIV_sub_dropdown.Layout.Column = 1;
+        PIV_sub_dropdown.Items = ["ring", "body", "gliding", "freestream"];
+        PIV_sub_dropdown.Value = obj.PIV_sub_case;
+        PIV_sub_dropdown.Tooltip = "Steady case subtracted (e.g. for x3_wings_20deg_4Hz: ring = x3_ring, body = x3_body_20deg_0Hz, gliding = x3_wings_20deg_0Hz, freestream = freestream, the empty test section)";
+        PIV_sub_dropdown.ValueChangedFcn = @(src, event) PIV_sub_case_change(src, event, plot_panel);
+
+        % Convection Shift and, next to it, the stroke order: UDU, DUD, DU
+        % or UD (as in flowField_UI)
+        conv_shift_grid = uigridlayout(param_grid, [1, 2]);
+        conv_shift_grid.Layout.Row = 4;
+        conv_shift_grid.Layout.Column = 1;
+        conv_shift_grid.ColumnWidth = {'1x', 62};
+        conv_shift_grid.RowHeight = {'1x'};
+        conv_shift_grid.Padding = [0 0 0 0];
+        conv_shift_grid.ColumnSpacing = 4;
+
+        conv_shift_button = uibutton(conv_shift_grid, "state");
+        conv_shift_button.Layout.Row = 1;
+        conv_shift_button.Layout.Column = 1;
+        conv_shift_button.Text = "Convection Shift";
+        conv_shift_button.FontSize = 12;
+        conv_shift_button.Value = obj.conv_shift;
+        conv_shift_button.BackgroundColor = obj.get_button_color(obj.conv_shift);
+        conv_shift_button.Tooltip = "Phase shift PIV force and flow curves by the convection time from the robot to the imaging plane (kinematics and load cell variables are measured at the robot and aren't shifted)";
+        conv_shift_button.ValueChangedFcn = @(src, event) conv_shift_change(src, event, plot_panel);
+
+        stroke_order_dropdown = uidropdown(conv_shift_grid);
+        stroke_order_dropdown.Layout.Row = 1;
+        stroke_order_dropdown.Layout.Column = 2;
+        stroke_order_dropdown.Items = ["UDU", "DUD", "DU", "UD"];
+        stroke_order_dropdown.Value = obj.stroke_order;
+        stroke_order_dropdown.FontSize = 12;
+        stroke_order_dropdown.Enable = obj.conv_shift;
+        stroke_order_dropdown.Tooltip = "Order of the strokes across the wingbeat (D = downstroke, U = upstroke). " + ...
+            "UDU: downstroke centred. DUD: upstroke centred. DU: starts at the top of the stroke. " + ...
+            "UD: starts at the bottom. All curves are shifted together, using the stroke reversals " + ...
+            "in the wing position. Requires Convection Shift";
+        stroke_order_dropdown.ValueChangedFcn = @(src, event) stroke_order_change(src, event, plot_panel);
+
+        % Stroke reversal lines, upstroke/downstroke labels and downstroke
+        % shading. Turned on with Convection Shift, unavailable without it.
+        label_stroke_button = uibutton(param_grid, "state");
+        label_stroke_button.Layout.Row = 5;
+        label_stroke_button.Layout.Column = 1;
+        label_stroke_button.Text = "Label Stroke";
+        label_stroke_button.FontSize = 18;
+        label_stroke_button.Value = obj.label_stroke;
+        label_stroke_button.Enable = obj.conv_shift;
+        label_stroke_button.BackgroundColor = obj.get_button_color(obj.label_stroke);
+        label_stroke_button.Tooltip = "Mark stroke reversals (from the phase-averaged wing position) and label upstroke / downstroke. Requires Convection Shift";
+        label_stroke_button.ValueChangedFcn = @(src, event) label_stroke_change(src, event, plot_panel);
+
+        for var_dropdown = var_dropdowns
+            var_dropdown.ValueChangedFcn = @(src, event) updateVariableSelection(src, event, plot_panel, var_dropdowns);
+        end
+        var_type_dropdown.ValueChangedFcn = @(src, event) updateVariableType(src, event, plot_panel, var_dropdowns);
+
+        load_cell_toggle = uibutton(sidebar_grid, "state");
+        load_cell_toggle.Layout.Row = 11;
+        load_cell_toggle.Layout.Column = 1;
+        load_cell_toggle.Text = phaseAvg_UI.get_button_text(false, "Load Cell");
+        load_cell_toggle.FontSize = 18;
+        load_cell_toggle.BackgroundColor = [1 1 1];
+
+        load_cell_panel = uipanel(sidebar_grid);
+        load_cell_panel.Layout.Row = 12;
+        load_cell_panel.Layout.Column = 1;
+        load_cell_panel.Title = "Load Cell";
+        load_cell_panel.TitlePosition = 'centertop';
+        load_cell_panel.Visible = "off";
+
+        load_cell_grid = uigridlayout(load_cell_panel, [3, 1]);
+        load_cell_grid.ColumnWidth = {'1x'};
+        load_cell_grid.RowHeight = {22, 25, 30};
+        load_cell_grid.Padding = [10 8 10 8];
+        load_cell_grid.RowSpacing = 4;
+
+        % Load cell data used by the load cell variables (Variable Type
+        % "load cell")
+        force_data_label = uilabel(load_cell_grid);
+        force_data_label.Layout.Row = 1;
+        force_data_label.Layout.Column = 1;
+        force_data_label.Text = "Force Data";
+
+        force_data_dropdown = uidropdown(load_cell_grid);
+        force_data_dropdown.Layout.Row = 2;
+        force_data_dropdown.Layout.Column = 1;
+        force_data_dropdown.Items = obj.load_cell_types;
+        force_data_dropdown.Value = obj.load_cell_types(end);
+        force_data_dropdown.ValueChangedFcn = @(src, event) load_cell_force_var_change(src, event, plot_panel);
+
+        b7 = uibutton(load_cell_grid, "state");
+        b7.Layout.Row = 3;
+        b7.Layout.Column = 1;
         b7.Text = "Force Body Sub";
         b7.FontSize = 18;
-        b7.Position = [20 button7_y 160 unit_height];
         b7.BackgroundColor = [1 1 1];
         b7.ValueChangedFcn = @(src, event) force_sub_change(src, event, plot_panel);
 
-        button77_y = button7_y - (unit_height + unit_spacing);
-        b77 = uibutton(option_panel, "state");
+        load_cell_toggle.ValueChangedFcn = @(src, event) load_cell_toggle_change(src, event, load_cell_panel);
+
+        b77 = uibutton(sidebar_grid, "state");
+        b77.Layout.Row = 13;
+        b77.Layout.Column = 1;
         b77.Text = "Live Calculate";
         b77.FontSize = 18;
-        b77.Position = [20 button77_y 160 unit_height];
         b77.BackgroundColor = [1 1 1];
         b77.ValueChangedFcn = @(src, event) calc_change(src, event, plot_panel);
 
-        button88_y = button77_y - (unit_height + unit_spacing);
-        b88 = uibutton(option_panel, "state");
+        align_std_grid = uigridlayout(sidebar_grid, [1, 2]);
+        align_std_grid.Layout.Row = 14;
+        align_std_grid.Layout.Column = 1;
+        align_std_grid.ColumnWidth = {'1x', '1x'};
+        align_std_grid.RowHeight = {'1x'};
+        align_std_grid.Padding = [0 0 0 0];
+        align_std_grid.ColumnSpacing = 6;
+
+        b88 = uibutton(align_std_grid, "state");
+        b88.Layout.Row = 1;
+        b88.Layout.Column = 1;
         b88.Text = "Align";
         b88.FontSize = 18;
-        b88.Position = [20 button88_y 160 unit_height];
         b88.BackgroundColor = [1 1 1];
-        b88.ValueChangedFcn = @(src, event) align_change(src, event, plot_panel);
 
-        button99_y = button88_y - (unit_height + unit_spacing);
-        b99 = uibutton(option_panel, "state");
+        % cross-correlation behind the alignment (only with Align on)
+        corr_button = uibutton(align_std_grid, "state");
+        corr_button.Layout.Row = 1;
+        corr_button.Layout.Column = 2;
+        corr_button.Text = "Corr";
+        corr_button.FontSize = 18;
+        corr_button.BackgroundColor = [1 1 1];
+        corr_button.Enable = obj.align_bool;
+        corr_button.Tooltip = "Show the cross-correlation used to align each curve with the first (instead of the curves), marking the lag applied";
+        corr_button.ValueChangedFcn = @(src, event) corr_change(src, event, plot_panel);
+
+        b88.ValueChangedFcn = @(src, event) align_change(src, event, plot_panel, corr_button);
+
+        y_mean_grid = uigridlayout(sidebar_grid, [1, 2]);
+        y_mean_grid.Layout.Row = 15;
+        y_mean_grid.Layout.Column = 1;
+        y_mean_grid.ColumnWidth = {'1x', '1x'};
+        y_mean_grid.Padding = [0 0 0 0];
+        y_mean_grid.ColumnSpacing = 6;
+
+        b99 = uibutton(y_mean_grid, "state");
+        b99.Layout.Row = 1;
+        b99.Layout.Column = 1;
         b99.Text = "Separate Y-Axis";
-        b99.FontSize = 18;
-        b99.Position = [20 button99_y 160 unit_height];
+        b99.FontSize = 10;
         b99.BackgroundColor = [1 1 1];
         b99.ValueChangedFcn = @(src, event) separate_y_axis_change(src, event, plot_panel);
 
+        b100 = uibutton(y_mean_grid, "state");
+        b100.Layout.Row = 1;
+        b100.Layout.Column = 2;
+        b100.Text = "Mean Subtraction";
+        b100.FontSize = 10;
+        b100.BackgroundColor = [1 1 1];
+        b100.ValueChangedFcn = @(src, event) mean_subtraction_change(src, event, plot_panel);
 
-        % ------------------------------------------------------
-        % -------Buttons built up from bottom of screen---------
-        % ------------------------------------------------------
 
-        button8_y = unit_spacing;
-        field_y = button8_y + (unit_height + unit_spacing);
-        label_y = field_y + unit_height - unit_spacing;
+        % Remaining file output controls.
+        % shaded +/- 1 SD band around load cell and BA PIV force curves
+        std_button = uibutton(sidebar_grid, "state");
+        std_button.Layout.Row = 16;
+        std_button.Layout.Column = 1;
+        std_button.Text = "+/- 1 SD";
+        std_button.FontSize = 18;
+        std_button.Value = obj.std_band;
+        std_button.BackgroundColor = obj.get_button_color(obj.std_band);
+        std_button.ValueChangedFcn = @(src, event) std_band_change(src, event, plot_panel);
 
-        fnl = uilabel(option_panel);
-        fnl.Position = [65 label_y 80 unit_height];
+        fnl = uilabel(sidebar_grid);
+        fnl.Layout.Row = 17;
+        fnl.Layout.Column = 1;
+        fnl.HorizontalAlignment = "center";
         fnl.Text = "File Name";
 
-        ef = uieditfield(option_panel);
-        ef.Position = [15 field_y 160 unit_height];
+        ef = uieditfield(sidebar_grid);
+        ef.Layout.Row = 18;
+        ef.Layout.Column = 1;
         ef.Placeholder = "test";
 
         % Button to export data on plot to .mat file
-        b10 = uibutton(option_panel);
-        b10.Position = [15 button8_y 160 unit_height];
+        b10 = uibutton(sidebar_grid);
+        b10.Layout.Row = 19;
+        b10.Layout.Column = 1;
         b10.Text = "Export Data";
         b10.ButtonPushedFcn = @(src, event) exportData(src, event, ef);
 
-        button9_y = label_y + (unit_height + unit_spacing);
-        b4 = uibutton(option_panel);
+        b4 = uibutton(sidebar_grid);
+        b4.Layout.Row = 20;
+        b4.Layout.Column = 1;
         b4.Text = "Save Fig";
         b4.FontSize = 18;
-        b4.Position = [20 button9_y 160 unit_height];
         b4.BackgroundColor = [1 1 1];
         b4.ButtonPushedFcn = @(src, event) save_figure(src, event, plot_panel);
 
@@ -348,53 +748,76 @@ methods
         %-----------------------------------------------------%
         %-----------------------------------------------------%
 
-        % update type variable with new value selected by user
-        function type_change(src, ~)
-            if src.Value == "all"
-            obj.sel_type = src.Value;
+        % update source mode and refresh dependent dropdowns
+        function source_change(src, ~, type_dropdown, freq_dropdown, amp_dropdown, version_dropdown, plot_panel)
+            obj.source_mode = string(src.Value);
+            obj.reset_type_options_for_source();
+            refresh_type_dropdown(type_dropdown);
+            obj.update_frequency_dropdown(freq_dropdown);
+            obj.update_amp_dropdown(amp_dropdown);
+            obj.update_version_dropdown(version_dropdown);
+            obj.update_plot(plot_panel);
+        end
+
+        function refresh_type_dropdown(type_dropdown)
+            if isempty(obj.distance_labels)
+                type_dropdown.Items = "No flapper data";
+                type_dropdown.Value = "No flapper data";
+                type_dropdown.Enable = "off";
+                return
+            end
+
+            type_dropdown.Enable = "on";
+            type_dropdown.Items = [obj.distance_labels(:); "all"];
+            if obj.sel_type == "all"
+                type_dropdown.Value = "all";
             else
-            obj.sel_type = obj.distance_type_dict(src.Value);
+                type_dropdown.Value = string(obj.type_distance_dict(char(obj.sel_type)));
             end
         end
 
+        % update type variable with new value selected by user
+        function type_change(src, ~, freq_dropdown, amp_dropdown, version_dropdown)
+            if src.Value == "all"
+                obj.sel_type = string(src.Value);
+            else
+                obj.sel_type = string(obj.distance_type_dict(char(src.Value)));
+            end
+
+            % keep the selected amplitude / frequency when the new
+            % position has that case
+            obj.keep_selection_for_type();
+            obj.update_frequency_dropdown(freq_dropdown);
+            obj.update_amp_dropdown(amp_dropdown);
+            obj.update_version_dropdown(version_dropdown);
+        end
+
         % update frequency variable with new value selected by user
-        function freq_change(src, ~, d)
+        function freq_change(src, ~, amp_dropdown, version_dropdown)
             if strcmp(src.Value, "all")
             obj.sel_freq = -1;
             else
             obj.sel_freq = str2double(regexp(src.Value, '\d+', 'match'));
             end
             
-            % Change amplitude list to only show those available at this
-            % wingbeat frequency
-            if obj.sel_freq == -1
-                amps = obj.available_selections(strcmp(string(obj.available_selections(:,1)), obj.cur_types(1)),2);
-            else
-            amps = obj.available_selections(cell2mat(obj.available_selections(:,3)) == obj.sel_freq ...
-            & strcmp(string(obj.available_selections(:,1)), obj.cur_types(1)),2);
-            end
-            amps = unique(cell2mat(amps));
-            d.Items = [string(amps) + " deg"; "all"];
+            obj.update_amp_dropdown(amp_dropdown);
+            obj.update_version_dropdown(version_dropdown);
         end
 
         % update speed variable with new value selected by user
-        function amp_change(src, ~, d)
+        function amp_change(src, ~, freq_dropdown, version_dropdown)
             if strcmp(src.Value, "all")
                 obj.sel_amp = -1;
             else
                 obj.sel_amp = str2double(regexp(src.Value, '\d+', 'match'));
             end
 
-            % Change frequency list to only show those available at this
-            % wingbeat amplitude
-            if obj.sel_amp == -1
-                freqs = obj.available_selections(strcmp(string(obj.available_selections(:,1)), obj.cur_types(1)),3);
-            else
-                freqs = obj.available_selections(cell2mat(obj.available_selections(:,2)) == obj.sel_amp ...
-                & strcmp(string(obj.available_selections(:,1)), obj.cur_types(1)),3);
-            end
-            freqs = unique(cell2mat(freqs));
-            d.Items = [string(freqs) + " Hz"; "all"];
+            obj.update_frequency_dropdown(freq_dropdown);
+            obj.update_version_dropdown(version_dropdown);
+        end
+
+        function version_change(src, ~)
+            obj.sel_version = string(src.Value);
         end
 
         function PIV_sub_change(src, ~, plot_panel)
@@ -403,9 +826,70 @@ methods
             obj.update_plot(plot_panel);
         end
 
+        function PIV_sub_case_change(src, ~, plot_panel)
+            obj.PIV_sub_case = string(src.Value);
+            if obj.PIV_sub
+                obj.update_plot(plot_panel);
+            end
+        end
+
+        function conv_shift_change(src, ~, plot_panel)
+            obj.conv_shift = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.conv_shift);
+
+            % Label Stroke follows Convection Shift: on by default when it
+            % is turned on, forced off and disabled when it is turned off
+            obj.label_stroke = obj.conv_shift;
+            label_stroke_button.Value = obj.label_stroke;
+            label_stroke_button.Enable = obj.conv_shift;
+            label_stroke_button.BackgroundColor = obj.get_button_color(obj.label_stroke);
+
+            % the stroke order only means something in the wing phase, so
+            % it needs the convection shift too; reset when it goes off
+            if ~obj.conv_shift
+                obj.stroke_order = "UDU";
+                stroke_order_dropdown.Value = obj.stroke_order;
+            end
+            stroke_order_dropdown.Enable = obj.conv_shift;
+
+            obj.update_plot(plot_panel);
+        end
+
+        function stroke_order_change(src, ~, plot_panel)
+            obj.stroke_order = string(src.Value);
+            if ~obj.conv_shift
+                obj.stroke_order = "UDU";
+                src.Value = obj.stroke_order;
+            end
+            obj.update_plot(plot_panel);
+        end
+
+        function label_stroke_change(src, ~, plot_panel)
+            obj.label_stroke = src.Value && obj.conv_shift;
+            src.Value = obj.label_stroke;
+            src.BackgroundColor = obj.get_button_color(obj.label_stroke);
+            obj.update_plot(plot_panel);
+        end
+
+        function RPCA_change(src, ~)
+            obj.RPCA = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.RPCA);
+        end
+
+        function HR_change(src, ~)
+            obj.HR = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.HR);
+        end
+
         function force_sub_change(src, ~, plot_panel)
             obj.force_sub = src.Value;
             src.BackgroundColor = obj.get_button_color(obj.force_sub);
+            obj.update_plot(plot_panel);
+        end
+
+        function std_band_change(src, ~, plot_panel)
+            obj.std_band = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.std_band);
             obj.update_plot(plot_panel);
         end
 
@@ -415,9 +899,16 @@ methods
             obj.update_plot(plot_panel);
         end
 
-        function align_change(src, ~, plot_panel)
+        function align_change(src, ~, plot_panel, corr_button)
             obj.align_bool = src.Value;
             src.BackgroundColor = obj.get_button_color(obj.align_bool);
+            corr_button.Enable = obj.align_bool;
+            obj.update_plot(plot_panel);
+        end
+
+        function corr_change(src, ~, plot_panel)
+            obj.corr_bool = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.corr_bool);
             obj.update_plot(plot_panel);
         end
 
@@ -427,14 +918,35 @@ methods
             obj.update_plot(plot_panel);
         end
 
+        function mean_subtraction_change(src, ~, plot_panel)
+            obj.mean_subtraction_bool = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.mean_subtraction_bool);
+            obj.update_plot(plot_panel);
+        end
+
+        function load_cell_toggle_change(src, ~, load_cell_panel)
+            src.Text = phaseAvg_UI.get_button_text(src.Value, "Load Cell");
+            src.BackgroundColor = obj.get_button_color(src.Value);
+            row_heights = sidebar_grid.RowHeight;
+            if src.Value
+                load_cell_panel.Visible = "on";
+                row_heights{12} = 125;
+            else
+                load_cell_panel.Visible = "off";
+                row_heights{12} = 0;
+            end
+            sidebar_grid.RowHeight = row_heights;
+        end
+
         function addToList(~, ~, plot_panel, lbox)
             selection_types = string(obj.available_selections(:,1));
             selection_amps = cell2mat(obj.available_selections(:,2));
             selection_freqs = cell2mat(obj.available_selections(:,3));
+            selection_versions = string(obj.available_selections(:,4));
 
-            type_mask = true(size(selection_types));
+            type_mask = obj.get_source_type_mask(selection_types);
             if obj.sel_type ~= "all"
-                type_mask = selection_types == obj.sel_type;
+                type_mask = type_mask & selection_types == obj.sel_type;
             end
 
             amp_mask = true(size(selection_amps));
@@ -447,18 +959,29 @@ methods
                 freq_mask = selection_freqs == obj.sel_freq;
             end
 
-            matching_indices = find(type_mask & amp_mask & freq_mask);
-            [~, type_order] = ismember(selection_types(matching_indices), obj.cur_types);
-            type_order(type_order == 0) = length(obj.cur_types) + 1;
+            version_mask = obj.get_version_mask(selection_versions, obj.sel_version);
+
+            matching_indices = find(type_mask & amp_mask & freq_mask & version_mask);
+            type_order = obj.get_type_sort_order(selection_types(matching_indices));
+            version_order = obj.get_version_sort_order(selection_versions(matching_indices));
             [~, sort_order] = sortrows([type_order(:),...
                                         selection_amps(matching_indices),...
-                                        selection_freqs(matching_indices)]);
+                                        selection_freqs(matching_indices),...
+                                        version_order(:)]);
             matching_indices = matching_indices(sort_order);
 
             for n = 1:length(matching_indices)
                 cur_idx = matching_indices(n);
                 case_name = selection_types(cur_idx) + "_" + string(selection_amps(cur_idx)) +...
-                    "deg_" + string(selection_freqs(cur_idx)) + "Hz";
+                    "deg_" + string(selection_freqs(cur_idx)) + "Hz" +...
+                    obj.get_version_suffix(selection_versions(cur_idx));
+                % same order phase_avg_STB saves them: <version>_hr_RPCA
+                if obj.HR
+                    case_name = case_name + "_hr";
+                end
+                if obj.RPCA
+                    case_name = case_name + "_RPCA";
+                end
 
                 if sum(strcmp(string(lbox.Items), case_name)) == 0
                     lbox.Items = [lbox.Items, case_name];
@@ -491,8 +1014,8 @@ methods
             obj.update_plot(plot_panel);
         end
 
-        function updateVariableSelection(~, ~, plot_panel, dropdown1, dropdown2)
-            selected_values = [string(dropdown1.Value), string(dropdown2.Value)];
+        function updateVariableSelection(~, ~, plot_panel, var_dropdowns)
+            selected_values = string({var_dropdowns.Value});
             obj.inds = [];
 
             for n = 1:length(selected_values)
@@ -509,10 +1032,11 @@ methods
             obj.update_plot(plot_panel);
         end
 
-        function updateVariableType(src, ~, plot_panel, dropdown1, dropdown2)
-            updateDropdownItems(src.Value, dropdown1);
-            updateDropdownItems(src.Value, dropdown2);
-            updateVariableSelection([], [], plot_panel, dropdown1, dropdown2);
+        function updateVariableType(src, ~, plot_panel, var_dropdowns)
+            for k = 1:length(var_dropdowns)
+                updateDropdownItems(src.Value, var_dropdowns(k));
+            end
+            updateVariableSelection([], [], plot_panel, var_dropdowns);
         end
 
         function updateDropdownItems(var_type, dropdown)
@@ -521,17 +1045,8 @@ methods
             dropdown.Value = current_value;
         end
 
-        function force_change(src, ~, plot_panel)
-            if (src.Value)
-                obj.force_bool = true;
-                src.BackgroundColor = [0.3010 0.7450 0.9330];
-                src.Text = "Hide Force";
-            else
-                obj.force_bool = false;
-                src.BackgroundColor = [1 1 1];
-                src.Text = "Show Force";
-            end
-
+        function load_cell_force_var_change(src, ~, plot_panel)
+            obj.load_cell_force_var = obj.load_cell_dict(src.Value);
             obj.update_plot(plot_panel);
         end
 
@@ -570,6 +1085,443 @@ end
 %---------------------------------------------------------------%
 % The only function contained in this section is update_plot
 methods (Access = private)
+    function reset_type_options_for_source(obj)
+        [selection_types, obj.distance_labels] = obj.get_available_type_options();
+        obj.distance_type_dict = obj.build_string_map(obj.distance_labels, selection_types);
+        obj.type_distance_dict = obj.build_string_map(selection_types, obj.distance_labels);
+
+        if isempty(selection_types)
+            obj.sel_type = "";
+            obj.sel_amp = -1;
+            obj.sel_freq = -1;
+            obj.sel_version = obj.DEFAULT_VERSION_LABEL;
+            return
+        end
+
+        obj.sel_type = selection_types(1);
+        [obj.sel_amp, obj.sel_freq] = obj.get_first_selection(obj.sel_type);
+        obj.sel_version = obj.get_first_version(obj.sel_type, obj.sel_amp, obj.sel_freq);
+    end
+
+    function map = build_string_map(~, keys, values)
+        if isempty(keys)
+            map = containers.Map('KeyType', 'char', 'ValueType', 'char');
+        else
+            map = containers.Map(cellstr(keys), cellstr(values));
+        end
+    end
+
+    % labels: stb_list_phase_avg's selection labels
+    function available_selections = get_phase_avg_selections_from_labels(obj, labels)
+        labels = string(labels);
+        available_selections = cell(numel(labels), 4);
+
+        for i = 1:numel(labels)
+            name = labels(i);
+
+            % Skip body/ring cases
+            if ~contains(name, "Hz")
+                continue
+            end
+            [base_name, version] = obj.extract_file_version(name);
+            [amp, type, freq] = parse_name(base_name);
+
+            available_selections{i, 1} = type;
+            available_selections{i, 2} = amp;
+            available_selections{i, 3} = freq;
+            available_selections{i, 4} = version;
+        end
+
+        available_selections(all(cellfun(@isempty, available_selections), 2), :) = [];
+    end
+
+    % File version: whatever follows the "<freq>Hz" part of the name, e.g.
+    % x3_wings_20deg_6Hz_coarse -> "coarse", x3_wings_20deg_6Hz_v2 -> "v2"
+    % (a trailing _RPCA or _hr is not part of it: those files are picked
+    % with the RPCA / HR buttons, so x3_wings_20deg_6Hz_coarse_hr is version
+    % "coarse" and x3_wings_20deg_6Hz_hr the default version). No suffix =
+    % default version. Version names shouldn't contain "deg" or "Hz"
+    % (parse_name reads those).
+    function [base_name, version] = extract_file_version(obj, name)
+        name = string(name);
+        is_rpca = endsWith(name, "_RPCA");
+        if is_rpca
+            name = extractBefore(name, strlength(name) - strlength("_RPCA") + 1);
+        end
+        is_hr = endsWith(name, "_hr");
+        if is_hr
+            name = extractBefore(name, strlength(name) - strlength("_hr") + 1);
+        end
+
+        base_name = name;
+        version = obj.DEFAULT_VERSION_LABEL;
+        parts = split(name, "_");
+        hz_idx = find(~cellfun(@isempty, regexp(cellstr(parts), '^\d+(\.\d+)?Hz$', 'once')), 1);
+        if ~isempty(hz_idx) && hz_idx < numel(parts)
+            version = strjoin(parts(hz_idx+1:end), "_");
+            base_name = strjoin(parts(1:hz_idx), "_");
+        end
+
+        if is_hr
+            base_name = base_name + "_hr";
+        end
+        if is_rpca
+            base_name = base_name + "_RPCA";
+        end
+    end
+
+    function source_modes = get_available_source_modes(obj)
+        selection_types = string(obj.available_selections(:, 1));
+        selection_types = selection_types(strlength(selection_types) > 0);
+        source_modes = strings(0, 1);
+
+        % new flapper first, so it is the default
+        if any(obj.is_new_flapper_type(selection_types))
+            source_modes(end + 1, 1) = obj.NEW_FLAPPER_SOURCE_MODE;
+        end
+
+        if any(~obj.is_new_flapper_type(selection_types))
+            source_modes(end + 1, 1) = obj.OLD_FLAPPER_SOURCE_MODE;
+        end
+    end
+
+    function mask = get_source_type_mask(obj, selection_types)
+        selection_types = string(selection_types);
+        if obj.source_mode == obj.NEW_FLAPPER_SOURCE_MODE
+            mask = obj.is_new_flapper_type(selection_types);
+        else
+            mask = ~obj.is_new_flapper_type(selection_types);
+        end
+    end
+
+    function [selection_types, selection_labels] = get_available_type_options(obj)
+        available_types = unique(string(obj.available_selections(:, 1)), 'stable');
+        available_types = available_types(strlength(available_types) > 0);
+        available_types = available_types(obj.get_source_type_mask(available_types));
+        selection_types = obj.get_ordered_type_options(available_types);
+        selection_labels = strings(length(selection_types), 1);
+
+        for i = 1:length(selection_types)
+            selection_labels(i) = obj.get_type_label(selection_types(i));
+        end
+
+        selection_labels = obj.disambiguate_duplicate_type_labels(selection_types, selection_labels);
+    end
+
+    function mask = get_type_mask(~, selection_types, selected_type)
+        if string(selected_type) == "all"
+            mask = true(size(selection_types));
+        else
+            mask = selection_types == string(selected_type);
+        end
+    end
+
+    function [amp, freq] = get_first_selection(obj, selected_type)
+        selection_types = string(obj.available_selections(:, 1));
+        mask = obj.get_source_type_mask(selection_types) & obj.get_type_mask(selection_types, selected_type);
+        first_index = find(mask, 1);
+
+        amp = obj.available_selections{first_index, 2};
+        freq = obj.available_selections{first_index, 3};
+    end
+
+    % After the position (type) changes: keep the selected amplitude and
+    % frequency if the new type has that case. If only the amplitude (or
+    % only the frequency) exists there, keep it and take the first
+    % available value of the other; otherwise start from the type's first
+    % case. "all" (-1) is kept when the type has any case.
+    function keep_selection_for_type(obj)
+        prev_amp = obj.sel_amp;
+        prev_freq = obj.sel_freq;
+        all_amps = obj.get_amp_options(obj.sel_type, -1);
+        if isempty(all_amps)
+            [obj.sel_amp, obj.sel_freq] = obj.get_first_selection(obj.sel_type);
+            return
+        end
+
+        if prev_amp == -1 || ismember(prev_amp, all_amps)
+            freqs = obj.get_freq_options(obj.sel_type, prev_amp);
+            if prev_freq == -1 || ismember(prev_freq, freqs)
+                return % case exists: keep both
+            end
+            obj.sel_freq = freqs(1); % keep the amplitude
+            return
+        end
+
+        amps = obj.get_amp_options(obj.sel_type, prev_freq);
+        if prev_freq ~= -1 && ~isempty(amps)
+            obj.sel_amp = amps(1); % keep the frequency
+            return
+        end
+        [obj.sel_amp, obj.sel_freq] = obj.get_first_selection(obj.sel_type);
+    end
+
+    function version = get_first_version(obj, selected_type, selected_amp, selected_freq)
+        versions = obj.get_version_options(selected_type, selected_amp, selected_freq);
+        if isempty(versions)
+            version = obj.DEFAULT_VERSION_LABEL;
+        else
+            version = versions(1);
+        end
+    end
+
+    function freqs = get_freq_options(obj, selected_type, selected_amp)
+        selection_types = string(obj.available_selections(:, 1));
+        selection_amps = cell2mat(obj.available_selections(:, 2));
+        selection_freqs = cell2mat(obj.available_selections(:, 3));
+
+        mask = obj.get_source_type_mask(selection_types) & obj.get_type_mask(selection_types, selected_type);
+        if selected_amp ~= -1
+            mask = mask & selection_amps == selected_amp;
+        end
+
+        freqs = unique(selection_freqs(mask));
+    end
+
+    function amps = get_amp_options(obj, selected_type, selected_freq)
+        selection_types = string(obj.available_selections(:, 1));
+        selection_amps = cell2mat(obj.available_selections(:, 2));
+        selection_freqs = cell2mat(obj.available_selections(:, 3));
+
+        mask = obj.get_source_type_mask(selection_types) & obj.get_type_mask(selection_types, selected_type);
+        if selected_freq ~= -1
+            mask = mask & selection_freqs == selected_freq;
+        end
+
+        amps = unique(selection_amps(mask));
+    end
+
+    function versions = get_version_options(obj, selected_type, selected_amp, selected_freq)
+        selection_types = string(obj.available_selections(:, 1));
+        selection_amps = cell2mat(obj.available_selections(:, 2));
+        selection_freqs = cell2mat(obj.available_selections(:, 3));
+        selection_versions = string(obj.available_selections(:, 4));
+
+        mask = obj.get_source_type_mask(selection_types) & obj.get_type_mask(selection_types, selected_type);
+        if selected_amp ~= -1
+            mask = mask & selection_amps == selected_amp;
+        end
+
+        if selected_freq ~= -1
+            mask = mask & selection_freqs == selected_freq;
+        end
+
+        versions = obj.sort_version_options(selection_versions(mask));
+    end
+
+    function update_frequency_dropdown(obj, dropdown)
+        freqs = obj.get_freq_options(obj.sel_type, obj.sel_amp);
+        dropdown.Items = [string(freqs(:)) + " Hz"; "all"];
+        if obj.sel_freq == -1
+            dropdown.Value = "all";
+        elseif isempty(freqs)
+            obj.sel_freq = -1;
+            dropdown.Value = "all";
+        elseif ~ismember(obj.sel_freq, freqs)
+            obj.sel_freq = freqs(1);
+            dropdown.Value = string(obj.sel_freq) + " Hz";
+        else
+            dropdown.Value = string(obj.sel_freq) + " Hz";
+        end
+    end
+
+    function update_amp_dropdown(obj, dropdown)
+        amps = obj.get_amp_options(obj.sel_type, obj.sel_freq);
+        dropdown.Items = [string(amps(:)) + " deg"; "all"];
+        if obj.sel_amp == -1
+            dropdown.Value = "all";
+        elseif isempty(amps)
+            obj.sel_amp = -1;
+            dropdown.Value = "all";
+        elseif ~ismember(obj.sel_amp, amps)
+            obj.sel_amp = amps(1);
+            dropdown.Value = string(obj.sel_amp) + " deg";
+        else
+            dropdown.Value = string(obj.sel_amp) + " deg";
+        end
+    end
+
+    function update_version_dropdown(obj, dropdown)
+        versions = obj.get_version_options(obj.sel_type, obj.sel_amp, obj.sel_freq);
+        if isempty(versions)
+            obj.sel_version = obj.DEFAULT_VERSION_LABEL;
+            dropdown.Items = obj.DEFAULT_VERSION_LABEL;
+            dropdown.Value = obj.DEFAULT_VERSION_LABEL;
+            return
+        end
+
+        dropdown.Items = [versions(:); "all"];
+        if obj.sel_version == "all"
+            dropdown.Value = "all";
+        elseif ~ismember(obj.sel_version, versions)
+            obj.sel_version = versions(1);
+            dropdown.Value = obj.sel_version;
+        else
+            dropdown.Value = obj.sel_version;
+        end
+    end
+
+    function mask = get_version_mask(obj, selection_versions, selected_version)
+        if string(selected_version) == "all"
+            mask = true(size(selection_versions));
+        else
+            mask = string(selection_versions) == string(selected_version);
+        end
+    end
+
+    function versions = sort_version_options(obj, versions)
+        versions = unique(string(versions), 'stable');
+        versions = versions(strlength(versions) > 0);
+        default_versions = versions(versions == obj.DEFAULT_VERSION_LABEL);
+        numbered_versions = versions(versions ~= obj.DEFAULT_VERSION_LABEL);
+        numbered_versions = numbered_versions(:);
+        version_numbers = zeros(size(numbered_versions));
+
+        for i = 1:length(numbered_versions)
+            version_number = regexp(char(numbered_versions(i)), '^v(\d+)$', 'tokens', 'once');
+            if isempty(version_number)
+                version_numbers(i) = inf;
+            else
+                version_numbers(i) = str2double(version_number{1});
+            end
+        end
+
+        % v1, v2, ... in order, then named versions (e.g. "coarse") A-Z
+        [~, sort_order] = sortrows([version_numbers, (1:numel(version_numbers))']);
+        is_named = isinf(version_numbers);
+        named = sort(numbered_versions(is_named));
+        numbered_versions = numbered_versions(sort_order(:));
+        numbered_versions = numbered_versions(~ismember(numbered_versions, named));
+        versions = [default_versions(:); numbered_versions(:); named(:)];
+    end
+
+    function version_order = get_version_sort_order(obj, versions)
+        versions = string(versions);
+        ordered_versions = obj.sort_version_options(versions);
+        [~, version_order] = ismember(versions, ordered_versions);
+        version_order(version_order == 0) = length(ordered_versions) + 1;
+    end
+
+    function suffix = get_version_suffix(obj, version)
+        version = string(version);
+        if version == obj.DEFAULT_VERSION_LABEL
+            suffix = "";
+        else
+            suffix = "_" + version;
+        end
+    end
+
+    function selection_types = get_ordered_type_options(obj, available_types)
+        available_types = unique(string(available_types(:)), 'stable');
+        available_types = available_types(strlength(available_types) > 0);
+        selection_types = strings(0, 1);
+
+        for i = 1:length(obj.cur_types)
+            type = obj.cur_types(i);
+            if any(available_types == type)
+                selection_types(end + 1, 1) = type;
+            end
+        end
+
+        for i = 1:length(obj.new_flapper_downstream_types)
+            downstream_type = obj.new_flapper_downstream_types(i);
+            matching_types = available_types(obj.is_new_flapper_type(available_types, downstream_type));
+            selection_types = [selection_types; matching_types(:)];
+        end
+
+        other_types = setdiff(available_types(:), selection_types, 'stable');
+        selection_types = [selection_types; other_types(:)];
+    end
+
+    % Streamwise distance (m) from the robot to the imaging plane for a
+    % case type, NaN if unknown
+    function dist = get_downstream_dist(obj, type)
+        type = string(type);
+        dist = NaN;
+
+        type_index = find(obj.cur_types == type, 1);
+        if ~isempty(type_index)
+            dist = obj.downstream_dists(type_index);
+            return
+        end
+
+        downstream_index = obj.get_new_flapper_downstream_index(type);
+        if ~isempty(downstream_index)
+            dist = obj.new_flapper_downstream_dists(downstream_index);
+            return
+        end
+
+        % other old flapper types: position set by the UP_ prefix
+        if contains(type, "UP_two")
+            dist = obj.downstream_dists(3);
+        elseif contains(type, "UP_one")
+            dist = obj.downstream_dists(2);
+        else
+            dist = obj.downstream_dists(1);
+        end
+    end
+
+    function type_order = get_type_sort_order(obj, types)
+        types = string(types);
+        ordered_types = obj.get_ordered_type_options(types);
+        [~, type_order] = ismember(types, ordered_types);
+        type_order(type_order == 0) = length(ordered_types) + 1;
+    end
+
+    function label = get_type_label(obj, type)
+        type = string(type);
+        type_index = find(obj.cur_types == type, 1);
+        if ~isempty(type_index)
+            label = obj.downstream_distance_labels(type_index);
+            return
+        end
+
+        downstream_index = obj.get_new_flapper_downstream_index(type);
+        if ~isempty(downstream_index)
+            label = obj.new_flapper_distance_labels(downstream_index);
+            return
+        end
+
+        label = type;
+    end
+
+    function labels = disambiguate_duplicate_type_labels(~, types, labels)
+        types = string(types);
+        labels = string(labels);
+        original_labels = labels;
+
+        for i = 1:length(labels)
+            if sum(original_labels == original_labels(i)) > 1
+                labels(i) = labels(i) + " (" + strrep(types(i), "_", " ") + ")";
+            end
+        end
+    end
+
+    function mask = is_new_flapper_type(obj, types, downstream_type)
+        types = string(types);
+        if nargin < 3
+            % position-independent cases (freestream) belong to the new set
+            mask = ismember(types, position_independent_cases());
+            for i = 1:length(obj.new_flapper_downstream_types)
+                mask = mask | obj.is_new_flapper_type(types, obj.new_flapper_downstream_types(i));
+            end
+            return
+        end
+
+        downstream_type = string(downstream_type);
+        mask = types == downstream_type | startsWith(types, downstream_type + "_");
+    end
+
+    function downstream_index = get_new_flapper_downstream_index(obj, type)
+        downstream_index = [];
+        for i = 1:length(obj.new_flapper_downstream_types)
+            if obj.is_new_flapper_type(type, obj.new_flapper_downstream_types(i))
+                downstream_index = i;
+                return
+            end
+        end
+    end
+
     % Helper function to get button color based on state
     function color = get_button_color(obj, is_active)
         if is_active
@@ -581,11 +1533,31 @@ methods (Access = private)
 
     function [types, names, labels] = get_all_variable_options(obj)
         ba_force_types = "BA: " + obj.force_var_types;
-        ba_force_names = regexprep(obj.force_var_names, '\.', "_phase_avg" + ".");
+        ba_force_names = obj.get_ba_force_names();
 
-        types = [obj.force_var_types, ba_force_types, obj.kin_var_types];
-        names = [obj.force_var_names, ba_force_names, obj.kin_var_names];
-        labels = [obj.force_y_labels, obj.force_y_labels, obj.kin_y_labels];
+        % load cell variables last, so the force / flow index ranges
+        % (is_force_index, is_flow_index) are unchanged
+        types = [obj.force_var_types, ba_force_types, obj.flow_var_types, obj.kin_var_types, obj.lc_var_types];
+        names = [obj.force_var_names, ba_force_names, obj.flow_var_names, obj.kin_var_names, obj.lc_var_names];
+        labels = [obj.force_y_labels, obj.force_y_labels, obj.flow_y_labels, obj.kin_y_labels, obj.lc_y_labels];
+    end
+
+    % Before-averaging (BA) force names (lift_before_avg.*, drag_before_avg.*,
+    % lift_vel_before_avg, drag_vel_before_avg)
+    function tf = is_ba_force_name(~, var_name)
+        tf = contains(string(var_name), ["lift_before_avg", "drag_before_avg",...
+            "lift_vel_before_avg", "drag_vel_before_avg"]);
+    end
+
+    function names = get_ba_force_names(obj)
+        % before-averaging (BA) versions of the force variables saved by
+        % phase_avg_STB / time_avg_STB (force computed per frame, then
+        % averaged): lift.vortX -> lift_before_avg.vortX, and the
+        % velocity-only lift_vel / drag_vel -> lift_vel_before_avg /
+        % drag_vel_before_avg
+        names = regexprep(obj.force_var_names, '\.', "_before_avg" + ".");
+        is_vel_only = ismember(names, ["lift_vel", "drag_vel"]);
+        names(is_vel_only) = names(is_vel_only) + "_before_avg";
     end
 
     function [types, names, labels] = get_variable_options(obj, var_type)
@@ -593,14 +1565,29 @@ methods (Access = private)
             types = obj.kin_var_types;
             names = obj.kin_var_names;
             labels = obj.kin_y_labels;
+        elseif strcmp(var_type, "flow")
+            types = obj.flow_var_types;
+            names = obj.flow_var_names;
+            labels = obj.flow_y_labels;
         elseif strcmp(var_type, "force")
             types = obj.force_var_types;
             names = obj.force_var_names;
             labels = obj.force_y_labels;
         elseif strcmp(var_type, "BA: force")
             types = "BA: " + obj.force_var_types;
-            names = regexprep(obj.force_var_names, '\.', "_phase_avg" + ".");
+            names = obj.get_ba_force_names();
             labels = obj.force_y_labels;
+            % the (u avg) forces, the omega_y / taper variants, the
+            % frozen-flow forces and the extrapolated-field forces have no
+            % per-frame (BA) version
+            keep = ~contains(obj.force_var_names, ["_uavg", "_ff"]) & ...
+                ~ismember(obj.force_var_names, ["lift.vortY_edge", "lift.vortX_taper"]) & ...
+                ~ismember(obj.force_var_names, obj.stored_only_force_names);
+            types = types(keep); names = names(keep); labels = labels(keep);
+        elseif strcmp(var_type, "load cell")
+            types = obj.lc_var_types;
+            names = obj.lc_var_names;
+            labels = obj.lc_y_labels;
         else
             error("invalid var type")
         end
@@ -615,26 +1602,282 @@ methods (Access = private)
         end
     end
 
-    function legend_entry = get_aligned_legend_entry(obj, cur_sel, index, is_force)
-        [amp, type, freq] = parse_name(cur_sel);
-        distance_label = obj.type_distance_dict(char(type));
-        name = distance_label + ", " + amp + " deg, " + freq + " Hz";
-        case_label = strrep(string(name), "_", " ");
-        index_label = obj.active_types(index);
+    % Files of the selected phase-averaged case (stb_file_paths struct:
+    % .shared, .fields, .integral), from the cases found at start-up
+    function case_files = get_phase_avg_case(obj, cur_sel)
+        key = char(string(cur_sel));
+        if ~isKey(obj.phase_case_map, key)
+            error("No phase-averaged files for %s (expected <case>[_<version>]_<method>_fields.mat in Processed Results\\phase_avg\\).", key)
+        end
+        case_files = obj.phase_case_map(key);
+    end
 
-        if is_force
-            force_label = obj.get_force_legend_label(index);
-            if length(obj.selection) > 1 && length(obj.inds) > 1
-                legend_entry = case_label + " - " + index_label + " - " + force_label;
-            elseif length(obj.selection) > 1
-                legend_entry = case_label + " - " + force_label;
-            elseif length(obj.inds) > 1
-                legend_entry = index_label + " - " + force_label;
-            else
-                legend_entry = case_label + " F";
-            end
+    % True if a .mat file holds the variable (for "a.b" names, the struct a)
+    % Frame-to-frame SD within each bin of a BA force (saved by
+    % phase_avg_STB as *_before_std next to *_before_avg, same nesting),
+    % as a row like the plotted curve. Empty if the file predates it.
+    % PIV Body Sub needs no change: it subtracts a time-averaged value, a
+    % constant, which leaves the SD as it is.
+    % Whether an HR file's BA SDs (*_before_std) are the scatter about the
+    % fitted curve (phase_avg_STB marks them in hr.before_std_type).
+    % Older HR files hold the scatter about the bin means: noted in the
+    % Command Window (reprocess for the residual band).
+    function tf = has_hr_residual_std(obj, case_files, cur_sel)
+        tf = false;
+        if obj.file_has_var(case_files, "hr")
+            d = stb_load(case_files, "hr");
+            tf = isfield(d.hr, 'before_std_type') && string(d.hr.before_std_type) == "residual";
+        end
+        if ~tf
+            disp("HR SD for " + cur_sel + " is the scatter about the bin means (older processing): " + ...
+                "reprocess with phase_avg_STB for the SD about the fit (and a band on the field-based forces)")
+        end
+    end
+
+    function var_std = get_ba_force_std(obj, case_files, var_name, n, cur_sel)
+        var_std = [];
+        std_name = replace(string(var_name), "_before_avg", "_before_std");
+        if ~obj.file_has_var(case_files, std_name)
+            disp("No BA SD (" + std_name + ") saved for " + cur_sel + ...
+                " - reprocess with phase_avg_STB for a band")
             return
         end
+        top_name = std_name;
+        if contains(std_name, ".")
+            top_name = extractBefore(std_name, ".");
+        end
+        d = stb_load(case_files, top_name);
+        var_std = eval("d." + std_name);
+        if numel(var_std) ~= n
+            var_std = [];
+            return
+        end
+        var_std = double(var_std(:)');
+    end
+
+    % velocity gradient planar averages (dudx_avg ... dwdz_avg)
+    function tf = is_gradient_var(~, var_name)
+        tf = ~isempty(regexp(char(var_name), '^d[uvw]d[xyz]_avg$', 'once'));
+    end
+
+    % Planar average of a phase-averaged velocity gradient over the
+    % trimmed plane, as calc_secondary_vals_common saves it (for files
+    % processed before all nine were saved)
+    function var = get_gradient_planar_avg(~, case_files, var_name)
+        field = erase(string(var_name), "_avg") + "_phase_avg";
+        d = stb_load(case_files, "y", "z", field);
+        [~, ~, T] = trim_vel_field(d.y, d.z, d.(field), default_trim_bounds());
+        var = squeeze(mean(T, [1, 2]));
+    end
+
+    % Vorticity transport (stretching/tilting) term, see transport_term_list
+    % (a "_ymom" suffix: the same term weighted by y)
+    function [vort, grad] = transport_term_fields(~, var_name)
+        terms = transport_term_list();
+        k = find(string(terms(:, 1)) == erase(string(var_name), "_ymom"), 1);
+        vort = ""; grad = "";
+        if ~isempty(k)
+            vort = string(terms{k, 2}) + "_phase_avg";
+            grad = string(terms{k, 3}) + "_phase_avg";
+        end
+    end
+
+    function tf = can_compute_transport_term(obj, case_files, var_name)
+        [vort, grad] = obj.transport_term_fields(var_name);
+        tf = strlength(vort) > 0 && obj.file_has_var(case_files, vort) && ...
+            obj.file_has_var(case_files, grad);
+    end
+
+    % Planar integral of omega_j du_i/dx_j over the trimmed plane, as
+    % calc_secondary_vals_common saves it (for files whose _integral file
+    % predates the term). Same trimming (trim_vel_field) and trapz
+    % integration as the saved values.
+    function var = get_transport_term(obj, case_files, var_name)
+        [vort, grad] = obj.transport_term_fields(var_name);
+        d = stb_load(case_files, "y", "z", vort, grad);
+        bounds = default_trim_bounds();
+        [y_tr, z_tr, W] = trim_vel_field(d.y, d.z, d.(vort), bounds);
+        [~, ~, G] = trim_vel_field(d.y, d.z, d.(grad), bounds);
+        term = W .* G;
+        if endsWith(string(var_name), "_ymom")
+            term = y_tr .* term;    % y from the mirror centreline
+        end
+        val = trapz(squeeze(y_tr(:,1)), term, 1);
+        var = squeeze(trapz(squeeze(z_tr(1,:)), val, 2));
+    end
+
+    % Frozen-flow variables (frozen_flow_gradients): the forces lift_ff.*,
+    % drag_ff.*, the planar averages *_ff_avg and the divergence check
+    % div_slab_* / div_ff_*, computed from the main file for cases whose
+    % _integral file predates them
+    function tf = can_compute_frozen_var(obj, case_files, var_name)
+        var_name = string(var_name);
+        is_div = ismember(var_name, ["div_slab_avg", "div_ff_avg", "div_slab_rms", "div_ff_rms"]);
+        is_ff = startsWith(var_name, ["lift_ff.", "drag_ff."]) || endsWith(var_name, "_ff_avg") || is_div;
+        tf = is_ff && obj.file_has_var(case_files, "dvdx_phase_avg") && ...
+            obj.file_has_var(case_files, "dwdx_phase_avg");
+        if tf && (endsWith(var_name, "_ff_avg") || is_div)
+            tf = obj.file_has_var(case_files, "dudx_phase_avg");
+        end
+        if tf && is_div
+            tf = obj.file_has_var(case_files, "dvdy_phase_avg") && ...
+                obj.file_has_var(case_files, "dwdz_phase_avg");
+        end
+    end
+
+    % Returns a struct d1 with d1.<var_name> (dotted names nested), as
+    % loaded from the _integral file. Same trimming and steps as
+    % calc_secondary_vals_common.
+    function d1 = get_frozen_var(~, case_files, case_name, var_name)
+        var_name = string(var_name);
+        d1 = struct();
+        if startsWith(var_name, "div_")
+            % div_<slab|ff>_<avg|rms>
+            parts = split(var_name, "_");
+            R = get_frozen_flow_fields(case_files, case_name, default_trim_bounds());
+            div = R.(parts(2)).div;
+            if parts(3) == "avg"
+                d1.(var_name) = squeeze(mean(div, [1, 2]));
+            else
+                d1.(var_name) = squeeze(sqrt(mean(div.^2, [1, 2])));
+            end
+        elseif endsWith(var_name, "_ff_avg")
+            q = erase(extractBefore(var_name, "_ff_avg"), "_");
+            R = get_frozen_flow_fields(case_files, case_name, default_trim_bounds());
+            d1.(var_name) = squeeze(mean(R.ff.(q), [1, 2]));
+        else
+            val = get_PIV_force(case_files, case_name, var_name, 1, false, default_trim_bounds());
+            parts = split(var_name, ".");
+            d1.(parts(1)).(parts(2)) = val;
+        end
+    end
+
+    function tf = file_has_var(~, src, var_name)
+        tf = stb_has_var(src, var_name);
+    end
+
+    % Load cell folder for a wing type: Force Measurements of the data root
+    % its STB cases came from (the primary root if unknown)
+    function force_path = get_force_path(obj, type)
+        key = char(string(type));
+        force_path = obj.force_path;
+        if ~isempty(obj.type_root_map) && isKey(obj.type_root_map, key)
+            force_path = string(obj.type_root_map(key)) + "Force Measurements\";
+        end
+    end
+
+    function is_rpca = is_RPCA_selection(~, cur_sel)
+        is_rpca = contains(string(cur_sel), "_RPCA");
+    end
+
+    function is_hr = is_HR_selection(~, cur_sel)
+        is_hr = endsWith(erase(string(cur_sel), "_RPCA"), "_hr");
+    end
+
+    function case_label = get_case_label(obj, cur_sel)
+        [amp, type, freq] = parse_name(cur_sel);
+        distance_label = obj.get_type_label(type);
+        version = obj.get_selection_version(cur_sel);
+
+        case_label = strrep(distance_label + ", " + amp + " deg, " + freq + " Hz", "_", " ");
+        if version ~= obj.DEFAULT_VERSION_LABEL
+            case_label = case_label + ", " + version;
+        end
+
+        if obj.is_HR_selection(cur_sel)
+            case_label = case_label + " - HR";
+        end
+        if obj.is_RPCA_selection(cur_sel)
+            case_label = case_label + " - RPCA";
+        end
+    end
+
+    function version = get_selection_version(obj, selection)
+        [~, version] = obj.extract_file_version(selection);
+    end
+
+    % "Corr": circular cross-correlation of each aligned curve with the
+    % first one (the reference), as computed in align_signals, plotted in
+    % the GUI in place of the aligned curves (and in the hidden save
+    % figure). Lag in wingbeats (samples / n); the marker and dashed line
+    % show the lag applied, i.e. the peak (circshift by +lag moves the
+    % curve later). Correlation divided by (n - 1), so 1 = identical shape
+    % at that lag. Fresh axes, so nothing from the curve plot carries over.
+    function [ax, ax_target] = plot_alignment_corr(obj, plot_panel, ax, ax_target, corr_curves, lags, n, names)
+        delete(ax);
+        ax = axes(plot_panel);
+        save_fig = ancestor(ax_target, 'figure');
+        delete(ax_target);
+        ax_target = axes('Parent', save_fig);
+
+        names(strlength(names) == 0) = "curve";
+        colors = obj.get_default_selection_colors(numel(corr_curves));
+        for a = [ax, ax_target]
+            hold(a, "on");
+            if isempty(corr_curves)
+                text(a, 0.5, 0.5, "Select at least two curves to align", ...
+                    "Units", "normalized", "HorizontalAlignment", "center", "FontSize", 14);
+                axis(a, "off");
+                continue
+            end
+            h = gobjects(1, numel(corr_curves));
+            for i = 1:numel(corr_curves)
+                c = corr_curves(i).corr / (n - 1);
+                x = corr_curves(i).lags / n;
+                col = colors(i, :);
+                h(i) = plot(a, x, c, "-", "Color", col, "LineWidth", 2, ...
+                    "DisplayName", names(i + 1));
+                k = find(corr_curves(i).lags == lags(i), 1);
+                plot(a, x(k), c(k), "o", "Color", col, "MarkerFaceColor", col, ...
+                    "MarkerSize", 9, "HandleVisibility", "off");
+                xline(a, lags(i) / n, "--", sprintf("%+.3f T", lags(i) / n), ...
+                    "Color", col, "LineWidth", 1, "HandleVisibility", "off", ...
+                    "LabelVerticalAlignment", "bottom", "FontSize", 14);
+            end
+            yline(a, 0, ":", "Color", [0.5 0.5 0.5], "HandleVisibility", "off");
+            grid(a, "on");
+            xlim(a, [-0.5 0.5]);
+            set(a, "FontSize", 14);
+            xlabel(a, "Lag (wingbeats, t/T)");
+            ylabel(a, "Normalized cross-correlation");
+            title(a, "Aligned to: " + names(1), "Interpreter", "none");
+            legend(a, h, "Location", "best", "Interpreter", "none");
+        end
+    end
+
+    % Identifies the load cell curve of a load cell variable: its index,
+    % the load cell folder (the downstream position prefix of the STB type
+    % is stripped, the load cell is only measured at the robot) and the
+    % frequency. get_force picks the latest repeat in that folder at that
+    % frequency, so cases with the same key plot the same file.
+    function key = get_load_cell_key(obj, index, type, amp, freq)
+        freq_key = string(str2double(string(freq)));
+        try
+            folder = get_force_folder(obj.get_force_path(type), type, amp);
+            key = string(index) + "|" + folder + "|" + freq_key + "Hz";
+        catch
+            % no load cell folder (nothing is plotted anyway)
+            key = string(index) + "|" + type + "_" + amp + "deg_" + freq_key + "Hz";
+        end
+    end
+
+    function tf = shares_load_cell_key(obj, cur_sel, index, key)
+        [amp, type, freq] = parse_name(cur_sel);
+        tf = obj.get_load_cell_key(index, type, amp, freq) == key;
+    end
+
+    % Legend entry of a load cell curve shared by several selected cases
+    % (amplitude and frequency, no downstream position)
+    function legend_entry = get_load_cell_legend_entry(obj, amp, freq, index)
+        legend_entry = strrep(amp + " deg, " + freq + " Hz", "_", " ");
+        if length(obj.inds) > 1
+            legend_entry = legend_entry + " - " + obj.active_types(index);
+        end
+    end
+
+    function legend_entry = get_aligned_legend_entry(obj, cur_sel, index)
+        case_label = obj.get_case_label(cur_sel);
+        index_label = obj.active_types(index);
 
         if length(obj.selection) > 1 && length(obj.inds) > 1
             legend_entry = case_label + " - " + index_label;
@@ -642,18 +1885,6 @@ methods (Access = private)
             legend_entry = index_label;
         else
             legend_entry = case_label;
-        end
-    end
-
-    function force_label = get_force_legend_label(obj, index)
-        relative_idx = obj.get_force_relative_index(index);
-
-        if isempty(relative_idx)
-            force_label = "Force";
-        elseif relative_idx <= 3
-            force_label = "Lift force";
-        else
-            force_label = "Drag force";
         end
     end
 
@@ -703,6 +1934,28 @@ methods (Access = private)
         tf = index <= 2 * length(obj.force_var_types);
     end
 
+    function tf = is_flow_index(obj, index)
+        num_force = 2 * length(obj.force_var_types); % force + BA: force
+        tf = index > num_force && index <= num_force + length(obj.flow_var_types);
+    end
+
+    function tf = is_load_cell_index(obj, index)
+        tf = startsWith(obj.active_names(index), "LC_");
+    end
+
+    % Forces in N that can share one y-axis: PIV forces and load cell
+    % lift / drag (not pitch, voltage, ...)
+    function tf = is_force_like_index(obj, index)
+        tf = obj.is_force_index(index) || ...
+            ismember(obj.active_names(index), ["LC_drag", "LC_lift"]);
+    end
+
+    % Variables computed from the imaging plane data, which lag the
+    % motor phase by the wake's convection time
+    function tf = is_imaging_plane_index(obj, index)
+        tf = obj.is_force_index(index) || obj.is_flow_index(index);
+    end
+
     function relative_idx = get_force_relative_index(obj, index)
         if ~obj.is_force_index(index)
             relative_idx = [];
@@ -712,15 +1965,145 @@ methods (Access = private)
         relative_idx = mod(index - 1, length(obj.force_var_types)) + 1;
     end
 
-    function force_idx = get_force_measurement_index(obj, index)
-        relative_idx = obj.get_force_relative_index(index);
+    function [file_path, secondary_file_path] = get_PIV_sub_file_paths(obj, type, amp)
+        % Steady (time averaged) case subtracted from a selection when
+        % "PIV Body Sub" is on. For x3_wings_20deg_4Hz:
+        %   ring    -> x3_ring
+        %   body    -> x3_body_20deg_0Hz
+        %   gliding -> x3_wings_20deg_0Hz
+        %   freestream -> freestream (empty test section, one case for all
+        %                 positions, see position_independent_cases)
+        type = string(type);
+        amp = string(amp);
 
-        if isempty(relative_idx)
-            force_idx = [];
-        elseif relative_idx <= 3
-            force_idx = 3;
-        else
-            force_idx = 1;
+        % downstream / upstream prefix shared by the steady cases
+        prefix = get_downstream_prefix(type, true); % x1-x5, MPS, UP_one, UP_two
+
+        switch obj.PIV_sub_case
+            case "ring"
+                case_names = prefix + "ring";
+            case "body"
+                % older body cases were saved without an amplitude
+                case_names = [prefix + "body_" + amp + "deg_0Hz", prefix + "body"];
+            case "gliding"
+                case_names = type + "_" + amp + "deg_0Hz";
+            case "freestream"
+                case_names = position_independent_cases();
+            otherwise
+                error("Unknown PIV subtraction case: %s", obj.PIV_sub_case);
+        end
+
+        % look in every data root (first match wins)
+        time_avg_dir = obj.PIV_path + "time_avg\";
+        for r = 1:numel(obj.data_roots)
+            root_time_dir = obj.data_roots(r) + "Processed Results\time_avg\";
+            for k = 1:length(case_names)
+                file_path = root_time_dir + case_names(k) + "_time_avg.mat";
+                secondary_file_path = root_time_dir + case_names(k) + "_time_avg_integral.mat";
+                if isfile(file_path) || isfile(secondary_file_path)
+                    return
+                end
+            end
+        end
+
+        error("phaseAvg_UI:PIVSubNotFound",...
+            "No %s subtraction case found for %s at %s deg. Looked for:\n  %s",...
+            obj.PIV_sub_case, type, amp,...
+            strjoin(time_avg_dir + case_names + "_time_avg.mat", "\n  "));
+    end
+
+    % Load cell row(s) and quantity for a load cell variable: rows of the
+    % processed data are [Fx Fy Fz Mx My Mz; home; voltage; current]
+    function [idx, quantity] = get_load_cell_var_row(~, var_name)
+        switch string(var_name)
+            case "LC_drag"
+                idx = 1; quantity = "drag";
+            case "LC_lift"
+                idx = 3; quantity = "lift";
+            case "LC_pitch"
+                idx = 5; quantity = "pitch";
+            case "LC_volt"
+                idx = 8; quantity = "voltage";
+            case "LC_cur"
+                idx = 9; quantity = "current";
+            case "LC_power"
+                idx = [8 9]; quantity = "electric power";
+            otherwise
+                error("phaseAvg_UI:unknownLoadCellVar", "Unknown load cell variable %s", var_name)
+        end
+    end
+
+    % Wingbeat-averaged load cell signal for a load cell variable and case,
+    % using the Force Data filter. Force Body Sub subtracts the body
+    % signal from the forces / moment. Empty if there is no load cell data
+    % (e.g. upstream cases). time is the wingbeat phase (t/T) of each
+    % sample, taken from the 'frames' saved with the processed load cell
+    % data; falls back to a periodic grid (0:n-1)/n if frames wasn't saved.
+    % signal_std is the standard deviation across wingbeats at each sample
+    % (wingbeat_std_forces*); empty if it wasn't saved or can't be formed
+    % (electric power: V and I are correlated, so their per-row SDs don't
+    % give the SD of V*I).
+    function [signal, time, signal_std] = get_load_cell_var_signal(obj, var_name, type, amp, freq)
+        signal = [];
+        time = [];
+        signal_std = [];
+        if contains(type, "UP")
+            disp("No load cell data for upstream case " + type)
+            return
+        end
+        [idx, quantity] = obj.get_load_cell_var_row(var_name);
+        var_name_F = obj.load_cell_force_var;
+
+        try
+            [signal, time, signal_std] = get_force(obj.get_force_path(type), type, amp, freq, idx, var_name_F);
+        catch ME
+            if ~startsWith(ME.identifier, "get_force:")
+                rethrow(ME)
+            end
+            disp(ME.message + " - not plotted")
+            signal = [];
+            time = [];
+            signal_std = [];
+            return
+        end
+        if quantity == "electric power" && size(signal, 1) == 2
+            signal = signal(1,:) .* signal(2,:); % V x mA = mW
+            signal_std = [];
+        end
+
+        if obj.force_sub && ismember(quantity, ["drag", "lift", "pitch"])
+            % same-amplitude body case (get_body_force falls back to 20 deg
+            % only when there is no body data at this amplitude)
+            try
+                body_signal = get_body_force(obj.get_force_path(type), type, amp, freq, idx, var_name_F);
+            catch ME
+                if ~startsWith(ME.identifier, "get_force:")
+                    rethrow(ME)
+                end
+                disp(ME.message + " - no body case, not plotted")
+                signal = [];
+                time = [];
+                signal_std = [];
+                return
+            end
+            if numel(body_signal) ~= numel(signal)
+                % e.g. older files saved with a different number of frames
+                body_signal = interp1(linspace(0, 1, numel(body_signal)), double(body_signal(:)'),...
+                    linspace(0, 1, numel(signal)), 'pchip');
+            end
+            signal = signal - reshape(body_signal, size(signal));
+            % the body's mean curve is subtracted, a fixed curve, so the
+            % wingbeat-to-wingbeat SD is the wing case's, unchanged
+        end
+        signal = double(signal(:)');
+        signal_std = double(signal_std(:)');
+
+        n = length(signal);
+        if length(time) ~= n
+            time = (0:n-1) / n;
+        end
+        if length(signal_std) ~= n
+            signal_std = [];
         end
     end
 
@@ -730,12 +2113,34 @@ methods (Access = private)
             return
         end
 
-        force_indices = arrayfun(@(index) obj.is_force_index(index), obj.inds);
+        force_indices = arrayfun(@(index) obj.is_force_like_index(index), obj.inds);
         dual_plot = obj.separate_y_axis_bool || ~all(force_indices);
     end
 
+    function signal = subtract_signal_mean(obj, signal)
+        if obj.mean_subtraction_bool && ~isempty(signal)
+            signal = signal - mean(signal, "omitnan");
+        end
+    end
+
+    function ylabs = get_y_axis_labels(obj, dual_plot)
+        ylabs = strings(1,2);
+        if ~dual_plot
+            return
+        end
+
+        % variable 1 on the left, the other variables on the right
+        ylabs(1) = obj.active_labels(obj.inds(1));
+        right_labels = obj.active_labels(obj.inds(2:end));
+        if all(right_labels == right_labels(1))
+            ylabs(2) = right_labels(1);
+        else
+            ylabs(2) = "Plot Parameter Values";
+        end
+    end
+
     function y_label = get_single_axis_label(obj)
-        if ~isempty(obj.inds) && all(arrayfun(@(index) obj.is_force_index(index), obj.inds))
+        if ~isempty(obj.inds) && all(arrayfun(@(index) obj.is_force_like_index(index), obj.inds))
             y_label = "Force (N)";
         else
             y_label = obj.active_labels(obj.inds(1));
@@ -759,8 +2164,17 @@ methods (Access = private)
         colors = colors(1:num_selections);
     end
 
-    function color = get_curve_color(obj, cur_sel, color_params)
+    function color = get_curve_color(obj, cur_sel, color_params, index)
         color = [0 0 0];
+
+        % single case, several variables: one colour per variable
+        if nargin >= 4 && isfield(color_params, 'by_variable') && color_params.by_variable
+            var_pos = find(obj.inds == index, 1);
+            if ~isempty(var_pos)
+                color = obj.hex_to_rgb(color_params.variable_colors(var_pos));
+                return
+            end
+        end
 
         if color_params.use_selection_colors && isfield(color_params, 'selection_names') && isfield(color_params, 'selection_colors')
             selection_idx = find(color_params.selection_names == string(cur_sel), 1);
@@ -779,6 +2193,35 @@ methods (Access = private)
            amp_idx <= size(color_params.colors, 2)
             color = obj.hex_to_rgb(color_params.colors(freq_idx, amp_idx));
         end
+    end
+
+    % Shaded region from var - sd to var + sd in a lighter version of the
+    % curve colour. Opaque, so it is sent to the back of the axes: every
+    % curve's line then stays visible above every band. Not in the legend.
+    function band = draw_std_band(obj, ax, time, var, sd, original_color)
+        time = time(:)';
+        var = var(:)';
+        sd = sd(:)';
+        lower_vals = var - sd;
+        upper_vals = var + sd;
+
+        xconf = [time, time(end:-1:1)];
+        yconf = [upper_vals, lower_vals(end:-1:1)];
+
+        band = fill(ax, xconf, yconf, obj.get_light_color(original_color));
+        band.HandleVisibility = 'off';
+        band.EdgeColor = 'none';
+        uistack(band, 'bottom');
+    end
+
+    % Linearly interpolate between the original colour and white
+    function lighter_color = get_light_color(obj, original_color)
+        if isstring(original_color) || ischar(original_color)
+            original_color = obj.hex_to_rgb(original_color);
+        end
+        fade_amount = 0.7; % 0 = no change, 1 = completely white
+        white = [1, 1, 1];
+        lighter_color = (1 - fade_amount) * original_color + fade_amount * white;
     end
 
     function rgb = hex_to_rgb(~, hex_color)
@@ -818,11 +2261,19 @@ methods (Access = private)
             uniq_amps = [];
             uniq_freqs = [];
             colors = strings(0);
+            use_selection_colors = false;
         else
-            uniq_types = unique(string(cur_selections(:,1)));
-            uniq_amps = unique(cell2mat(cur_selections(:,2)));
-            uniq_freqs = unique(cell2mat(cur_selections(:,3)));
-            if length(uniq_types) > 1
+            selection_types = string(cur_selections(:,1));
+            selection_amps = cell2mat(cur_selections(:,2));
+            selection_freqs = cell2mat(cur_selections(:,3));
+            uniq_types = unique(selection_types);
+            uniq_amps = unique(selection_amps);
+            uniq_freqs = unique(selection_freqs);
+            case_color_keys = selection_types + "_" + string(selection_amps) + "deg_" +...
+                              string(selection_freqs) + "Hz";
+            use_selection_colors = length(uniq_types) > 1 ||...
+                                   length(unique(case_color_keys)) < length(obj.selection);
+            if use_selection_colors
                 colors = strings(0);
             else
                 colors = getColors(1,...
@@ -832,8 +2283,18 @@ methods (Access = private)
             end
         end
 
-        use_selection_colors = length(uniq_types) > 1;
         selection_colors = obj.get_default_selection_colors(length(obj.selection));
+        color_params.uniq_freqs = uniq_freqs;
+        color_params.uniq_amps = uniq_amps;
+        color_params.colors = colors;
+        color_params.use_selection_colors = use_selection_colors;
+        color_params.selection_names = string(obj.selection);
+        color_params.selection_colors = selection_colors;
+        % One case: the variables are told apart by colour (no markers).
+        % Several cases: colour shows the case, markers the variable.
+        color_params.single_case = length(obj.selection) <= 1;
+        color_params.by_variable = color_params.single_case && length(obj.inds) > 1;
+        color_params.variable_colors = obj.get_default_selection_colors(length(obj.inds));
 
         align_plot_bool = obj.align_bool &&...
                           ~isempty(obj.inds) &&...
@@ -841,20 +2302,39 @@ methods (Access = private)
         aligned_curves = struct('val', {}, 'time', {}, 'index', {},...
                                 'plot_idx', {}, 'cur_sel', {},...
                                 'legend_entry', {}, 'line_style', {},...
-                                'marker', {});
+                                'marker', {}, 'y_axis', {}, 'std', {});
 
         % ----------------------------------------
 
         dual_plot = obj.should_use_separate_y_axes();
-        ylabs = strings(1,2);
-        if dual_plot
-            ylabs(1) = obj.active_labels(obj.inds(1));
-            ylabs(2) = obj.active_labels(obj.inds(2));
-        end
+        ylabs = obj.get_y_axis_labels(dual_plot);
 
         ax = axes(plot_panel);
         hold(ax, 'on');
         hold(ax_target, 'on');
+
+        % Load cell variables depend only on the load cell file, not on
+        % the downstream position or the PIV data version, so each is
+        % drawn once per load cell file (e.g. x2 / x3 / x4 of the same
+        % wing, amplitude and frequency share one curve)
+        plotted_lc_vars = strings(0);
+
+        % Stroke reversals (Label Stroke and the stroke order), and the
+        % stroke order shift (fraction of a wingbeat) applied to every curve
+        t_top = [];
+        t_bottom = [];
+        reorder = obj.conv_shift && obj.stroke_order ~= "UDU";
+        % load cell curves are lined up on these reversals from their own
+        % wing position (get_load_cell_stroke_shift)
+        has_lc = any(arrayfun(@(index) obj.is_load_cell_index(index), obj.inds));
+        if obj.conv_shift && (obj.label_stroke || reorder || has_lc) && ~isempty(obj.selection)
+            [t_top, t_bottom] = obj.get_stroke_reversals();
+        end
+        flip_frac = 0;
+        if reorder
+            flip_frac = obj.get_stroke_shift_frac(t_top, t_bottom);
+        end
+
         for j = 1:length(obj.inds)
             index = obj.inds(j);
         for i = 1:length(obj.selection)
@@ -862,34 +2342,139 @@ methods (Access = private)
 
             [amp, type, freq] = parse_name(cur_sel);
 
-            filename = cur_sel + "_phase_avg";
-            file_path = obj.PIV_path + filename + ".mat";
-            secondary_file_path = obj.PIV_path + filename + "_integral.mat";
+            % Load cell variable: measured at the robot, so no convection
+            % or bin-phase correction; one curve per case
+            if obj.is_load_cell_index(index)
+                lc_key = obj.get_load_cell_key(index, type, amp, freq);
+                if ismember(lc_key, plotted_lc_vars)
+                    continue
+                end
+                % shared by several selected cases: label it without the
+                % downstream position (and PIV version) of the first one
+                lc_legend = "";
+                num_sharing = sum(arrayfun(@(sel) obj.shares_load_cell_key(sel, index, lc_key), obj.selection));
+                if num_sharing > 1
+                    lc_legend = obj.get_load_cell_legend_entry(amp, freq, index);
+                end
+                [var, time, var_std] = obj.get_load_cell_var_signal(obj.active_names(index), type, amp, freq);
+                if isempty(var)
+                    continue
+                end
+                if ~obj.std_band
+                    var_std = [];
+                elseif isempty(var_std)
+                    disp("No wingbeat SD for " + obj.active_names(index) + " (" + cur_sel + "), no band plotted")
+                end
+                plotted_lc_vars(end+1) = lc_key;
+                % stroke order, with the curve's own stroke reversals (from
+                % the wing position in its load cell file) lined up on the
+                % labeled ones
+                lc_shift = flip_frac;
+                if obj.conv_shift && ~isempty(t_top)
+                    lc_shift = obj.get_load_cell_stroke_shift(type, amp, freq, t_top, t_bottom, flip_frac);
+                end
+                var = circshift(var, round(lc_shift * length(var)));
+                if ~isempty(var_std)
+                    var_std = circshift(var_std, round(lc_shift * length(var_std)));
+                end
+                var = obj.subtract_signal_mean(var); % SD unchanged by a constant offset
+                % time: saved wingbeat phase (frames) of each sample; the
+                % circshift above moves the signal along this fixed grid
+
+                if align_plot_bool
+                    aligned_curves(end+1) = struct(...
+                        'val', var,...
+                        'time', time,...
+                        'index', index,...
+                        'plot_idx', j,...
+                        'cur_sel', cur_sel,...
+                        'legend_entry', obj.get_aligned_legend_entry(cur_sel, index),...
+                        'line_style', "",...
+                        'marker', "",...
+                        'y_axis', "",...
+                        'std', var_std);
+                    if strlength(lc_legend) > 0
+                        aligned_curves(end).legend_entry = lc_legend;
+                    end
+                end
+
+                if ~align_plot_bool
+                    lc_options = struct('std', var_std, 'legend_entry', lc_legend);
+                    obj.plot_data(ax, ax_target, time, var, index, dual_plot, j, cur_sel, color_params, ylabs, lc_options);
+                end
+                continue
+            end
+
+            case_files = obj.get_phase_avg_case(cur_sel);
 
             var_name = obj.active_names(index);
+            % frame-to-frame SD within each bin, BA forces only
+            var_std = [];
 
-            if obj.is_force_index(index) && obj.calc_bool
+            % BA forces are per-frame forces averaged in processing, so they
+            % are always loaded, never calculated live from the averaged field
+            is_ba_var = obj.is_ba_force_name(var_name);
+            if obj.is_force_index(index) && obj.calc_bool && ...
+                    ~ismember(var_name, obj.stored_only_force_names) && ~is_ba_var
                 avg_type = 1;
                 norm_bool = false;
                 % Compute forces from flow field live
-                [var, err] = get_PIV_force(file_path, cur_sel, var_name, avg_type, norm_bool, obj.y_cen);
+                [var, err] = get_PIV_force(case_files, cur_sel, var_name, avg_type, norm_bool, default_trim_bounds());
             else
+                % skip cases whose processed file doesn't hold the variable
+                % (e.g. old flapper cases processed with older code)
+                stored_file = case_files;
+                % velocity gradient planar averages not in the _integral
+                % file (older processing): computed from the main file
+                live_grad = ~obj.file_has_var(stored_file, var_name) && ...
+                    obj.is_gradient_var(var_name) && ...
+                    obj.file_has_var(case_files, erase(var_name, "_avg") + "_phase_avg");
+                % same for the vorticity transport terms (e.g. wy_stretch)
+                live_transport = ~obj.file_has_var(stored_file, var_name) && ...
+                    obj.can_compute_transport_term(case_files, var_name);
+                % and the frozen-flow forces / planar averages (lift_ff,
+                % drag_ff, *_ff_avg)
+                live_ff = ~obj.file_has_var(stored_file, var_name) && ...
+                    obj.can_compute_frozen_var(case_files, var_name);
+                % Q_x centroid not in the _integral file (older
+                % processing): computed from the saved Q_x
+                live_qx = ~obj.file_has_var(stored_file, var_name) && ...
+                    ismember(var_name, ["Qxcomp_y", "Qxcomp_z"]) && ...
+                    obj.file_has_var(case_files, "Qx");
+                if ~live_grad && ~live_transport && ~live_ff && ~live_qx && ~obj.file_has_var(stored_file, var_name)
+                    disp(var_name + " not saved for " + cur_sel + " (older processing) - not plotted")
+                    continue
+                end
                 vars = {"L","U"};
-                d2 = load(file_path, vars{:});
-                if contains(var_name, ["lift_phase_avg", "drag_phase_avg"])
+                d2 = stb_load(case_files, vars{:});
+                if is_ba_var
                     if contains(var_name, ".")
                         abbrv_name = extractBefore(var_name, ".");
-                        d2 = load(file_path, abbrv_name);
+                        d2 = stb_load(case_files, abbrv_name);
                     else
-                        d2 = load(file_path, var_name);
+                        d2 = stb_load(case_files, var_name);
                     end
                     var = eval("d2." + var_name);
+                    if obj.std_band
+                        var_std = obj.get_ba_force_std(case_files, var_name, numel(var), cur_sel);
+                        if obj.is_HR_selection(cur_sel)
+                            obj.has_hr_residual_std(case_files, cur_sel); % note if it's the older bin SD
+                        end
+                    end
                 else
-                if contains(var_name, ".")
+                if live_grad
+                    d1 = struct(char(var_name), obj.get_gradient_planar_avg(case_files, var_name));
+                elseif live_transport
+                    d1 = struct(char(var_name), obj.get_transport_term(case_files, var_name));
+                elseif live_ff
+                    d1 = obj.get_frozen_var(case_files, cur_sel, var_name);
+                elseif live_qx
+                    d1 = struct(char(var_name), get_Q_centroid(case_files, case_files, var_name, default_trim_bounds()));
+                elseif contains(var_name, ".")
                     abbrv_name = extractBefore(var_name, ".");
-                    d1 = load(secondary_file_path, abbrv_name);
+                    d1 = stb_load(case_files, abbrv_name);
                 else
-                    d1 = load(secondary_file_path, var_name);
+                    d1 = stb_load(case_files, var_name);
                 end
 
                 var = eval("d1." + var_name);
@@ -900,34 +2485,82 @@ methods (Access = private)
                 end
                 % TEMP CODE TO NORMALIZE SPEEDS
                 % var = var / mean(var);
+
+                % omega_x centroid: drop bins where the net omega_x is
+                % near zero (ratio blows up there); shows as gaps
+                if ismember(var_name, ["wx_y", "wx_z"])
+                    dv = stb_load(case_files, "vortX_avg");
+                    var = mask_vortex_centroid(var, dv.vortX_avg, cur_sel);
+                end
+            end
+
+            % HR cases: band for force curves from the fitted fields, from
+            % the scatter of the per-frame force about its fit
+            if obj.std_band && isempty(var_std) && obj.is_HR_selection(cur_sel) && ...
+                    index <= length(obj.force_var_types) && ismember(var_name, obj.HR_BAND_FORCE_NAMES)
+                if obj.has_hr_residual_std(case_files, cur_sel)
+                    ba_name = regexprep(var_name, '\.', '_before_avg.', 'once');
+                    var_std = obj.get_ba_force_std(case_files, ba_name, numel(var), cur_sel);
+                end
             end
             
             % vars_kin = {"phase_avg_pos", "phase_avg_speed", "phase_avg_acc"};
             vars_kin = {"phase_avg_speed", "phase_avg_wing_pos",...
                 "phase_avg_wing_speed", "phase_avg_wing_acc", "u_avg"};
-            load(secondary_file_path, vars_kin{:})
+            kin = stb_load(case_files, vars_kin{:});
+            phase_avg_speed = kin.phase_avg_speed;
+            phase_avg_wing_pos = kin.phase_avg_wing_pos;
+            phase_avg_wing_speed = kin.phase_avg_wing_speed;
+            phase_avg_wing_acc = kin.phase_avg_wing_acc;
+            if isfield(kin, "u_avg"), u_avg = kin.u_avg; end %#ok<NASGU>
             freq_cor = mean(phase_avg_speed);
             % added_mass = get_added_mass(phase_avg_pos, phase_avg_speed, phase_avg_acc);
             added_mass = get_added_mass(phase_avg_wing_pos, phase_avg_wing_speed, phase_avg_wing_acc);
 
             if obj.is_force_index(index) && obj.PIV_sub
-                % filename = "body_phase_avg.mat";
-                filename = "ring_time_avg";
-                file_path_t = obj.PIV_path + "time_avg/" + filename + ".mat";
-                secondary_file_path_t = obj.PIV_path + "time_avg/" + filename + "_integral.mat";
+                [file_path_t, secondary_file_path_t] = obj.get_PIV_sub_file_paths(type, amp);
 
-                if ~strcmp(var_name, "lift.vortY")
-                if obj.calc_bool
+                if ~ismember(var_name, ["lift.vortY", "lift.vortY_edge", "lift_ff.vortY", "lift_ff.vortY_edge", ...
+                        "lift_before_avg.vortY", "lift_before_avg.vortY_edge"]) % no 0 Hz omega_y term
+                if obj.calc_bool && ~ismember(var_name, obj.stored_only_force_names) && ~is_ba_var
                     % Compute aerodynamic forces
                     norm_bool = false;
-                    [bod_var, bod_err] = get_PIV_force(file_path_t, "", var_name, 0, norm_bool, obj.y_cen);
+                    [bod_var, bod_err] = get_PIV_force(file_path_t, "", var_name, 0, norm_bool, default_trim_bounds());
                     var = var - bod_var;
+                elseif startsWith(var_name, ["lift_ff", "drag_ff"]) && ...
+                        ~obj.file_has_var(secondary_file_path_t, var_name)
+                    % frozen-flow force of a time average processed before
+                    % it was added: computed live (zero frozen d/dx)
+                    norm_bool = false;
+                    try
+                        [bod_var, ~] = get_PIV_force(file_path_t, "", var_name, 0, norm_bool, default_trim_bounds());
+                        var = var - bod_var;
+                    catch err
+                        disp("No " + obj.PIV_sub_case + " subtraction for " + var_name + ...
+                            " (" + cur_sel + "): " + err.message)
+                    end
                 else
+                    % BA forces are in the main file (time_avg_STB), the
+                    % rest in the _integral file (calc_secondary_vals_time)
+                    if is_ba_var
+                        sub_file = file_path_t;
+                    else
+                        sub_file = secondary_file_path_t;
+                    end
+                    if ~obj.file_has_var(sub_file, var_name)
+                        msg = var_name + " not saved for the " + obj.PIV_sub_case +...
+                            " subtraction case of " + cur_sel + " (older processing) - not plotted";
+                        if ismember(var_name, obj.stored_only_force_names)
+                            msg = msg + ". Rerun time_avg_STB on that case for the extrapolated forces";
+                        end
+                        disp(msg)
+                        continue
+                    end
                     if contains(var_name, ".")
                         abbrv_name = extractBefore(var_name, ".");
-                        d2 = load(secondary_file_path_t, abbrv_name);
+                        d2 = stb_load(sub_file, abbrv_name);
                     else
-                        d2 = load(secondary_file_path_t, var_name);
+                        d2 = stb_load(sub_file, var_name);
                     end
 
                     body_var = eval("d2." + var_name);
@@ -936,25 +2569,40 @@ methods (Access = private)
                 end
             end
 
-            % Shift data given convection time downstream to target
-            % for curves using imaging plane data only
-            if obj.is_force_index(index)
-            dist = 0.9;
-            sep_dist = 0.37;
-            if contains(type, "UP_two")
-                dist = dist + sep_dist*2;
-            elseif contains(type, "UP_one")
-                dist = dist + sep_dist;
+            % Actual phase of each bin (mean phase of its frames, saved as
+            % bin_placement in % of a bin width) for imaging-plane curves;
+            % zeros = nominal, evenly spaced bins. Shifted with var below.
+            placement_pct = zeros(size(var));
+            if obj.is_imaging_plane_index(index) && ismember('bin_placement', stb_who(case_files))
+                pp = stb_load(case_files, 'bin_placement');
+                if numel(pp.bin_placement) == numel(var)
+                    placement_pct = reshape(double(pp.bin_placement), size(var));
+                    placement_pct(~isfinite(placement_pct)) = 0;
+                end
             end
-            speed = 4;
-            % speed = mean(-squeeze(u_avg)) * d.U;
-            conv_time = dist / speed; % 0.9 m downstream, 4 m/s
-            % shift = conv_time * freq;
-            shift = conv_time * freq_cor; % get shift as a portion of a cycle
-            var = circshift(var, round(shift*length(var)));
-            disp("Shifted by: " + round(shift*length(var)) + " / " + length(var))
-            % disp("Shifted by: " + mod(round(shift*length(var)), length(var)) + " / " + length(var))
 
+            % Shift data given convection time downstream to target
+            % for curves using imaging plane data only (PIV forces and
+            % flow variables; kinematics are measured at the robot)
+            if obj.is_imaging_plane_index(index) && obj.conv_shift
+                dist = obj.get_downstream_dist(type);
+                if isnan(dist)
+                    disp("No downstream distance defined for " + type + ", not shifted")
+                else
+                    % speed = mean(-squeeze(u_avg)) * d.U;
+                    conv_time = dist / obj.conv_speed;
+                    shift = conv_time * freq_cor; % get shift as a portion of a cycle
+                    % The plane sees the wake the wing shed one convection time earlier,
+                    % so the curve is moved EARLIER by that time (negative circshift) to put
+                    % it in the robot's wing phase. (A positive shift added the delay twice:
+                    % x2 and x4 then differed by 2*0.378 m / U instead of lining up.)
+                    shift_bins = -round(shift*length(var));
+                    var = circshift(var, shift_bins);
+                    placement_pct = circshift(placement_pct, shift_bins);
+                    var_std = circshift(var_std, shift_bins);
+                    disp("Shifted " + cur_sel + " by: " + shift_bins + " / " + length(var) + ...
+                        " (" + dist + " m downstream)")
+                end
             end
 
             % If first value less than mean value, shift array since we
@@ -964,21 +2612,42 @@ methods (Access = private)
             %     disp("Shifted STB curve for " + cur_sel)
             % end
 
-            % 10 amp flexible case accidentally started at mid-downstroke
-            % rather than mid-upstroke used for the rest
-            if amp == 10 && ~contains(type, "UP")
-                % var = circshift(var, round(0.44*length(var)));
-                var = circshift(var, round(0.5*length(var)));
-                disp("Shifted STB curve for " + cur_sel)
+            % old flapper cases without automated homing that started at a
+            % different phase (table in old_flapper_compat)
+            phase_offset = old_flapper_compat("phase_offset", type, amp, freq);
+            if phase_offset ~= 0
+                var = circshift(var, round(phase_offset*length(var)));
+                placement_pct = circshift(placement_pct, round(phase_offset*length(var)));
+                var_std = circshift(var_std, round(phase_offset*length(var)));
+                disp("Shifted STB curve for " + cur_sel + " by " + phase_offset + " cycles (old_flapper_compat)")
             end
+
+            % stroke order: all curves (wing phase) shifted together
+            flip_bins = round(flip_frac * length(var));
+            var = circshift(var, flip_bins);
+            placement_pct = circshift(placement_pct, flip_bins);
+            var_std = circshift(var_std, flip_bins);
 
             norm_bool = false;
             if norm_bool
                 var = var / max(var);
             end
 
+            var = obj.subtract_signal_mean(var);
+
             time = 1:length(var);
-            time = time / length(var);
+            time = (time + placement_pct(:)' / 100) / length(var); % actual bin phases
+            % a late last bin can sit just past t/T = 1: that is the start
+            % of the next wingbeat, so wrap it to the start of this one
+            wrapped = time > 1;
+            if any(wrapped)
+                time(wrapped) = time(wrapped) - 1;
+                [time, order] = sort(time);
+                var = var(order);
+                if ~isempty(var_std)
+                    var_std = var_std(order);
+                end
+            end
 
             if align_plot_bool
                 aligned_curves(end+1) = struct(...
@@ -987,68 +2656,21 @@ methods (Access = private)
                     'index', index,...
                     'plot_idx', j,...
                     'cur_sel', cur_sel,...
-                    'legend_entry', obj.get_aligned_legend_entry(cur_sel, index, false),...
+                    'legend_entry', obj.get_aligned_legend_entry(cur_sel, index),...
                     'line_style', "",...
-                    'marker', obj.get_piv_force_marker(index));
+                    'marker', obj.get_piv_force_marker(index),...
+                    'y_axis', "",...
+                    'std', var_std);
             end
 
-            time_F = [];
-            force = [];
-            if obj.force_bool && ~contains(type, "UP")
-            
-            idx = obj.get_force_measurement_index(index);
-
-            if ~isempty(idx)
-            % var_name_F = "wingbeat_avg_forces_raw";
-            % var_name_F = "wingbeat_avg_forces";
-            var_name_F = "wingbeat_avg_forces_smoothest";
-            force = get_force(obj.force_path, type, amp, freq, idx, var_name_F);
-
-            if obj.force_sub
-                body_amp = amp;
-                if body_amp == 30
-                    body_amp = 20;
-                end
-                body_force = get_force(obj.force_path, "body", body_amp, freq, idx, var_name_F);
-                force = force - body_force;
-            end
-
-            time_F = 1:length(force);
-            time_F = time_F / length(force);
-
-            % THIS NEEDS SOME FIXING HERE, NOT ALWAYS SHIFTING AT THE
-            % CORRECT TIME
-            % if force(1) < mean(force)
-            %     force = circshift(force, round(0.4*length(force)));
-            %     disp("Shifted force curve for " + cur_sel)
-            % end
-            end
-            end
-
-            if align_plot_bool && ~isempty(force)
-                aligned_curves(end+1) = struct(...
-                    'val', force,...
-                    'time', time_F,...
-                    'index', index,...
-                    'plot_idx', j,...
-                    'cur_sel', cur_sel,...
-                    'legend_entry', obj.get_aligned_legend_entry(cur_sel, index, true),...
-                    'line_style', "-",...
-                    'marker', "none");
-            end
-
-            color_params.uniq_freqs = uniq_freqs;
-            color_params.uniq_amps = uniq_amps;
-            color_params.colors = colors;
-            color_params.use_selection_colors = use_selection_colors;
-            color_params.selection_names = string(obj.selection);
-            color_params.selection_colors = selection_colors;
             if ~align_plot_bool
-            obj.plot_data(ax, ax_target, time, var, time_F, force, index, dual_plot, j, cur_sel, color_params, ylabs); % ylabel_one, ylabel_two
+            obj.plot_data(ax, ax_target, time, var, index, dual_plot, j, cur_sel, color_params, ylabs,...
+                          struct('std', var_std)); % ylabel_one, ylabel_two
             end
         end
         end
 
+        show_corr = false; % Corr: correlation plotted instead of the curves
         if align_plot_bool && ~isempty(aligned_curves)
         lengths = arrayfun(@(s) length(s.val), aligned_curves, 'UniformOutput', true);
         aligned_curves = aligned_curves(lengths > 0);
@@ -1059,20 +2681,39 @@ methods (Access = private)
             return
         end
         maxLength = min(lengths);
-        time_interp = 1:maxLength;
-        time_interp = time_interp / length(time_interp);
+        time_interp = (0:maxLength-1) / maxLength; % periodic phase grid
 
-        % resample data points to have the same number of bins
+        % resample data points to have the same number of bins. The signals
+        % are periodic in t/T, so pad one wingbeat on either side before
+        % interpolating (no extrapolation at the ends of the cycle, works
+        % for any phase grid, e.g. (0:n-1)/n or (1:n)/n)
         for i = 1:length(aligned_curves)
-            var = aligned_curves(i).val;
-            time = aligned_curves(i).time;
-            aligned_curves(i).val = interp1(time, var, time_interp, 'pchip');
+            var = aligned_curves(i).val(:)';
+            time = mod(aligned_curves(i).time(:)', 1);
+            [time, order] = sort(time);
+            var = var(order);
+            [time, keep] = unique(time);
+            var = var(keep);
+            time_pad = [time - 1, time, time + 1];
+            var_pad = [var, var, var];
+            aligned_curves(i).val = interp1(time_pad, var_pad, time_interp, 'pchip');
+            if ~isempty(aligned_curves(i).std)
+                sd = aligned_curves(i).std(:)';
+                sd = sd(order);
+                sd = sd(keep);
+                aligned_curves(i).std = interp1(time_pad, [sd, sd, sd], time_interp, 'pchip');
+            end
             aligned_curves(i).time = time_interp;
         end
 
         lags = zeros(1,length(aligned_curves)-1);
+        corr_curves = struct('corr', {}, 'lags', {});
         for i = 2:length(aligned_curves)
-        [aligned_curves(i).val, lags(i-1)] = align_signals(aligned_curves(1).val, aligned_curves(i).val);
+        [aligned_curves(i).val, lags(i-1), corr_curves(i-1).corr, corr_curves(i-1).lags] = ...
+            align_signals(aligned_curves(1).val, aligned_curves(i).val);
+        if ~isempty(aligned_curves(i).std)
+            aligned_curves(i).std = circshift(aligned_curves(i).std, lags(i-1)); % same shift as val
+        end
         end
 
         disp(lags)
@@ -1084,14 +2725,32 @@ methods (Access = private)
         % disp(lags(2) / lags(1))
 
 
+        show_corr = obj.corr_bool;
+        if show_corr
+            [ax, ax_target] = obj.plot_alignment_corr(plot_panel, ax, ax_target, ...
+                corr_curves, lags, maxLength, string({aligned_curves.legend_entry}));
+        else
         for i = 1:length(aligned_curves)
             plot_options.legend_entry = aligned_curves(i).legend_entry;
             plot_options.line_style = aligned_curves(i).line_style;
             plot_options.marker = aligned_curves(i).marker;
-            obj.plot_data(ax, ax_target, aligned_curves(i).time, aligned_curves(i).val, [], [],...
+            plot_options.y_axis = aligned_curves(i).y_axis;
+            plot_options.std = aligned_curves(i).std;
+            obj.plot_data(ax, ax_target, aligned_curves(i).time, aligned_curves(i).val,...
                           aligned_curves(i).index, dual_plot, aligned_curves(i).plot_idx,...
                           aligned_curves(i).cur_sel, color_params, ylabs, plot_options); % ylabel_one, ylabel_two
         end
+        end
+        end
+
+        if ~show_corr && obj.conv_shift && obj.label_stroke && ~isempty(obj.selection)
+            % reversals move with the stroke order shift (time base (1:N)/N)
+            t_top = mod(t_top + flip_frac, 1);
+            t_bottom = mod(t_bottom + flip_frac, 1);
+            if ~isempty(t_top)
+                obj.draw_stroke_labels(ax, t_top, t_bottom, dual_plot);
+                obj.draw_stroke_labels(ax_target, t_top, t_bottom, dual_plot);
+            end
         end
 
         hold(ax, 'off');
@@ -1117,21 +2776,328 @@ methods (Access = private)
       
     end
 
-    function plot_data(obj, ax, ax_target, time, var, time_F, force, index, dual_plot, plot_idx, cur_sel, color_params, ylabs, plot_options)
-        if nargin < 14 || isempty(plot_options)
+    % Stroke reversal times (t/T) from the phase-averaged wing position:
+    % t_top = top of the stroke (upstroke -> downstroke), t_bottom = bottom
+    % (downstroke -> upstroke). Uses the first selected case; others are
+    % checked and a note printed if their reversals differ noticeably.
+    % Kinematics are measured at the robot, so these are in the robot's
+    % wing phase, same as the convection-shifted flow curves.
+    function [t_top, t_bottom] = get_stroke_reversals(obj)
+        t_top = [];
+        t_bottom = [];
+        for i = 1:length(obj.selection)
+            cur_sel = obj.selection(i);
+            [amp, type, freq] = parse_name(cur_sel);
+            try
+                d = stb_load(obj.get_phase_avg_case(cur_sel), "phase_avg_wing_pos");
+                wing_pos = d.phase_avg_wing_pos(:)';
+            catch
+                disp("No wing position for " + cur_sel + ", stroke not labeled from it")
+                continue
+            end
+
+            % same phase correction applied to the plotted curves
+            phase_offset = old_flapper_compat("phase_offset", type, amp, freq);
+            if phase_offset ~= 0
+                wing_pos = circshift(wing_pos, round(phase_offset*length(wing_pos)));
+            end
+
+            % time base matches the plotted curves: (1:N)/N
+            N = length(wing_pos);
+            [~, i_top] = max(wing_pos);
+            [~, i_bottom] = min(wing_pos);
+            cur_top = i_top / N;
+            cur_bottom = i_bottom / N;
+
+            if isempty(t_top)
+                t_top = cur_top;
+                t_bottom = cur_bottom;
+                disp("Stroke reversals from " + cur_sel + ": top at t/T = " + ...
+                    round(t_top, 3) + ", bottom at t/T = " + round(t_bottom, 3))
+            else
+                phase_diff = @(a, b) abs(mod(a - b + 0.5, 1) - 0.5);
+                if phase_diff(cur_top, t_top) > 0.02 || phase_diff(cur_bottom, t_bottom) > 0.02
+                    disp("Note: " + cur_sel + " stroke reversals (top " + round(cur_top, 3) + ...
+                        ", bottom " + round(cur_bottom, 3) + ") differ from the labeled case")
+                end
+            end
+        end
+    end
+
+    % Shift (fraction of a wingbeat) for a load cell curve: its own stroke
+    % reversals, from the phase-averaged wing position saved in its load
+    % cell file (wingbeat_avg_wing_pos, process_trial), are moved onto the
+    % labeled reversals t_top / t_bottom (from the STB wing position) after
+    % the stroke order shift flip_frac. The offset is the circular mean of
+    % the top and bottom offsets. Load cell phase grid: (0:n-1)/n
+    % (wingbeat_transformation). Files processed before the wing position
+    % was saved (or upstream / 0 Hz cases): flip_frac, i.e. the load cell
+    % phase is taken to match the STB one as before.
+    function lc_shift = get_load_cell_stroke_shift(obj, type, amp, freq, t_top, t_bottom, flip_frac)
+        lc_shift = flip_frac;
+        if contains(type, "UP") || str2double(string(freq)) == 0
+            return
+        end
+        try
+            wing_pos = get_force(obj.get_force_path(type), type, amp, freq, 1, "wingbeat_avg_wing_pos");
+        catch ME
+            if ~startsWith(ME.identifier, "get_force:")
+                rethrow(ME)
+            end
+            disp("No wing position in the load cell file for " + type + " " + amp + " deg " + freq + ...
+                " Hz (reprocess with process_trial): load cell phase taken as the STB one")
+            return
+        end
+        wing_pos = double(wing_pos(:)');
+        n = numel(wing_pos);
+        [~, i_top] = max(wing_pos);
+        [~, i_bottom] = min(wing_pos);
+        lc_top = (i_top - 1) / n;
+        lc_bottom = (i_bottom - 1) / n;
+
+        wrap = @(x) mod(x + 0.5, 1) - 0.5; % to (-0.5, 0.5]
+        d_top = wrap(t_top - lc_top);
+        d_bottom = d_top + wrap(t_bottom - lc_bottom - d_top); % same branch as d_top
+        offset = (d_top + d_bottom) / 2;
+        lc_shift = mod(offset + flip_frac, 1);
+        disp(sprintf("Load cell %s %s deg %s Hz: reversals top %.3f, bottom %.3f (STB %.3f, %.3f), shifted %+.3f wingbeat to line up", ...
+            type, string(amp), string(freq), lc_top, lc_bottom, t_top, t_bottom, wrap(offset)))
+    end
+
+    % Stroke order: fraction of a wingbeat to shift every curve by, from
+    % the stroke reversals (downstroke: top -> bottom, upstroke: bottom ->
+    % top; the strokes differ in length). Time base (1:N)/N, a reversal at
+    % t lands at mod(t + frac, 1).
+    %   UDU: 0 (downstroke centred, as with the convection shift alone)
+    %   DUD: the middle of the upstroke moves to where the middle of the
+    %        downstroke is in UDU
+    %   DU : the top of the stroke moves to t/T = 0 (downstroke first)
+    %   UD : the bottom of the stroke moves to t/T = 0 (upstroke first)
+    % Without the wing position the strokes are taken as equal with the
+    % downstroke centred (top at 0.25, bottom at 0.75).
+    function frac = get_stroke_shift_frac(obj, t_top, t_bottom)
+        if isempty(t_top)
+            t_top = 0.25;
+            t_bottom = 0.75;
+            disp("No wing position, stroke order " + obj.stroke_order + " assuming equal strokes")
+        end
+        down_len = mod(t_bottom - t_top, 1);
+        switch obj.stroke_order
+            case "DUD"
+                down_mid = t_top + down_len / 2;
+                up_mid = t_bottom + (1 - down_len) / 2;
+                frac = mod(down_mid - up_mid, 1);
+            case "DU"
+                frac = mod(-t_top, 1);
+            case "UD"
+                frac = mod(-t_bottom, 1);
+            otherwise % UDU
+                frac = 0;
+        end
+        disp(sprintf("Downstroke %.0f%% / upstroke %.0f%% of the wingbeat: %s with a %.3f wingbeat shift", ...
+            100 * down_len, 100 * (1 - down_len), obj.stroke_order, frac))
+    end
+
+    % Black lines at the stroke reversals, light gray shading over the
+    % downstroke, and "upstroke" / "downstroke" text near the top of the
+    % plot. All hidden from the legend.
+    function draw_stroke_labels(~, ax, t_top, t_bottom, dual_plot)
+        if dual_plot
+            yyaxis(ax, 'left')
+        end
+        xlim(ax, [0 1])
+        yl = ylim(ax);
+        ylim(ax, yl) % keep limits fixed while adding the shading
+
+        % [start end] of each region on [0, 1], splitting at the wrap
+        down = wrap_intervals(t_top, t_bottom);
+        up = wrap_intervals(t_bottom, t_top);
+
+        for k = 1:size(down, 1)
+            p = patch(ax, down(k,[1 2 2 1]), yl([1 1 2 2]), [0.8 0.8 0.8]);
+            p.FaceAlpha = 0.35;
+            p.EdgeColor = 'none';
+            p.HandleVisibility = 'off';
+            p.PickableParts = 'none';
+            try
+                uistack(p, 'bottom'); % behind the curves
+            catch
+            end
+        end
+
+        for t = [t_top, t_bottom]
+            xl = xline(ax, t, 'k', LineWidth=1.5);
+            xl.HandleVisibility = 'off';
+        end
+
+        y_text = yl(2) - 0.03 * diff(yl);
+
+        % match the legend's font, size and interpreter (latex); fall back
+        % to the legend defaults if there's no legend on this axes
+        lg = ax.Legend;
+        if ~isempty(lg) && isvalid(lg)
+            label_font = lg.FontName;
+            label_size = lg.FontSize;
+            label_interp = lg.Interpreter;
+        else
+            label_font = ax.FontName;
+            label_size = 0.9 * ax.FontSize; % MATLAB's default legend size
+            label_interp = "latex";
+        end
+
+        h_labels = [add_labels(down, "downstroke"), add_labels(up, "upstroke")];
+        place_labels(h_labels);
+
+        function h = add_labels(intervals, label)
+            h = gobjects(1, 0);
+            for m = 1:size(intervals, 1)
+                width = diff(intervals(m,:));
+                if width < 0.06 % too narrow to fit the text
+                    continue
+                end
+                h(end+1) = text(ax, mean(intervals(m,:)), y_text, label, ...
+                    HorizontalAlignment="center", VerticalAlignment="top", ...
+                    FontName=label_font, FontSize=label_size, ...
+                    Interpreter=label_interp, Color="k", Clipping="on"); %#ok<AGROW>
+            end
+        end
+
+        % Labels go near the top of the plot unless curves (or the legend)
+        % run through them there: then all of them move to the bottom, if
+        % fewer curve points get in the way there. All labels stay on one
+        % horizontal line.
+        function place_labels(h)
+            if isempty(h)
+                return
+            end
+            curves = get_curves();
+            hits_top = count_hits(h, curves);
+            if hits_top == 0
+                return
+            end
+            y_bottom = yl(1) + 0.03 * diff(yl);
+            for m = 1:numel(h)
+                h(m).Position(2) = y_bottom;
+                h(m).VerticalAlignment = "bottom";
+            end
+            hits_bottom = count_hits(h, curves);
+            if hits_bottom < hits_top
+                disp("Stroke labels moved to the bottom of the plot (curves under them at the top)")
+                return
+            end
+            for m = 1:numel(h) % no better at the bottom: back to the top
+                h(m).Position(2) = y_text;
+                h(m).VerticalAlignment = "top";
+            end
+        end
+
+        % Every plotted line as [x, y] with y as a fraction of its own
+        % y-axis (left or right), so curves on both sides of a dual plot
+        % can be checked against the labels (drawn on the left axis)
+        function curves = get_curves()
+            curves = {};
+            sides = "left";
+            if dual_plot
+                sides = ["left", "right"];
+            end
+            for side = sides
+                if dual_plot
+                    yyaxis(ax, side)
+                end
+                yl_side = ylim(ax);
+                lns = findobj(ax.Children, 'flat', 'Type', 'line'); % not xline (ConstantLine)
+                for ln = lns'
+                    x = double(ln.XData(:));
+                    y = double(ln.YData(:));
+                    ok = isfinite(x) & isfinite(y);
+                    if nnz(ok) < 2
+                        continue
+                    end
+                    [x, ix] = unique(x(ok));
+                    y = y(ok);
+                    if numel(x) < 2
+                        continue
+                    end
+                    curves{end+1} = [x, (y(ix) - yl_side(1)) / diff(yl_side)]; %#ok<AGROW>
+                end
+            end
+            if dual_plot
+                yyaxis(ax, 'left')
+            end
+        end
+
+        % Curve points inside the labels' boxes (each curve sampled along
+        % the label's width, so sparse curves count too), plus a large
+        % penalty if a label overlaps the legend
+        function hits = count_hits(h, curves)
+            hits = 0;
+            pad = 0.01; % fraction of the y range around the text
+            for m = 1:numel(h)
+                ext = h(m).Extent; % [x y w h], data units of the left axis
+                y0 = (ext(2) - yl(1)) / diff(yl) - pad;
+                y1 = (ext(2) + ext(4) - yl(1)) / diff(yl) + pad;
+                xs = linspace(ext(1), ext(1) + ext(3), 40);
+                for c = 1:numel(curves)
+                    yi = interp1(curves{c}(:,1), curves{c}(:,2), xs);
+                    hits = hits + nnz(yi >= y0 & yi <= y1);
+                end
+                if overlaps_legend(ext)
+                    hits = hits + 1000;
+                end
+            end
+        end
+
+        function tf = overlaps_legend(ext)
+            tf = false;
+            lg_ax = ax.Legend;
+            if isempty(lg_ax) || ~isvalid(lg_ax) || lg_ax.Visible == "off" || ...
+                    ~strcmp(lg_ax.Units, ax.Units)
+                return
+            end
+            ap = ax.InnerPosition;
+            xl_ax = xlim(ax);
+            r = [ap(1) + (ext(1) - xl_ax(1)) / diff(xl_ax) * ap(3), ...
+                 ap(2) + (ext(2) - yl(1)) / diff(yl) * ap(4), ...
+                 ext(3) / diff(xl_ax) * ap(3), ext(4) / diff(yl) * ap(4)];
+            tf = rectint(r, lg_ax.Position) > 0;
+        end
+
+        function intervals = wrap_intervals(t_start, t_end)
+            if t_start <= t_end
+                intervals = [t_start, t_end];
+            else
+                intervals = [t_start, 1; 0, t_end];
+            end
+        end
+    end
+
+    function plot_data(obj, ax, ax_target, time, var, index, dual_plot, plot_idx, cur_sel, color_params, ylabs, plot_options)
+        if nargin < 12 || isempty(plot_options)
             plot_options = struct();
         end
 
         has_legend_override = isfield(plot_options, 'legend_entry') && strlength(string(plot_options.legend_entry)) > 0;
         has_line_style = isfield(plot_options, 'line_style') && strlength(string(plot_options.line_style)) > 0;
         has_marker = isfield(plot_options, 'marker') && strlength(string(plot_options.marker)) > 0;
+        has_y_axis = isfield(plot_options, 'y_axis') && strlength(string(plot_options.y_axis)) > 0;
+        has_std = isfield(plot_options, 'std') && numel(plot_options.std) == numel(var);
 
         [amp, type, freq] = parse_name(cur_sel);
         % Get color for this case name
-        original_color = obj.get_curve_color(cur_sel, color_params);
+        original_color = obj.get_curve_color(cur_sel, color_params, index);
+        % markers tell variables apart only when several cases are plotted
+        use_markers = ~(isfield(color_params, 'single_case') && color_params.single_case);
 
         if dual_plot
-            if plot_idx == 1
+            if has_y_axis
+                axis_side = string(plot_options.y_axis);
+            elseif plot_idx == 1
+                axis_side = "left";
+            else
+                axis_side = "right";
+            end
+
+            if axis_side == "left"
                 yyaxis(ax, 'left')
                 line = plot(ax, time, var);
                 % for hidden figure for saving
@@ -1162,7 +3128,7 @@ methods (Access = private)
             if has_legend_override
                 legend_entry = string(plot_options.legend_entry);
             else
-                legend_entry = obj.get_aligned_legend_entry(cur_sel, index, false);
+                legend_entry = obj.get_aligned_legend_entry(cur_sel, index);
             end
 
             if has_line_style
@@ -1174,7 +3140,9 @@ methods (Access = private)
                 line_h.LineStyle = char(line_style);
             end
 
-            if has_marker
+            if ~use_markers
+                % no markers for a single case
+            elseif has_marker
                 line.Marker = char(plot_options.marker);
                 line_h.Marker = char(plot_options.marker);
             else
@@ -1194,32 +3162,29 @@ methods (Access = private)
             line_h.DisplayName = legend_entry;
             line_h.Color = original_color;
             line_h.LineWidth = 2;
+
+            % shaded +/- 1 SD band, on the same y-axis side as the line
+            % (still the active yyaxis side after the plot calls above)
+            if has_std
+                obj.draw_std_band(ax, time, var, plot_options.std, original_color);
+                obj.draw_std_band(ax_target, time, var, plot_options.std, original_color);
+                disp(legend_entry + ", mean SD: " + mean(plot_options.std, "omitnan"))
+            end
             % if contains(type, "UP")
             %     line.LineStyle = "--";
             % end
 
-            if obj.force_bool && ~contains(type, "UP") && ~isempty(force)
-                line = plot(ax, time_F, force);
-                F_legend = obj.get_aligned_legend_entry(cur_sel, index, true);
-                line.DisplayName = F_legend;
-                disp(F_legend + ": " + mean(force))
-                line.Color = original_color;
-                line.LineWidth = 2;
-                line.LineStyle = "-";
-
-                % for hidden figure for saving
-                line_h = plot(ax_target, time_F, force);
-                line_h.DisplayName = F_legend;
-                line_h.Color = original_color;
-                line_h.LineWidth = 2;
-                line_h.LineStyle = "-";
-            end
-
             grid(ax, 'on');
-            legend(ax, Location="best");
+            legend(ax, Location="best", Interpreter="latex");
             % for hidden figure for saving
             grid(ax_target, 'on');
-            legend(ax_target, Location="best");
+            legend(ax_target, Location="best", Interpreter="latex");
+            xlabel(ax, "Time over Wingbeat Period (t/T)", Interpreter="latex")
+            xlabel(ax_target, "Time over Wingbeat Period (t/T)", Interpreter="latex")
+            % always one wingbeat (auto limits would round up to 1.2)
+            xlim(ax, [0 1])
+            xlim(ax_target, [0 1])
+
             % if ~isempty(obj.inds)
             %     if length(obj.inds) > 1
             %         for n = 2:length(obj.inds)
@@ -1234,23 +3199,23 @@ methods (Access = private)
 
             if dual_plot
                 yyaxis(ax, 'left')
-                ylabel(ax, ylabs(1))
+                ylabel(ax, ylabs(1), Interpreter="latex")
                 ax.YAxis(1).Color = 'k';
                 yyaxis(ax, 'right')
-                ylabel(ax, ylabs(2))
+                ylabel(ax, ylabs(2), Interpreter="latex")
                 ax.YAxis(2).Color = 'k';
 
                 % for hidden figure for saving
                 yyaxis(ax_target, 'left')
-                ylabel(ax_target, ylabs(1))
+                ylabel(ax_target, ylabs(1), Interpreter="latex")
                 ax_target.YAxis(1).Color = 'k';
                 yyaxis(ax_target, 'right')
-                ylabel(ax_target, ylabs(2))
+                ylabel(ax_target, ylabs(2), Interpreter="latex")
                 ax_target.YAxis(2).Color = 'k';
             elseif ~isempty(obj.inds)
-                ylabel(ax, obj.get_single_axis_label())
+                ylabel(ax, obj.get_single_axis_label(), Interpreter="latex")
                 % for hidden figure for saving
-                ylabel(ax_target, obj.get_single_axis_label())
+                ylabel(ax_target, obj.get_single_axis_label(), Interpreter="latex")
             end
             
         ax.FontSize = 18;

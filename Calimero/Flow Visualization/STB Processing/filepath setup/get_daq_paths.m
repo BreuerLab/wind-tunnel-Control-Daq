@@ -1,17 +1,41 @@
 function [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name)
+    % DAQ file name and folder for an STB case.
+    %
+    % September cases (x2_wings_20deg_2Hz, MPS_wings_20deg_6Hz, x3_ring,
+    % ...) are found from their names in
+    %   STB Revamped v2\<pos folder>\daq data\experiment data\
+    % by matching <type>_<amp>_..._<freq>Hz_..._experiment_....mat (latest
+    % run if there are several). Older cases are listed below.
     % Define the base directory shortcuts to keep paths readable
-    base_rg = 'R:\ENG_Breuer_Shared\rgissler\Calimero Force Data\STB Final\';
+    base_old = 'R:\ENG_Breuer_Shared\rgissler\Calimero Force Data\STB Final\';
     base_group = 'R:\ENG_Breuer_Shared\group\Wind turbine\Turbine_STB\Turbine_STB_02_17_2026\DAQ Data\Final Data\';
 
+    base_new = 'R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\STB Revamped\';
+
+    base_new_v2 = 'R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\STB Revamped v2\';
+
     % Map experimental dates to their specific subfolders
-    d11 = [base_rg, 'STB_02_11_2026\data\experiment data\'];
-    d12 = [base_rg, 'STB_02_12_2026\data\experiment data\'];
-    d15 = [base_rg, 'STB_02_15_2026\data\experiment data\'];
+    d11 = [base_old, 'STB_02_11_2026\data\experiment data\'];
+    d12 = [base_old, 'STB_02_12_2026\data\experiment data\'];
+    d15 = [base_old, 'STB_02_15_2026\data\experiment data\'];
+    d21 = [base_new, 'x1\daq data\experiment data\'];
+    d22 = [base_new, 'x2\daq data\experiment data\'];
+    d23 = [base_new, 'x3\daq data\experiment data\'];
+    d24 = [base_new, 'x4\daq data\experiment data\'];
+    d25 = [base_new, 'x5\daq data\experiment data\'];
 
     % Create an organized lookup structure
     % Format: cases.(alias) = {filename, path}
     cases = struct();
     
+    % cases.x5_wings_20deg_0Hz = {'x5_flexible_20_4m.s_10deg_0Hz_2026_08_16_19_25_04_experiment_2026_08_16_19_26_20.mat',d25};
+    % cases.x5_wings_20deg_6Hz = {'x5_flexible_20_4m.s_10deg_6Hz_2026_08_16_20_01_59_experiment_2026_08_16_20_04_20.mat',d25};
+    % cases.x5_wings_20deg_6Hz_v2 = {'x5_flexible_20_4m.s_10deg_6Hz_2026_08_16_20_01_59_experiment_2026_08_16_20_04_20.mat',d25};
+    % cases.x5_wings_20deg_6Hz_v3 = {'x5_flexible_20_4m.s_10deg_6Hz_2026_08_16_20_01_59_experiment_2026_08_16_20_04_20.mat',d25};
+
+    % September cases (base_new_v2) aren't listed: their files are
+    % found from the case name (september_daq_file below)
+
     % Feb 15th Data
     cases.UP_two_flexible_10deg_2Hz = {'UP_two_PIV_flexible_10_4m.s_10deg_2Hz_2026-02-15 13-19-51_experiment_2026_02_15_13_21_12.mat', d15};
     cases.UP_two_flexible_10deg_4Hz = {'UP_two_PIV_flexible_10_4m.s_10deg_4Hz_2026-02-15 13-48-19_experiment_2026_02_15_13_49_41.mat', d15};
@@ -62,12 +86,79 @@ function [daq_data_filename, daq_data_path] = get_daq_paths(PIV_case_name)
     cases.turbine_S_ext = {'turbine_6ms_S_ext_2026_02_17_16_55_48.mat', base_group};
     cases.turbine_F_ext = {'turbine_6ms_F_ext_2026_02_17_17_27_12.mat', base_group};
 
-    % Retrieve the data
+    % Reprocessed versions of a recording (e.g. VIC instead of binning,
+    % see get_PIV_paths) use the DAQ file of the original case.
+    % Format: '<reprocessed case>', '<case whose DAQ file it uses>'
+    daq_aliases = {
+        'x2_wings_20deg_8Hz_VIC', 'x2_wings_20deg_8Hz'
+        % 'x2_wings_20deg_8Hz_VIC3', 'x2_wings_20deg_8Hz'
+        % 'x2_wings_20deg_8Hz_BIN2', 'x2_wings_20deg_8Hz'
+        };
+
+    % Retrieve the data: listed cases first, then the September files
+    PIV_case_name = char(PIV_case_name);
+    alias = find(strcmp(daq_aliases(:, 1), PIV_case_name), 1);
+    if ~isempty(alias)
+        PIV_case_name = daq_aliases{alias, 2};
+    end
     if isfield(cases, PIV_case_name)
         data = cases.(PIV_case_name);
         daq_data_filename = data{1};
         daq_data_path     = data{2};
+    elseif strlength(get_downstream_prefix(PIV_case_name)) > 0
+        [daq_data_filename, daq_data_path] = september_daq_file(base_new_v2, PIV_case_name);
     else
         error('Case name "%s" not found in the DAQ database.', PIV_case_name);
     end
+
+    daq_file = fullfile(daq_data_path, daq_data_filename);
+    if ~isfile(daq_file) && ~isfile(daq_file + ".mat")
+        error('get_daq_paths:missingFile', ...
+            'DAQ file for "%s" not found:\n  %s', PIV_case_name, daq_file);
+    end
+end
+
+% Find a September case's DAQ file from its name. Files are named
+%   <type>_<amp>_<speed>_<aoa>_<freq>Hz_<start>_experiment_<time>.mat
+% e.g. x3_wings_20_4m.s_10deg_2Hz_2026_09_28_..._experiment_....mat. Cases
+% without amplitude/frequency in the name (x3_ring, x3_NACA) match any
+% amplitude at 0 Hz.
+function [file_name, folder] = september_daq_file(base_dir, case_name)
+    pos = regexprep(get_downstream_prefix(case_name), "_$", "");
+    pos_folders = containers.Map({'MPS'}, {'MPS Testing Sept'}); % others: folder = position
+    if isKey(pos_folders, char(pos))
+        pos_folder = pos_folders(char(pos));
+    else
+        pos_folder = char(pos);
+    end
+    folder = [base_dir, pos_folder, '\daq data\experiment data\'];
+    if ~isfolder(folder)
+        error('get_daq_paths:missingFolder', ...
+            'DAQ folder for "%s" not found:\n  %s', case_name, folder);
+    end
+
+    [amp, type, freq] = parse_name(case_name);
+    if freq < 0 || amp < 0 || strlength(type) == 0
+        % static case named without amplitude/frequency
+        pattern = ['^', regexptranslate('escape', case_name), '_\d+_[^_]+_[^_]+_0Hz_.*experiment.*\.mat$'];
+    else
+        pattern = ['^', regexptranslate('escape', char(type)), '_', num2str(amp), ...
+            '_[^_]+_[^_]+_', num2str(freq), 'Hz_.*experiment.*\.mat$'];
+    end
+
+    files = dir(fullfile(folder, '*.mat'));
+    names = string({files.name});
+    names = names(~cellfun(@isempty, regexp(cellstr(names), pattern, 'once')));
+    if isempty(names)
+        error('get_daq_paths:noMatch', ...
+            'No DAQ file for "%s" in\n  %s\n(pattern %s)', case_name, folder, pattern);
+    end
+    % names carry the start timestamp (yyyy_mm_dd_hh_mm_ss), so the last
+    % in sorted order is the latest run
+    names = sort(names);
+    if numel(names) > 1
+        fprintf('get_daq_paths: %d DAQ files match %s, using the latest: %s\n', ...
+            numel(names), case_name, names(end));
+    end
+    file_name = char(names(end));
 end

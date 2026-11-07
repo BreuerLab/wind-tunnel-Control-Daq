@@ -75,3 +75,20 @@ else
 end
 
 legend('show');
+
+% --- INVERT ALL Y-DATA ON COMBINED AXIS ---
+% Find every single object in the new combined axes that has YData
+all_plotted_objs = findall(combined_ax, '-property', 'YData');
+
+for k = 1:length(all_plotted_objs)
+    % Invert the Y-data
+    all_plotted_objs(k).YData = -all_plotted_objs(k).YData;
+    
+    % If it's an ErrorBar, swap the positive and negative deltas
+    if isa(all_plotted_objs(k), 'matlab.graphics.chart.primitive.ErrorBar')
+        temp = all_plotted_objs(k).YPositiveDelta;
+        all_plotted_objs(k).YPositiveDelta = all_plotted_objs(k).YNegativeDelta;
+        all_plotted_objs(k).YNegativeDelta = temp;
+    end
+end
+% ------------------------------------------

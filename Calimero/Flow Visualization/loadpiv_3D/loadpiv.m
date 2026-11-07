@@ -27,6 +27,19 @@ function varargout = loadpiv(folderPIV, varargin)
 %  `D = loadpiv(folderPIV, "fovRot", 0.23)`
 %
 %  `D = loadpiv(folderPIV, "Validate", 0.4)`
+%  `D = loadpiv(folderPIV, "vortMethod", "stencil")` : vorticity from the
+%            Raffel stencil (2nd-order central differences with [1 2 1]
+%            transverse smoothing) on every plane, instead of the default
+%            "wls", which replaces centre-plane omega_y, omega_z with the
+%            uncertainty-weighted fit across the planes (vorticity_slab_wls)
+%  `D = loadpiv(folderPIV, "gradMethod", "raffel")` : velocity gradients
+%            from the Raffel stencil on every plane, instead of the default
+%            "wls", which replaces the centre-plane gradients with the same
+%            uncertainty-weighted fit (slab_wls_gradients). "central" =
+%            unsmoothed central differences; "4th" = 5-point 4th-order
+%            stencil.
+%  `D = loadpiv(folderPIV, "wlsPlanes", 2:4)` : planes used by both WLS
+%            fits (default [] = all planes)
 %
 %  -------------------------------------------------------------------------
 %  ### Mandatory inputs:
@@ -181,14 +194,25 @@ function varargout = loadpiv(folderPIV, varargin)
 
 %% Check input parameters
 
+persistent reportedFolders % folders already told about missing fields (VIC)
+if isempty(reportedFolders), reportedFolders = strings(0); end
+
 nargoutchk(1, 2);
 
+% folderPIV is either a folder of .vc7 files (frames in name order) or a
+% list of .vc7 file paths (string array / cellstr, frames in list order),
+% e.g. the frames of a trial processed in DaVis in batches, from
+% get_case_frames. frameRange / frameSelect index into that order.
+fileList = strings(0, 1);
 if nargin < 1 || isempty(folderPIV)
     error('Missing input argument: "folderPIV".');
+elseif iscellstr(folderPIV) || (isstring(folderPIV) && (numel(folderPIV) > 1 || endsWith(folderPIV, ".vc7", 'IgnoreCase', true)))
+    fileList = string(folderPIV(:));
+    folderPIV = char(fileparts(fileList(1)));    % for messages
 elseif isstring(folderPIV)
     folderPIV = convertStringsToChars(folderPIV);
 elseif ~ischar(folderPIV)
-    error('Input "folderPIV" must be a character vector or string scalar.');
+    error('Input "folderPIV" must be a folder (character vector or string scalar) or a list of .vc7 files.');
 end
 
 options = parseInputs(varargin{:});
@@ -202,9 +226,15 @@ end
 originalFolder = cd();
 restoreFolder = onCleanup(@() cd(originalFolder));
 
-files = dir(fullfile(folderPIV, '*.vc7'));
-if isempty(files)
-    error('No ".vc7" files found in specified directory "folderPIV". Check path.')
+if isempty(fileList)
+    files = dir(fullfile(folderPIV, '*.vc7'));
+    if isempty(files)
+        error('No ".vc7" files found in specified directory "folderPIV". Check path.')
+    end
+    filePaths = string(fullfile({files.folder}, {files.name}))';
+else
+    filePaths = fileList;
+    files = struct('name', cellstr(filePaths));   % only its length is used below
 end
 
 selectedFrames = options.selectedFrames;
@@ -218,7 +248,7 @@ configureReadimxPath();
 numSelectedFrames = length(selectedFrames);
 for frameCounter = 1:numSelectedFrames
     fileIndex = selectedFrames(frameCounter);
-    rawFrame = readimx(fullfile(folderPIV, files(fileIndex).name));
+    rawFrame = readimx(char(filePaths(fileIndex)));
 
     if nargout == 2
         attributes = rawFrame.Frames{1}.Attributes;
@@ -236,9 +266,21 @@ for frameCounter = 1:numSelectedFrames
         end
     end
 
-    frameData = extractData(rawFrame, options.numCameraField);
+    frameData = extractData(rawFrame, options.numCameraField, options.vortMethod, ...
+        options.gradMethod, options.wlsPlanes);
 
     if frameCounter == 1
+        % loadpiv is called once per phase bin: report missing fields
+        % once per folder per MATLAB session
+        if (~frameData.hasUnc || ~frameData.hasNumP) && ~any(reportedFolders == string(folderPIV))
+            reportedFolders(end+1) = string(folderPIV);
+            if ~frameData.hasUnc
+                fprintf("No uncertainty fields in %s (e.g. VIC): uncertainties left NaN, WLS slab fits weight planes equally\n", folderPIV);
+            end
+            if ~frameData.hasNumP
+                fprintf("No particle count field in %s (e.g. VIC): numP left NaN\n", folderPIV);
+            end
+        end
         if frameData.dimNum > 3
             error(['Data structure contains an unrecognized data structure; ' ...
                 'number of dimensions exceeds 3D data structure. Review data structure.']);
@@ -365,6 +407,9 @@ options.fovCenter = [0, 0];
 options.fovRot = 0;
 options.numCameraField = 1;
 options.selectedFrames = [];
+options.vortMethod = "wls";
+options.gradMethod = "wls";
+options.wlsPlanes = [];
 
 skipNext = false;
 for optionIndex = 1:length(varargin)
@@ -437,6 +482,30 @@ for optionIndex = 1:length(varargin)
             fprintf('Extracting fields for camera: %1.0d\n', options.numCameraField);
             skipNext = true;
 
+        case 'vortMethod'
+            vortMethod = string(getFollowingValue(varargin, optionIndex, optionName));
+            if ~ismember(vortMethod, ["wls", "stencil"])
+                error('"vortMethod" must be "wls" or "stencil".')
+            end
+            options.vortMethod = vortMethod;
+            skipNext = true;
+
+        case 'gradMethod'
+            gradMethod = string(getFollowingValue(varargin, optionIndex, optionName));
+            if ~ismember(gradMethod, ["wls", "raffel", "central", "4th"])
+                error('"gradMethod" must be "wls", "raffel", "central" or "4th".')
+            end
+            options.gradMethod = gradMethod;
+            skipNext = true;
+
+        case 'wlsPlanes'
+            wlsPlanes = getFollowingValue(varargin, optionIndex, optionName);
+            if ~isnumeric(wlsPlanes) || ~isvector(wlsPlanes) || numel(wlsPlanes) < 3
+                error('"wlsPlanes" must be a numeric vector of at least 3 plane indices.')
+            end
+            options.wlsPlanes = wlsPlanes(:)';
+            skipNext = true;
+
         otherwise
             error(['Invalid argument: "', optionName, '" for input "options."']);
     end
@@ -474,20 +543,6 @@ if any(selectedFrames < 1) || any(selectedFrames > numFiles) || any(mod(selected
 end
 end
 
-function configureReadimxPath()
-if exist('readimx', 'file') == 3
-    return
-end
-
-if ismac
-    cd('readimx_MAC');
-elseif ispc
-    cd('readimx_WIN');
-else
-    error('System not identified (if using LINUX I do not know what to do).')
-end
-end
-
 function data = zeroToNaN(data)
 data(data == 0) = NaN;
 end
@@ -496,7 +551,18 @@ function data = zeroToMedian(data)
 data(data == 0) = median(data,"all");
 end
 
-function out1 = extractData(dataStructure, numCameraField)
+function data = nanToMedian(data)
+    % Calculate the median of all non-NaN values
+    med = median(data, "all", "omitnan");
+    
+    % Replace NaNs with the calculated median
+    data(isnan(data)) = med;
+end
+
+function out1 = extractData(dataStructure, numCameraField, vortMethod, gradMethod, wlsPlanes)
+if nargin < 3, vortMethod = "wls"; end
+if nargin < 4, gradMethod = "wls"; end
+if nargin < 5, wlsPlanes = []; end
 
 frame = dataStructure.Frames{numCameraField, 1};
 components = frame.Components;
@@ -525,7 +591,7 @@ end
 numPlanes = length(components{1, 1}.Planes);
 sizeXY = size(components{1, 1}.Planes{1, 1});
 
-trimBoundaryPlanes = true;
+trimBoundaryPlanes = false;
 if trimBoundaryPlanes
     planeIndices = 2:numPlanes-1;
     numTrimmedPlanes = numPlanes - 2;
@@ -547,8 +613,25 @@ for planeIndex = planeIndices
     if out1.dimNum == 3
         out1.wRaw(:,:,planeCount) = components{wIndex, 1}.Planes{planeIndex, 1} * scales.I.Slope + components{wIndex, 1}.Scale.Offset;
     end
-    out1.numP(:,:,planeCount) = components{numParticlesIndex, 1}.Planes{planeIndex, 1};
+    if ~isempty(numParticlesIndex) % not in VIC-processed data (NaN)
+        out1.numP(:,:,planeCount) = components{numParticlesIndex, 1}.Planes{planeIndex, 1};
+    end
 end
+out1.hasNumP = ~isempty(numParticlesIndex);
+
+% DaVis stores empty bins as 0. Mark them as NaN BEFORE any derivative is
+% taken, so calculateVorticity (via fill3D) and get_gradients interpolate
+% across the holes instead of differencing real velocities against 0,
+% which creates spurious vorticity spikes around every missing vector.
+% (Assumes the velocity Scale.Offset is 0, so empty bins are exactly 0.)
+if out1.dimNum == 3
+    emptyBins = out1.uRaw == 0 & out1.vRaw == 0 & out1.wRaw == 0;
+else
+    emptyBins = out1.uRaw == 0 & out1.vRaw == 0;
+end
+out1.uRaw(emptyBins) = NaN;
+out1.vRaw(emptyBins) = NaN;
+out1.wRaw(emptyBins) = NaN;
 
 xRaw = (1:size(out1.uRaw, 1)) - 0.5;
 yRaw = (1:size(out1.uRaw, 2)) - 0.5;
@@ -588,23 +671,44 @@ out1.uRaw = permute(uTmp, permutationOrder);
 out1.vRaw = permute(vTmp, permutationOrder);
 out1.wRaw = permute(wTmp, permutationOrder);
 
-[out1.vortXRaw, out1.vortYRaw, out1.vortZRaw] = ...
-    calculateVorticity(out1.xRaw, out1.yRaw, out1.zRaw, out1.uRaw, out1.vRaw, out1.wRaw);
+% Fill holes once per component and reuse the filled copies for vorticity
+% and gradients (fill3D returns immediately on arrays without NaNs). The
+% stored u/v/w keep their NaNs so later averaging can omit missing data.
+uFilled = fill3D(out1.uRaw);
+vFilled = fill3D(out1.vRaw);
+wFilled = fill3D(out1.wRaw);
 
+[out1.vortXRaw, out1.vortYRaw, out1.vortZRaw] = ...
+    calculateVorticity(out1.xRaw, out1.yRaw, out1.zRaw, uFilled, vFilled, wFilled);
+
+% Velocity gradients: Raffel stencil (2nd-order central differences with
+% the [1 2 1] transverse smoothing of calculateVorticity) on every plane.
+% For "wls" the centre plane is replaced further down, once the
+% uncertainties are available. The 5-point 4th-order stencil ("4th") leans
+% on the sparse, poorly lit outermost planes and biased du/dx negative in
+% freestream data.
+stencilMethod = gradMethod;
+if gradMethod == "wls", stencilMethod = "raffel"; end
 [out1.dudx, out1.dudy, out1.dudz] = ...
-    get_gradients(out1.xRaw, out1.yRaw, out1.zRaw, out1.uRaw);
+    get_gradients(out1.xRaw, out1.yRaw, out1.zRaw, uFilled, stencilMethod, 1);
 [out1.dvdx, out1.dvdy, out1.dvdz] = ...
-    get_gradients(out1.xRaw, out1.yRaw, out1.zRaw, out1.vRaw);
+    get_gradients(out1.xRaw, out1.yRaw, out1.zRaw, vFilled, stencilMethod, 2);
 [out1.dwdx, out1.dwdy, out1.dwdz] = ...
-    get_gradients(out1.xRaw, out1.yRaw, out1.zRaw, out1.wRaw);
+    get_gradients(out1.xRaw, out1.yRaw, out1.zRaw, wFilled, stencilMethod, 3);
 
 out1.uncURaw = nan([sizeXY numTrimmedPlanes]);
 out1.uncVRaw = nan(size(out1.uncURaw));
 out1.uncWRaw = nan(size(out1.uncURaw));
 
+% VIC-processed data has no uncertainty fields: they stay NaN, the WLS
+% slab fits then weight all planes equally (plane_sigma) and the force
+% uncertainty mask is skipped (unc_mask_region)
+out1.hasUnc = ~isempty(uncUIndex) && ~isempty(uncVIndex) && ...
+    (out1.dimNum < 3 || ~isempty(uncWIndex));
 planeCount = 0;
 for planeIndex = planeIndices
     planeCount = planeCount + 1;
+    if ~out1.hasUnc, break; end
     out1.uncURaw(:,:,planeCount) = components{uncUIndex, 1}.Planes{planeIndex, 1};
     out1.uncVRaw(:,:,planeCount) = components{uncVIndex, 1}.Planes{planeIndex, 1};
     if out1.dimNum == 3
@@ -627,6 +731,132 @@ out1.uncVRaw = permute(vUncertaintyTmp, permutationOrder);
 out1.uncWRaw = permute(wUncertaintyTmp, permutationOrder);
 
 out1.numP = permute(rotateStbVolume(out1.numP), permutationOrder);
+
+% Out-of-plane vorticity on the centre plane from an uncertainty-weighted
+% fit across ALL binned planes (needs the uncertainties, hence done here
+% after they are extracted). See vorticity_slab_wls.
+if out1.dimNum == 3 && vortMethod == "wls" && size(out1.uRaw, 1) >= 3
+    [out1.vortYRaw, out1.vortZRaw] = slab_wls_centre_plane(out1, wlsPlanes);
+end
+
+% Centre-plane velocity gradients from the same WLS slab fit
+if out1.dimNum == 3 && gradMethod == "wls" && size(out1.uRaw, 1) >= 3
+    out1 = slab_wls_gradients(out1, wlsPlanes);
+end
+end
+
+function out1 = slab_wls_gradients(out1, wlsPlanes)
+% Replace the nine velocity gradients on the centre plane with values from
+% the uncertainty-weighted slab fit used for omega_y, omega_z
+% (vorticity_slab_wls): for each component a quadratic is fitted across the
+% planes (weights 1/sigma^2, one sigma per plane, empty bins weight 0),
+% giving its x-slope and its x-smoothed value at the centre plane.
+%
+% Each gradient is the Raffel-stencil gradient (see get_gradients) with any
+% [1 2 1] smoothing ACROSS the planes replaced by the WLS fit, so that
+%   omega_y = du/dz - dw/dx and omega_z = dv/dx - du/dy match
+%   vorticity_slab_wls, and omega_x = dw/dy - dv/dz matches the Raffel
+%   stencil:
+%   d/dx of u, v, w : WLS slope, then [1 2 1] along the component's own
+%                     direction (du/dx: along y and z; dv/dx: y; dw/dx: z)
+%   du/dy, du/dz    : central difference of the fitted u
+%   dv/dy           : central difference of the fitted v, [1 2 1] along z
+%   dw/dz           : central difference of the fitted w, [1 2 1] along y
+%   dv/dz, dw/dy    : unchanged (no smoothing across planes in Raffel)
+% Signed spacings, as in get_gradients.
+nx = size(out1.uRaw, 1);
+i0 = ceil(nx / 2);
+h = [out1.xRaw(2,1,1) - out1.xRaw(1,1,1), ...
+     out1.yRaw(1,2,1) - out1.yRaw(1,1,1), ...
+     out1.zRaw(1,1,2) - out1.zRaw(1,1,1)];
+
+comps = ["u", "v", "w"];
+uncs = {out1.uncURaw, out1.uncVRaw, out1.uncWRaw};
+for c = 1:3
+    sig = select_wls_planes(plane_sigma(uncs{c}), wlsPlanes);
+    [f0, dfdx] = slab_poly_fit(out1.(char(comps(c) + "Raw")), sig, h(1), 2, i0);
+    % columns with < 3 usable planes come back NaN; fill like the velocities
+    f0 = fill3D(f0);            % [ny nz]: dim 1 = y, dim 2 = z
+    dfdx = fill3D(dfdx);
+    sz = [1, size(f0)];
+
+    % x-derivative: WLS slope with the Raffel transverse smoothing
+    if c == 1
+        dfdx = smooth121(smooth121(dfdx, 1), 2);
+    else
+        dfdx = smooth121(dfdx, c - 1);
+    end
+    name = char("d" + comps(c) + "dx");
+    out1.(name)(i0, :, :) = reshape(dfdx, sz);
+
+    dfdy = central_diff_2nd(f0, h(2), 1);
+    dfdz = central_diff_2nd(f0, h(3), 2);
+    switch c
+        case 1
+            out1.dudy(i0, :, :) = reshape(dfdy, sz);
+            out1.dudz(i0, :, :) = reshape(dfdz, sz);
+        case 2
+            out1.dvdy(i0, :, :) = reshape(smooth121(dfdy, 2), sz);
+        case 3
+            out1.dwdz(i0, :, :) = reshape(smooth121(dfdz, 1), sz);
+    end
+end
+end
+
+function sig = select_wls_planes(sig, wlsPlanes)
+% Planes not listed in wlsPlanes get NaN sigma, i.e. no weight in the fit.
+if ~isempty(wlsPlanes)
+    sig(setdiff(1:numel(sig), wlsPlanes)) = NaN;
+end
+end
+
+function [vortY, vortZ] = slab_wls_centre_plane(out1, wlsPlanes)
+% Replace omega_y and omega_z on the centre plane (the plane trim_vel_field
+% uses) with the WLS slab fit. Planes are weighted by 1/sigma^2, where sigma
+% is the median DaVis per-vector uncertainty of that plane in this frame,
+% so poorly lit / out-of-focus edge planes count less. Empty bins (NaN
+% velocity) get zero weight instead of being hole-filled first. The other
+% planes keep the 3-point stencil values from calculateVorticity.
+% wlsPlanes (optional) restricts the fit to those planes.
+if nargin < 2, wlsPlanes = []; end
+vortY = out1.vortYRaw;
+vortZ = out1.vortZRaw;
+nx = size(out1.uRaw, 1);
+i0 = ceil(nx / 2);
+
+opts = struct('order', 2, 'i0', i0);
+[wy, wz] = vorticity_slab_wls(out1.xRaw, out1.yRaw, out1.zRaw, ...
+    out1.uRaw, out1.vRaw, out1.wRaw, ...
+    select_wls_planes(plane_sigma(out1.uncURaw), wlsPlanes), ...
+    select_wls_planes(plane_sigma(out1.uncVRaw), wlsPlanes), ...
+    select_wls_planes(plane_sigma(out1.uncWRaw), wlsPlanes), opts);
+
+% columns with < 3 usable planes come back NaN; fill like the velocities
+vortY(i0, :, :) = reshape(fill3D(wy), [1, size(wy)]);
+vortZ(i0, :, :) = reshape(fill3D(wz), [1, size(wz)]);
+end
+
+function s = plane_sigma(unc)
+% One uncertainty per plane: median of the valid per-vector values. Only
+% the relative size between planes matters for the weights, so DaVis'
+% uncertainty scaling does not need to match the velocity scaling here.
+% No uncertainty at all (VIC-processed data): equal weights.
+nx = size(unc, 1);
+unc(~isfinite(unc) | unc <= 0) = NaN;     % DaVis stores empty bins as 0
+s = median(reshape(unc, nx, []), 2, "omitnan");
+if all(isnan(s))
+    s = ones(nx, 1);
+end
+end
+
+function A = smooth121(A, dim)
+    % [1 2 1]/4 smoothing along dim, edge values replicated
+    n = size(A, dim);
+    if n < 2, return; end
+    idx = repmat({':'}, 1, ndims(A));
+    lo = idx; lo{dim} = [1, 1:n-1];
+    hi = idx; hi{dim} = [2:n, n];
+    A = (A(lo{:}) + 2*A + A(hi{:})) / 4;
 end
 
 function dudx = central_diff_4th_3D(x, u)
@@ -667,10 +897,54 @@ function dudx = central_diff_4th_3D(x, u)
     end
 end
 
-function [dudx, dudy, dudz] = get_gradients(x, y, z, u)
-    u = zeroToMedian(u);
+function [dudx, dudy, dudz] = get_gradients(x, y, z, u, gradMethod, comp)
+    % Gradient of one velocity component u (comp = 1, 2, 3 for u, v, w).
+    % empty bins are NaN at this point (see emptyBins above); interpolate
+    % across them, consistent with calculateVorticity
+    if nargin < 5, gradMethod = "raffel"; end
+    u = fill3D(u);
 
-    dudx = central_diff_4th_3D(squeeze(x(:,1,1)), u);
-    dudy = central_diff_4th_3D(squeeze(y(1,:,1)), u);
-    dudz = central_diff_4th_3D(squeeze(z(1,1,:)), u);
+    if gradMethod == "raffel"
+        % Raffel stencil as in calculateVorticity: 2nd-order central
+        % difference, then [1 2 1]/4 smoothing across it. Off-diagonal
+        % terms (d of component comp along another direction) are smoothed
+        % along the component's own direction, exactly as they enter the
+        % vorticity (e.g. dv/dx along y, du/dy along x). Diagonal terms
+        % (du/dx, dv/dy, dw/dz) are smoothed along both other directions
+        % (3-D Sobel). Signed spacing: derivatives w.r.t. the coordinate.
+        h = [x(2,1,1) - x(1,1,1), y(1,2,1) - y(1,1,1), z(1,1,2) - z(1,1,1)];
+        g = cell(1, 3);
+        for dim = 1:3
+            g{dim} = central_diff_2nd(u, h(dim), dim);
+            if dim == comp
+                sm = setdiff(1:3, dim);
+            else
+                sm = comp;
+            end
+            for s = sm
+                g{dim} = smooth121(g{dim}, s);
+            end
+        end
+        [dudx, dudy, dudz] = g{:};
+        return
+    end
+
+    if gradMethod == "central"
+        % 2nd-order central differences (one-sided at the edges), signed
+        % spacing so these are derivatives with respect to the coordinate
+        dudx = central_diff_2nd(u, x(2,1,1) - x(1,1,1), 1);
+        dudy = central_diff_2nd(u, y(1,2,1) - y(1,1,1), 2);
+        dudz = central_diff_2nd(u, z(1,1,2) - z(1,1,1), 3);
+        return
+    end
+
+    % gradMethod == "4th": 5-point 4th-order stencil
+
+    % Coordinate vectors are passed WITHOUT squeeze so each keeps its
+    % orientation (central_diff_4th_3D finds the dimension from it).
+    % squeeze(z(1,1,:)) is a column, which made dudz a derivative along x
+    % (scaled by the z spacing), NaN on all but the centre x plane.
+    dudx = central_diff_4th_3D(x(:,1,1), u);
+    dudy = central_diff_4th_3D(y(1,:,1), u);
+    dudz = central_diff_4th_3D(z(1,1,:), u);
 end
