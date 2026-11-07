@@ -5,8 +5,9 @@
 % wingbeat amplitude, from the processed load cell files of each session.
 %
 % Each case (amplitude, frequency) is measured several times so thermal
-% drift can settle; only the repeat with the latest timestamp is used
-% (the same choice get_force makes for the UIs).
+% drift can settle; one repeat per case is used, chosen per amplitude with
+% repeat_sel below (default: the latest timestamp, as get_force uses for
+% the UIs).
 %
 % Plotted value: mean of results_lab over the analysed wingbeats (the
 % time average doesn't depend on the low-pass filter). Error bars for
@@ -31,12 +32,19 @@ sessions = [
 sessions = find_lc_sessions(sessions);
 AoA = 10; % deg, only files at this AoA are used
 
+% Which repeat of each case to use, one entry per wingbeat amplitude in
+% ascending order (e.g. [10 20 30] deg): 0 = latest timestamp, -1 = second
+% to last, -2 = third to last, ... [] uses the latest for every amplitude.
+% The same choice applies at every frequency of that amplitude; a case
+% with fewer repeats than asked falls back on its earliest one.
+% e.g. [-1 0 0]: second to last repeat for 10 deg, latest for 20 and 30 deg
+repeat_sel = [0 0 0];
+
 % lab frame rows: [drag; side; lift; roll; pitch; yaw]
 comps = struct('row', {3, 1}, 'name', {"Lift", "Drag"});
 
-% ---- collect the latest repeat of each (amplitude, frequency) case ----
-% one entry per case: amp, freq, time stamp, mean loads, std across wingbeats
-cases = struct('amp', {}, 'freq', {}, 'ts', {}, 'sess', {}, 'mean', {}, 'std', {});
+% ---- list the processed files of every session ----
+files = struct('folder', {}, 'name', {}, 'sess', {}, 'amp', {}, 'freq', {}, 't', {});
 for s = 1:length(sessions)
     processed_dir = fullfile(sessions(s), "processed data");
     pfiles = dir(fullfile(processed_dir, "*.mat"));
@@ -44,43 +52,60 @@ for s = 1:length(sessions)
         fprintf("No processed files in %s\n", processed_dir)
         continue
     end
-
-    % parse every processed file name
-    amp = NaN(1, numel(pfiles)); freq = NaN(1, numel(pfiles));
-    aoa = NaN(1, numel(pfiles)); t = NaT(1, numel(pfiles));
     for k = 1:numel(pfiles)
         name = string(pfiles(k).name);
         tt = regexp(name, "(\d{4}_\d{2}_\d{2}_\d{2}_\d{2}_\d{2})\.mat$", 'tokens', 'once');
         if isempty(tt), continue, end
-        [~, ~, ~, freq(k), aoa(k), ~, amp(k), ~] = parse_filename(name);
-        t(k) = timeStr2num(tt{1});
-    end
-    keep = aoa == AoA & ~isnat(t) & freq >= 0 & amp >= 0;
-
-    % latest timestamp for each (amp, freq)
-    combos = unique([amp(keep)' freq(keep)'], 'rows');
-    for c = 1:size(combos, 1)
-        idx = find(keep & amp == combos(c, 1) & freq == combos(c, 2));
-        [~, i] = max(t(idx));
-        k = idx(i);
-        f = fullfile(pfiles(k).folder, pfiles(k).name);
-        fprintf("%s: %g deg, %g Hz -> %s (latest of %d)\n", lc_session_label(sessions(s)),...
-            combos(c, 1), combos(c, 2), pfiles(k).name, numel(idx))
-
-        if freq(k) > 0
-            d = load(f, "results_lab", "cycle_avg_forces_raw");
-            sd = std(d.cycle_avg_forces_raw(1:6, :), 0, 2);
-        else
-            d = load(f, "results_lab");
-            sd = NaN(6, 1);
-        end
-        cases(end+1) = struct('amp', amp(k), 'freq', freq(k),...
-            'ts', string(t(k), "yyyy_MM_dd HH:mm:ss"), 'sess', lc_session_label(sessions(s)),...
-            'mean', mean(d.results_lab(1:6, :), 2), 'std', sd); %#ok<SAGROW>
+        [~, ~, ~, fr, aoa, ~, am, ~] = parse_filename(name);
+        if aoa ~= AoA || fr < 0 || am < 0, continue, end
+        files(end+1) = struct('folder', string(pfiles(k).folder), 'name', name,...
+            'sess', lc_session_label(sessions(s)), 'amp', am, 'freq', fr,...
+            't', timeStr2num(tt{1})); %#ok<SAGROW>
     end
 end
-if isempty(cases)
+if isempty(files)
     error("No processed files at " + AoA + " deg found in the listed sessions")
+end
+
+amps = unique([files.amp]);
+if isempty(repeat_sel)
+    repeat_sel = zeros(1, numel(amps));
+elseif numel(repeat_sel) ~= numel(amps)
+    error("repeat_sel has %d entries but %d amplitudes were found (%s deg)",...
+        numel(repeat_sel), numel(amps), strjoin(string(amps), ", "))
+elseif any(repeat_sel > 0 | repeat_sel ~= round(repeat_sel))
+    error("repeat_sel entries must be 0 (latest) or negative integers")
+end
+
+% ---- pick the selected repeat of each (amplitude, frequency) case ----
+% one entry per case: amp, freq, time stamp, mean loads, std across wingbeats
+cases = struct('amp', {}, 'freq', {}, 'ts', {}, 'sess', {}, 'mean', {}, 'std', {});
+combos = unique([[files.amp]' [files.freq]'], 'rows');
+for c = 1:size(combos, 1)
+    idx = find([files.amp] == combos(c, 1) & [files.freq] == combos(c, 2));
+    [~, o] = sort([files(idx).t], 'descend'); % latest first
+    idx = idx(o);
+    back = -repeat_sel(amps == combos(c, 1)); % 0 = latest, 1 = second to last, ...
+    if back + 1 > numel(idx)
+        warning("%g deg, %g Hz has only %d repeat(s); using the earliest instead of %d back",...
+            combos(c, 1), combos(c, 2), numel(idx), back)
+        back = numel(idx) - 1;
+    end
+    file = files(idx(back + 1));
+    f = fullfile(file.folder, file.name);
+    fprintf("%s: %g deg, %g Hz -> %s (repeat %d of %d, %d back from latest)\n", file.sess,...
+        combos(c, 1), combos(c, 2), file.name, numel(idx) - back, numel(idx), back)
+
+    if file.freq > 0
+        d = load(f, "results_lab", "cycle_avg_forces_raw");
+        sd = std(d.cycle_avg_forces_raw(1:6, :), 0, 2);
+    else
+        d = load(f, "results_lab");
+        sd = NaN(6, 1);
+    end
+    cases(end+1) = struct('amp', file.amp, 'freq', file.freq,...
+        'ts', string(file.t, "yyyy_MM_dd HH:mm:ss"), 'sess', file.sess,...
+        'mean', mean(d.results_lab(1:6, :), 2), 'std', sd); %#ok<SAGROW>
 end
 
 % ---- printout ----
@@ -111,7 +136,9 @@ for c = 1:numel(comps)
     end
     xlabel(ax, "Wingbeat frequency (Hz)")
     ylabel(ax, "Time-averaged " + lower(comps(c).name) + " (N)")
-    title(ax, comps(c).name + ", " + AoA + " deg AoA, latest repeat of each case (error bars: std across wingbeats)",...
+    sel_str = strjoin(amps + " deg: " + string(repeat_sel), ", ");
+    title(ax, comps(c).name + ", " + AoA + " deg AoA, repeats (0 = latest) " + sel_str + ...
+        " (error bars: std across wingbeats)",...
         FontWeight="normal")
     yl = yline(ax, 0, "k");
     yl.HandleVisibility = "off";
