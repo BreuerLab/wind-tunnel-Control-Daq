@@ -44,7 +44,7 @@ vert_num = 1000;
 
 w_r = 39; % mm
 w_L = 177; % mm
-phi = 21.3; % deg
+phi = 30; % deg
 
 p_y = d + L/2;
 p_x = h_off;

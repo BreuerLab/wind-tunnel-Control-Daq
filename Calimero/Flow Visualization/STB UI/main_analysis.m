@@ -18,8 +18,8 @@ data_file_path = ["F:\", "C:\Users\rgissler\Documents\STB Round 1\"];
 % data_file_path = "R:\ENG_Breuer_Shared\group\Wind turbine\Turbine_STB\Turbine_STB_02_17_2026\Processed Data\";
 
 % GUI for plotting vector fields and wake topology
-% a = flowField_UI(data_file_path);
-% a.dynamic_plotting();
+a = flowField_UI(data_file_path);
+a.dynamic_plotting();
 
 % GUI for plotting instantaneous vector fields before phase averaging
 % b = flowFieldInst_UI(data_file_path);
@@ -30,8 +30,8 @@ data_file_path = ["F:\", "C:\Users\rgissler\Documents\STB Round 1\"];
 % c.dynamic_plotting();
 
 % % GUI for plotting time averaged quantities
-d = timeAvg_UI(data_file_path);
-d.dynamic_plotting();
+% d = timeAvg_UI(data_file_path);
+% d.dynamic_plotting();
 
 % ----------------------------------------------
 % Diagnostic recommendations from Claude
