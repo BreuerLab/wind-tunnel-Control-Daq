@@ -299,6 +299,15 @@ classdef timeAvg_UI < handle
             obj.var_categories(end+1:length(obj.var_names)) = "";
             obj.var_categories(startsWith(obj.var_names, "LC_")) = "load cell";
             obj.var_categories(obj.var_categories == "") = "flow";
+            % list the planar vorticity averages right after avg u / v / w
+            vort_avg_idx = find(ismember(obj.var_names, ["vortX_avg", "vortY_avg", "vortZ_avg"]));
+            other_idx = setdiff(1:numel(obj.var_names), vort_avg_idx, 'stable');
+            w_pos = find(obj.var_names(other_idx) == "w_avg", 1);
+            order = [other_idx(1:w_pos), vort_avg_idx, other_idx(w_pos+1:end)];
+            obj.box_labels = obj.box_labels(order);
+            obj.var_names = obj.var_names(order);
+            obj.y_labels = obj.y_labels(order);
+            obj.var_categories = obj.var_categories(order);
             obj.var_type = obj.get_var_category(obj.var_names(1));
             obj.PIV_sub = false;
             obj.PIV_sub_case = "ring";
