@@ -238,6 +238,7 @@ end
 S.vortX_avg = squeeze(mean(T.vortX, [1, 2]));
 S.vortY_avg = squeeze(mean(T.vortY, [1, 2]));
 S.vortZ_avg = squeeze(mean(T.vortZ, [1, 2]));
+S.vortTot_avg = squeeze(mean(T.vortTot, [1, 2])); % vorticity magnitude
 if has_uavg
     S.vortX_uavg_avg = squeeze(mean(T.vortX_uavg, [1, 2]));
     S.vortY_uavg_avg = squeeze(mean(T.vortY_uavg, [1, 2]));

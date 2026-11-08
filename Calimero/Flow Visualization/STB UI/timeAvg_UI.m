@@ -222,7 +222,7 @@ classdef timeAvg_UI < handle
                 "lift vel (extrap)", "drag vel (extrap)", "lift vel (extrap fill)", "drag vel (extrap fill)",...
                 "divergence",...
                 "lift vortY (frozen flow)", "lift vortY (edge, frozen flow)",...
-                "avg wx", "avg wy", "avg wz"];
+                "avg wx", "avg wy", "avg wz", "avg tot w"];
             obj.var_names = [obj.var_names, "lift_uavg.vortX", "drag_uavg.tot",...
                 "wx_y", "wx_z", "Qx_y", "Qx_z",...
                 "Qxcomp_y", "Qxcomp_z",... % Q_x (not Q) centroid
@@ -233,7 +233,8 @@ classdef timeAvg_UI < handle
                 "lift_vel_B", "drag_vel_B", "lift_vel_B_fill", "drag_vel_B_fill",...
                 "div_avg",... % planar average of du/dx + dv/dy + dw/dz
                 "lift_ff.vortY", "lift_ff.vortY_edge",... % omega_y from the frozen-flow d/dx
-                "vortX_avg", "vortY_avg", "vortZ_avg"]; % planar averages of the vorticity components
+                "vortX_avg", "vortY_avg", "vortZ_avg",... % planar averages of the vorticity components
+                "vortTot_avg"]; % and of the vorticity magnitude
             obj.y_labels = [obj.y_labels, "Lift (N)", "Drag (N)",...
                 "$\omega_x$ centroid $y/L$", "$\omega_x$ centroid $z/L$",...
                 "Q centroid $y/L$", "Q centroid $z/L$",...
@@ -245,7 +246,8 @@ classdef timeAvg_UI < handle
                 "$\overline{\nabla \cdot \mathbf{u}} \; c / U_{\infty}$",...
                 "Lift (N)", "Lift (N)",...
                 "$\overline{\omega_x} \; c / U_{\infty}$", "$\overline{\omega_y} \; c / U_{\infty}$",...
-                "$\overline{\omega_z} \; c / U_{\infty}$"];
+                "$\overline{\omega_z} \; c / U_{\infty}$",...
+                "$\overline{|\omega|} \; c / U_{\infty}$"];
 
             % Category of each variable, matching the Variable Type dropdown
             % (same groups as phaseAvg_UI)
@@ -300,7 +302,8 @@ classdef timeAvg_UI < handle
             obj.var_categories(startsWith(obj.var_names, "LC_")) = "load cell";
             obj.var_categories(obj.var_categories == "") = "flow";
             % list the planar vorticity averages right after avg u / v / w
-            vort_avg_idx = find(ismember(obj.var_names, ["vortX_avg", "vortY_avg", "vortZ_avg"]));
+            vort_avg_idx = [find(ismember(obj.var_names, ["vortX_avg", "vortY_avg", "vortZ_avg"])),...
+                find(obj.var_names == "vortTot_avg")];
             other_idx = setdiff(1:numel(obj.var_names), vort_avg_idx, 'stable');
             w_pos = find(obj.var_names(other_idx) == "w_avg", 1);
             order = [other_idx(1:w_pos), vort_avg_idx, other_idx(w_pos+1:end)];
@@ -2330,13 +2333,13 @@ classdef timeAvg_UI < handle
                             bod_case = obj.get_PIV_sub_case(type, amp);
                             var = var - get_Q_centroid(bod_case, bod_case, force_var, obj.get_Q_centroid_bounds());
                         end
-                    elseif obj.is_live_planar_avg(force_var)
+                    elseif obj.is_live_planar_avg(force_var, case_files)
                         % planar velocity / vorticity average with the
                         % Live Calc bounds, uncertainty mask and Crop Box
-                        var = get_planar_avg(case_files, force_var, obj.trim_bounds);
+                        var = get_planar_avg(case_files, force_var, obj.get_planar_avg_bounds());
                         if obj.PIV_sub
                             bod_case = obj.get_PIV_sub_case(type, amp);
-                            var = var - get_planar_avg(bod_case, force_var, obj.trim_bounds);
+                            var = var - get_planar_avg(bod_case, force_var, obj.get_planar_avg_bounds());
                         end
                     elseif (obj.calc_bool && obj.is_piv_force_variable(force_var)) || obj.is_tavg_force_var(force_var) ||...
                             obj.needs_live_ff(force_var, case_files)
@@ -2754,8 +2757,8 @@ classdef timeAvg_UI < handle
                 return
             elseif obj.is_live_Q_centroid(force_var, case_files)
                 var = get_Q_centroid(case_files, case_files, force_var, obj.get_Q_centroid_bounds());
-            elseif obj.is_live_planar_avg(force_var)
-                var = get_planar_avg(case_files, force_var, obj.trim_bounds);
+            elseif obj.is_live_planar_avg(force_var, case_files)
+                var = get_planar_avg(case_files, force_var, obj.get_planar_avg_bounds());
             elseif (obj.calc_bool && obj.is_piv_force_variable(force_var)) || obj.is_tavg_force_var(force_var) ||...
                     obj.needs_live_ff(force_var, case_files)
                 var = get_PIV_force(case_files, name, force_var, 1, obj.y_norm, obj.trim_bounds);
@@ -3078,10 +3081,31 @@ classdef timeAvg_UI < handle
         % Planar velocity and vorticity averages (avg u / v / w, avg wx /
         % wy / wz): with Live Calc on, recomputed with its bounds,
         % uncertainty mask and Crop Box (get_planar_avg); otherwise the
-        % stored, unmasked values
-        function tf = is_live_planar_avg(obj, force_var)
-            tf = obj.calc_bool && ismember(string(force_var), ...
-                ["u_avg", "v_avg", "w_avg", "vortX_avg", "vortY_avg", "vortZ_avg"]);
+        % stored, unmasked values. avg tot w (vortTot_avg, the plane average
+        % of the vorticity magnitude) is only saved by newer processing, so
+        % without it it is always computed (unmasked unless Live Calc).
+        function tf = is_live_planar_avg(obj, force_var, case_files)
+            force_var = string(force_var);
+            tf = false;
+            if ~ismember(force_var, ["u_avg", "v_avg", "w_avg", "vortX_avg", "vortY_avg", "vortZ_avg", "vortTot_avg"])
+                return
+            end
+            tf = obj.calc_bool || (force_var == "vortTot_avg" && ~stb_has_var(case_files, force_var));
+        end
+
+        % Bounds for get_planar_avg: Live Calc's, or, with it off, those of
+        % the stored planar averages (default trim, no uncertainty mask or
+        % Crop Box)
+        function bounds = get_planar_avg_bounds(obj)
+            if obj.calc_bool
+                bounds = obj.trim_bounds;
+            else
+                bounds = default_trim_bounds();
+                bounds.unc_mask = 0;
+                if isfield(bounds, 'crop_box')
+                    bounds = rmfield(bounds, 'crop_box');
+                end
+            end
         end
 
         function bounds = get_Q_centroid_bounds(obj)

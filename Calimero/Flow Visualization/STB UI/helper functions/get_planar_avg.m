@@ -1,15 +1,17 @@
 function avg = get_planar_avg(file_name, var_name, bounds)
 % GET_PLANAR_AVG Live calculation of the planar average of a velocity or
 % vorticity component (u_avg, v_avg, w_avg, vortX_avg, vortY_avg,
-% vortZ_avg) with the trim bounds, uncertainty mask and Crop Box in bounds.
+% vortZ_avg) or of the vorticity magnitude (vortTot_avg, from mean_vortTot
+% / vortTot_phase_avg) with the trim bounds, uncertainty mask and Crop Box
+% in bounds.
 %
 %   avg = get_planar_avg(file_name, var_name, bounds)
 %
 %   file_name - averaged file (_time_avg.mat / _phase_avg.mat): y, z, the
 %               field (mean_u / u_phase_avg, mean_vortX / vortX_phase_avg,
 %               ...) and the total uncertainty
-%   var_name  - "u_avg", "v_avg", "w_avg", "vortX_avg", "vortY_avg" or
-%               "vortZ_avg"
+%   var_name  - "u_avg", "v_avg", "w_avg", "vortX_avg", "vortY_avg",
+%               "vortZ_avg" or "vortTot_avg"
 %   bounds    - trim limits, centre point, uncertainty mask and Crop Box
 %               (default_trim_bounds / timeAvg_UI Live Calc Bounds)
 %
@@ -23,11 +25,11 @@ function avg = get_planar_avg(file_name, var_name, bounds)
 %   holes (NaN) are left out of the average.
 
 var_name = string(var_name);
-comps = ["u_avg", "v_avg", "w_avg", "vortX_avg", "vortY_avg", "vortZ_avg"];
+comps = ["u_avg", "v_avg", "w_avg", "vortX_avg", "vortY_avg", "vortZ_avg", "vortTot_avg"];
 if ~ismember(var_name, comps)
     error("get_planar_avg: var_name must be one of %s", strjoin(comps, ", "))
 end
-comp = extractBefore(var_name, "_avg"); % u, v, w, vortX, vortY, vortZ
+comp = extractBefore(var_name, "_avg"); % u, v, w, vortX, vortY, vortZ, vortTot
 % value of a masked (freestream) point
 masked_value = 0;
 if comp == "u"
