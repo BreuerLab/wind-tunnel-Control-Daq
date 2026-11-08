@@ -1,14 +1,15 @@
-function avg = get_vort_avg(file_name, var_name, bounds)
-% GET_VORT_AVG Live calculation of the planar average of a vorticity
-% component (vortX_avg, vortY_avg, vortZ_avg) with the trim bounds,
-% uncertainty mask and Crop Box in bounds.
+function avg = get_planar_avg(file_name, var_name, bounds)
+% GET_PLANAR_AVG Live calculation of the planar average of a velocity or
+% vorticity component (u_avg, v_avg, w_avg, vortX_avg, vortY_avg,
+% vortZ_avg) with the trim bounds, uncertainty mask and Crop Box in bounds.
 %
-%   avg = get_vort_avg(file_name, var_name, bounds)
+%   avg = get_planar_avg(file_name, var_name, bounds)
 %
 %   file_name - averaged file (_time_avg.mat / _phase_avg.mat): y, z, the
-%               vorticity (mean_vortX / vortX_phase_avg, ...) and the
-%               total uncertainty
-%   var_name  - "vortX_avg", "vortY_avg" or "vortZ_avg"
+%               field (mean_u / u_phase_avg, mean_vortX / vortX_phase_avg,
+%               ...) and the total uncertainty
+%   var_name  - "u_avg", "v_avg", "w_avg", "vortX_avg", "vortY_avg" or
+%               "vortZ_avg"
 %   bounds    - trim limits, centre point, uncertainty mask and Crop Box
 %               (default_trim_bounds / timeAvg_UI Live Calc Bounds)
 %
@@ -16,27 +17,33 @@ function avg = get_vort_avg(file_name, var_name, bounds)
 %   recentred centre plane, one value per phase bin). Points removed by
 %   the uncertainty mask (unc_mask_region, same threshold and mode as the
 %   forces) or inside the Crop Box (crop_box_region) are treated as
-%   undisturbed freestream, as for the forces: zero vorticity, still part
-%   of the plane the average is taken over. Remaining holes (NaN) are left
-%   out of the average.
+%   undisturbed freestream, as for the forces (apply_unc_mask): u = -1
+%   (x points upstream, nondimensional), v = w = 0, zero vorticity; they
+%   are still part of the plane the average is taken over. Remaining
+%   holes (NaN) are left out of the average.
 
 var_name = string(var_name);
-comps = ["vortX_avg", "vortY_avg", "vortZ_avg"];
+comps = ["u_avg", "v_avg", "w_avg", "vortX_avg", "vortY_avg", "vortZ_avg"];
 if ~ismember(var_name, comps)
-    error("get_vort_avg: var_name must be vortX_avg, vortY_avg or vortZ_avg")
+    error("get_planar_avg: var_name must be one of %s", strjoin(comps, ", "))
 end
-comp = extractBefore(var_name, "_avg"); % vortX, vortY, vortZ
+comp = extractBefore(var_name, "_avg"); % u, v, w, vortX, vortY, vortZ
+% value of a masked (freestream) point
+masked_value = 0;
+if comp == "u"
+    masked_value = -1;
+end
 
 % old flapper cases use the bounds they were analysed with
 bounds = old_flapper_compat("trim_bounds_for", stb_name(file_name), bounds);
 
 file_vars = string(stb_who(file_name));
 if ismember("mean_" + comp, file_vars)
-    vort_name = "mean_" + comp;         % time average
+    field_name = "mean_" + comp;         % time average
 elseif ismember(comp + "_phase_avg", file_vars)
-    vort_name = comp + "_phase_avg";    % phase average
+    field_name = comp + "_phase_avg";    % phase average
 else
-    error("get_vort_avg: no %s in %s", comp, stb_name(file_name))
+    error("get_planar_avg: no %s in %s", comp, stb_name(file_name))
 end
 if ismember("mean_uncTot", file_vars)
     unc_name = "mean_uncTot";
@@ -45,11 +52,11 @@ elseif ismember("uncTot_phase_avg", file_vars)
 else
     unc_name = "";
 end
-load_vars = {'y', 'z', char(vort_name)};
+load_vars = {'y', 'z', char(field_name)};
 if unc_name ~= "", load_vars{end+1} = char(unc_name); end
 d = stb_load(file_name, load_vars{:});
 
-[y_tr, z_tr, vort_tr] = trim_vel_field(d.y, d.z, d.(vort_name), bounds);
+[y_tr, z_tr, field_tr] = trim_vel_field(d.y, d.z, d.(field_name), bounds);
 
 thresh = [];
 mode = "threshold";
@@ -70,8 +77,8 @@ if ~isempty(crop)
     end
 end
 if ~isempty(mask)
-    vort_tr(repmat(mask, 1, 1, size(vort_tr, 3))) = 0;
+    field_tr(repmat(mask, 1, 1, size(field_tr, 3))) = masked_value;
 end
 
-avg = squeeze(mean(vort_tr, [1, 2], "omitnan"));
+avg = squeeze(mean(field_tr, [1, 2], "omitnan"));
 end

@@ -2330,13 +2330,13 @@ classdef timeAvg_UI < handle
                             bod_case = obj.get_PIV_sub_case(type, amp);
                             var = var - get_Q_centroid(bod_case, bod_case, force_var, obj.get_Q_centroid_bounds());
                         end
-                    elseif obj.is_live_vort_avg(force_var)
-                        % planar vorticity average with the Live Calc
-                        % bounds, uncertainty mask and Crop Box
-                        var = get_vort_avg(case_files, force_var, obj.trim_bounds);
+                    elseif obj.is_live_planar_avg(force_var)
+                        % planar velocity / vorticity average with the
+                        % Live Calc bounds, uncertainty mask and Crop Box
+                        var = get_planar_avg(case_files, force_var, obj.trim_bounds);
                         if obj.PIV_sub
                             bod_case = obj.get_PIV_sub_case(type, amp);
-                            var = var - get_vort_avg(bod_case, force_var, obj.trim_bounds);
+                            var = var - get_planar_avg(bod_case, force_var, obj.trim_bounds);
                         end
                     elseif (obj.calc_bool && obj.is_piv_force_variable(force_var)) || obj.is_tavg_force_var(force_var) ||...
                             obj.needs_live_ff(force_var, case_files)
@@ -2754,8 +2754,8 @@ classdef timeAvg_UI < handle
                 return
             elseif obj.is_live_Q_centroid(force_var, case_files)
                 var = get_Q_centroid(case_files, case_files, force_var, obj.get_Q_centroid_bounds());
-            elseif obj.is_live_vort_avg(force_var)
-                var = get_vort_avg(case_files, force_var, obj.trim_bounds);
+            elseif obj.is_live_planar_avg(force_var)
+                var = get_planar_avg(case_files, force_var, obj.trim_bounds);
             elseif (obj.calc_bool && obj.is_piv_force_variable(force_var)) || obj.is_tavg_force_var(force_var) ||...
                     obj.needs_live_ff(force_var, case_files)
                 var = get_PIV_force(case_files, name, force_var, 1, obj.y_norm, obj.trim_bounds);
@@ -3075,11 +3075,13 @@ classdef timeAvg_UI < handle
             tf = obj.calc_bool || ~stb_has_var(case_files, force_var);
         end
 
-        % Planar vorticity averages (avg wx / wy / wz): with Live Calc on,
-        % recomputed with its bounds, uncertainty mask and Crop Box
-        % (get_vort_avg); otherwise the stored, unmasked values
-        function tf = is_live_vort_avg(obj, force_var)
-            tf = obj.calc_bool && ismember(string(force_var), ["vortX_avg", "vortY_avg", "vortZ_avg"]);
+        % Planar velocity and vorticity averages (avg u / v / w, avg wx /
+        % wy / wz): with Live Calc on, recomputed with its bounds,
+        % uncertainty mask and Crop Box (get_planar_avg); otherwise the
+        % stored, unmasked values
+        function tf = is_live_planar_avg(obj, force_var)
+            tf = obj.calc_bool && ismember(string(force_var), ...
+                ["u_avg", "v_avg", "w_avg", "vortX_avg", "vortY_avg", "vortZ_avg"]);
         end
 
         function bounds = get_Q_centroid_bounds(obj)
