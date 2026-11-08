@@ -17,6 +17,13 @@ close all
 clear
 
 color_lim = 0.25;
+
+% Horizontal orientation of the 3rd plot (Field of View in PIV Plot).
+% true  -> x-axis reversed (original behaviour: section viewed from behind,
+%          as the PIV cameras see it)
+% false -> same orientation as plots 1, 2 and 4 (section viewed from the
+%          opposite side)
+flip_PIV_plot = true;
 I0 = 1; % normalized units
 % bw = 3.427; % mm, reported as 1/4 inch (6.35 mm) but effective diameter 86.5% listed in test at 3.4 mm
 % bw = 3.875; % commented out on 09/08/2026
@@ -264,8 +271,13 @@ axis equal
 padding = 100;
 xlim([-wt_dim/2 + h_off - padding wt_dim/2 + h_off + padding])
 ylim([vert_off - padding wt_dim + vert_off + padding])
-set(gca, 'XDir', 'reverse'); % flip axis since PIV is from behind
-title('Light Intensity in Wind Tunnel')
+if flip_PIV_plot
+    set(gca, 'XDir', 'reverse'); % flip axis since PIV is from behind
+    title({'Light Intensity in Wind Tunnel', '(flipped: viewed from behind)'})
+else
+    set(gca, 'XDir', 'normal');
+    title({'Light Intensity in Wind Tunnel', '(unflipped: same view as other plots)'})
+end
 
 % ----------------------------------------------------------------------
 % --------------------------Field of View Plot--------------------------
