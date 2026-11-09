@@ -20,11 +20,11 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 % any value. Uncomment the line below the filters to use them.
 positions = ["x3"];        % "x1"-"x5", "MPS", "UP_one", "UP_two", "" = old 0.9 m cases (no prefix)
 amps = [30];               % flapping amplitude (deg)
-freqs = [2 4];         % wingbeat frequency (Hz), 0 = gliding
+freqs = [6];         % wingbeat frequency (Hz), 0 = gliding
 sel_case_names = select_cases(get_PIV_paths(), positions, amps, freqs);
 % All cases found (every listed case and every September\<pos>\<case>
 % folder): set the three filters above to [] or uncomment this line
-% sel_case_names = get_PIV_paths();
+sel_case_names = get_PIV_paths();
 
 % Keep only flapping or only static cases from the selection above
 % (whichever way it was made):
@@ -37,7 +37,7 @@ sel_case_names = select_cases(get_PIV_paths(), positions, amps, freqs);
 % cases without an amplitude or frequency (ring, freestream, ...) only
 % pass empty amps / freqs filters above, e.g. for every static case:
 % positions = []; amps = []; freqs = []; motion = "static";
-motion = "flapping";
+motion = "static";
 
 % Number of images per case: "auto" counts the .vc7 files in each case's
 % data folder (get_PIV_paths) and uses that; a number uses it for every
@@ -48,7 +48,7 @@ num_images = "auto";
 % true: skip cases that already have a processed file (with the version,
 % HR and RPCA settings below) in save_filepath_local or its phase_avg\ /
 % time_avg\ subfolders
-skip_processed = false;
+skip_processed = true;
 
 % save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
 save_filepath_local = "F:\Processed Results\";

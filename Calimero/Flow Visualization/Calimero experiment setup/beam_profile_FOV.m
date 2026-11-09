@@ -23,7 +23,7 @@ color_lim = 0.25;
 %          as the PIV cameras see it)
 % false -> same orientation as plots 1, 2 and 4 (section viewed from the
 %          opposite side)
-flip_PIV_plot = true;
+flip_PIV_plot = false;
 I0 = 1; % normalized units
 % bw = 3.427; % mm, reported as 1/4 inch (6.35 mm) but effective diameter 86.5% listed in test at 3.4 mm
 % bw = 3.875; % commented out on 09/08/2026
