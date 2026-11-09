@@ -226,6 +226,8 @@ properties
     % available with conv_shift, since only then are all curves in the
     % robot's wing phase)
     label_stroke;
+    % boolean, draw markers on the curves ("Markers On"); off: lines only
+    markers_on;
     % with conv_shift, order of the strokes across the plotted wingbeat
     % (dropdown next to Convection Shift, see get_stroke_shift_frac):
     % "UDU" downstroke centred (no extra shift), "DUD" upstroke centred,
@@ -295,6 +297,7 @@ methods
         obj.conv_shift = false;
         obj.stroke_order = "UDU";
         obj.label_stroke = false;
+        obj.markers_on = true;
         obj.align_bool = false;
         obj.corr_bool = false;
         obj.separate_y_axis_bool = false;
@@ -358,7 +361,7 @@ methods
 
         sidebar_grid = uigridlayout(option_panel, [20, 1]);
         sidebar_grid.ColumnWidth = {'1x'};
-        sidebar_grid.RowHeight = {30, 30, 30, 30, 30, 30, 30, 110, 30, 346, 30, 0, 30, 30, 30, 30, 24, 30, 30, 30};
+        sidebar_grid.RowHeight = {30, 30, 30, 30, 30, 30, 30, 110, 30, 380, 30, 0, 30, 30, 30, 30, 24, 30, 30, 30};
         sidebar_grid.Padding = [10 10 10 10];
         sidebar_grid.RowSpacing = 6;
         if isprop(sidebar_grid, "Scrollable")
@@ -478,9 +481,9 @@ methods
         param_panel.Title = "Plot Parameters";
         param_panel.TitlePosition = 'centertop';
 
-        param_grid = uigridlayout(param_panel, [5, 1]);
+        param_grid = uigridlayout(param_panel, [6, 1]);
         param_grid.ColumnWidth = {'1x'};
-        param_grid.RowHeight = {175, 30, 25, 30, 30};
+        param_grid.RowHeight = {175, 30, 25, 30, 30, 30};
         param_grid.Padding = [10 8 10 8];
         param_grid.RowSpacing = 4;
 
@@ -593,6 +596,16 @@ methods
         label_stroke_button.BackgroundColor = obj.get_button_color(obj.label_stroke);
         label_stroke_button.Tooltip = "Mark stroke reversals (from the phase-averaged wing position) and label upstroke / downstroke. Requires Convection Shift";
         label_stroke_button.ValueChangedFcn = @(src, event) label_stroke_change(src, event, plot_panel);
+
+        markers_button = uibutton(param_grid, "state");
+        markers_button.Layout.Row = 6;
+        markers_button.Layout.Column = 1;
+        markers_button.Text = "Markers On";
+        markers_button.FontSize = 18;
+        markers_button.Value = obj.markers_on;
+        markers_button.BackgroundColor = obj.get_button_color(obj.markers_on);
+        markers_button.Tooltip = "Draw a marker at every point of the curves (several cases: the marker shows the variable). Off: lines only";
+        markers_button.ValueChangedFcn = @(src, event) markers_change(src, event, plot_panel);
 
         for var_dropdown = var_dropdowns
             var_dropdown.ValueChangedFcn = @(src, event) updateVariableSelection(src, event, plot_panel, var_dropdowns);
@@ -866,6 +879,12 @@ methods
                 obj.stroke_order = "UDU";
                 src.Value = obj.stroke_order;
             end
+            obj.update_plot(plot_panel);
+        end
+
+        function markers_change(src, ~, plot_panel)
+            obj.markers_on = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.markers_on);
             obj.update_plot(plot_panel);
         end
 
@@ -3090,8 +3109,9 @@ methods (Access = private)
         [amp, type, freq] = parse_name(cur_sel);
         % Get color for this case name
         original_color = obj.get_curve_color(cur_sel, color_params, index);
-        % markers tell variables apart only when several cases are plotted
-        use_markers = ~(isfield(color_params, 'single_case') && color_params.single_case);
+        % markers tell variables apart only when several cases are plotted,
+        % and only with Markers On
+        use_markers = obj.markers_on && ~(isfield(color_params, 'single_case') && color_params.single_case);
 
         if dual_plot
             if has_y_axis
