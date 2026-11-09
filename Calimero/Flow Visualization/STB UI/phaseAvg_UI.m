@@ -174,11 +174,16 @@ properties
     lc_y_labels = ["Drag (N)", "Lift (N)", "Pitch Moment (N m)",...
         "Voltage (V)", "Current (mA)", "Power (mW)"];
 
-    load_cell_types = ["no filter", "fc = 10*fw", "fc = 5*fw", "fc = 2*fw"];
+    % "fc = 10*fw + notch": the fc = 10*fw data with the wing resonance
+    % band(s) removed (filtered_data_notch in process_trial; only in files
+    % processed since it was added, older files print "not saved")
+    load_cell_types = ["no filter", "fc = 10*fw", "fc = 5*fw", "fc = 2*fw",...
+                     "fc = 10*fw + notch"];
     load_cell_names = ["wingbeat_avg_forces_raw",...
                      "wingbeat_avg_forces",...
                      "wingbeat_avg_forces_smoother",...
-                     "wingbeat_avg_forces_smoothest"];
+                     "wingbeat_avg_forces_smoothest",...
+                     "wingbeat_avg_forces_notch"];
     load_cell_dict;
 
 
@@ -625,7 +630,7 @@ methods
         force_data_dropdown.Layout.Row = 2;
         force_data_dropdown.Layout.Column = 1;
         force_data_dropdown.Items = obj.load_cell_types;
-        force_data_dropdown.Value = obj.load_cell_types(end);
+        force_data_dropdown.Value = obj.load_cell_types(obj.load_cell_names == obj.load_cell_force_var);
         force_data_dropdown.ValueChangedFcn = @(src, event) load_cell_force_var_change(src, event, plot_panel);
 
         b7 = uibutton(load_cell_grid, "state");
