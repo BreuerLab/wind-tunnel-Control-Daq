@@ -12,6 +12,9 @@ classdef phaseAvg_UI < handle
         OLD_FLAPPER_SOURCE_MODE = "old flapper";
         NEW_FLAPPER_SOURCE_MODE = "new flapper";
         DEFAULT_VERSION_LABEL = "default";
+        % particle-track method the HRPP button selects (particle pool fit
+        % with harmonic regression, as in timeAvg_UI / flowField_UI)
+        HRPP_METHOD = "particle_pool_hr20";
         % Harmonic regression (HR) cases: force curves computed from the
         % fitted fields that get the +/- 1 SD band of their BA version
         % (scatter of the per-frame force about its fit). Only forces
@@ -204,6 +207,7 @@ properties
     std_band;
     RPCA;
     HR;    % harmonic regression files (_hr, from bools.harmonic_reg)
+    HRPP;  % particle pool + harmonic regression files (_<HRPP_METHOD>); not combined with HR / RPCA
     load_cell_force_var;
     % boolean, spectrum plot overrides phase averaged plot
     spectrum;
@@ -287,6 +291,7 @@ methods
         obj.std_band = true;
         obj.RPCA = false;
         obj.HR = false;
+        obj.HRPP = false;
         obj.load_cell_force_var = "wingbeat_avg_forces_smoothest";
         obj.freq_scale = false;
         obj.log_scale = false;
@@ -408,11 +413,12 @@ methods
         d3.ValueChangedFcn = @(src, event) amp_change(src, event, d2, d4);
         d4.ValueChangedFcn = @(src, event) version_change(src, event);
 
-        % RPCA and HR (harmonic regression) buttons share a row
-        variant_grid = uigridlayout(sidebar_grid, [1, 2]);
+        % RPCA, HR (harmonic regression) and HRPP (particle pool harmonic
+        % regression) buttons share a row
+        variant_grid = uigridlayout(sidebar_grid, [1, 3]);
         variant_grid.Layout.Row = 6;
         variant_grid.Layout.Column = 1;
-        variant_grid.ColumnWidth = {'1x', '1x'};
+        variant_grid.ColumnWidth = {'1x', '1x', '1x'};
         variant_grid.RowHeight = {'1x'};
         variant_grid.Padding = [0 0 0 0];
         variant_grid.ColumnSpacing = 8;
@@ -421,7 +427,7 @@ methods
         rpca_button.Layout.Row = 1;
         rpca_button.Layout.Column = 1;
         rpca_button.Text = "RPCA";
-        rpca_button.FontSize = 18;
+        rpca_button.FontSize = 15;
         rpca_button.BackgroundColor = obj.get_button_color(obj.RPCA);
         rpca_button.ValueChangedFcn = @(src, event) RPCA_change(src, event);
 
@@ -429,10 +435,19 @@ methods
         hr_button.Layout.Row = 1;
         hr_button.Layout.Column = 2;
         hr_button.Text = "HR";
-        hr_button.FontSize = 18;
+        hr_button.FontSize = 15;
         hr_button.Tooltip = "Harmonic regression files (_hr)";
         hr_button.BackgroundColor = obj.get_button_color(obj.HR);
         hr_button.ValueChangedFcn = @(src, event) HR_change(src, event);
+
+        hrpp_button = uibutton(variant_grid, "state");
+        hrpp_button.Layout.Row = 1;
+        hrpp_button.Layout.Column = 3;
+        hrpp_button.Text = "HRPP";
+        hrpp_button.FontSize = 15;
+        hrpp_button.Tooltip = "Particle pool harmonic regression files (_" + obj.HRPP_METHOD + ")";
+        hrpp_button.BackgroundColor = obj.get_button_color(obj.HRPP);
+        hrpp_button.ValueChangedFcn = @(src, event) HRPP_change(src, event);
 
         % Button to add entry defined by selected type,
         % frequency, angle, and speed to list of plotted cases
@@ -895,14 +910,36 @@ methods
             obj.update_plot(plot_panel);
         end
 
+        % HRPP is a different method from the binned HR / RPCA variants,
+        % so it can't be combined with them (as in timeAvg_UI)
         function RPCA_change(src, ~)
             obj.RPCA = src.Value;
             src.BackgroundColor = obj.get_button_color(obj.RPCA);
+            if obj.RPCA, set_HRPP(false); end
         end
 
         function HR_change(src, ~)
             obj.HR = src.Value;
             src.BackgroundColor = obj.get_button_color(obj.HR);
+            if obj.HR, set_HRPP(false); end
+        end
+
+        function HRPP_change(src, ~)
+            set_HRPP(src.Value);
+            if obj.HRPP
+                obj.HR = false;
+                hr_button.Value = false;
+                hr_button.BackgroundColor = obj.get_button_color(false);
+                obj.RPCA = false;
+                rpca_button.Value = false;
+                rpca_button.BackgroundColor = obj.get_button_color(false);
+            end
+        end
+
+        function set_HRPP(value)
+            obj.HRPP = value;
+            hrpp_button.Value = value;
+            hrpp_button.BackgroundColor = obj.get_button_color(value);
         end
 
         function force_sub_change(src, ~, plot_panel)
@@ -999,11 +1036,15 @@ methods
                 case_name = selection_types(cur_idx) + "_" + string(selection_amps(cur_idx)) +...
                     "deg_" + string(selection_freqs(cur_idx)) + "Hz" +...
                     obj.get_version_suffix(selection_versions(cur_idx));
-                % same order phase_avg_STB saves them: <version>_hr_RPCA
-                if obj.HR
+                % same order phase_avg_STB saves them: <version>_hr_RPCA;
+                % HRPP: <version>_<HRPP_METHOD>
+                if obj.HRPP
+                    case_name = case_name + "_" + obj.HRPP_METHOD;
+                end
+                if obj.HR && ~obj.HRPP
                     case_name = case_name + "_hr";
                 end
-                if obj.RPCA
+                if obj.RPCA && ~obj.HRPP
                     case_name = case_name + "_RPCA";
                 end
 
@@ -1161,13 +1202,20 @@ methods (Access = private)
 
     % File version: whatever follows the "<freq>Hz" part of the name, e.g.
     % x3_wings_20deg_6Hz_coarse -> "coarse", x3_wings_20deg_6Hz_v2 -> "v2"
-    % (a trailing _RPCA or _hr is not part of it: those files are picked
-    % with the RPCA / HR buttons, so x3_wings_20deg_6Hz_coarse_hr is version
+    % (a trailing _RPCA, _hr or _<HRPP_METHOD> is not part of it: those
+    % files are picked with the RPCA / HR / HRPP buttons, so
+    % x3_wings_20deg_6Hz_coarse_hr is version
     % "coarse" and x3_wings_20deg_6Hz_hr the default version). No suffix =
     % default version. Version names shouldn't contain "deg" or "Hz"
     % (parse_name reads those).
     function [base_name, version] = extract_file_version(obj, name)
         name = string(name);
+        % HRPP files (<case>[_<version>]_<HRPP_METHOD>) are picked with the
+        % HRPP button, so the method isn't part of the version either
+        is_hrpp = endsWith(name, "_" + obj.HRPP_METHOD);
+        if is_hrpp
+            name = extractBefore(name, strlength(name) - strlength("_" + obj.HRPP_METHOD) + 1);
+        end
         is_rpca = endsWith(name, "_RPCA");
         if is_rpca
             name = extractBefore(name, strlength(name) - strlength("_RPCA") + 1);
@@ -1191,6 +1239,9 @@ methods (Access = private)
         end
         if is_rpca
             base_name = base_name + "_RPCA";
+        end
+        if is_hrpp
+            base_name = base_name + "_" + obj.HRPP_METHOD;
         end
     end
 
@@ -1849,6 +1900,9 @@ methods (Access = private)
         end
         if obj.is_RPCA_selection(cur_sel)
             case_label = case_label + " - RPCA";
+        end
+        if endsWith(string(cur_sel), "_" + obj.HRPP_METHOD)
+            case_label = case_label + " - HRPP";
         end
     end
 
