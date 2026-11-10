@@ -1798,6 +1798,42 @@ methods (Access = private)
         is_hr = endsWith(erase(string(cur_sel), "_RPCA"), "_hr");
     end
 
+    % particle method with harmonic regression, e.g. ..._particle_pool_hr20
+    function tf = is_particle_hr_selection(~, cur_sel)
+        tf = contains(string(cur_sel), "_particle") && ...
+            ~isempty(regexp(char(cur_sel), '_hr\d+$', 'once'));
+    end
+
+    % +/- half-width of the 95% band on a particle HR curve: 1.96 x the
+    % standard error saved as <name>_hr_se (lift.vortX -> lift_hr_se.vortX)
+    % by particle_integrals_case. [] if not saved (older processing).
+    function band = get_hr_curve_band(obj, case_files, var_name, n, cur_sel)
+        band = [];
+        var_name = string(var_name);
+        if contains(var_name, ".")
+            top_name = extractBefore(var_name, ".") + "_hr_se";
+            se_name = top_name + "." + extractAfter(var_name, ".");
+        else
+            top_name = var_name + "_hr_se";
+            se_name = top_name;
+        end
+        if ~obj.file_has_var(case_files, top_name)
+            if ~obj.file_has_var(case_files, "hr_band")
+                disp("No HR uncertainty saved for " + cur_sel + ...
+                    " - rerun main_particle_integrals (the fit is reused) for a band")
+            end
+            return
+        end
+        d = stb_load(case_files, top_name);
+        try
+            se = eval("d." + se_name);
+        catch
+            return   % this series has no band (not a per-bin series)
+        end
+        if numel(se) ~= n, return; end
+        band = 1.96 * double(se(:)');
+    end
+
     function case_label = get_case_label(obj, cur_sel)
         [amp, type, freq] = parse_name(cur_sel);
         distance_label = obj.get_type_label(type);
@@ -2526,6 +2562,14 @@ methods (Access = private)
                     ba_name = regexprep(var_name, '\.', '_before_avg.', 'once');
                     var_std = obj.get_ba_force_std(case_files, ba_name, numel(var), cur_sel);
                 end
+            end
+
+            % particle harmonic-regression cases (e.g. _particle_pool_hr20):
+            % 95% band on the curve from its saved standard error
+            % (hr_curve_uncertainty, phase-dependent noise and the fit's
+            % leverage)
+            if obj.std_band && isempty(var_std) && obj.is_particle_hr_selection(cur_sel)
+                var_std = obj.get_hr_curve_band(case_files, var_name, numel(var), cur_sel);
             end
             
             % vars_kin = {"phase_avg_pos", "phase_avg_speed", "phase_avg_acc"};

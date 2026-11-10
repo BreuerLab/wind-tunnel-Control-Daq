@@ -1,4 +1,7 @@
-function calc_secondary_vals_phase(D, F, bools, save_filepath_local, bounds)
+function S = calc_secondary_vals_phase(D, F, bools, save_filepath_local, bounds)
+% Returns the integral quantities S as well as saving them. With
+% bools.no_save nothing is saved (S only; used for the unsmoothed particle
+% fit's forces in particle_integrals_case).
 tic
 
 config.uField = 'u_phase_avg';
@@ -80,6 +83,9 @@ if isfield(D, 'u_phase_std') && isfield(D, 'bin_count')
 end
 
 S = calc_secondary_vals_common(D, config, bounds);
+if isfield(bools, 'no_save') && bools.no_save
+    return
+end
 
 % New file layout (bools.stb_paths from phase_avg_STB or the particle
 % steps): the integral file holds the integral quantities and, for the

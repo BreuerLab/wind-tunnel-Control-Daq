@@ -15,7 +15,11 @@ function method = particle_integrals_case(PIV_case_name, save_filepath_local, ve
 % uncertainty mask; p.binned_method, or the first of bin, bin_hr found),
 % and the particle fit from particle_phase_avg_case (same p). With
 % p.hr_harmonics > 0 the fit is first smoothed across phase bins by
-% harmonic regression (particleHarmonicSmooth).
+% harmonic regression (particleHarmonicSmooth). With p.hr_band the
+% integrals are also computed from the unsmoothed fit, and the standard
+% error of each harmonic-regression series (hr_curve_uncertainty) is added
+% to the integral file as <name>_hr_se (e.g. lift_hr_se.vortX for
+% lift.vortX; 1 sigma).
 
     PIV_case_name = string(PIV_case_name);
     method = particle_method_name(p);
@@ -69,8 +73,63 @@ function method = particle_integrals_case(PIV_case_name, save_filepath_local, ve
         fprintf('Saving legacy combined file %s\n', legacy_file);
         save_STB_struct(legacy_file, Sm, bools);
     end
-    calc_secondary_vals_phase(Sm, Fdaq, bools, P.dir, default_trim_bounds());
+    S_hr = calc_secondary_vals_phase(Sm, Fdaq, bools, P.dir, default_trim_bounds());
+    clear Sm
+
+    % ---- uncertainty of the harmonic-regression series --------------------
+    if p.hr_harmonics > 0 && (~isfield(p, 'hr_band') || p.hr_band)
+        t_band = tic;
+        fprintf('Uncertainty bands: integrals of the unsmoothed fit\n');
+        R = load(Pfit.fit);
+        nPairs = double(R.nPairs(:));
+        S = particle_to_phase_avg_struct(R, P.shared, binned_fields);
+        clear R
+        [~, Sf] = split_phase_avg_struct(S);
+        clear S
+        Sm = merge_stb_structs(load(P.shared), Sf);
+        clear Sf
+        bools_raw = bools;  bools_raw.no_save = true;
+        S_raw = calc_secondary_vals_phase(Sm, Fdaq, bools_raw, P.dir, default_trim_bounds());
+        clear Sm
+        Hs = 3;
+        if isfield(p, 'hr_band_harmonics'), Hs = p.hr_band_harmonics; end
+        Bp = load(P.shared, 'bin_placement');
+        phi = bin_times(numel(nPairs), 1, Bp.bin_placement);
+        B = hr_series_se(S_hr, S_raw, phi, nPairs, p.hr_harmonics, Hs);
+        B.hr_band = struct('type', "curve_se", 'harmonics', p.hr_harmonics, ...
+            'noise_harmonics', Hs, 'note', "1-sigma standard error of the HR curve (random error only)");
+        save(P.integral, '-struct', 'B', '-append');
+        fprintf('Saved %d uncertainty series to %s (%.0f s)\n', ...
+            numel(fieldnames(B)) - 1, P.integral, toc(t_band));
+    end
     fprintf('Done: method "%s" for %s.\n', method, PIV_case_name);
+end
+
+% -------------------------------------------------------------------------
+function B = hr_series_se(S_hr, S_raw, phi, w, H, Hs)
+% <name>_hr_se for every per-bin series in the integrals: top-level
+% vectors with one value per bin, and those inside top-level structs
+% (lift.vortX -> lift_hr_se.vortX)
+    nb = numel(w);
+    B = struct();
+    is_series = @(a) isnumeric(a) && isreal(a) && isvector(a) && numel(a) == nb;
+    for f = fieldnames(S_hr)'
+        name = f{1};
+        if ~isfield(S_raw, name), continue; end
+        a = S_hr.(name);  b = S_raw.(name);
+        if isstruct(a) && isscalar(a) && isstruct(b) && isscalar(b)
+            T = struct();
+            for g = fieldnames(a)'
+                sub = g{1};
+                if isfield(b, sub) && is_series(a.(sub)) && is_series(b.(sub))
+                    T.(sub) = reshape(hr_curve_uncertainty(b.(sub), a.(sub), phi, w, H, Hs), size(a.(sub)));
+                end
+            end
+            if ~isempty(fieldnames(T)), B.([name '_hr_se']) = T; end
+        elseif is_series(a) && is_series(b)
+            B.([name '_hr_se']) = reshape(hr_curve_uncertainty(b, a, phi, w, H, Hs), size(a));
+        end
+    end
 end
 
 % -------------------------------------------------------------------------

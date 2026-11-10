@@ -58,5 +58,9 @@ function p = particle_default_opts()
     % also write the old combined files (nothing reads them any more; set from
     % bools.legacy_files by process_case)
     p.legacy_files = false;
-    p.compress_save = false;   % compressed fields / integral files (set from bools.compress_save by process_case)
+    p.compress_save = false;
+    % uncertainty bands of the harmonic-regression force curves
+    % (hr_curve_uncertainty): saved as <name>_hr_se in the integral file
+    p.hr_band = true;
+    p.hr_band_harmonics = 3;   % harmonics of the noise model through the cycle   % compressed fields / integral files (set from bools.compress_save by process_case)
 end
