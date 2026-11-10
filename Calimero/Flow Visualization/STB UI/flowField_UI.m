@@ -169,6 +169,9 @@ properties
     freq_vars;
     force_vars;
     section_vars;     % "time avg: section avg" plot: number of y sections
+    % last field loaded for the section plots (key + data), so moving the
+    % frame slider of "phase avg: section avg" doesn't recompute it
+    section_cache = struct('key', "", 'data', []);
     section_count;    %   the selected one (section_dropdown)
     section_force_vars; % forces it can break down (wake forces minus the omega_y lift terms)
     section_flow_vars;  % flow variables it can average by section (velocities, vorticity)
@@ -335,7 +338,8 @@ methods
 
         obj.plot_types = ["time avg of phase avg","phase avg: movie", "time avg of phase std","phase std: movie", "phase avg: 3D plot",...
             "image wingbeat phase", "wingbeat frequency","wake forces","phase avg: planar avg",...
-            "time avg: section avg", "frozen flow", obj.MERGED_3D_PLOT];
+            "time avg: section avg", "frozen flow", obj.MERGED_3D_PLOT,...
+            "phase avg: section avg"]; % 13: listed after "time avg: section avg" (order_plot_types)
         obj.plot_type = obj.plot_types(1);
         obj.plot_hold_bool = false;
         obj.iso_var_list = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
@@ -1627,7 +1631,7 @@ methods
                     obj.var_name_list = obj.freq_vars;
                 elseif strcmp(obj.plot_type, obj.plot_types(8))
                     obj.var_name_list = obj.force_vars;
-                elseif strcmp(obj.plot_type, obj.plot_types(10))
+                elseif ismember(obj.plot_type, obj.plot_types([10 13]))
                     obj.var_name_list = obj.section_plot_vars;
                 elseif strcmp(obj.plot_type, obj.plot_types(11))
                     obj.var_name_list = obj.frozen_vars;
@@ -1713,7 +1717,7 @@ methods
                 row_heights{17} = 0;
             end
             % Save Movie: only the 2D movies (phase avg / phase std)
-            if ismember(obj.plot_type, obj.plot_types([2 4]))
+            if ismember(obj.plot_type, obj.plot_types([2 4 13]))
                 save_movie_button.Enable = "on";
             else
                 save_movie_button.Enable = "off";
@@ -2025,7 +2029,7 @@ methods
         % capture_frame after drawing each bin.
         function save_movie(~, ~, plot_panel)
             fig = ancestor(plot_panel, 'figure');
-            if ~ismember(obj.plot_type, obj.plot_types([2 4]))
+            if ~ismember(obj.plot_type, obj.plot_types([2 4 13]))
                 uialert(fig, "Save Movie is only for phase avg: movie and phase std: movie.", "Save Movie");
                 return
             end
@@ -3723,7 +3727,7 @@ methods (Access = private)
         % another one goes back to the cases at the selected position)
         is_flapper = obj.is_flapper_source_mode(obj.source_mode);
         if obj.plot_type == obj.MERGED_3D_PLOT && is_flapper
-            plot_types = obj.plot_types;
+            plot_types = obj.order_plot_types(obj.plot_types);
             return
         end
         plot_types = obj.get_position_plot_types();
@@ -3732,6 +3736,19 @@ methods (Access = private)
             plot_types(end+1) = obj.MERGED_3D_PLOT;
         elseif ~is_flapper && has_merged
             plot_types = plot_types(plot_types ~= obj.MERGED_3D_PLOT);
+        end
+        plot_types = obj.order_plot_types(plot_types);
+    end
+
+    % Dropdown order: "phase avg: section avg" (plot_types(13), added
+    % last so the other indices stay) right after "time avg: section avg"
+    function plot_types = order_plot_types(obj, plot_types)
+        is_ph = plot_types == obj.plot_types(13);
+        k = find(plot_types == obj.plot_types(10), 1);
+        if any(is_ph) && ~isempty(k)
+            rest = plot_types(~is_ph);
+            k = find(rest == obj.plot_types(10), 1);
+            plot_types = [rest(1:k), obj.plot_types(13), rest(k+1:end)];
         end
     end
 
@@ -3801,7 +3818,7 @@ methods (Access = private)
 
         cur_secondary_vars = {};
 
-        if plot_idx == 10
+        if plot_idx == 10 || plot_idx == 13
             obj.plot_section_force(plot_panel);
             return
         end
@@ -5049,7 +5066,7 @@ methods (Access = private)
     % Show the section-count dropdown instead of the colour-limit slider
     % for the "time avg: section avg" plot
     function set_section_controls(obj)
-        is_section = obj.plot_type == obj.plot_types(10);
+        is_section = ismember(obj.plot_type, obj.plot_types([10 13]));
         if is_section
             obj.section_dropdown.Visible = "on";
             obj.clim_slider.Visible = "off";
@@ -5077,7 +5094,13 @@ methods (Access = private)
     %
     % Flow variables (u, v, w, ω_x, ω_y, ω_z) go to plot_section_flow,
     % which averages over each section instead of summing.
+    %
+    % "phase avg: section avg" (plot_types(13)) does the same for every
+    % phase bin of the phase averaged field instead of the cycle average,
+    % shown as a movie (frame slider, Play / Stop, Save Movie) with the
+    % axes fixed over the wingbeat.
     function plot_section_force(obj, plot_panel)
+        is_phase = obj.plot_type == obj.plot_types(13);
         obj.slider.Visible = "off";
         obj.play_button.Visible = "off";
         if strlength(obj.case_name) == 0
@@ -5100,7 +5123,7 @@ methods (Access = private)
             case_files = obj.get_phase_case(case_id);
             avg_type = 1;
             avg_label = "Time averaged";
-        elseif obj.current_case_has_time_avg()
+        elseif obj.current_case_has_time_avg() && ~is_phase
             case_files = obj.get_time_case(case_id);
             avg_type = 0;
             avg_label = "Time averaged (0 Hz file)";
@@ -5110,7 +5133,13 @@ methods (Access = private)
 
         ax = axes(plot_panel);
         force_var = obj.force_var_name_dict(char(obj.variable_name));
-        [~, ~, I] = get_PIV_force(case_files, case_id, force_var, avg_type, false, default_trim_bounds());
+        cache_key = "force|" + strjoin(string(stb_name(case_files)), ",") + "|" + force_var + "|" + avg_type;
+        if obj.section_cache.key == cache_key
+            I = obj.section_cache.data;
+        else
+            [~, ~, I] = get_PIV_force(case_files, case_id, force_var, avg_type, false, default_trim_bounds());
+            obj.section_cache = struct('key', cache_key, 'data', I);
+        end
         if isempty(I.field)
             text(ax, 0.5, 0.5, string(obj.variable_name) + " is not a plane integral", ...
                 'HorizontalAlignment', 'center', FontSize=16);
@@ -5118,66 +5147,143 @@ methods (Access = private)
             return
         end
 
-        % cycle average (bins weighted equally, like the wake forces mean)
-        field = mean(I.field, 3, "omitnan");   % N/m^2, [ny nz]
+        if is_phase
+            field = I.field;                        % N/m^2, [ny nz nb], one bin each
+            avg_label = "Phase averaged";
+        else
+            % cycle average (bins weighted equally, like the wake forces mean)
+            field = mean(I.field, 3, "omitnan");   % N/m^2, [ny nz]
+        end
+        nb = size(field, 3);
         y_nd = I.y(:);                          % y/c from the centreline
         y = y_nd * I.L;                         % m
         z = I.z(:) * I.L;
 
-        % force per unit span of each column, N/m
-        dL_dy = trapz(z, field, 2);
-        nan_cols = sum(isnan(dL_dy));
+        % force per unit span of each column, N/m, [ny nb]
+        dL_dy = reshape(trapz(z, field, 2), numel(y), nb);
+        nan_cols = sum(isnan(dL_dy), 1);
 
         % trapz weights along y, so the slices add up to trapz over y
         dy = diff(y);
         w = ([dy; 0] + [0; dy]) / 2;
         col_lift = w .* dL_dy;                  % N, each column's share
-        total = sum(col_lift, "omitnan");       % = cycle mean in "wake forces"
+        total = sum(col_lift, 1, "omitnan");    % = cycle mean (or bin value) in "wake forces"
 
         % slices: equal widths in y ("every column": one per column)
         [edges, sec_idx] = obj.get_section_edges(y_nd);
         n = numel(edges) - 1;
-        sec_lift = accumarray(sec_idx, col_lift, [n 1], @(v) sum(v, "omitnan"), 0);
+        sec_lift = zeros(n, nb);
+        for b = 1:nb
+            sec_lift(:, b) = accumarray(sec_idx, col_lift(:, b), [n 1], @(v) sum(v, "omitnan"), 0);
+        end
+
+        % axes limits over every bin, so the movie doesn't rescale
+        lim_l = obj.zero_based_limits(sec_lift);
+        lim_r = obj.zero_based_limits(dL_dy);
+        [lim_l, lim_r] = obj.align_zero_limits(lim_l, lim_r);
+
+        k = 1;
+        if is_phase
+            k = obj.setup_section_frames(nb);
+        end
 
         % bars as patches so each spans its slice exactly
         yyaxis(ax, 'left')
         hold(ax, 'on')
         c = ax.ColorOrder(1, :);
-        for k = 1:n
-            patch(ax, [edges(k) edges(k+1) edges(k+1) edges(k)], [0 0 sec_lift(k) sec_lift(k)], c, ...
+        h_bar = gobjects(n, 1);
+        for j = 1:n
+            h_bar(j) = patch(ax, [edges(j) edges(j+1) edges(j+1) edges(j)], [0 0 sec_lift(j,k) sec_lift(j,k)], c, ...
                 'FaceAlpha', 0.5, 'EdgeColor', c);
         end
-        if n <= 20 && abs(total) > 0
-            for k = 1:n
-                if sec_lift(k) >= 0, va = 'bottom'; else, va = 'top'; end
-                text(ax, (edges(k) + edges(k+1))/2, sec_lift(k), sprintf("%.0f%%", 100*sec_lift(k)/total), ...
+        % percentages of the total: cycle average only (a bin's total can
+        % be near zero)
+        if ~is_phase && n <= 20 && abs(total) > 0
+            for j = 1:n
+                if sec_lift(j) >= 0, va = 'bottom'; else, va = 'top'; end
+                text(ax, (edges(j) + edges(j+1))/2, sec_lift(j), sprintf("%.0f%%", 100*sec_lift(j)/total), ...
                     'HorizontalAlignment', 'center', 'VerticalAlignment', va, FontSize=12);
             end
         end
         yline(ax, 0, '-k', 'HandleVisibility', 'off');
         force_label = obj.force_label_dict(char(obj.variable_name));   % e.g. "Lift, ω_x term (N)"
         ylabel(ax, erase(force_label, " (N)") + " from section (N)", FontSize=16)
-        lim_l = obj.zero_based_limits(sec_lift);
 
         yyaxis(ax, 'right')
-        plot(ax, y_nd, dL_dy, '-', 'LineWidth', 1.5);
+        h_line = plot(ax, y_nd, dL_dy(:, k), '-', 'LineWidth', 1.5);
         ylabel(ax, "per unit span (N/m)", FontSize=16)
-        lim_r = obj.zero_based_limits(dL_dy);
 
         % same zero height on both axes
-        [lim_l, lim_r] = obj.align_zero_limits(lim_l, lim_r);
         yyaxis(ax, 'left');  ylim(ax, lim_l);
         yyaxis(ax, 'right'); ylim(ax, lim_r);
         yyaxis(ax, 'left');
 
         xlim(ax, [edges(1), edges(end)])
         xlabel(ax, "y/c (from centreline)", FontSize=16)
-        title_str = string(sprintf("%s %s: %.4f N total, %d sections", ...
-            avg_label, string(obj.variable_name), total, n));
-        if nan_cols > 0
-            title_str = title_str + sprintf(" (%d NaN columns left out)", nan_cols);
+        h_title = title(ax, title_text(k), FontSize=16, Interpreter="none"); % names contain "_"
+
+        if is_phase
+            obj.play_section_frames(nb, @draw_bin);
         end
-        title(ax, title_str, FontSize=16, Interpreter="none") % names contain "_"
+
+        function draw_bin(kk)
+            for jj = 1:n
+                h_bar(jj).YData = [0 0 sec_lift(jj,kk) sec_lift(jj,kk)];
+            end
+            h_line.YData = dL_dy(:, kk);
+            h_title.String = title_text(kk);
+        end
+
+        function str = title_text(kk)
+            str = string(sprintf("%s %s: %.4f N total, %d sections", ...
+                avg_label, string(obj.variable_name), total(kk), n));
+            if is_phase
+                str = "Bin " + kk + " of " + nb + ", " + str;
+            end
+            if nan_cols(kk) > 0
+                str = str + sprintf(" (%d NaN columns left out)", nan_cols(kk));
+            end
+        end
+    end
+
+    % "phase avg: section avg": show the frame slider and Play / Stop for
+    % nb bins; returns the bin to draw first
+    function k = setup_section_frames(obj, nb)
+        obj.slider.Visible = "on";
+        obj.play_button.Visible = "on";
+        if nb ~= obj.num_bins
+            obj.num_bins = nb;
+            obj.slider.Limits = [1 max(nb, 2)];
+            obj.slider.MajorTicks = 1:5:nb;
+            obj.slider.MinorTicks = 1:nb;
+        end
+        obj.frame_ind = min(max(obj.frame_ind, 1), obj.num_bins);
+        obj.slider.Value = obj.frame_ind;
+        k = obj.frame_ind;
+    end
+
+    % Play loop of "phase avg: section avg": draw_bin(k) updates the plot
+    % to bin k. Same behaviour as the 2D movie loop (loops until Stop) and
+    % the same Save Movie hook (movie_frame_fcn, after each bin is drawn).
+    function play_section_frames(obj, nb, draw_bin)
+        if ~isempty(obj.movie_frame_fcn) % Save Movie: first bin
+            drawnow;
+            obj.movie_frame_fcn();
+        end
+        while obj.play && (obj.frame_ind < nb)
+            obj.frame_ind = obj.frame_ind + 1;
+            obj.slider.Value = obj.frame_ind;
+            draw_bin(obj.frame_ind);
+            drawnow;
+            if isempty(obj.movie_frame_fcn)
+                pause(0.05);
+            else
+                obj.movie_frame_fcn(); % Save Movie: add this bin
+            end
+            if obj.frame_ind == nb
+                obj.frame_ind = 0; % reset for next loop iteration
+            end
+        end
     end
 
     % Section edges along y (y/c) for the selected section count: equal
@@ -5208,20 +5314,28 @@ methods (Access = private)
     %
     % Points with high uncertainty (bounds.unc_mask, as in the forces)
     % and missing points are left out of the averages rather than filled.
+    %
+    % "phase avg: section avg": the same for every phase bin (movie), with
+    % the axis fixed over the wingbeat; the uncertainty mask is the
+    % time-averaged one (unc_mask_region), as for the forces.
     function plot_section_flow(obj, plot_panel)
+        is_phase = obj.plot_type == obj.plot_types(13);
         case_id = obj.get_current_case_id();
         if obj.current_case_has_phase_avg()
             case_files = obj.get_phase_case(case_id);
             var_name = obj.variable_name_dict(char(obj.variable_name));
             unc_name = "uncTot_phase_avg";
             avg_label = "Time averaged";
-        elseif obj.current_case_has_time_avg()
+        elseif obj.current_case_has_time_avg() && ~is_phase
             case_files = obj.get_time_case(case_id);
             var_name = obj.time_avg_var_name_dict(char(obj.variable_name));
             unc_name = "mean_uncTot";
             avg_label = "Time averaged (0 Hz file)";
         else
             return
+        end
+        if is_phase
+            avg_label = "Phase averaged";
         end
 
         file_vars = string(stb_who(case_files));
@@ -5234,22 +5348,34 @@ methods (Access = private)
         if has_unc
             load_vars{end+1} = char(unc_name);
         end
-        d = stb_load(case_files, load_vars{:});
+        cache_key = "flow|" + strjoin(string(stb_name(case_files)), ",") + "|" + strjoin(string(load_vars), ",");
+        if obj.section_cache.key == cache_key
+            d = obj.section_cache.data;
+        else
+            d = stb_load(case_files, load_vars{:});
+            obj.section_cache = struct('key', cache_key, 'data', d);
+        end
 
         % same trim as get_PIV_force
         file_stem = stb_name(case_files);
         bounds = old_flapper_compat("trim_bounds_for", file_stem, default_trim_bounds());
         [y_tr, z_tr, val] = trim_vel_field(d.y, d.z, d.(var_name), bounds);
-        field = mean(val, 3, "omitnan");   % cycle average, bins weighted equally, [ny nz]
+        if is_phase
+            field = val;                        % one bin each, [ny nz nb]
+        else
+            field = mean(val, 3, "omitnan");   % cycle average, bins weighted equally, [ny nz]
+        end
+        nb = size(field, 3);
 
         n_masked = 0;
         if has_unc && isfield(bounds, 'unc_mask') && ~isempty(bounds.unc_mask) && bounds.unc_mask > 0
             [~, ~, unc] = trim_vel_field(d.y, d.z, d.(unc_name), bounds);
             unc_mode = "threshold";
             if isfield(bounds, 'unc_mask_mode'), unc_mode = bounds.unc_mask_mode; end
-            mask = unc_mask_region(unc, bounds.unc_mask, unc_mode);
-            n_masked = nnz(mask & ~isnan(field));
-            field(mask) = NaN;
+            mask = unc_mask_region(unc, bounds.unc_mask, unc_mode);   % [ny nz]
+            mask3 = repmat(mask, 1, 1, nb);
+            n_masked = nnz(mask & ~all(isnan(field), 3));
+            field(mask3) = NaN;
         end
 
         ax = axes(plot_panel);
@@ -5263,22 +5389,28 @@ methods (Access = private)
 
         % trapz weights, so a mean is (trapz over y and z) / area
         trap_w = @(x) ([diff(x); 0] + [0; diff(x)]) / 2;
-        A = trap_w(y_nd) * trap_w(z_nd).';   % area of each point, (y/c)(z/c)
-        good = ~isnan(field);
-        A(~good) = 0;
-        f0 = field;
-        f0(~good) = 0;
-        col_sum = sum(A .* f0, 2);
-        col_area = sum(A, 2);
-        col_mean = col_sum ./ col_area;       % z-average of each column (NaN if empty)
-        plane_mean = sum(col_sum) / sum(col_area);
-
+        A0 = trap_w(y_nd) * trap_w(z_nd).';   % area of each point, (y/c)(z/c)
         [edges, sec_idx] = obj.get_section_edges(y_nd);
         n = numel(edges) - 1;
-        sec_mean = accumarray(sec_idx, col_sum, [n 1]) ./ accumarray(sec_idx, col_area, [n 1]);
+        col_mean = NaN(numel(y_nd), nb);
+        sec_mean = NaN(n, nb);
+        plane_mean = NaN(1, nb);
+        for b = 1:nb
+            fb = field(:, :, b);
+            good = ~isnan(fb);
+            A = A0;
+            A(~good) = 0;
+            fb(~good) = 0;
+            col_sum = sum(A .* fb, 2);
+            col_area = sum(A, 2);
+            col_mean(:, b) = col_sum ./ col_area;       % z-average of each column (NaN if empty)
+            plane_mean(b) = sum(col_sum) / sum(col_area);
+            sec_mean(:, b) = accumarray(sec_idx, col_sum, [n 1]) ./ accumarray(sec_idx, col_area, [n 1]);
+        end
 
-        % axis from zero, unless the values sit far from it (e.g. u ~ -1)
-        vals = [sec_mean; col_mean];
+        % axis from zero, unless the values sit far from it (e.g. u ~ -1);
+        % over every bin, so the movie doesn't rescale
+        vals = [sec_mean(:); col_mean(:)];
         lo = min(vals, [], "omitnan");
         hi = max(vals, [], "omitnan");
         if lo > 0 && lo > (hi - lo) || hi < 0 && -hi > (hi - lo)
@@ -5290,49 +5422,89 @@ methods (Access = private)
             base = 0;
         end
 
+        k = 1;
+        if is_phase
+            k = obj.setup_section_frames(nb);
+        end
+
         hold(ax, 'on')
         c = ax.ColorOrder(1, :);
-        h_bar = gobjects(0);
-        for k = 1:n
-            if isnan(sec_mean(k)), continue, end
-            h = patch(ax, [edges(k) edges(k+1) edges(k+1) edges(k)], [base base sec_mean(k) sec_mean(k)], c, ...
+        h_bar = gobjects(n, 1);
+        h_txt = gobjects(n, 1);
+        show_txt = n <= 20;
+        for j = 1:n
+            h_bar(j) = patch(ax, [edges(j) edges(j+1) edges(j+1) edges(j)], bar_y(j, k), c, ...
                 'FaceAlpha', 0.5, 'EdgeColor', c);
-            if isempty(h_bar), h_bar = h; else, h.HandleVisibility = 'off'; end
-        end
-        if n <= 20
-            for k = 1:n
-                if isnan(sec_mean(k)), continue, end
-                if sec_mean(k) >= base, va = 'bottom'; else, va = 'top'; end
-                text(ax, (edges(k) + edges(k+1))/2, sec_mean(k), sprintf("%.3g", sec_mean(k)), ...
-                    'HorizontalAlignment', 'center', 'VerticalAlignment', va, FontSize=12);
+            if j > 1, h_bar(j).HandleVisibility = 'off'; end
+            if show_txt
+                h_txt(j) = text(ax, (edges(j) + edges(j+1))/2, base, "", ...
+                    'HorizontalAlignment', 'center', FontSize=12);
             end
         end
-        h_col = plot(ax, y_nd, col_mean, '-', 'Color', ax.ColorOrder(2, :), 'LineWidth', 1.5);
-        h_mean = yline(ax, plane_mean, '--k', 'LineWidth', 1);
+        h_col = plot(ax, y_nd, col_mean(:, k), '-', 'Color', ax.ColorOrder(2, :), 'LineWidth', 1.5);
+        h_mean = yline(ax, plane_mean(k), '--k', 'LineWidth', 1);
         if base == 0
             yline(ax, 0, '-k', 'HandleVisibility', 'off');
         end
-        legend(ax, [h_bar, h_col, h_mean], ["section mean", "column mean (over z)", "plane mean"], ...
+        legend(ax, [h_bar(1), h_col, h_mean], ["section mean", "column mean (over z)", "plane mean"], ...
             'Location', 'best', FontSize=12);
         ylim(ax, lim)
         xlim(ax, [edges(1), edges(end)])
         box(ax, 'on')
         xlabel(ax, "y/c (from centreline)", FontSize=16)
         ylabel(ax, obj.label_dict(char(obj.variable_name)), FontSize=16, Interpreter="latex")
+        h_title = title(ax, "", FontSize=16, Interpreter="none");
+        draw_bin(k);
 
-        title_str = string(sprintf("%s %s: plane mean %.4g, %d sections", ...
-            avg_label, string(obj.variable_name), plane_mean, n));
-        notes = strings(0);
-        if n_masked > 0
-            notes(end+1) = sprintf("%d high-uncertainty points left out", n_masked);
+        if is_phase
+            obj.play_section_frames(nb, @draw_bin);
         end
-        if base ~= 0
-            notes(end+1) = "axis not from zero";
+
+        % bar outline from the base to the section mean (flat at the base
+        % for an empty section)
+        function yy = bar_y(jj, kk)
+            v = sec_mean(jj, kk);
+            if isnan(v), v = base; end
+            yy = [base base v v];
         end
-        if ~isempty(notes)
-            title_str = title_str + " (" + strjoin(notes, ", ") + ")";
+
+        function draw_bin(kk)
+            for jj = 1:n
+                h_bar(jj).YData = bar_y(jj, kk);
+                if show_txt
+                    v = sec_mean(jj, kk);
+                    if isnan(v)
+                        h_txt(jj).String = "";
+                    else
+                        h_txt(jj).Position(2) = v;
+                        h_txt(jj).String = sprintf("%.3g", v);
+                        if v >= base
+                            h_txt(jj).VerticalAlignment = 'bottom';
+                        else
+                            h_txt(jj).VerticalAlignment = 'top';
+                        end
+                    end
+                end
+            end
+            h_col.YData = col_mean(:, kk);
+            h_mean.Value = plane_mean(kk);
+            str = string(sprintf("%s %s: plane mean %.4g, %d sections", ...
+                avg_label, string(obj.variable_name), plane_mean(kk), n));
+            if is_phase
+                str = "Bin " + kk + " of " + nb + ", " + str;
+            end
+            notes = strings(0);
+            if n_masked > 0
+                notes(end+1) = sprintf("%d high-uncertainty points left out", n_masked);
+            end
+            if base ~= 0
+                notes(end+1) = "axis not from zero";
+            end
+            if ~isempty(notes)
+                str = str + " (" + strjoin(notes, ", ") + ")";
+            end
+            h_title.String = str;
         end
-        title(ax, title_str, FontSize=16, Interpreter="none")
     end
 
     % Copy an axes with left and right y axes (yyaxis) into fig, which
