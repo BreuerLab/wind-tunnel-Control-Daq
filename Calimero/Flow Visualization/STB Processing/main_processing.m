@@ -19,7 +19,7 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 % PIV_case_name = 'x2_wings_10deg_2Hz';
 % PIV_case_name = 'x2_NACA';
 % PIV_case_name = 'freestream';
-PIV_case_name = 'x2_wings_20deg_8Hz';
+PIV_case_name = 'x3_wings_20deg_6Hz';
 
 % num_images = 1200; 
 num_images = 3000;
@@ -66,8 +66,8 @@ bools.version = "";
 % Reynolds stresses and Q_inst are still computed per bin. Saved with
 % "_hr" added to the version name (e.g. coarse_hr), so it doesn't
 % overwrite the bin-averaged files. See harmonic_regression_STB.m.
-bools.harmonic_reg = false;
-bools.num_harmonics = 10; % 2*10+1 = 21 coefficients per point and field
+bools.harmonic_reg = true;
+bools.num_harmonics = 20; % 2*10+1 = 21 coefficients per point and field
 bools.hr_save_coef = false; % save coefficients (to evaluate fit / exact d/dt at any phase); large files
 
 % Particle-based phase average (particle tracks\particle_process_case):
@@ -80,7 +80,7 @@ bools.hr_save_coef = false; % save coefficients (to evaluate fit / exact d/dt at
 % uncertainty mask and DAQ data. Time-averaged cases are skipped.
 % All settings and their meaning: particle_default_opts.m
 bools.particle = particle_default_opts();
-bools.particle.run  = true;   % true: add the particle processing
+bools.particle.run  = false;   % true: add the particle processing
 bools.particle.only = false;   % true: only the particle processing (binned files must exist)
 % bools.particle.run_tag      = "o3";     % tag non-default fit settings in the file names
 % bools.particle.fit.depthOrder = 5;

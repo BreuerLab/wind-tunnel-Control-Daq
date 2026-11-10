@@ -37,7 +37,7 @@ sel_case_names = get_PIV_paths();
 % cases without an amplitude or frequency (ring, freestream, ...) only
 % pass empty amps / freqs filters above, e.g. for every static case:
 % positions = []; amps = []; freqs = []; motion = "static";
-motion = "static";
+motion = "flapping";
 
 % Number of images per case: "auto" counts the .vc7 files in each case's
 % data folder (get_PIV_paths) and uses that; a number uses it for every
@@ -106,8 +106,8 @@ bools.hr_save_coef = false; % save coefficients (to evaluate fit / exact d/dt at
 % All settings and their meaning: particle_default_opts.m
 bools.particle = particle_default_opts();
 bools.particle.run  = true;   % true: add the particle processing
-bools.particle.only = false;   % true: only the particle processing (binned files must exist)
-bools.particle.reuse_fit = false;  % true: reuse saved particle fits, only redo the integrals
+bools.particle.only = true;   % true: only the particle processing (binned files must exist)
+bools.particle.reuse_fit = true;  % true: reuse saved particle fits, only redo the integrals
 % bools.particle.run_tag      = "o3";     % tag non-default fit settings in the file names
 % bools.particle.fit.depthOrder = 5;
 % bools.particle.hr_harmonics = 20;     % harmonic regression across bins, 0 = off
