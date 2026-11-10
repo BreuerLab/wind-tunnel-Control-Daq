@@ -97,6 +97,9 @@ properties (Constant, Access = private)
     % plot_merged_3D). Positions listed here are left out (MPS sits
     % between x3 and x4 and isn't part of the x1-x5 traverse).
     MERGED_3D_PLOT = "phase avg: 3D all planes";
+    % particle-track method the HRPP button selects (particle pool fit
+    % with harmonic regression, as in timeAvg_UI)
+    HRPP_METHOD = "particle_pool_hr20";
     MERGED_3D_EXCLUDE_TYPES = ["MPS"];
     MERGED_3D_MARKER_TAG = "merged_3D_plane";  % plane outlines / labels on that plot
 end
@@ -152,6 +155,7 @@ properties
     new_flapper_downstream_type_by_distance;
     RPCA;
     HR;    % harmonic regression files (_hr, from bools.harmonic_reg)
+    HRPP;  % particle pool + harmonic regression files (_<HRPP_METHOD>); not combined with HR / RPCA
 
     num_bins;
     frame_ind;
@@ -330,6 +334,7 @@ methods
         obj.source_mode = "";
         obj.RPCA = false;
         obj.HR = false;
+        obj.HRPP = false;
 
         obj.num_bins = 5;
         obj.frame_ind = 1;
@@ -831,11 +836,12 @@ methods
         obj.case_name = string(case_dropdown.Value); % use current value in box
         case_dropdown.ValueChangedFcn = @(src, event) case_change(src, event, plot_area_panel);
 
-        % RPCA and HR (harmonic regression) buttons share a row
-        variant_grid = uigridlayout(sidebar_grid, [1, 2]);
+        % RPCA, HR (harmonic regression) and HRPP (particle pool harmonic
+        % regression) buttons share a row
+        variant_grid = uigridlayout(sidebar_grid, [1, 3]);
         variant_grid.Layout.Row = 4;
         variant_grid.Layout.Column = 1;
-        variant_grid.ColumnWidth = {'1x', '1x'};
+        variant_grid.ColumnWidth = {'1x', '1x', '1x'};
         variant_grid.RowHeight = {'1x'};
         variant_grid.Padding = [0 0 0 0];
         variant_grid.ColumnSpacing = 8;
@@ -844,7 +850,7 @@ methods
         rpca_button.Layout.Row = 1;
         rpca_button.Layout.Column = 1;
         rpca_button.Text = "RPCA";
-        rpca_button.FontSize = 18;
+        rpca_button.FontSize = 15;
         rpca_button.BackgroundColor = obj.get_button_color(obj.RPCA);
         rpca_button.ValueChangedFcn = @(src, event) RPCA_change(src, event, plot_area_panel);
 
@@ -852,10 +858,19 @@ methods
         hr_button.Layout.Row = 1;
         hr_button.Layout.Column = 2;
         hr_button.Text = "HR";
-        hr_button.FontSize = 18;
+        hr_button.FontSize = 15;
         hr_button.Tooltip = "Harmonic regression files (_hr)";
         hr_button.BackgroundColor = obj.get_button_color(obj.HR);
         hr_button.ValueChangedFcn = @(src, event) HR_change(src, event, plot_area_panel);
+
+        hrpp_button = uibutton(variant_grid, "state");
+        hrpp_button.Layout.Row = 1;
+        hrpp_button.Layout.Column = 3;
+        hrpp_button.Text = "HRPP";
+        hrpp_button.FontSize = 15;
+        hrpp_button.Tooltip = "Particle pool harmonic regression files (_" + obj.HRPP_METHOD + ")";
+        hrpp_button.BackgroundColor = obj.get_button_color(obj.HRPP);
+        hrpp_button.ValueChangedFcn = @(src, event) HRPP_change(src, event, plot_area_panel);
 
         plot_type_dropdown = uidropdown(sidebar_grid);
         plot_type_dropdown.Layout.Row = 5;
@@ -1527,6 +1542,7 @@ methods
             previous_plot_type = obj.plot_type;
             obj.RPCA = src.Value;
             src.BackgroundColor = obj.get_button_color(obj.RPCA);
+            if obj.RPCA, set_HRPP(false); end
 
             refresh_case_dropdown();
             refresh_plot_type_dropdown();
@@ -1542,6 +1558,7 @@ methods
             previous_plot_type = obj.plot_type;
             obj.HR = src.Value;
             src.BackgroundColor = obj.get_button_color(obj.HR);
+            if obj.HR, set_HRPP(false); end
 
             refresh_case_dropdown();
             refresh_plot_type_dropdown();
@@ -1551,6 +1568,36 @@ methods
             obj.slider.Value = obj.frame_ind;
 
             obj.update_plot(plot_panel);
+        end
+
+        % HRPP is a different method from the binned HR / RPCA variants,
+        % so it can't be combined with them (as in timeAvg_UI)
+        function HRPP_change(src, ~, plot_panel)
+            previous_plot_type = obj.plot_type;
+            set_HRPP(src.Value);
+            if obj.HRPP
+                obj.HR = false;
+                hr_button.Value = false;
+                hr_button.BackgroundColor = obj.get_button_color(false);
+                obj.RPCA = false;
+                rpca_button.Value = false;
+                rpca_button.BackgroundColor = obj.get_button_color(false);
+            end
+
+            refresh_case_dropdown();
+            refresh_plot_type_dropdown();
+            refresh_variable_dropdown(previous_plot_type);
+
+            obj.frame_ind = 1;
+            obj.slider.Value = obj.frame_ind;
+
+            obj.update_plot(plot_panel);
+        end
+
+        function set_HRPP(value)
+            obj.HRPP = value;
+            hrpp_button.Value = value;
+            hrpp_button.BackgroundColor = obj.get_button_color(value);
         end
 
         % User selected a new plot type.
@@ -2493,15 +2540,21 @@ methods (Access = private)
     end
 
     % File stems are <case>[_hr][_RPCA] (phase_avg_STB adds _hr to the
-    % version name, then _RPCA). These strip / add the suffixes.
-    function stems = strip_variant_suffix(~, stems)
-        stems = regexprep(string(stems), "_RPCA$", "");
+    % version name, then _RPCA), or <case>_<HRPP_METHOD> for the particle
+    % pool harmonic regression. These strip / add the suffixes.
+    function stems = strip_variant_suffix(obj, stems)
+        stems = regexprep(string(stems), "_" + obj.HRPP_METHOD + "$", "");
+        stems = regexprep(stems, "_RPCA$", "");
         stems = regexprep(stems, "_hr$", "");
     end
 
     function case_id = with_variant_suffix(obj, case_id)
         case_id = obj.strip_variant_suffix(case_id);
         if strlength(case_id) == 0
+            return
+        end
+        if obj.HRPP
+            case_id = case_id + "_" + obj.HRPP_METHOD;
             return
         end
         if obj.HR

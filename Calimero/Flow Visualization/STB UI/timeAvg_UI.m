@@ -557,7 +557,7 @@ classdef timeAvg_UI < handle
             rpca_button.Layout.Row = 1;
             rpca_button.Layout.Column = 1;
             rpca_button.Text = "RPCA";
-            rpca_button.FontSize = 18;
+            rpca_button.FontSize = 15;
             rpca_button.BackgroundColor = obj.get_button_color(obj.RPCA);
             rpca_button.ValueChangedFcn = @(src, event) RPCA_change(src, event);
 
@@ -565,7 +565,7 @@ classdef timeAvg_UI < handle
             hr_button.Layout.Row = 1;
             hr_button.Layout.Column = 2;
             hr_button.Text = "HR";
-            hr_button.FontSize = 18;
+            hr_button.FontSize = 15;
             hr_button.Tooltip = "Harmonic regression files (_hr) for the flapping cases";
             hr_button.BackgroundColor = obj.get_button_color(obj.HR);
             hr_button.ValueChangedFcn = @(src, event) HR_change(src, event);
@@ -574,7 +574,7 @@ classdef timeAvg_UI < handle
             hrpp_button.Layout.Row = 1;
             hrpp_button.Layout.Column = 3;
             hrpp_button.Text = "HRPP";
-            hrpp_button.FontSize = 18;
+            hrpp_button.FontSize = 15;
             hrpp_button.Tooltip = "Particle pool harmonic regression files (_" + obj.HRPP_METHOD + ") for the flapping cases";
             hrpp_button.BackgroundColor = obj.get_button_color(obj.HRPP);
             hrpp_button.ValueChangedFcn = @(src, event) HRPP_change(src, event);
