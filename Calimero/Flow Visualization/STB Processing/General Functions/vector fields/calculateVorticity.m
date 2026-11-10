@@ -7,17 +7,17 @@ omega_x = nan(size(uRaw));
 omega_y = nan(size(uRaw));
 omega_z = nan(size(uRaw));
 
-tmp = uRaw;
-tmp(tmp == 0) = median(uRaw,"all");
-u = tmp;
-
-tmp = vRaw;
-tmp(tmp == 0) = median(vRaw,"all");
-v = tmp;
-
-tmp = wRaw;
-tmp(tmp == 0) = median(wRaw,"all");
-w = tmp;
+% tmp = uRaw;
+% tmp(tmp == 0) = median(uRaw,"all");
+% u = tmp;
+% 
+% tmp = vRaw;
+% tmp(tmp == 0) = median(vRaw,"all");
+% v = tmp;
+% 
+% tmp = wRaw;
+% tmp(tmp == 0) = median(wRaw,"all");
+% w = tmp;
 
 % tmp = uRaw;
 % tmp(tmp == 0) = NaN;
@@ -31,9 +31,9 @@ w = tmp;
 % tmp(tmp == 0) = NaN;
 % w = tmp;
 % 
-% u = fill3D(u);
-% v = fill3D(v);
-% w = fill3D(w);
+u = fill3D(uRaw);
+v = fill3D(vRaw);
+w = fill3D(wRaw);
 
 dx = abs(xRaw(2,1,1) - xRaw(1,1,1));
 dy = abs(yRaw(1,2,1) - yRaw(1,1,1));

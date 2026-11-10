@@ -1,4 +1,4 @@
-clear
+% clear
 close all
 
 % Change current working directory to the directory where this file is
@@ -13,23 +13,85 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 
 % Want to know what case names are available?
 % Call "  case_names = get_case_names();  "
-% PIV_case_name = 'flexible_20deg_2Hz';
-% PIV_case_name = 'ring';
-PIV_case_name = 'turbine';
+% PIV_case_name = 'UP_two_flexible_20deg_6Hz';
+% PIV_case_name = 'x5_wings_20deg_0Hz';
+% PIV_case_name = 'MPS_wings_20deg_6Hz';
+% PIV_case_name = 'x2_wings_10deg_2Hz';
+% PIV_case_name = 'x2_NACA';
+% PIV_case_name = 'freestream';
+PIV_case_name = 'x3_wings_20deg_6Hz';
+
+% num_images = 1200; 
+num_images = 3000;
+% num_images = 600;
 
 % save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
-save_filepath_local = "Y:\Processed Results\";
+save_filepath_local = "F:\Processed Results\";
 
 bools.nondim = true; % non-dimensionalize data
 bools.RPCA = false; % RPCA filtering of vector fields
-bools.proc_vel = false; % false if just calculating secondary values
+bools.Q_inst = false; % per-frame Q averaged over each bin, plus its std (Q*_inst_avg, Q*_inst_std), slow
+bools.vort_uavg = false; % vorticity of the averaged velocity (vort*_uavg)
+bools.div_std = true; % frame-to-frame std of the velocity divergence: per bin (div_phase_std), or over all frames for time averages (std_div); quick
+bools.num_workers = 8; % parallel workers for phase bins / time-avg frame chunks (0 = serial); lower if out of memory
+bools.frames_per_chunk = 20; % time averages: frames loaded and processed per call on each worker; lower if out of memory
+bools.compress_save = false; % true = compressed -v7.3 .mat (smaller, slower to save); compress_STB_files for files already saved
+bools.proc_vel = true; % false if just calculating secondary values
+% Processed files: <case>[_<version>]_shared.mat (DAQ, binning, grid, frames)
+% plus <case>[_<version>]_<method>_fields.mat and _<method>_integral.mat
+% per method (bin, bin_hr, particle_pool_hr20, ...) in Processed Results\phase_avg\.
+% true: also write the old combined files (<case>[_<version>]_phase_avg.mat
+% and _phase_avg_integral.mat). Nothing reads them any more (the GUIs use
+% the files above), so leave false unless older scripts need them.
+bools.legacy_files = false;
+
+% Range of phase-bin counts to search. findBestNumBins2 picks the count
+% in this range (and the bin offset) with the smallest phase spread per
+% bin; it was choosing ~193 in 180-210. Fewer bins = more frames per bin
+% (less noise) but coarser phase resolution. [n n] forces n bins.
+bools.bin_range = [180 200]; % [180 210]
+
+% Version name added to the saved file names, e.g. "coarse" saves
+% x3_wings_20deg_6Hz_coarse_phase_avg.mat (and _integral.mat); phaseAvg_UI
+% lists it under that name in its version dropdown. "" = default (no
+% suffix). Phase averages only; avoid "deg" and "Hz" in the name.
+bools.version = "";
+
+% Harmonic regression instead of bin averaging. Each point's time series
+% is fitted over ALL frames at their actual phases with a Fourier series
+% of num_harmonics wingbeat harmonics, then evaluated at the bin centres,
+% so the saved fields have the same shape as the bin averages and the UIs
+% and secondary values work unchanged. Removes the phase spread within
+% bins and filters noise above num_harmonics x wingbeat frequency. std,
+% Reynolds stresses and Q_inst are still computed per bin. Saved with
+% "_hr" added to the version name (e.g. coarse_hr), so it doesn't
+% overwrite the bin-averaged files. See harmonic_regression_STB.m.
+bools.harmonic_reg = true;
+bools.num_harmonics = 20; % 2*10+1 = 21 coefficients per point and field
+bools.hr_save_coef = false; % save coefficients (to evaluate fit / exact d/dt at any phase); large files
+
+% Particle-based phase average (particle tracks\particle_process_case):
+% velocity and vorticity fitted directly to the STB particle tracks (local
+% polynomial through the slab depth, so d/dx across the thin slab is
+% resolved much better than by binning), then the same integral quantities
+% as for the binned data, saved as its own version for phaseAvg_UI /
+% flowField_UI (e.g. particle_pool_hr20). Runs after the binned
+% phase average of each case, which supplies the phase binning, grid,
+% uncertainty mask and DAQ data. Time-averaged cases are skipped.
+% All settings and their meaning: particle_default_opts.m
+bools.particle = particle_default_opts();
+bools.particle.run  = false;   % true: add the particle processing
+bools.particle.only = false;   % true: only the particle processing (binned files must exist)
+% bools.particle.run_tag      = "o3";     % tag non-default fit settings in the file names
+% bools.particle.fit.depthOrder = 5;
+% bools.particle.hr_harmonics = 20;     % harmonic regression across bins, 0 = off
 
 % If you want to make plots here, you can. However, it is NOT recommended.
 % Intead, use main_analysis to produce plots easily in a GUI interface.
 bools.PIV_plot = false;
 
 % Plot bin histograms, speed, current, voltage (small overhead, quick)
-bools.plot = false;
+bools.plot = true;
 
-process_case(PIV_case_name, save_filepath_local, bools);
+process_case(PIV_case_name, save_filepath_local, num_images, bools);
 return

@@ -1,7 +1,15 @@
 function [Qx,Qy,Qz,Q] = calQlate3D(u,v,w,dx,dy,dz,order,wdw)
-disp("Calculating Q...")
 % A Q-te function to calculate 2D-Q: the second (not first) invariant of the velocity gradient tensor.
 % sgolay filter of order = 3 and window length = 9
+%
+% u, v, w : [nx ny nz] (one frame / bin) or [nx ny nz nFrames]
+% dx, dy, dz : grid spacing along dims 1, 2, 3
+%
+% Edge handling: each derivative is taken with the array padded by
+% repeating its edge values (not zeros), so the boundary values are no
+% longer pulled toward zero. Along a dimension shorter than the window
+% (e.g. 5 planes across the STB slab) the window is reduced to the largest
+% one that fits, so the centre plane needs no padding at all.
 
 % Check inputs
 if ~exist('order','Var') || isempty(order)
@@ -27,103 +35,20 @@ elseif order < 5
     end
 end
 
-g = fetch_coeff(order,wdw);
+% X-derivatives (First dimension)
+dudx = sg_deriv(u, dx, 1, order, wdw);
+dvdx = sg_deriv(v, dx, 1, order, wdw);
+dwdx = sg_deriv(w, dx, 1, order, wdw);
 
-switch numel(size(u))
-    case 3 % For a single frame
-        % Pre-reshape the kernel for each dimension
-        gx = reshape(1/(-dx)*g, [], 1, 1); % Vertical kernel
-        gy = reshape(1/(-dy)*g, 1, [], 1); % Horizontal kernel
-        gz = reshape(1/(-dz)*g, 1, 1, []); % Depth kernel
+% Y-derivatives (Second dimension)
+dudy = sg_deriv(u, dy, 2, order, wdw);
+dvdy = sg_deriv(v, dy, 2, order, wdw);
+dwdy = sg_deriv(w, dy, 2, order, wdw);
 
-        % X-derivatives (First dimension)
-        dudx = convn(u, gx, 'same');
-        dvdx = convn(v, gx, 'same');
-        dwdx = convn(w, gx, 'same');
-
-        % Y-derivatives (Second dimension)
-        dudy = convn(u, gy, 'same');
-        dvdy = convn(v, gy, 'same');
-        dwdy = convn(w, gy, 'same');
-
-        % Z-derivatives (Third dimension)
-        dudz = convn(u, gz, 'same');
-        dvdz = convn(v, gz, 'same');
-        dwdz = convn(w, gz, 'same');
-
-        % % x-derivative
-        % for i = size(u,2):-1:1
-        % for j = size(u,3):-1:1
-        %     dudx(:,i,j) = conv(u(:,i,j), 1/(-dx)*g,'same');
-        %     dvdx(:,i,j) = conv(v(:,i,j), 1/(-dx)*g,'same');
-        %     dwdx(:,i,j) = conv(w(:,i,j), 1/(-dx)*g,'same');
-        % end
-        % end
-        % % y-derivative
-        % for i = size(u,1):-1:1
-        % for j = size(u,3):-1:1
-        %     dudy(i,:,j) = conv(u(i,:,j), 1/(-dy)*g,'same');
-        %     dvdy(i,:,j) = conv(v(i,:,j), 1/(-dy)*g,'same');
-        %     dwdy(i,:,j) = conv(w(i,:,j), 1/(-dy)*g,'same');
-        % end
-        % end
-        % % z-derivative
-        % for i = size(u,1):-1:1
-        % for j = size(u,2):-1:1
-        %     dudz(i,j,:) = conv(u(i,j,:), 1/(-dz)*g,'same');
-        %     dvdz(i,j,:) = conv(v(i,j,:), 1/(-dz)*g,'same');
-        %     dwdz(i,j,:) = conv(w(i,j,:), 1/(-dz)*g,'same');
-        % end
-        % end
-
-    case 4 % For multiple frames
-        % Pre-reshape the kernel for each dimension
-        gx = reshape(1/(-dx)*g, [], 1, 1, 1); % Vertical kernel
-        gy = reshape(1/(-dy)*g, 1, [], 1, 1); % Horizontal kernel
-        gz = reshape(1/(-dz)*g, 1, 1, [], 1); % Depth kernel
-
-        % X-derivatives (First dimension)
-        dudx = convn(u, gx, 'same');
-        dvdx = convn(v, gx, 'same');
-        dwdx = convn(w, gx, 'same');
-
-        % Y-derivatives (Second dimension)
-        dudy = convn(u, gy, 'same');
-        dvdy = convn(v, gy, 'same');
-        dwdy = convn(w, gy, 'same');
-
-        % Z-derivatives (Third dimension)
-        dudz = convn(u, gz, 'same');
-        dvdz = convn(v, gz, 'same');
-        dwdz = convn(w, gz, 'same');
-
-        % for m = size(u,4):-1:1
-        %     % x-derivative
-        %     for i = size(u,2):-1:1
-        %     for j = size(u,3):-1:1
-        %         dudx(:,i,j,m) = conv(squeeze(u(:,i,j,m)), 1/(-dx)*g,'same');
-        %         dvdx(:,i,j,m) = conv(squeeze(v(:,i,j,m)), 1/(-dx)*g,'same');
-        %         dwdx(:,i,j,m) = conv(squeeze(w(:,i,j,m)), 1/(-dx)*g,'same');
-        %     end
-        %     end
-        %     % y-derivative
-        %     for i = size(u,1):-1:1
-        %     for j = size(u,3):-1:1
-        %         dudy(i,:,j,m) = conv(squeeze(u(i,:,j,m)), 1/(-dy)*g,'same');
-        %         dvdy(i,:,j,m) = conv(squeeze(v(i,:,j,m)), 1/(-dy)*g,'same');
-        %         dwdy(i,:,j,m) = conv(squeeze(w(i,:,j,m)), 1/(-dy)*g,'same');
-        %     end
-        %     end
-        %      % z-derivative
-        %     for i = size(u,1):-1:1
-        %     for j = size(u,2):-1:1
-        %         dudz(i,j,:,m) = conv(squeeze(u(i,j,:,m)), 1/(-dz)*g,'same');
-        %         dvdz(i,j,:,m) = conv(squeeze(v(i,j,:,m)), 1/(-dz)*g,'same');
-        %         dwdz(i,j,:,m) = conv(squeeze(w(i,j,:,m)), 1/(-dz)*g,'same');
-        %     end
-        %     end
-        % end
-end
+% Z-derivatives (Third dimension)
+dudz = sg_deriv(u, dz, 3, order, wdw);
+dvdz = sg_deriv(v, dz, 3, order, wdw);
+dwdz = sg_deriv(w, dz, 3, order, wdw);
 
 % Compute Q
 % 2D variants calculated using second invariant for symmetric tensor
@@ -133,6 +58,49 @@ Qz = dudx.*dvdy - dudy.*dvdx;
 Qy = dudx.*dwdz - dudz.*dwdx;
 Qx = dvdy.*dwdz - dvdz.*dwdy;
 Q = Qx + Qy + Qz;
+
+    function dA = sg_deriv(A, h, dim, order, wdw)
+        % First derivative of A along dimension dim with a Savitzky-Golay
+        % kernel, replicate (edge-value) padding instead of zero padding.
+        n = size(A, dim);
+        [ord, win] = fit_window(order, wdw, n);
+        g = fetch_coeff(ord, win);
+        half = (win - 1) / 2;
+
+        % kernel oriented along dim (same sign convention as before:
+        % convn flips the kernel, hence 1/(-h))
+        kshape = ones(1, max(3, ndims(A)));
+        kshape(dim) = win;
+        kernel = reshape(1/(-h) * g, kshape);
+
+        % pad by repeating the first / last slice along dim
+        idx = [ones(1, half), 1:n, n * ones(1, half)];
+        subs = repmat({':'}, 1, ndims(A));
+        subs{dim} = idx;
+        A_pad = A(subs{:});
+
+        dA = convn(A_pad, kernel, 'valid');
+    end
+
+    function [ord, win] = fit_window(order, wdw, n)
+        % largest supported window <= wdw that fits in n points
+        if order >= 3
+            wins = [9 7 5];
+            wins = wins(wins <= min(wdw, n));
+            if ~isempty(wins)
+                ord = order; win = wins(1);
+                return
+            end
+        end
+        % too few points for the higher-order filter: fall back to
+        % order 2 (3-point central difference at minimum)
+        wins = [9 7 5 3];
+        wins = wins(wins <= min(max(wdw, 3), n));
+        if isempty(wins)
+            error("calQlate3D:tooFewPoints", "Need at least 3 points along each dimension (got %d).", n);
+        end
+        ord = 2; win = wins(1);
+    end
 
     function g = fetch_coeff(order, wdw)
         % coefficients for first derivative. Taken from Wikipedia
@@ -172,6 +140,3 @@ Q = Qx + Qy + Qz;
     end
 
 end
-
-
-

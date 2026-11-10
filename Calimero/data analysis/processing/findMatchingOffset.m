@@ -3,7 +3,8 @@ function [offsets_cur, offsets_filename] = findMatchingOffset...
     count = 0;
     timestamps_str = {};
     timestamps_val = [];
-    cur_time_diff = 10000;
+    matched_names = strings(0,1);
+    matched_folders = strings(0,1);
     % Go through each file, grab its data, take the mean over all results to
     % produce a "dot" (i.e. a single point value) for each force and moment
     for i = 1 : length(offsets_files)
@@ -28,17 +29,43 @@ function [offsets_cur, offsets_filename] = findMatchingOffset...
         timestamps_str = [timestamps_str; time_stamp];
         timestamps_val = [timestamps_val; time_val];
 
-            time_diff = abs(time_val - timeStr2num(time_stamp_match));
-            if (time_diff < cur_time_diff)
-                time_stamp_match_offsets = time_stamp;
-                cur_time_diff = time_diff;
-                offsets_filename = baseFileName;
-                offsets_folder = baseFolder;
-            end
+        matched_names = [matched_names; string(baseFileName)];
+        matched_folders = [matched_folders; string(baseFolder)];
 
         end
         end
     
+    end
+
+    % Pick the offsets file that belongs to this trial. Before offsets are
+    % recorded just before a trial and after offsets just after, so use the
+    % latest before offsets at or before the trial's timestamp and the
+    % earliest after/final offsets at or after it. (Picking the closest in
+    % absolute time could pick another trial's offsets, e.g. the next
+    % trial's before offsets.) Falls back to the closest if there is none
+    % on the expected side.
+    if count > 0
+        exp_time = timeStr2num(time_stamp_match);
+        if strcmp(offsets_string, "before_offsets")
+            candidates = find(timestamps_val <= exp_time);
+            [~, k] = max(timestamps_val(candidates));
+            rule = "latest at or before the trial";
+        else
+            candidates = find(timestamps_val >= exp_time);
+            [~, k] = min(timestamps_val(candidates));
+            rule = "earliest at or after the trial";
+        end
+        if ~isempty(candidates)
+            idx = candidates(k);
+        else
+            [~, idx] = min(abs(timestamps_val - exp_time));
+            warning("findMatchingOffset:noneOnExpectedSide",...
+                "No %s %s (%s); using the closest instead", offsets_string, rule, time_stamp_match);
+            rule = "closest (none " + extractAfter(rule, " ") + ")";
+        end
+        time_stamp_match_offsets = timestamps_str{idx};
+        offsets_filename = char(matched_names(idx));
+        offsets_folder = char(matched_folders(idx));
     end
 
     if count > 1
@@ -47,7 +74,7 @@ function [offsets_cur, offsets_filename] = findMatchingOffset...
     disp("Found " + count + " files, timestamps: ")
     disp(timestamps_str)
     disp("    Experiment timestamp: " + time_stamp_match)
-    disp("    Using closest timestamp: " + time_stamp_match_offsets)
+    disp("    Using " + rule + ": " + time_stamp_match_offsets)
     disp(" ")
     end
 
