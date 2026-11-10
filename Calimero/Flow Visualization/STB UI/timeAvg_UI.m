@@ -2341,6 +2341,15 @@ classdef timeAvg_UI < handle
                             bod_case = obj.get_PIV_sub_case(type, amp);
                             var = var - get_planar_avg(bod_case, force_var, obj.get_planar_avg_bounds());
                         end
+                    elseif obj.is_cropped_ba_force(force_var)
+                        % BA force with the Crop Box (see get_cropped_ba_force)
+                        var = obj.get_cropped_ba_force(case_files, ...
+                            obj.get_stored_var_files(force_var, case_files), name, force_var, avg_type);
+                        if obj.PIV_sub
+                            bod_case = obj.get_PIV_sub_case(type, amp);
+                            var = var - obj.get_cropped_ba_force(bod_case, ...
+                                stb_case_files(bod_case, "integral"), "PIV sub case", force_var, 0);
+                        end
                     elseif (obj.calc_bool && obj.is_piv_force_variable(force_var)) || obj.is_tavg_force_var(force_var) ||...
                             obj.needs_live_ff(force_var, case_files)
                         [var, err] = get_PIV_force(case_files, name, force_var, avg_type, obj.y_norm, obj.trim_bounds);
@@ -2759,6 +2768,9 @@ classdef timeAvg_UI < handle
                 var = get_Q_centroid(case_files, case_files, force_var, obj.get_Q_centroid_bounds());
             elseif obj.is_live_planar_avg(force_var, case_files)
                 var = get_planar_avg(case_files, force_var, obj.get_planar_avg_bounds());
+            elseif obj.is_cropped_ba_force(force_var)
+                var = obj.get_cropped_ba_force(case_files, ...
+                    obj.get_stored_var_files(force_var, case_files), name, force_var, 1);
             elseif (obj.calc_bool && obj.is_piv_force_variable(force_var)) || obj.is_tavg_force_var(force_var) ||...
                     obj.needs_live_ff(force_var, case_files)
                 var = get_PIV_force(case_files, name, force_var, 1, obj.y_norm, obj.trim_bounds);
@@ -3113,6 +3125,57 @@ classdef timeAvg_UI < handle
                 bounds = obj.trim_bounds;
             else
                 bounds = default_trim_bounds();
+            end
+        end
+
+        % BA forces with Live Calculate and the Crop Box on
+        function tf = is_cropped_ba_force(obj, force_var)
+            tf = obj.calc_bool && obj.crop_box_bool && ...
+                any(obj.var_names == string(force_var)) && ...
+                obj.get_var_category(force_var) == "BA: force";
+        end
+
+        % BA (bin-averaged per-frame) force with the Crop Box. The BA forces
+        % come from the instantaneous fields in phase_avg_STB / time_avg_STB
+        % and only their averages are saved, so they can't be recomputed
+        % here. Instead, the stored BA force minus what the box contributes
+        % to the force of the averaged field:
+        %   BA_crop = BA - (F_avg(full plane) - F_avg(plane without the box))
+        % with the trim the BA forces were computed with (default_trim_bounds,
+        % no uncertainty mask; get_PIV_force applies the old flapper bounds).
+        % Exact for the terms linear in the field (lift vortX); for the
+        % quadratic ones (lift vel diff, lift vel, drag) it leaves out the
+        % box's share of the frame-to-frame correlations (e.g. <u'w'>).
+        function var = get_cropped_ba_force(obj, case_files, var_files, name, force_var, avg_type)
+            var = obj.load_stored_var(var_files, force_var);
+            var = double(var(:)');
+            aa_name = obj.get_aa_force_name(force_var);
+            b_full = default_trim_bounds();
+            b_full.unc_mask = 0;
+            if isfield(b_full, 'crop_box')
+                b_full = rmfield(b_full, 'crop_box');
+            end
+            b_crop = b_full;
+            b_crop.crop_box = obj.crop_box;
+            f_full = get_PIV_force(case_files, name, aa_name, avg_type, false, b_full);
+            f_crop = get_PIV_force(case_files, name, aa_name, avg_type, false, b_crop);
+            box_part = double(f_full(:)') - double(f_crop(:)');
+            if numel(box_part) == numel(var) || isscalar(box_part)
+                var = var - box_part;
+            else
+                warning("timeAvg_UI:cropBA", "%s: %s has %d values, the averaged-field force %d; Crop Box not applied", ...
+                    name, force_var, numel(var), numel(box_part));
+            end
+        end
+
+        % Averaged-field force matching a BA force:
+        % lift_before_avg.vortX -> lift.vortX, lift_vel_before_avg -> lift_vel
+        function aa_name = get_aa_force_name(~, ba_name)
+            ba_name = string(ba_name);
+            if endsWith(ba_name, "_vel_before_avg")
+                aa_name = erase(ba_name, "_before_avg");
+            else
+                aa_name = replace(ba_name, "_before_avg.", ".");
             end
         end
 
