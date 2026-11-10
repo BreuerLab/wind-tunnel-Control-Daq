@@ -102,6 +102,16 @@ properties (Constant, Access = private)
     HRPP_METHOD = "particle_pool_hr20";
     MERGED_3D_EXCLUDE_TYPES = ["MPS"];
     MERGED_3D_MARKER_TAG = "merged_3D_plane";  % plane outlines / labels on that plot
+    % "seam comparison": at the seam where the frozen-flow reconstruction
+    % behind one plane (as on "phase avg: 3D all planes") meets the next
+    % plane downstream, the measured field there minus the reconstruction,
+    % averaged over the wingbeat (see plot_seam_comparison). Uses the same
+    % planes, settings and convection speed U_c as the all-planes plot.
+    SEAM_PLOT = "seam comparison";
+    % statistic over the wingbeat of the seam difference: "mean" (signed;
+    % equals the difference of the two planes' time averages, independent
+    % of U_c), "rms" (sensitive to the phase alignment, i.e. to U_c)
+    SEAM_STATS = ["mean", "rms"];
 end
 
 properties
@@ -315,6 +325,16 @@ properties
     % plot; [] = each file's freestream U. merged_conv_field: its box.
     merged_conv_speed;
     merged_conv_field;
+    % "seam comparison": selected seam (1 = between the first and second
+    % plane found for the case, ...), statistic over the wingbeat
+    % (SEAM_STATS), and its controls (seam_grid sits in the frame slider's
+    % row, which that plot doesn't use; seam_conv_field mirrors
+    % merged_conv_field)
+    seam_ind;
+    seam_stat;
+    seam_grid;
+    seam_slider;
+    seam_conv_field;
 end
 
 methods
@@ -344,7 +364,8 @@ methods
         obj.plot_types = ["time avg of phase avg","phase avg: movie", "time avg of phase std","phase std: movie", "phase avg: 3D plot",...
             "image wingbeat phase", "wingbeat frequency","wake forces","phase avg: planar avg",...
             "time avg: section avg", "frozen flow", obj.MERGED_3D_PLOT,...
-            "phase avg: section avg"]; % 13: listed after "time avg: section avg" (order_plot_types)
+            "phase avg: section avg",... % 13: listed after "time avg: section avg" (order_plot_types)
+            obj.SEAM_PLOT]; % 14: listed after "phase avg: 3D all planes" (order_plot_types)
         obj.plot_type = obj.plot_types(1);
         obj.plot_hold_bool = false;
         obj.iso_var_list = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
@@ -368,6 +389,8 @@ methods
         obj.stroke_3D = [];
         obj.merged_3D = [];
         obj.merged_conv_speed = [];
+        obj.seam_ind = 1;
+        obj.seam_stat = obj.SEAM_STATS(1);
         obj.card_style = false;
         obj.card_panel_color = [];
         obj.remove_small_bool = false;
@@ -1024,6 +1047,71 @@ methods
         obj.slider.MinorTicks = 1:obj.num_bins;
         obj.slider.ValueChangedFcn = @(src, event) frame_change(src, event, plot_area_panel);
 
+        % "seam comparison" only, in the frame slider's place (that plot is
+        % averaged over the wingbeat): which seam, the statistic over the
+        % wingbeat, and the convection speed U_c (same value as the U_c box
+        % of "phase avg: 3D all planes")
+        obj.seam_grid = uigridlayout(plot_grid, [1, 6]);
+        obj.seam_grid.Layout.Row = 2;
+        obj.seam_grid.Layout.Column = 1;
+        obj.seam_grid.ColumnWidth = {44, '1x', 70, 64, 60, 36};
+        obj.seam_grid.RowHeight = {'1x'};
+        obj.seam_grid.Padding = [0 0 0 0];
+        obj.seam_grid.ColumnSpacing = 8;
+        obj.seam_grid.Visible = "off";
+
+        seam_label = uilabel(obj.seam_grid);
+        seam_label.Layout.Row = 1;
+        seam_label.Layout.Column = 1;
+        seam_label.Text = "Seam";
+        seam_label.FontSize = 14;
+        seam_label.HorizontalAlignment = 'right';
+
+        obj.seam_slider = uislider(obj.seam_grid);
+        obj.seam_slider.Layout.Row = 1;
+        obj.seam_slider.Layout.Column = 2;
+        obj.seam_slider.Limits = [1 2];
+        obj.seam_slider.Value = obj.seam_ind;
+        obj.seam_slider.MajorTicks = 1:2;
+        obj.seam_slider.MinorTicks = [];
+        obj.seam_slider.Tooltip = "Seam to compare: the measured field of the downstream plane " + ...
+            "minus the frozen-flow reconstruction from the upstream plane where it reaches it";
+        obj.seam_slider.ValueChangedFcn = @(src, event) seam_change(src, event, plot_area_panel);
+
+        seam_stat_dropdown = uidropdown(obj.seam_grid);
+        seam_stat_dropdown.Layout.Row = 1;
+        seam_stat_dropdown.Layout.Column = 3;
+        seam_stat_dropdown.Items = obj.SEAM_STATS;
+        seam_stat_dropdown.Value = obj.seam_stat;
+        seam_stat_dropdown.Tooltip = "Over the wingbeat: mean of the difference (signed; this equals the " + ...
+            "difference of the two planes' time averages, so it doesn't depend on U_c), or its rms " + ...
+            "(includes the phase mismatch, so it depends on U_c)";
+        seam_stat_dropdown.ValueChangedFcn = @(src, event) seam_stat_change(src, event, plot_area_panel);
+
+        seam_uc_label = uilabel(obj.seam_grid);
+        seam_uc_label.Layout.Row = 1;
+        seam_uc_label.Layout.Column = 4;
+        seam_uc_label.Text = "U_c (m/s)";
+        seam_uc_label.HorizontalAlignment = 'right';
+
+        obj.seam_conv_field = uieditfield(obj.seam_grid, "numeric");
+        obj.seam_conv_field.Layout.Row = 1;
+        obj.seam_conv_field.Layout.Column = 5;
+        obj.seam_conv_field.Limits = [0 Inf];
+        obj.seam_conv_field.LowerLimitInclusive = "off";
+        obj.seam_conv_field.ValueDisplayFormat = '%.3g';
+        obj.seam_conv_field.HorizontalAlignment = 'center';
+        obj.seam_conv_field.Tooltip = "Wake convection speed of the frozen-flow reconstruction (same as on " + ...
+            "phase avg: 3D all planes)";
+        obj.seam_conv_field.ValueChangedFcn = @(src, event) merged_conv_change(src, event, plot_area_panel);
+
+        seam_uc_reset_button = uibutton(obj.seam_grid);
+        seam_uc_reset_button.Layout.Row = 1;
+        seam_uc_reset_button.Layout.Column = 6;
+        seam_uc_reset_button.Text = "U∞";
+        seam_uc_reset_button.Tooltip = "Back to each file's freestream speed U";
+        seam_uc_reset_button.ButtonPushedFcn = @(src, event) merged_conv_reset(src, event, plot_area_panel);
+
         obj.play_button = uibutton(plot_grid, "state");
         obj.play_button.Layout.Row = 3;
         obj.play_button.Layout.Column = 1;
@@ -1661,7 +1749,7 @@ methods
         end
 
         function refresh_variable_dropdown(previous_plot_type)
-            phase_avg_plots = obj.plot_types([1 2 5 9 12]);
+            phase_avg_plots = obj.plot_types([1 2 5 9 12 14]);
             phase_std_plots = obj.plot_types([3 4]);
             same_phase_avg_family = ismember(previous_plot_type, phase_avg_plots) && ...
                 ismember(obj.plot_type, phase_avg_plots);
@@ -1716,21 +1804,38 @@ methods
             else
                 num_cycles_slider.Tooltip = "";
             end
+            % seam comparison: its seam controls replace the frame slider
+            % and Play (plot_seam_comparison hides those)
+            obj.seam_grid.Visible = obj.plot_type == obj.SEAM_PLOT;
             set_distance_dropdown_visibility();
         end
 
         function merged_conv_change(src, ~, plot_panel)
             obj.merged_conv_speed = src.Value;
-            if obj.plot_type == obj.MERGED_3D_PLOT
+            if obj.is_all_planes_plot_type()
                 obj.update_plot(plot_panel); % same view, new surface
             end
         end
 
         function merged_conv_reset(~, ~, plot_panel)
             obj.merged_conv_speed = [];
-            if obj.plot_type == obj.MERGED_3D_PLOT
+            if obj.is_all_planes_plot_type()
                 obj.update_plot(plot_panel);
             end
+        end
+
+        function seam_change(src, ~, plot_panel)
+            src.Value = round(src.Value); % snap to a seam
+            if src.Value == obj.seam_ind
+                return
+            end
+            obj.seam_ind = src.Value;
+            obj.update_plot(plot_panel);
+        end
+
+        function seam_stat_change(src, ~, plot_panel)
+            obj.seam_stat = string(src.Value);
+            obj.update_plot(plot_panel);
         end
 
         function section_count_change(src, ~, plot_panel)
@@ -1740,7 +1845,7 @@ methods
 
         function set_distance_dropdown_visibility()
             is_visible = obj.is_flapper_source_mode(obj.source_mode) && ~isempty(obj.distance_labels) && ...
-                obj.plot_type ~= obj.MERGED_3D_PLOT;
+                ~obj.is_all_planes_plot_type();
             row_heights = sidebar_grid.RowHeight;
             if is_visible
                 distance_dropdown.Visible = "on";
@@ -2502,6 +2607,13 @@ methods (Access = private)
     % 3D plot or "phase avg: 3D all planes" (share the 3D parameters)
     function tf = is_3D_plot_type(obj)
         tf = obj.plot_type == obj.plot_types(5) || obj.plot_type == obj.MERGED_3D_PLOT;
+    end
+
+    % Plots built from every downstream position of a case ("phase avg: 3D
+    % all planes", "seam comparison"): no position dropdown, the case list
+    % spans all positions
+    function tf = is_all_planes_plot_type(obj)
+        tf = obj.plot_type == obj.MERGED_3D_PLOT || obj.plot_type == obj.SEAM_PLOT;
     end
 
     function tf = is_Q_iso_var(~, iso_var)
@@ -3500,7 +3612,7 @@ methods (Access = private)
     % Cases for the dropdown: for the flappers, only those at the selected
     % downstream position
     function case_names = get_case_name_list_for_active_plot_type(obj)
-        if obj.plot_type == obj.MERGED_3D_PLOT
+        if obj.is_all_planes_plot_type()
             case_names = obj.get_merged_case_names();
             return
         end
@@ -3778,17 +3890,18 @@ methods (Access = private)
         % the merged 3D plot doesn't depend on the selected position, so
         % while it is shown every plot type stays available (picking
         % another one goes back to the cases at the selected position)
+        % (same for the seam comparison, built from the same planes)
         is_flapper = obj.is_flapper_source_mode(obj.source_mode);
-        if obj.plot_type == obj.MERGED_3D_PLOT && is_flapper
+        if obj.is_all_planes_plot_type() && is_flapper
             plot_types = obj.order_plot_types(obj.plot_types);
             return
         end
         plot_types = obj.get_position_plot_types();
-        has_merged = any(plot_types == obj.MERGED_3D_PLOT);
-        if is_flapper && ~has_merged && ~isempty(obj.get_merged_case_names())
-            plot_types(end+1) = obj.MERGED_3D_PLOT;
-        elseif ~is_flapper && has_merged
-            plot_types = plot_types(plot_types ~= obj.MERGED_3D_PLOT);
+        all_planes_types = [obj.MERGED_3D_PLOT, obj.SEAM_PLOT];
+        if is_flapper && ~isempty(obj.get_merged_case_names())
+            plot_types = [plot_types, all_planes_types(~ismember(all_planes_types, plot_types))];
+        elseif ~is_flapper
+            plot_types = plot_types(~ismember(plot_types, all_planes_types));
         end
         plot_types = obj.order_plot_types(plot_types);
     end
@@ -3802,6 +3915,13 @@ methods (Access = private)
             rest = plot_types(~is_ph);
             k = find(rest == obj.plot_types(10), 1);
             plot_types = [rest(1:k), obj.plot_types(13), rest(k+1:end)];
+        end
+        % "seam comparison" right after "phase avg: 3D all planes"
+        is_seam = plot_types == obj.SEAM_PLOT;
+        if any(is_seam) && any(plot_types == obj.MERGED_3D_PLOT)
+            rest = plot_types(~is_seam);
+            k = find(rest == obj.MERGED_3D_PLOT, 1);
+            plot_types = [rest(1:k), obj.SEAM_PLOT, rest(k+1:end)];
         end
     end
 
@@ -3841,6 +3961,10 @@ methods (Access = private)
 
         if obj.plot_type == obj.MERGED_3D_PLOT
             obj.plot_merged_3D(plot_panel);
+            return
+        end
+        if obj.plot_type == obj.SEAM_PLOT
+            obj.plot_seam_comparison(plot_panel);
             return
         end
         using_time_avg_file = obj.is_time_avg_file_selected();
@@ -4779,28 +4903,13 @@ methods (Access = private)
             stamps(i) = stb_file_stamp(plane_cases{i});
         end
 
-        key = strjoin([names(:)', stamps(:)', string(obj.variable_name), string(obj.iso_var), ...
-            string(obj.trim_bool), mat2str(obj.trim_y_bounds), mat2str(obj.trim_z_bounds), ...
-            string(obj.mirror_bool), mat2str(obj.mirror_center_y), string(obj.filter_bool), ...
-            string(obj.floor_bool), sprintf("%.10g", obj.thresh), ...
-            string(obj.unc_mask_bool), sprintf("%.10g", obj.unc_mask_thresh), ...
-            string(obj.crop_box_bool), mat2str(obj.crop_box), ...
-            mat2str(obj.get_color_limits(obj.variable_name))], "|");
-        if ~isempty(obj.merged_3D) && obj.merged_3D.key == key
-            M = obj.merged_3D;
-            return
-        end
-
         var_name = obj.variable_name_dict(obj.variable_name);
         iso_var_name = obj.variable_name_dict(obj.iso_var);
         is_transport = any(obj.variable_name == [obj.TRANSPORT_VARS, obj.TRANSPORT_SUM_VARS]);
-        transport_pairs = strings(0, 2);
-        transport_own_vort = strings(0, 1);
-        if is_transport
-            [transport_pairs, transport_own_vort] = obj.get_transport_inputs(var_name, false);
-        end
 
-        % background value of the colour variable (as in update_plot)
+        % background value of the colour variable (as in update_plot); the
+        % colour limits only matter through it (noise floor), so the cache
+        % below survives moving the colour limit slider
         var_clims = obj.get_color_limits(obj.variable_name);
         if strcmp(var_name, obj.LIFT_WX_FIELD) || is_transport
             zero = 0;
@@ -4810,6 +4919,23 @@ methods (Access = private)
             zero = 0;
         else
             zero = 1;
+        end
+
+        key = strjoin([names(:)', stamps(:)', string(obj.variable_name), string(obj.iso_var), ...
+            string(obj.trim_bool), mat2str(obj.trim_y_bounds), mat2str(obj.trim_z_bounds), ...
+            string(obj.mirror_bool), mat2str(obj.mirror_center_y), string(obj.filter_bool), ...
+            string(obj.floor_bool), sprintf("%.10g", obj.thresh), ...
+            string(obj.unc_mask_bool), sprintf("%.10g", obj.unc_mask_thresh), ...
+            string(obj.crop_box_bool), mat2str(obj.crop_box), string(zero)], "|");
+        if ~isempty(obj.merged_3D) && obj.merged_3D.key == key
+            M = obj.merged_3D;
+            return
+        end
+
+        transport_pairs = strings(0, 2);
+        transport_own_vort = strings(0, 1);
+        if is_transport
+            [transport_pairs, transport_own_vort] = obj.get_transport_inputs(var_name, false);
         end
         % sign flipped on the mirrored half (as in update_plot)
         flip_sign = any(contains(["v","ω_z","ω_x"], obj.variable_name));
@@ -5114,6 +5240,151 @@ methods (Access = private)
             h.HandleVisibility = 'off';
             h.PickableParts = 'none';
         end
+    end
+
+    % "seam comparison": at the seam where the frozen-flow reconstruction
+    % behind plane A (as on "phase avg: 3D all planes") reaches plane B,
+    % the next one downstream,
+    %   D(y, z, phi) = val_B(y, z, phi) - val_A(y, z, phi - (x_B - x_A) / lambda_A)
+    % with lambda_A = U_c / f_A, shown as its mean or rms over the
+    % wingbeat (seam_stat). D is evaluated on plane B's grid (plane A
+    % interpolated onto it), with the planes as loaded for the all-planes
+    % plot (trim / mirror / filter / noise floor). The colour range spans
+    % the same width as the variable's own colour limits, centred on zero.
+    function plot_seam_comparison(obj, plot_panel)
+        delete(findobj(plot_panel.Children, 'Type', 'axes'));
+        obj.plot_hold_bool = false;
+        obj.slider.Visible = "off";
+        obj.play_button.Visible = "off";
+        obj.seam_grid.Visible = "on";
+
+        if any(obj.variable_name == obj.EXTRAP_DIFF_VARS)
+            show_message("Extrapolated - measured is only available for the 2D phase average plots");
+            return
+        end
+        if obj.extrapolate_bool
+            disp("seam comparison uses the measured fields (Extrapolate ignored)")
+        end
+
+        [M, msg] = obj.get_merged_planes();
+        if isempty(M)
+            show_message(msg);
+            return
+        end
+        planes = M.planes;
+        n_seams = numel(planes) - 1;
+        if isempty(obj.merged_conv_speed)
+            obj.seam_conv_field.Value = planes(1).U;
+        else
+            obj.seam_conv_field.Value = obj.merged_conv_speed;
+        end
+        if n_seams < 1
+            obj.seam_slider.Enable = "off";
+            show_message("Only one plane (" + planes(1).type + ") of " + obj.case_name + ...
+                " could be loaded: no seam to compare");
+            return
+        end
+
+        % slider: one tick per seam, labelled by the two planes
+        seam_labels = strings(1, n_seams);
+        for j = 1:n_seams
+            seam_labels(j) = planes(j).type + "-" + planes(j+1).type;
+        end
+        obj.seam_ind = min(max(round(obj.seam_ind), 1), n_seams);
+        obj.seam_slider.Enable = n_seams > 1;
+        obj.seam_slider.Limits = [1 max(n_seams, 2)]; % Limits must be increasing
+        obj.seam_slider.MajorTicks = 1:n_seams;
+        obj.seam_slider.MajorTickLabels = seam_labels;
+        obj.seam_slider.Value = obj.seam_ind;
+
+        A = planes(obj.seam_ind);     % upstream: reconstructed
+        B = planes(obj.seam_ind + 1); % downstream: measured
+        [D, shift] = obj.seam_difference(A, B);
+        nb = size(D, 3);
+        % points with too few valid bins (e.g. outside one plane's field
+        % of view in some bins) are left out
+        valid = sum(~isnan(D), 3) >= nb / 2;
+        if obj.seam_stat == "rms"
+            S = sqrt(mean(D.^2, 3, "omitnan"));
+        else
+            S = mean(D, 3, "omitnan");
+        end
+        S(~valid) = NaN;
+        if all(isnan(S), "all")
+            show_message("Planes " + A.type + " and " + B.type + " don't overlap in y-z");
+            return
+        end
+
+        % scalar summary over the overlap: rms of the plotted map, and the
+        % rms of the measured field's departure from its background (for
+        % scale)
+        S_rms = sqrt(mean(S(valid).^2, "omitnan"));
+        ref = B.val - M.zero;
+        ref_rms = sqrt(mean(ref(repmat(valid, 1, 1, size(ref, 3))).^2, "omitnan"));
+        fprintf("Seam %s (%s): %s over the wingbeat of measured - reconstructed %s; " + ...
+            "rms over the overlap = %.4g (%.1f%% of the rms of %s - %g at %s), " + ...
+            "reconstruction lag = %.3f wingbeats, U_c = %.3g m/s\n", ...
+            seam_labels(obj.seam_ind), obj.case_name, obj.seam_stat, obj.variable_name, ...
+            S_rms, 100 * S_rms / ref_rms, obj.variable_name, M.zero, B.type, shift, obj.merged_speed(A));
+
+        var_clims = obj.get_color_limits(obj.variable_name);
+        params = struct();
+        params.zero = 0;
+        if obj.seam_stat == "rms"
+            params.clims = [0, diff(var_clims) / 2]; % jet, from 0
+            params.cb_lab = "rms \boldmath$\Delta\,$" + obj.label_dict(obj.variable_name);
+        else
+            params.clims = [-1 1] * diff(var_clims) / 2;
+            params.cb_lab = "\boldmath$\Delta\,$" + obj.label_dict(obj.variable_name);
+        end
+        [Zq, Yq] = meshgrid(B.zv, B.yv); % y x z, as the other 2D plots
+        ax = axes(plot_panel);
+        PIV_plot(Yq, Zq, S, params, ax);
+
+        if isempty(obj.merged_conv_speed)
+            uc_str = "U_c = U = " + sprintf("%.3g", obj.merged_speed(A));
+        else
+            uc_str = "U_c = " + sprintf("%.3g", obj.merged_conv_speed);
+        end
+        title(ax, [obj.case_name + ",  seam " + seam_labels(obj.seam_ind) + ...
+            ":  " + obj.seam_stat + " over the wingbeat of " + B.type + " (measured) - " + ...
+            A.type + " (frozen flow)", ...
+            uc_str + " m/s,  lag " + sprintf("%.2f", shift) + " wingbeats,  rms over overlap = " + ...
+            sprintf("%.3g", S_rms) + " (" + sprintf("%.0f", 100 * S_rms / ref_rms) + "% of " + ...
+            B.type + " rms)"], 'Interpreter', 'none', 'FontSize', 14);
+
+        function show_message(text_str)
+            delete(findobj(plot_panel.Children, 'Type', 'axes'));
+            ax_msg = axes(plot_panel);
+            text(ax_msg, 0.5, 0.5, text_str, 'HorizontalAlignment', 'center', ...
+                Interpreter='none', FontSize=14);
+            axis(ax_msg, 'off');
+        end
+    end
+
+    % Seam difference for plot_seam_comparison: plane B measured minus the
+    % frozen-flow reconstruction from plane A where it reaches x_B, per
+    % bin of B (y x z x N_B, on B's grid, NaN where A doesn't cover it).
+    % shift: lag of the reconstruction, (x_B - x_A) / lambda_A wingbeats.
+    function [D, shift] = seam_difference(obj, A, B)
+        lambda = obj.merged_speed(A) / A.f; % m per wingbeat
+        shift = (B.x - A.x) / lambda;
+        % same convention as build_merged_surface: at x_B, segment A shows
+        % the phase phi - shift of plane A, where segment B starts at phi
+        phase = (0:B.N-1) / B.N - shift;
+        R = obj.phase_interp(A.val, phase); % A's grid, y x z x N_B
+        same_grid = isequal(size(A.yv), size(B.yv)) && isequal(size(A.zv), size(B.zv)) && ...
+            max(abs(A.yv - B.yv)) < 1e-9 && max(abs(A.zv - B.zv)) < 1e-9;
+        if ~same_grid
+            [Zq, Yq] = meshgrid(B.zv, B.yv);
+            [Za, Ya] = meshgrid(A.zv, A.yv);
+            R_B = NaN(numel(B.yv), numel(B.zv), B.N);
+            for k = 1:B.N
+                R_B(:,:,k) = interp2(Za, Ya, R(:,:,k), Zq, Yq, "linear", NaN);
+            end
+            R = R_B;
+        end
+        D = B.val - R;
     end
 
     % Show the section-count dropdown instead of the colour-limit slider
