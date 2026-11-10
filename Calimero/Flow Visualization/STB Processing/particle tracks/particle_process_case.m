@@ -12,7 +12,13 @@ function method = particle_process_case(PIV_case_name, save_filepath_local, vers
     fprintf('\n----- Particle processing: %s (method %s) -----\n', ...
             PIV_case_name, particle_method_name(p));
     t0 = tic;
-    particle_phase_avg_case(PIV_case_name, save_filepath_local, version, p);
+    p_fit = p;  p_fit.hr_harmonics = 0;
+    Pfit = stb_file_paths(save_filepath_local, PIV_case_name, version, particle_method_name(p_fit));
+    if isfield(p, 'reuse_fit') && p.reuse_fit && isfile(Pfit.fit)
+        fprintf('Reusing the saved particle fit %s\n', Pfit.fit);
+    else
+        particle_phase_avg_case(PIV_case_name, save_filepath_local, version, p);
+    end
     method = particle_integrals_case(PIV_case_name, save_filepath_local, version, p);
     fprintf('Particle processing of %s took %.1f min\n', PIV_case_name, toc(t0)/60);
 end

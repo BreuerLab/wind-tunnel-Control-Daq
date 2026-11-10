@@ -11,6 +11,10 @@ function p = particle_default_opts()
     % ---- what to run ------------------------------------------------------
     p.run  = false;   % run the particle steps after the binned phase average
     p.only = false;   % skip the binned processing (its files must exist)
+    % reuse the saved particle fit (particle_fits\...) if there is one and
+    % only redo the integrals (e.g. to add the uncertainty bands); the fit
+    % takes ~25 min per case, the integrals ~2 min
+    p.reuse_fit = false;
     p.plot = false;   % quick-look figure after the particle phase average
 
     % ---- particle data ----------------------------------------------------
