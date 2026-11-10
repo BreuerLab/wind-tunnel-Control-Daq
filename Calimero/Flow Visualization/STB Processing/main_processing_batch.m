@@ -16,15 +16,16 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 % sel_case_names = ["x3_wings_20deg_2Hz", "x3_wings_20deg_4Hz", ...
 %                   "x3_wings_20deg_6Hz", "x3_wings_20deg_8Hz"];
 
+sel_case_names = ["x3_wings_20deg_0Hz"];
 % Alternatively, select cases by filter. Leave a filter empty to accept
 % any value. Uncomment the line below the filters to use them.
 positions = ["x3"];        % "x1"-"x5", "MPS", "UP_one", "UP_two", "" = old 0.9 m cases (no prefix)
-amps = [30];               % flapping amplitude (deg)
-freqs = [6];         % wingbeat frequency (Hz), 0 = gliding
-sel_case_names = select_cases(get_PIV_paths(), positions, amps, freqs);
+amps = [];               % flapping amplitude (deg)
+freqs = [0];         % wingbeat frequency (Hz), 0 = gliding
+% sel_case_names = select_cases(get_PIV_paths(), positions, amps, freqs);
 % All cases found (every listed case and every September\<pos>\<case>
 % folder): set the three filters above to [] or uncomment this line
-sel_case_names = get_PIV_paths();
+% sel_case_names = get_PIV_paths();
 
 % Keep only flapping or only static cases from the selection above
 % (whichever way it was made):
@@ -37,7 +38,7 @@ sel_case_names = get_PIV_paths();
 % cases without an amplitude or frequency (ring, freestream, ...) only
 % pass empty amps / freqs filters above, e.g. for every static case:
 % positions = []; amps = []; freqs = []; motion = "static";
-motion = "flapping";
+motion = "static";
 
 % Number of images per case: "auto" counts the .vc7 files in each case's
 % data folder (get_PIV_paths) and uses that; a number uses it for every
@@ -48,7 +49,7 @@ num_images = "auto";
 % true: skip cases that already have a processed file (with the version,
 % HR and RPCA settings below) in save_filepath_local or its phase_avg\ /
 % time_avg\ subfolders
-skip_processed = true;
+skip_processed = false;
 
 % save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
 save_filepath_local = "F:\Processed Results\";
@@ -107,7 +108,7 @@ bools.hr_save_coef = false; % save coefficients (to evaluate fit / exact d/dt at
 bools.particle = particle_default_opts();
 bools.particle.run  = true;   % true: add the particle processing
 bools.particle.only = true;   % true: only the particle processing (binned files must exist)
-bools.particle.reuse_fit = true;  % true: reuse saved particle fits, only redo the integrals
+bools.particle.reuse_fit = false;  % true: reuse saved particle fits, only redo the integrals
 % bools.particle.run_tag      = "o3";     % tag non-default fit settings in the file names
 % bools.particle.fit.depthOrder = 5;
 % bools.particle.hr_harmonics = 20;     % harmonic regression across bins, 0 = off
