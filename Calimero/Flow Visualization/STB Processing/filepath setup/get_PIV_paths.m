@@ -90,12 +90,12 @@ function [file_path, case_folder] = get_PIV_paths(PIV_case_name)
         'turbine_S_ext',              month_1 + "turbine_6ms_S_ext" + BIN
         'turbine_F_ext'               month_1 + "turbine_6ms_F_ext" + BIN
 
-        'x5_NACA',                    month_2 + "x5_NACA" + BIN
-        'x5_NACA_refined',            month_2 + "x5_NACA_refined" + BIN
-        'x5_wings_20deg_0Hz',         month_2 + "x5_wings_20deg_0Hz" + BIN
-        'x5_wings_20deg_6Hz',         month_2 + "x5_wings_20deg_6Hz" + BIN
-        'x5_wings_20deg_6Hz_v2',         month_2 + "x5_wings_20deg_6Hz_v2" + BIN
-        'x5_wings_20deg_6Hz_v3',         month_2 + "x5_wings_20deg_6Hz_v3" + BIN
+        % 'x5_NACA',                    month_2 + "x5_NACA" + BIN
+        % 'x5_NACA_refined',            month_2 + "x5_NACA_refined" + BIN
+        % 'x5_wings_20deg_0Hz',         month_2 + "x5_wings_20deg_0Hz" + BIN
+        % 'x5_wings_20deg_6Hz',         month_2 + "x5_wings_20deg_6Hz" + BIN
+        % 'x5_wings_20deg_6Hz_v2',         month_2 + "x5_wings_20deg_6Hz_v2" + BIN
+        % 'x5_wings_20deg_6Hz_v3',         month_2 + "x5_wings_20deg_6Hz_v3" + BIN
 
         % September cases (x1-x5, MPS) aren't listed: their paths are built
         % from the case name (september_path below)

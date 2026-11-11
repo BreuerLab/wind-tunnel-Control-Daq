@@ -16,13 +16,12 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 % sel_case_names = ["x3_wings_20deg_2Hz", "x3_wings_20deg_4Hz", ...
 %                   "x3_wings_20deg_6Hz", "x3_wings_20deg_8Hz"];
 
-sel_case_names = ["x3_wings_20deg_0Hz"];
 % Alternatively, select cases by filter. Leave a filter empty to accept
 % any value. Uncomment the line below the filters to use them.
-positions = ["x3"];        % "x1"-"x5", "MPS", "UP_one", "UP_two", "" = old 0.9 m cases (no prefix)
+positions = ["x2","x3","x4"];        % "x1"-"x5", "MPS", "UP_one", "UP_two", "" = old 0.9 m cases (no prefix)
 amps = [];               % flapping amplitude (deg)
-freqs = [0];         % wingbeat frequency (Hz), 0 = gliding
-% sel_case_names = select_cases(get_PIV_paths(), positions, amps, freqs);
+freqs = [];         % wingbeat frequency (Hz), 0 = gliding
+sel_case_names = select_cases(get_PIV_paths(), positions, amps, freqs);
 % All cases found (every listed case and every September\<pos>\<case>
 % folder): set the three filters above to [] or uncomment this line
 % sel_case_names = get_PIV_paths();
@@ -38,7 +37,7 @@ freqs = [0];         % wingbeat frequency (Hz), 0 = gliding
 % cases without an amplitude or frequency (ring, freestream, ...) only
 % pass empty amps / freqs filters above, e.g. for every static case:
 % positions = []; amps = []; freqs = []; motion = "static";
-motion = "static";
+motion = "flapping";
 
 % Number of images per case: "auto" counts the .vc7 files in each case's
 % data folder (get_PIV_paths) and uses that; a number uses it for every
@@ -49,7 +48,7 @@ num_images = "auto";
 % true: skip cases that already have a processed file (with the version,
 % HR and RPCA settings below) in save_filepath_local or its phase_avg\ /
 % time_avg\ subfolders
-skip_processed = false;
+skip_processed = true;
 
 % save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
 save_filepath_local = "F:\Processed Results\";
@@ -92,8 +91,8 @@ bools.version = "";
 % Reynolds stresses and Q_inst are still computed per bin. Saved with
 % "_hr" added to the version name (e.g. coarse_hr), so it doesn't
 % overwrite the bin-averaged files. See harmonic_regression_STB.m.
-bools.harmonic_reg = false;
-bools.num_harmonics = 10; % 2*10+1 = 21 coefficients per point and field
+bools.harmonic_reg = true;
+bools.num_harmonics = 20; % 2*10+1 = 21 coefficients per point and field
 bools.hr_save_coef = false; % save coefficients (to evaluate fit / exact d/dt at any phase); large files
 
 % Particle-based phase average (particle tracks\particle_process_case):
@@ -106,8 +105,8 @@ bools.hr_save_coef = false; % save coefficients (to evaluate fit / exact d/dt at
 % uncertainty mask and DAQ data. Time-averaged cases are skipped.
 % All settings and their meaning: particle_default_opts.m
 bools.particle = particle_default_opts();
-bools.particle.run  = true;   % true: add the particle processing
-bools.particle.only = true;   % true: only the particle processing (binned files must exist)
+bools.particle.run  = false;   % true: add the particle processing
+bools.particle.only = false;   % true: only the particle processing (binned files must exist)
 bools.particle.reuse_fit = false;  % true: reuse saved particle fits, only redo the integrals
 % bools.particle.run_tag      = "o3";     % tag non-default fit settings in the file names
 % bools.particle.fit.depthOrder = 5;
