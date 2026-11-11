@@ -199,6 +199,12 @@ properties
     section_unc_pct;
     section_unc_mode;
     section_grid;      % row with the section count and these controls
+    % section plots' PIV Body Sub: subtract a steady (time averaged) case's
+    % field before the sections are formed, as timeAvg_UI's PIV Body Sub
+    % ("ring", "body", "gliding", "freestream"; see get_section_sub_case)
+    section_sub_bool;
+    section_sub_case;
+    section_sub_cache = struct('key', "", 'data', []);
     frozen_vars;      % "frozen flow" plot: slab d/dx vs (1/U) d/dt, for frozen_quantities
     frozen_quantities; %   du/dx, dv/dx, dw/dx, omega_y, omega_z, div u (labels)
     frozen_keys;       %   their field names in get_frozen_flow_fields (dudx, ... vortZ, div)
@@ -800,6 +806,8 @@ methods
         obj.section_unc_mode = "threshold";
         if isfield(b_sec, 'unc_mask_mode'), obj.section_unc_mode = string(b_sec.unc_mask_mode); end
         if obj.section_unc_pct <= 0, obj.section_unc_pct = 4; end
+        obj.section_sub_bool = false;
+        obj.section_sub_case = "freestream";
         obj.frozen_label_dict = containers.Map(cellstr(obj.frozen_vars), frozen_labels);
         obj.frozen_clim_dict = obj.build_clim_dict(obj.frozen_vars, obj.frozen_clims);
 
@@ -941,11 +949,11 @@ methods
         % Section avg plots (shares the colour-limit slider's row; only
         % one of them is shown, the row grows to fit these): number of y
         % sections, then the uncertainty mask of the section averages
-        obj.section_grid = uigridlayout(sidebar_grid, [2, 3]);
+        obj.section_grid = uigridlayout(sidebar_grid, [3, 3]);
         obj.section_grid.Layout.Row = 7;
         obj.section_grid.Layout.Column = 1;
         obj.section_grid.ColumnWidth = {'1x', 55, '1x'};
-        obj.section_grid.RowHeight = {30, 30};
+        obj.section_grid.RowHeight = {30, 30, 30};
         obj.section_grid.Padding = [0 0 0 0];
         obj.section_grid.RowSpacing = 4;
         obj.section_grid.ColumnSpacing = 4;
@@ -987,6 +995,26 @@ methods
         sec_unc_mode.Tooltip = "above threshold: every point above it. outside largest contour: everything " + ...
             "outside the largest region enclosed by the threshold contour (holes inside it, e.g. vortex cores, kept)";
         sec_unc_mode.ValueChangedFcn = @(src, event) section_unc_mode_change(src, event, plot_area_panel);
+
+        sec_sub_button = uibutton(obj.section_grid, "state");
+        sec_sub_button.Layout.Row = 3;
+        sec_sub_button.Layout.Column = [1 2];
+        sec_sub_button.Text = "PIV Body Sub";
+        sec_sub_button.FontSize = 14;
+        sec_sub_button.Value = obj.section_sub_bool;
+        sec_sub_button.BackgroundColor = obj.get_button_color(obj.section_sub_bool);
+        sec_sub_button.Tooltip = "Subtract the steady case picked beside it (its time averaged field, " + ...
+            "same trim and uncertainty mask) before the sections are formed, as in timeAvg_UI";
+        sec_sub_button.ValueChangedFcn = @(src, event) section_sub_change(src, event, plot_area_panel);
+
+        sec_sub_dropdown = uidropdown(obj.section_grid);
+        sec_sub_dropdown.Layout.Row = 3;
+        sec_sub_dropdown.Layout.Column = 3;
+        sec_sub_dropdown.Items = ["ring", "body", "gliding", "freestream"];
+        sec_sub_dropdown.Value = obj.section_sub_case;
+        sec_sub_dropdown.Tooltip = "Steady case subtracted (e.g. for x3_wings_20deg_4Hz: ring = x3_ring, " + ...
+            "body = x3_body_20deg_0Hz, gliding = x3_wings_20deg_0Hz, freestream = freestream, the empty test section)";
+        sec_sub_dropdown.ValueChangedFcn = @(src, event) section_sub_case_change(src, event, plot_area_panel);
 
         trim_button = uibutton(sidebar_grid, "state");
         trim_button.Layout.Row = 8;
@@ -1907,6 +1935,19 @@ methods
         function section_unc_pct_change(src, ~, plot_panel)
             obj.section_unc_pct = src.Value;
             if obj.section_unc_bool
+                obj.update_plot(plot_panel);
+            end
+        end
+
+        function section_sub_change(src, ~, plot_panel)
+            obj.section_sub_bool = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.section_sub_bool);
+            obj.update_plot(plot_panel);
+        end
+
+        function section_sub_case_change(src, ~, plot_panel)
+            obj.section_sub_case = string(src.Value);
+            if obj.section_sub_bool
                 obj.update_plot(plot_panel);
             end
         end
@@ -5471,7 +5512,7 @@ methods (Access = private)
         if is_section
             obj.section_grid.Visible = "on";
             obj.clim_slider.Visible = "off";
-            row_heights{7} = 64;   % section count + uncertainty mask rows
+            row_heights{7} = 98;   % section count, uncertainty mask, PIV Body Sub rows
         else
             obj.section_grid.Visible = "off";
             obj.clim_slider.Visible = "on";
@@ -5490,6 +5531,111 @@ methods (Access = private)
             bounds.unc_mask = 0;
         end
         bounds.unc_mask_mode = obj.section_unc_mode;
+    end
+
+    % Steady case the section plots subtract (PIV Body Sub), as timeAvg_UI
+    % picks it (get_PIV_sub_file_paths) for the current case
+    % <type>_<amp>deg_<freq>Hz: ring -> <pos>_ring, body ->
+    % <pos>_body_<amp>deg_0Hz (or <pos>_body), gliding -> <type>_<amp>deg_0Hz
+    % (a steady case without an amplitude, e.g. x3_NACA, is its own),
+    % freestream -> freestream. sub_name = "" if there is none.
+    function [sub_files, sub_name] = get_section_sub_case(obj)
+        sub_files = [];
+        sub_name = "";
+        base = obj.strip_variant_suffix(obj.get_current_case_id());
+        tok = regexp(char(base), '^(.*)_(\d+(\.\d+)?)deg_\d+(\.\d+)?Hz', 'tokens', 'once');
+        if isempty(tok)
+            type = base;   % steady case without amplitude / frequency
+            amp = "";
+        else
+            type = string(tok{1});
+            amp = string(tok{2});
+        end
+        prefix = get_downstream_prefix(type, true);
+        switch obj.section_sub_case
+            case "ring"
+                names = prefix + "ring";
+            case "body"
+                names = [prefix + "body_" + amp + "deg_0Hz", prefix + "body"];
+            case "gliding"
+                if strlength(amp) == 0
+                    names = type;
+                else
+                    names = type + "_" + amp + "deg_0Hz";
+                end
+            case "freestream"
+                names = position_independent_cases();
+            otherwise
+                names = strings(0);
+        end
+        for k = 1:numel(names)
+            if any(obj.time_avg_case_ids == names(k))
+                sub_name = names(k);
+                sub_files = obj.get_time_case(sub_name);
+                return
+            end
+        end
+        fprintf("PIV Body Sub: no %s case found for %s (looked for %s) - not subtracted\n", ...
+            obj.section_sub_case, base, strjoin(names, ", "));
+    end
+
+    % Section plots' PIV Body Sub: the subtracted case's time averaged
+    % field (force integrand from get_PIV_force, or a flow variable)
+    % interpolated onto the current case's trimmed grid (y, z in chords
+    % from the centreline, before mirroring). [] if there is no case or no
+    % such variable. kind: "force" (force_var) or "flow" (variable name in
+    % the time averaged file); bounds: the section bounds.
+    function [F_sub, sub_name] = get_section_sub_field(obj, kind, var, bounds, y_q, z_q)
+        F_sub = [];
+        [sub_files, sub_name] = obj.get_section_sub_case();
+        if isempty(sub_files)
+            return
+        end
+        key = kind + "|" + sub_name + "|" + var + "|" + sprintf("%.10g", bounds.unc_mask) + "|" + bounds.unc_mask_mode;
+        if obj.section_sub_cache.key == key
+            S = obj.section_sub_cache.data;
+        else
+            S = struct('y', [], 'z', [], 'field', []);
+            if kind == "force"
+                [~, ~, I] = get_PIV_force(sub_files, sub_name, var, 0, false, bounds);
+                if ~isempty(I.field)
+                    S = struct('y', I.y(:), 'z', I.z(:), 'field', mean(I.field, 3, "omitnan"));
+                end
+            else
+                file_vars = string(stb_who(sub_files));
+                if ismember(var, file_vars)
+                    load_vars = {'y', 'z', char(var)};
+                    has_unc = ismember("mean_uncTot", file_vars) && var ~= "mean_uncTot";
+                    if has_unc, load_vars{end+1} = 'mean_uncTot'; end
+                    d = stb_load(sub_files, load_vars{:});
+                    b = old_flapper_compat("trim_bounds_for", stb_name(sub_files), bounds);
+                    [y_tr, z_tr, val] = trim_vel_field(d.y, d.z, d.(var), b);
+                    val = mean(val, 3, "omitnan");
+                    if has_unc && b.unc_mask > 0
+                        [~, ~, unc] = trim_vel_field(d.y, d.z, d.mean_uncTot, b);
+                        mask = unc_mask_region(unc, b.unc_mask, b.unc_mask_mode);
+                        if ~isempty(mask), val(mask) = NaN; end
+                    end
+                    S = struct('y', y_tr(:, 1), 'z', z_tr(1, :).', 'field', val);
+                else
+                    fprintf("PIV Body Sub: %s not in %s - not subtracted\n", var, sub_name);
+                end
+            end
+            obj.section_sub_cache = struct('key', key, 'data', S);
+        end
+        if isempty(S.field) || numel(S.y) < 2 || numel(S.z) < 2
+            return
+        end
+        % same grid (same position and processing): no interpolation
+        if isequal(size(S.field), [numel(y_q), numel(z_q)]) && ...
+                max(abs(S.y - y_q(:))) < 1e-9 && max(abs(S.z - z_q(:))) < 1e-9
+            F_sub = S.field;
+        else
+            [Zq, Yq] = meshgrid(z_q(:), y_q(:));
+            F_sub = interp2(S.z(:).', S.y(:), S.field, Zq, Yq, "linear");   % NaN outside its plane
+        end
+        fprintf("PIV Body Sub: %s data used with %s data subtracted\n", ...
+            obj.get_current_case_id(), sub_name);
     end
 
     % "time avg: section avg" plot type: where across the span a wake
@@ -5574,6 +5720,17 @@ methods (Access = private)
         end
         nb = size(field, 3);
         y_nd = I.y(:);                          % y/c from the centreline
+        % PIV Body Sub: the steady case's integrand, from every bin
+        sub_note = "";
+        if obj.section_sub_bool
+            [F_sub, sub_name] = obj.get_section_sub_field("force", force_var, sec_bounds, y_nd, I.z(:));
+            if isempty(F_sub)
+                sub_note = " (no " + obj.section_sub_case + " case to subtract)";
+            else
+                field = field - F_sub;
+                sub_note = " minus " + sub_name;
+            end
+        end
         % Mirror: both wings, the integrands being even in y
         if obj.mirror_bool
             [y_nd, field] = obj.mirror_section_field(y_nd, field, false);
@@ -5659,6 +5816,7 @@ methods (Access = private)
         function str = title_text(kk)
             str = string(sprintf("%s %s: %.4f N total, %d sections", ...
                 avg_label, string(obj.variable_name), total(kk), n));
+            str = str + sub_note;
             if obj.mirror_bool
                 str = str + " (mirrored, both sides)";
             end
@@ -5838,6 +5996,19 @@ methods (Access = private)
         ax = axes(plot_panel);
         y_nd = y_tr(:, 1);   % y/c from the centreline
         z_nd = z_tr(1, :).';
+        % PIV Body Sub: the steady case's field (time averaged file, same
+        % trim and mask), from every bin
+        sub_note = "";
+        if obj.section_sub_bool
+            sub_var = obj.time_avg_var_name_dict(char(obj.variable_name));
+            [F_sub, sub_name] = obj.get_section_sub_field("flow", sub_var, bounds, y_nd, z_nd);
+            if isempty(F_sub)
+                sub_note = "no " + obj.section_sub_case + " case subtracted";
+            else
+                field = field - F_sub;
+                sub_note = "minus " + sub_name;
+            end
+        end
         % Mirror: both sides of the wake; v, omega_x and omega_z change
         % sign across the centreline (as in the 2D plots)
         if obj.mirror_bool && numel(y_nd) >= 2
@@ -5963,6 +6134,9 @@ methods (Access = private)
             end
             if base ~= 0
                 notes(end+1) = "axis not from zero";
+            end
+            if strlength(sub_note) > 0
+                notes(end+1) = sub_note;
             end
             if obj.mirror_bool
                 notes(end+1) = "mirrored";
