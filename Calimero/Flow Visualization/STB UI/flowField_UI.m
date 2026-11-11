@@ -191,6 +191,14 @@ properties
     section_flow_vars;  % flow variables it can average by section (velocities, vorticity)
     section_plot_vars;  % the variable list it shows: section_force_vars then section_flow_vars
     section_dropdown;
+    % section plots' uncertainty mask (unc_mask_region): on / off,
+    % threshold (% of the freestream speed) and mode ("threshold": every
+    % point above it; "outer": outside the largest region enclosed by its
+    % contour). Starts as the forces use it (default_trim_bounds).
+    section_unc_bool;
+    section_unc_pct;
+    section_unc_mode;
+    section_grid;      % row with the section count and these controls
     frozen_vars;      % "frozen flow" plot: slab d/dx vs (1/U) d/dt, for frozen_quantities
     frozen_quantities; %   du/dx, dv/dx, dw/dx, omega_y, omega_z, div u (labels)
     frozen_keys;       %   their field names in get_frozen_flow_fields (dudx, ... vortZ, div)
@@ -786,6 +794,12 @@ methods
         end
         obj.section_vars = ["5 sections", "3 sections", "10 sections", "20 sections", "every column"];
         obj.section_count = obj.section_vars(1);
+        b_sec = default_trim_bounds();
+        obj.section_unc_bool = b_sec.unc_mask > 0;
+        obj.section_unc_pct = 100 * b_sec.unc_mask;
+        obj.section_unc_mode = "threshold";
+        if isfield(b_sec, 'unc_mask_mode'), obj.section_unc_mode = string(b_sec.unc_mask_mode); end
+        if obj.section_unc_pct <= 0, obj.section_unc_pct = 4; end
         obj.frozen_label_dict = containers.Map(cellstr(obj.frozen_vars), frozen_labels);
         obj.frozen_clim_dict = obj.build_clim_dict(obj.frozen_vars, obj.frozen_clims);
 
@@ -924,15 +938,55 @@ methods
         obj.clim_slider.Value = obj.clims(1,:);
         obj.clim_slider.ValueChangedFcn = @(src, event) clim_change(src, event, plot_area_panel);
 
-        % Number of y sections for "time avg: section avg" (shares the
-        % colour-limit slider's row; only one of them is shown)
-        obj.section_dropdown = uidropdown(sidebar_grid);
-        obj.section_dropdown.Layout.Row = 7;
-        obj.section_dropdown.Layout.Column = 1;
+        % Section avg plots (shares the colour-limit slider's row; only
+        % one of them is shown, the row grows to fit these): number of y
+        % sections, then the uncertainty mask of the section averages
+        obj.section_grid = uigridlayout(sidebar_grid, [2, 3]);
+        obj.section_grid.Layout.Row = 7;
+        obj.section_grid.Layout.Column = 1;
+        obj.section_grid.ColumnWidth = {'1x', 55, '1x'};
+        obj.section_grid.RowHeight = {30, 30};
+        obj.section_grid.Padding = [0 0 0 0];
+        obj.section_grid.RowSpacing = 4;
+        obj.section_grid.ColumnSpacing = 4;
+        obj.section_grid.Visible = "off";
+
+        obj.section_dropdown = uidropdown(obj.section_grid);
+        obj.section_dropdown.Layout.Row = 1;
+        obj.section_dropdown.Layout.Column = [1 3];
         obj.section_dropdown.Items = obj.section_vars;
         obj.section_dropdown.Value = obj.section_count;
-        obj.section_dropdown.Visible = "off";
         obj.section_dropdown.ValueChangedFcn = @(src, event) section_count_change(src, event, plot_area_panel);
+
+        sec_unc_button = uibutton(obj.section_grid, "state");
+        sec_unc_button.Layout.Row = 2;
+        sec_unc_button.Layout.Column = 1;
+        sec_unc_button.Text = "Unc Mask";
+        sec_unc_button.FontSize = 14;
+        sec_unc_button.Value = obj.section_unc_bool;
+        sec_unc_button.BackgroundColor = obj.get_button_color(obj.section_unc_bool);
+        sec_unc_button.Tooltip = "Leave points with high uncertainty out of the section averages and " + ...
+            "forces (the |unc| plot itself is never masked)";
+        sec_unc_button.ValueChangedFcn = @(src, event) section_unc_change(src, event, plot_area_panel);
+
+        sec_unc_field = uieditfield(obj.section_grid, "numeric");
+        sec_unc_field.Layout.Row = 2;
+        sec_unc_field.Layout.Column = 2;
+        sec_unc_field.Limits = [0 Inf];
+        sec_unc_field.Value = obj.section_unc_pct;
+        sec_unc_field.HorizontalAlignment = 'center';
+        sec_unc_field.Tooltip = "Uncertainty mask threshold, % of the freestream speed";
+        sec_unc_field.ValueChangedFcn = @(src, event) section_unc_pct_change(src, event, plot_area_panel);
+
+        sec_unc_mode = uidropdown(obj.section_grid);
+        sec_unc_mode.Layout.Row = 2;
+        sec_unc_mode.Layout.Column = 3;
+        sec_unc_mode.Items = ["above threshold", "outside largest contour"];
+        sec_unc_mode.ItemsData = ["threshold", "outer"];
+        sec_unc_mode.Value = obj.section_unc_mode;
+        sec_unc_mode.Tooltip = "above threshold: every point above it. outside largest contour: everything " + ...
+            "outside the largest region enclosed by the threshold contour (holes inside it, e.g. vortex cores, kept)";
+        sec_unc_mode.ValueChangedFcn = @(src, event) section_unc_mode_change(src, event, plot_area_panel);
 
         trim_button = uibutton(sidebar_grid, "state");
         trim_button.Layout.Row = 8;
@@ -1842,6 +1896,26 @@ methods
         function section_count_change(src, ~, plot_panel)
             obj.section_count = string(src.Value);
             obj.update_plot(plot_panel);
+        end
+
+        function section_unc_change(src, ~, plot_panel)
+            obj.section_unc_bool = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.section_unc_bool);
+            obj.update_plot(plot_panel);
+        end
+
+        function section_unc_pct_change(src, ~, plot_panel)
+            obj.section_unc_pct = src.Value;
+            if obj.section_unc_bool
+                obj.update_plot(plot_panel);
+            end
+        end
+
+        function section_unc_mode_change(src, ~, plot_panel)
+            obj.section_unc_mode = string(src.Value);
+            if obj.section_unc_bool
+                obj.update_plot(plot_panel);
+            end
         end
 
         function set_distance_dropdown_visibility()
@@ -5392,13 +5466,30 @@ methods (Access = private)
     % for the "time avg: section avg" plot
     function set_section_controls(obj)
         is_section = ismember(obj.plot_type, obj.plot_types([10 13]));
+        sidebar = obj.section_grid.Parent;
+        row_heights = sidebar.RowHeight;
         if is_section
-            obj.section_dropdown.Visible = "on";
+            obj.section_grid.Visible = "on";
             obj.clim_slider.Visible = "off";
+            row_heights{7} = 64;   % section count + uncertainty mask rows
         else
-            obj.section_dropdown.Visible = "off";
+            obj.section_grid.Visible = "off";
             obj.clim_slider.Visible = "on";
+            row_heights{7} = 35;
         end
+        sidebar.RowHeight = row_heights;
+    end
+
+    % Trim bounds of the section plots: default_trim_bounds with their
+    % uncertainty mask settings (off: no mask)
+    function bounds = get_section_bounds(obj)
+        bounds = default_trim_bounds();
+        if obj.section_unc_bool
+            bounds.unc_mask = obj.section_unc_pct / 100;
+        else
+            bounds.unc_mask = 0;
+        end
+        bounds.unc_mask_mode = obj.section_unc_mode;
     end
 
     % "time avg: section avg" plot type: where across the span a wake
@@ -5458,11 +5549,13 @@ methods (Access = private)
 
         ax = axes(plot_panel);
         force_var = obj.force_var_name_dict(char(obj.variable_name));
-        cache_key = "force|" + strjoin(string(stb_name(case_files)), ",") + "|" + force_var + "|" + avg_type;
+        sec_bounds = obj.get_section_bounds();
+        cache_key = "force|" + strjoin(string(stb_name(case_files)), ",") + "|" + force_var + "|" + avg_type + ...
+            "|" + sprintf("%.10g", sec_bounds.unc_mask) + "|" + sec_bounds.unc_mask_mode;
         if obj.section_cache.key == cache_key
             I = obj.section_cache.data;
         else
-            [~, ~, I] = get_PIV_force(case_files, case_id, force_var, avg_type, false, default_trim_bounds());
+            [~, ~, I] = get_PIV_force(case_files, case_id, force_var, avg_type, false, sec_bounds);
             obj.section_cache = struct('key', cache_key, 'data', I);
         end
         if isempty(I.field)
@@ -5568,6 +5661,9 @@ methods (Access = private)
                 avg_label, string(obj.variable_name), total(kk), n));
             if obj.mirror_bool
                 str = str + " (mirrored, both sides)";
+            end
+            if obj.section_unc_bool
+                str = str + sprintf(" (unc mask %g%%, %s)", obj.section_unc_pct, obj.section_unc_mode);
             end
             if is_phase
                 str = "Bin " + kk + " of " + nb + ", " + str;
@@ -5719,7 +5815,7 @@ methods (Access = private)
 
         % same trim as get_PIV_force
         file_stem = stb_name(case_files);
-        bounds = old_flapper_compat("trim_bounds_for", file_stem, default_trim_bounds());
+        bounds = old_flapper_compat("trim_bounds_for", file_stem, obj.get_section_bounds());
         [y_tr, z_tr, val] = trim_vel_field(d.y, d.z, d.(var_name), bounds);
         if is_phase
             field = val;                        % one bin each, [ny nz nb]
@@ -5862,7 +5958,8 @@ methods (Access = private)
             end
             notes = strings(0);
             if n_masked > 0
-                notes(end+1) = sprintf("%d high-uncertainty points left out", n_masked);
+                notes(end+1) = sprintf("%d points masked: unc %g%%, %s", n_masked, ...
+                    obj.section_unc_pct, obj.section_unc_mode);
             end
             if base ~= 0
                 notes(end+1) = "axis not from zero";
