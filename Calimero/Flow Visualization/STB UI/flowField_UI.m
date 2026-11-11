@@ -5480,6 +5480,10 @@ methods (Access = private)
         end
         nb = size(field, 3);
         y_nd = I.y(:);                          % y/c from the centreline
+        % Mirror: both wings, the integrands being even in y
+        if obj.mirror_bool
+            [y_nd, field] = obj.mirror_section_field(y_nd, field, false);
+        end
         y = y_nd * I.L;                         % m
         z = I.z(:) * I.L;
 
@@ -5561,6 +5565,9 @@ methods (Access = private)
         function str = title_text(kk)
             str = string(sprintf("%s %s: %.4f N total, %d sections", ...
                 avg_label, string(obj.variable_name), total(kk), n));
+            if obj.mirror_bool
+                str = str + " (mirrored, both sides)";
+            end
             if is_phase
                 str = "Bin " + kk + " of " + nb + ", " + str;
             end
@@ -5613,6 +5620,32 @@ methods (Access = private)
     % Section edges along y (y/c) for the selected section count: equal
     % widths between the first and last column, or one section per column
     % ("every column"). sec_idx is each column's section.
+    % Section plots with Mirror on: reflect the trimmed half plane (y/c
+    % from the centreline, dimension 1 of field) to the other side, so the
+    % sections cover both wings. odd: the variable changes sign across the
+    % centreline (v, omega_x, omega_z). A centreline row (y = 0) is kept
+    % once; a plane that already spans both sides is left as it is.
+    function [y_nd, field] = mirror_section_field(~, y_nd, field, odd)
+        y_nd = y_nd(:);
+        tol = 1e-6 * max(abs(y_nd));
+        if isempty(y_nd) || min(y_nd) < -tol
+            return
+        end
+        if abs(y_nd(1)) <= tol
+            k0 = 2; % centreline sample: not repeated
+        else
+            k0 = 1;
+        end
+        sz = size(field);
+        part = field(k0:end, :);
+        part = reshape(flip(reshape(part, [numel(y_nd) - k0 + 1, sz(2:end)]), 1), size(part));
+        if odd
+            part = -part;
+        end
+        field = reshape([part; reshape(field, sz(1), [])], [sz(1) + size(part, 1), sz(2:end)]);
+        y_nd = [-flip(y_nd(k0:end)); y_nd];
+    end
+
     function [edges, sec_idx] = get_section_edges(obj, y_nd)
         y_nd = y_nd(:);
         n_sec = sscanf(char(obj.section_count), '%d');
@@ -5705,6 +5738,12 @@ methods (Access = private)
         ax = axes(plot_panel);
         y_nd = y_tr(:, 1);   % y/c from the centreline
         z_nd = z_tr(1, :).';
+        % Mirror: both sides of the wake; v, omega_x and omega_z change
+        % sign across the centreline (as in the 2D plots)
+        if obj.mirror_bool && numel(y_nd) >= 2
+            is_odd = ismember(obj.variable_name, ["v", "ω_x", "ω_z"]);
+            [y_nd, field] = obj.mirror_section_field(y_nd, field, is_odd);
+        end
         if numel(y_nd) < 2 || numel(z_nd) < 2 || all(isnan(field), "all")
             text(ax, 0.5, 0.5, "No data in the trimmed plane", 'HorizontalAlignment', 'center', FontSize=16);
             axis(ax, 'off');
@@ -5823,6 +5862,9 @@ methods (Access = private)
             end
             if base ~= 0
                 notes(end+1) = "axis not from zero";
+            end
+            if obj.mirror_bool
+                notes(end+1) = "mirrored";
             end
             if ~isempty(notes)
                 str = str + " (" + strjoin(notes, ", ") + ")";
