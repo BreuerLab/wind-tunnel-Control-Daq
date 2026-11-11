@@ -2385,6 +2385,13 @@ classdef timeAvg_UI < handle
                         end
                     end
 
+                    % PIV Body Sub: which files the value and the
+                    % subtracted value came from
+                    if obj.PIV_sub && ~obj.is_load_cell_var(force_var)
+                        fprintf("%s: %s data used with %s data subtracted\n", force_var, ...
+                            stb_name(case_files), stb_name(obj.get_PIV_sub_case(type, amp)));
+                    end
+
                     % Calculate mean force and store in array for plotting
                     vals(j) = obj.reduce_signal(var);
 
