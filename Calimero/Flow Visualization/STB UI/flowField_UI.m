@@ -796,7 +796,8 @@ methods
         obj.section_force_vars = obj.force_vars(~ismember(force_vals, ["lift.vortY", "lift.vortY_edge", "lift_ff.vortY", "lift_ff.vortY_edge"]));
         % flow variables: averaged over each section instead of summed
         % (names, fields and labels from the movie_3D_avg lists)
-        obj.section_flow_vars = ["u", "v", "w", "ω_x", "ω_y", "ω_z"];
+        % "|unc|": total uncertainty (uncTot), not masked by itself
+        obj.section_flow_vars = ["u", "v", "w", "ω_x", "ω_y", "ω_z", "|unc|"];
         obj.section_plot_vars = [obj.section_force_vars, obj.section_flow_vars];
         obj.force_label_dict = containers.Map(force_keys, force_labels);
 
@@ -5701,7 +5702,10 @@ methods (Access = private)
             return
         end
         load_vars = {'y', 'z', char(var_name)};
-        has_unc = ismember(unc_name, file_vars);
+        % the uncertainty plot itself isn't masked by the uncertainty
+        % (that would only leave its low values)
+        is_unc_var = string(var_name) == unc_name;
+        has_unc = ismember(unc_name, file_vars) && ~is_unc_var;
         if has_unc
             load_vars{end+1} = char(unc_name);
         end
