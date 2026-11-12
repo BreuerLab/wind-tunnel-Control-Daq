@@ -44,7 +44,7 @@ properties
     root_path; % file path to data (the primary data root)
     PIV_path;
     force_path;
-    % All data roots (e.g. ["F:\", "C:\...\STB Round 1\"]) and, for each
+    % All data roots (e.g. ["C:\...\STB Processed Results\", "W:\STB Round 1\"]) and, for each
     % wing type, the root its STB cases came from (its load cell data is
     % read from that root's Force Measurements)
     data_roots;
@@ -273,8 +273,8 @@ methods
         % new flapper data and the old flapper STB Round 1 folder)
         obj.data_roots = string(data_path(:))';
         obj.root_path = obj.data_roots(1);
-        obj.PIV_path = obj.root_path + "Processed Results\";
-        obj.force_path = obj.root_path + "Force Measurements\";
+        obj.PIV_path = processed_results_dir(obj.root_path);
+        obj.force_path = force_measurements_dir(obj.root_path);
 
         obj.inds = [];
         [obj.active_types, obj.active_names, obj.active_labels] = obj.get_all_variable_options();
@@ -320,7 +320,7 @@ methods
         for r = 1:numel(obj.data_roots)
             % one case per <stem>_<method>_fields.mat (+ _shared, _integral);
             % the first root holding a label wins
-            cases = stb_list_phase_avg(obj.data_roots(r) + "Processed Results\phase_avg\");
+            cases = stb_list_phase_avg(processed_results_dir(obj.data_roots(r)) + "phase_avg\");
             for k = 1:numel(cases)
                 if ~isKey(obj.phase_case_map, char(cases(k).label))
                     obj.phase_case_map(char(cases(k).label)) = cases(k).files;
@@ -1837,7 +1837,7 @@ methods (Access = private)
         key = char(string(type));
         force_path = obj.force_path;
         if ~isempty(obj.type_root_map) && isKey(obj.type_root_map, key)
-            force_path = string(obj.type_root_map(key)) + "Force Measurements\";
+            force_path = force_measurements_dir(string(obj.type_root_map(key)));
         end
     end
 
@@ -2110,7 +2110,7 @@ methods (Access = private)
         % look in every data root (first match wins)
         time_avg_dir = obj.PIV_path + "time_avg\";
         for r = 1:numel(obj.data_roots)
-            root_time_dir = obj.data_roots(r) + "Processed Results\time_avg\";
+            root_time_dir = processed_results_dir(obj.data_roots(r)) + "time_avg\";
             for k = 1:length(case_names)
                 file_path = root_time_dir + case_names(k) + "_time_avg.mat";
                 secondary_file_path = root_time_dir + case_names(k) + "_time_avg_integral.mat";

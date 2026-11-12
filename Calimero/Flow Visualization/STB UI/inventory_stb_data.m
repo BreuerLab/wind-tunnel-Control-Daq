@@ -18,8 +18,8 @@ clear
 cd(fileparts(mfilename('fullpath')));
 
 roots = [
-    "F:\"                                        % reference (new flapper)
-    "C:\Users\rgissler\Documents\STB Round 1\"   % old flapper
+    "C:\Users\rgissler\Documents\STB Processed Results\"   % reference (new flapper)
+    "W:\STB Round 1\"   % old flapper
     ];
 
 report_file = fullfile(pwd, "stb_inventory_" + string(datetime("now", Format="yyyy_MM_dd_HH_mm_ss")) + ".txt");
@@ -50,7 +50,7 @@ for r = 1:numel(roots)
     end
 
     % ---- Processed Results ----
-    pr = fullfile(root, "Processed Results");
+    pr = processed_results_dir(root);
     groups = {fullfile(pr, "phase_avg"), "phase_avg", "_phase_avg";
               fullfile(pr, "phase_avg", "RPCA"), "phase_avg_RPCA", "_phase_avg";
               fullfile(pr, "time_avg"), "time_avg", "_time_avg"};

@@ -145,7 +145,7 @@ properties
     time_new_flapper_stems;
     phase_avg_case_ids;
     time_avg_case_ids;
-    % Data roots (e.g. ["F:\", "C:\...\STB Round 1\"]), the folder of each
+    % Data roots (e.g. ["C:\...\STB Processed Results\", "W:\STB Round 1\"]), the folder of each
     % time-averaged case (keyed "time|<case id>", get_case_dir) and the
     % files of each phase-averaged case (keyed by case id, a stb_file_paths
     % struct). The first root is the primary one; a case found in several
@@ -361,8 +361,8 @@ methods
         file_path = obj.data_roots(1);
         obj.case_name = "";
         obj.variable_name = "";
-        obj.phase_avg_file_path = file_path + "Processed Results\phase_avg\";
-        obj.time_avg_file_path = file_path + "Processed Results\time_avg\";
+        obj.phase_avg_file_path = processed_results_dir(file_path) + "phase_avg\";
+        obj.time_avg_file_path = processed_results_dir(file_path) + "time_avg\";
         obj.file_path = obj.phase_avg_file_path;
         obj.source_modes = strings(0);
         obj.source_mode = "";
@@ -441,8 +441,8 @@ methods
         phase_avg_stems = strings(1, 0);
         time_avg_stems = strings(1, 0);
         for r = 1:numel(obj.data_roots)
-            phase_dir = obj.data_roots(r) + "Processed Results\phase_avg\";
-            time_dir = obj.data_roots(r) + "Processed Results\time_avg\";
+            phase_dir = processed_results_dir(obj.data_roots(r)) + "phase_avg\";
+            time_dir = processed_results_dir(obj.data_roots(r)) + "time_avg\";
             cases = stb_list_phase_avg(phase_dir);
             for k = 1:numel(cases)
                 if ~isKey(obj.phase_case_map, char(cases(k).label))
