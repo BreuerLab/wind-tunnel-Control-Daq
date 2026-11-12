@@ -10,7 +10,7 @@ function T = convert_legacy_STB_files(save_root, opts)
 %   T = convert_legacy_STB_files(save_root)
 %   T = convert_legacy_STB_files(save_root, opts)
 %
-%   save_root : e.g. "F:\Processed Results\" (its phase_avg\ and
+%   save_root : e.g. "C:\Users\rgissler\Documents\STB Processed Results\" (its phase_avg\ and
 %               phase_avg\RPCA\ folders and the root are searched)
 %   opts.cases     : only these case names (default: all found)
 %   opts.dry_run   : true = only list what would be converted (default false)

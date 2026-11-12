@@ -57,7 +57,7 @@ cd(fileparts(mfilename('fullpath')));
 addpath(genpath('../../'))
 
 % ------------------------------- settings -------------------------------
-data_root  = "F:\";
+data_root  = "C:\Users\rgissler\Documents\STB Processed Results\";
 types      = ["x2_wings", "x4_wings"];
 amp        = 20;              % deg
 freqs      = [2 4 6 8];       % Hz
@@ -74,7 +74,7 @@ cases = {};
 for type = types
     for f = freqs
         case_name = type + "_" + amp + "deg_" + f + "Hz";
-        file = stb_file_paths(data_root + "Processed Results", case_name, "", "bin");
+        file = stb_file_paths(processed_results_dir(data_root), case_name, "", "bin");
         if ~stb_exists(file)
             fprintf("%s: no file (%s), skipped\n", case_name, file.fields);
             continue

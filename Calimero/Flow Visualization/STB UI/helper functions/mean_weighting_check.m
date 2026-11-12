@@ -15,7 +15,7 @@ function T = mean_weighting_check(data_path, case_filter, force_var)
 if nargin < 2, case_filter = ""; end
 if nargin < 3, force_var = "lift.vortX"; end
 
-folder = data_path + "Processed Results\phase_avg\";
+folder = processed_results_dir(data_path) + "phase_avg\";
 cases = stb_list_phase_avg(folder);
 keep = ~contains(string({cases.label}), "turbine");
 if strlength(case_filter) > 0

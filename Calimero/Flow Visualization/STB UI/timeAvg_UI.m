@@ -47,7 +47,7 @@ classdef timeAvg_UI < handle
         % (e.g. "x3_NACA", "x3_ring"); treated as amp = 0, freq = 0
         plain_steady_types;
         force_path;
-        % All data roots (e.g. ["F:\", "C:\...\STB Round 1\"]) and, for
+        % All data roots (e.g. ["C:\...\STB Processed Results\", "W:\STB Round 1\"]) and, for
         % each wing type, the root its STB cases came from (its load cell
         % data is read from that root's Force Measurements)
         data_roots;
@@ -175,9 +175,9 @@ classdef timeAvg_UI < handle
             % the new flapper data and the old flapper STB Round 1 folder)
             obj.data_roots = string(data_path(:))';
             obj.root_path = obj.data_roots(1);
-            obj.PIV_path = obj.root_path + "Processed Results\phase_avg\";
-            obj.time_avg_path = obj.root_path + "Processed Results\time_avg\";
-            obj.force_path = obj.root_path + "Force Measurements\";
+            obj.PIV_path = processed_results_dir(obj.root_path) + "phase_avg\";
+            obj.time_avg_path = processed_results_dir(obj.root_path) + "time_avg\";
+            obj.force_path = force_measurements_dir(obj.root_path);
 
             obj.index = 1;
             obj.box_labels = ["lift vortX", "lift vortY", "lift vel diff", "lift vel", "drag vort", "drag vel",...
@@ -360,8 +360,8 @@ classdef timeAvg_UI < handle
             obj.type_root_map = containers.Map('KeyType', 'char', 'ValueType', 'char');
             obj.phase_case_map = containers.Map('KeyType', 'char', 'ValueType', 'any');
             for r = 1:numel(obj.data_roots)
-                phase_dir = obj.data_roots(r) + "Processed Results\phase_avg\";
-                time_dir = obj.data_roots(r) + "Processed Results\time_avg\";
+                phase_dir = processed_results_dir(obj.data_roots(r)) + "phase_avg\";
+                time_dir = processed_results_dir(obj.data_roots(r)) + "time_avg\";
                 % phase averages: one case per <stem>_<method>_fields.mat
                 % (+ _shared, _integral), found by its label
                 cases = stb_list_phase_avg(phase_dir);
@@ -3223,11 +3223,11 @@ classdef timeAvg_UI < handle
             end
             % time averages: time_avg\ (or, older, next to the phase
             % averages), first data root holding the case
-            case_dir = obj.data_roots(1) + "Processed Results\time_avg\";
+            case_dir = processed_results_dir(obj.data_roots(1)) + "time_avg\";
             for r = 1:numel(obj.data_roots)
                 found = false;
-                for d = [obj.data_roots(r) + "Processed Results\time_avg\",...
-                         obj.data_roots(r) + "Processed Results\phase_avg\"]
+                for d = [processed_results_dir(obj.data_roots(r)) + "time_avg\",...
+                         processed_results_dir(obj.data_roots(r)) + "phase_avg\"]
                     if isfile(d + name + suffix + ".mat") || isfile(d + name + suffix + "_integral.mat")
                         case_dir = d;
                         found = true;
@@ -3252,7 +3252,7 @@ classdef timeAvg_UI < handle
             key = char(string(type));
             force_path = obj.force_path;
             if ~isempty(obj.type_root_map) && isKey(obj.type_root_map, key)
-                force_path = string(obj.type_root_map(key)) + "Force Measurements\";
+                force_path = force_measurements_dir(string(obj.type_root_map(key)));
             end
         end
 
@@ -3557,9 +3557,9 @@ classdef timeAvg_UI < handle
             % (in every data root)
             search_dirs = strings(1, 0);
             for r = 1:numel(obj.data_roots)
-                root_phase = obj.data_roots(r) + "Processed Results\phase_avg\";
+                root_phase = processed_results_dir(obj.data_roots(r)) + "phase_avg\";
                 search_dirs = [search_dirs, root_phase + "time_avg\", root_phase,...
-                               obj.data_roots(r) + "Processed Results\time_avg\"]; %#ok<AGROW>
+                               processed_results_dir(obj.data_roots(r)) + "time_avg\"]; %#ok<AGROW>
             end
 
             tried = strings(0);

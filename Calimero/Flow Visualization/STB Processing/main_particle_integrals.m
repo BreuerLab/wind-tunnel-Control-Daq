@@ -14,7 +14,7 @@ addpath(genpath('.'))
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 PIV_case_name       = 'x2_wings_20deg_8Hz';   % as in main_processing
 version             = "";                     % binning variant (bools.version in main_processing)
-save_filepath_local = "F:\Processed Results\";
+save_filepath_local = "C:\Users\rgissler\Documents\STB Processed Results\";
 
 p = particle_default_opts();                  % all settings: particle_default_opts.m
 % p.run_tag = "o3";                           % same tag as main_particle_processing

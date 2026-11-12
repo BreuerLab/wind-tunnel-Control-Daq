@@ -12,9 +12,9 @@ addpath(genpath('../../'))
 % listed together (a case in more than one root comes from the first).
 % STB Round 1 holds the old flapper (February 2026) data; what differs for
 % those cases is in helper functions\old_flapper_compat.m
-% data_file_path = "C:\Users\rgissler\Documents\STB Round 1\";
-% data_file_path = "F:\";
-data_file_path = ["F:\", "C:\Users\rgissler\Documents\STB Round 1\"];
+% data_file_path = "W:\STB Round 1\";
+% data_file_path = "C:\Users\rgissler\Documents\STB Processed Results\";
+data_file_path = ["C:\Users\rgissler\Documents\STB Processed Results\", "W:\STB Round 1\"];
 % data_file_path = "R:\ENG_Breuer_Shared\group\Wind turbine\Turbine_STB\Turbine_STB_02_17_2026\Processed Data\";
 
 % GUI for plotting vector fields and wake topology
@@ -37,7 +37,7 @@ a.dynamic_plotting();
 % Diagnostic recommendations from Claude
 
 % case_name = "x3_wings_20deg_6Hz";
-% file = stb_file_paths(data_file_path + "Processed Results", case_name, "", "bin");   % or "particle_pool_hr20"
+% file = stb_file_paths(processed_results_dir(data_file_path), case_name, "", "bin");   % or "particle_pool_hr20"
 % o.taper = 0.75;   % taper width in chords
 % B = wake_lift_budget(file, case_name, default_trim_bounds(), o);
 

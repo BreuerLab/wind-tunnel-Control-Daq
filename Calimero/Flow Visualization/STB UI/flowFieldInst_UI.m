@@ -103,7 +103,7 @@ methods
     function obj = flowFieldInst_UI(file_path)
         obj.case_name = "";
         obj.variable_name = "";
-        obj.phase_avg_file_path = file_path + "Processed Results\phase_avg\";
+        obj.phase_avg_file_path = processed_results_dir(file_path) + "phase_avg\";
         obj.binning_cache = containers.Map('KeyType', 'char', 'ValueType', 'any');
 
         obj.num_bins = 5;
