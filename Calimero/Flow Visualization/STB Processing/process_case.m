@@ -39,6 +39,12 @@ if FR.layout == "folder"
 else
     file_path = FR.vc7;
 end
+% num_images = "auto" (or 'auto'): every .vc7 frame of the case, as
+% main_processing_batch's scan_cases does
+if (ischar(num_images) || isstring(num_images)) && strcmpi(string(num_images), "auto")
+    num_images = numel(FR.vc7);
+    fprintf('%s: num_images = auto -> %d frames\n', PIV_case_name, num_images);
+end
 if num_images > numel(FR.vc7)
     error('process_case:numImages', '%s has %d frames, fewer than num_images = %d.', ...
           PIV_case_name, numel(FR.vc7), num_images);
