@@ -22,8 +22,9 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 PIV_case_name = 'x3_wings_20deg_6Hz';
 
 % num_images = 1200; 
-num_images = 3000;
+% num_images = 3000;
 % num_images = 600;
+num_images = 'auto';
 
 % save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
 save_filepath_local = "F:\Processed Results\";
@@ -35,7 +36,7 @@ bools.vort_uavg = false; % vorticity of the averaged velocity (vort*_uavg)
 bools.div_std = true; % frame-to-frame std of the velocity divergence: per bin (div_phase_std), or over all frames for time averages (std_div); quick
 bools.num_workers = 8; % parallel workers for phase bins / time-avg frame chunks (0 = serial); lower if out of memory
 bools.frames_per_chunk = 20; % time averages: frames loaded and processed per call on each worker; lower if out of memory
-bools.compress_save = false; % true = compressed -v7.3 .mat (smaller, slower to save); compress_STB_files for files already saved
+bools.compress_save = true; % true = compressed -v7.3 .mat (smaller, slower to save); compress_STB_files for files already saved
 bools.proc_vel = true; % false if just calculating secondary values
 % Processed files: <case>[_<version>]_shared.mat (DAQ, binning, grid, frames)
 % plus <case>[_<version>]_<method>_fields.mat and _<method>_integral.mat
@@ -66,7 +67,7 @@ bools.version = "";
 % Reynolds stresses and Q_inst are still computed per bin. Saved with
 % "_hr" added to the version name (e.g. coarse_hr), so it doesn't
 % overwrite the bin-averaged files. See harmonic_regression_STB.m.
-bools.harmonic_reg = true;
+bools.harmonic_reg = false;
 bools.num_harmonics = 20; % 2*10+1 = 21 coefficients per point and field
 bools.hr_save_coef = false; % save coefficients (to evaluate fit / exact d/dt at any phase); large files
 
@@ -80,8 +81,8 @@ bools.hr_save_coef = false; % save coefficients (to evaluate fit / exact d/dt at
 % uncertainty mask and DAQ data. Time-averaged cases are skipped.
 % All settings and their meaning: particle_default_opts.m
 bools.particle = particle_default_opts();
-bools.particle.run  = false;   % true: add the particle processing
-bools.particle.only = false;   % true: only the particle processing (binned files must exist)
+bools.particle.run  = true;   % true: add the particle processing
+bools.particle.only = true;   % true: only the particle processing (binned files must exist)
 % bools.particle.run_tag      = "o3";     % tag non-default fit settings in the file names
 % bools.particle.fit.depthOrder = 5;
 % bools.particle.hr_harmonics = 20;     % harmonic regression across bins, 0 = off
