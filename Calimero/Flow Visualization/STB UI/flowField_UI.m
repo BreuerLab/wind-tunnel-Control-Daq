@@ -102,6 +102,9 @@ properties (Constant, Access = private)
     HRPP_METHOD = "particle_pool_hr20";
     MERGED_3D_EXCLUDE_TYPES = ["MPS"];
     MERGED_3D_MARKER_TAG = "merged_3D_plane";  % plane outlines / labels on that plot
+    MERGED_3D_LEAD_C = 3;                      % x/c shown upstream of the first plane (room for the robot)
+    MERGED_3D_PLANE_COLOR = [0.30 0.69 0.20];  % plane markers, green as in the figure schematic
+    MERGED_3D_PLANE_WIDTH = 3;                 % their line width
     % "seam comparison": at the seam where the frozen-flow reconstruction
     % behind one plane (as on "phase avg: 3D all planes") meets the next
     % plane downstream, the measured field there minus the reconstruction,
@@ -4935,7 +4938,7 @@ methods (Access = private)
         % while playing the full reconstructed length (the surface moves),
         % otherwise cropped to where the isosurface ends
         if obj.play
-            xlim(ax, xlims)
+            xlim(ax, [max(0, xlims(1) - obj.MERGED_3D_LEAD_C), xlims(2)])
         else
             xlim(ax, obj.tight_merged_xlim(xlims, surface_data.vertices))
         end
@@ -5300,19 +5303,21 @@ methods (Access = private)
         end
     end
 
-    % x-limits of plot_merged_3D cropped to the isosurface: from the first
-    % plane to just past the last vertex, never beyond the reconstructed
-    % length (xlims_full); the full length if the surface is empty
-    function xl = tight_merged_xlim(~, xlims_full, verts)
+    % x-limits of plot_merged_3D cropped to the isosurface: from
+    % MERGED_3D_LEAD_C chords upstream of the first plane (not past the
+    % robot, x = 0) to just past the last vertex, never beyond the
+    % reconstructed length (xlims_full); the full length if the surface is
+    % empty
+    function xl = tight_merged_xlim(obj, xlims_full, verts)
         xl = xlims_full;
-        if isempty(verts)
-            return
+        if ~isempty(verts)
+            pad = 0.02 * diff(xlims_full);
+            xl(2) = min(xlims_full(2), max(verts(:,1)) + pad);
+            if xl(2) <= xl(1)
+                xl = xlims_full;
+            end
         end
-        pad = 0.02 * diff(xlims_full);
-        xl(2) = min(xlims_full(2), max(verts(:,1)) + pad);
-        if xl(2) <= xl(1)
-            xl = xlims_full;
-        end
+        xl(1) = max(0, xl(1) - obj.MERGED_3D_LEAD_C);
     end
 
     % Phase average A (y x z x N bins, bin k at phase (k-1)/N, periodic)
@@ -5331,8 +5336,9 @@ methods (Access = private)
         V(:,:,on_bin) = V0(:,:,on_bin);
     end
 
-    % Dashed outline of each measurement plane (its y-z extent) and its
-    % label, on plot_merged_3D
+    % Outline of each measurement plane (its y-z extent; a line in the top
+    % view) in the schematic's green, labelled just past its +y edge so the
+    % label stays clear of the wake, on plot_merged_3D
     function draw_merged_planes(obj, ax, planes)
         delete(findall(ax, 'Tag', obj.MERGED_3D_MARKER_TAG));
         hold(ax, 'on')
@@ -5341,11 +5347,11 @@ methods (Access = private)
             x = P.x / P.L;
             yl = [min(P.yv) max(P.yv)];
             zl = [min(P.zv) max(P.zv)];
-            h = plot3(ax, x * ones(1, 5), yl([1 2 2 1 1]), zl([1 1 2 2 1]), '--', ...
-                'Color', [0.45 0.45 0.45], 'LineWidth', 1);
+            h = plot3(ax, x * ones(1, 5), yl([1 2 2 1 1]), zl([1 1 2 2 1]), '-', ...
+                'Color', obj.MERGED_3D_PLANE_COLOR, 'LineWidth', obj.MERGED_3D_PLANE_WIDTH);
             style(h)
-            h = text(ax, x, mean(yl), zl(2), P.type, 'HorizontalAlignment', 'center', ...
-                'VerticalAlignment', 'bottom', 'FontSize', 12, 'Color', [0.3 0.3 0.3], ...
+            h = text(ax, x, yl(2), zl(2), P.type, 'HorizontalAlignment', 'center', ...
+                'VerticalAlignment', 'bottom', 'FontSize', 14, 'Color', 'k', ...
                 'Interpreter', 'none');
             style(h)
         end
