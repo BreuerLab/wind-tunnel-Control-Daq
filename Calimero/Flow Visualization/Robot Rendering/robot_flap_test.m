@@ -222,6 +222,12 @@ function part = load_part(file, max_faces)
     else
         fprintf("%s: %d faces\n", file, n0);
     end
+    lo = min(V, [], 1);
+    fprintf("  lowest corner (%.4g, %.4g, %.4g)\n", lo);
+    if all(abs(lo) < 1e-3 * max(max(V, [], 1) - lo))
+        warning("%s starts at the origin: probably shifted to positive space on export " + ...
+            "(tick ""Do not translate STL output data to positive space""), so it won't line up with the other parts", file);
+    end
     part = struct('F', F, 'V', V);
 end
 
