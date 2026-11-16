@@ -105,6 +105,21 @@ properties (Constant, Access = private)
     MERGED_3D_LEAD_C = 3;                      % x/c shown upstream of the first plane (room for the robot)
     MERGED_3D_PLANE_COLOR = [0.30 0.69 0.20];  % plane markers, green as in the figure schematic
     MERGED_3D_PLANE_WIDTH = 3;                 % their line width
+    % "Robot" on the 3D plots: Calimero from its CAD (load_robot_model in
+    % Robot Rendering), solid black, wings at the snapshot's wing angle
+    % (calimero_mechanism). On "phase avg: 3D all planes" at its true
+    % position; on "phase avg: 3D plot" just upstream of the wake.
+    ROBOT_CAD = struct('dir', "F:\CAD", 'body_file', "Calimero_body.STL", ...
+        'wing_files', ["left_wing.STL", "right_wing.STL"], 'rod_files', ["rod1.STL", "rod2.STL"], ...
+        'cad_to_tunnel', [-1 0 0; 0 0 1; 0 1 0], 'up_dir', [0 0 1], 'max_faces', 5e4);
+    ROBOT_PHI_EXPORT = 0;      % wing angle (deg) the wings were exported at (0 = midstroke)
+    % where the CAD origin sits in the wake frame (mm): x from the point the
+    % plane distances (plane_downstream_dists) are measured from (all-planes
+    % plot only), y / z from the wake's y = 0 / z = 0
+    ROBOT_OFFSET_MM = [0 0 0];
+    ROBOT_GAP_C = 0.5;         % 3D plot: x/c between the wake's upstream end and the robot's tail
+    ROBOT_COLOR = [0 0 0];
+    ROBOT_TAG = "robot_3D";
     % "seam comparison": at the seam where the frozen-flow reconstruction
     % behind one plane (as on "phase avg: 3D all planes") meets the next
     % plane downstream, the measured field there minus the reconstruction,
@@ -338,6 +353,13 @@ properties
     % filtered) of the last plot and the settings they depend on (key),
     % so moving through the bins only rebuilds the isosurfaces
     merged_3D;
+    % "Robot" on the 3D plots; robot_model: loaded CAD (struct ok / model /
+    % msg, [] until first needed); plane_marks_3D: plane outlines of the
+    % current 3D plot (x, label, data y / z extent), redrawn to the Fix
+    % Limits box
+    robot_bool;
+    robot_model;
+    plane_marks_3D;
     % convection speed (m/s) of the frozen-flow reconstruction on that
     % plot; [] = each file's freestream U. merged_conv_field: its box.
     merged_conv_speed;
@@ -405,6 +427,9 @@ methods
         obj.label_stroke = false;
         obj.stroke_3D = [];
         obj.merged_3D = [];
+        obj.robot_bool = false;
+        obj.robot_model = [];
+        obj.plane_marks_3D = [];
         obj.merged_conv_speed = [];
         obj.seam_ind = 1;
         obj.seam_stat = obj.SEAM_STATS(1);
@@ -1475,15 +1500,36 @@ methods
         % Cosmetic "card" look: lighting, red-green diverging colormap
         % (best with ω_x as the colour variable), dark background, axes
         % hidden. Turning it off restores the plot exactly as it was.
-        card_style_button = uibutton(param_grid, "state");
-        card_style_button.Layout.Row = 15;
+        style_grid = uigridlayout(param_grid, [1, 2]);
+        style_grid.Layout.Row = 15;
+        style_grid.Layout.Column = 1;
+        style_grid.ColumnWidth = {'1x', '1x'};
+        style_grid.RowHeight = {'1x'};
+        style_grid.Padding = [0 0 0 0];
+        style_grid.ColumnSpacing = 4;
+
+        card_style_button = uibutton(style_grid, "state");
+        card_style_button.Layout.Row = 1;
         card_style_button.Layout.Column = 1;
         card_style_button.Text = "Card Style";
-        card_style_button.FontSize = 16;
+        card_style_button.FontSize = 14;
         card_style_button.Value = obj.card_style;
         card_style_button.BackgroundColor = obj.get_button_color(obj.card_style);
         card_style_button.Tooltip = "Lit isosurface, red-green colormap symmetric about zero (choose ω_x as the variable), dark background and no axes. Off restores the original look";
         card_style_button.ValueChangedFcn = @(src, event) card_style_change(src, event, plot_area_panel);
+
+        % Robot: Calimero (CAD) drawn with the wake, wings at the
+        % snapshot's wing angle
+        robot_button = uibutton(style_grid, "state");
+        robot_button.Layout.Row = 1;
+        robot_button.Layout.Column = 2;
+        robot_button.Text = "Robot";
+        robot_button.FontSize = 14;
+        robot_button.Value = obj.robot_bool;
+        robot_button.BackgroundColor = obj.get_button_color(obj.robot_bool);
+        robot_button.Tooltip = "Draw the robot (solid black, wings at the snapshot's wing angle): " + ...
+            "at its true position on the all-planes plot, just upstream of the wake on the 3D plot (x/c axis only)";
+        robot_button.ValueChangedFcn = @(src, event) robot_change(src, event, plot_area_panel);
 
         % Remove Small: hide small disconnected pieces of the isosurface
         % (speckle), threshold as % of the largest piece
@@ -2444,7 +2490,8 @@ methods
             % avoids reloading the data). Redraw only if there's no 3D plot.
             ax = findobj(plot_panel.Children, 'Type', 'axes');
             p = obj.find_isosurface_patch(ax);
-            if obj.plot_type ~= obj.plot_types(5) || ~isscalar(ax) || ~isscalar(p) || isempty(obj.conv_scale)
+            if obj.plot_type ~= obj.plot_types(5) || ~isscalar(ax) || ~isscalar(p) || isempty(obj.conv_scale) || ...
+                    obj.robot_bool % the robot is only drawn on the x/c axis
                 obj.plot_hold_bool = false;
                 obj.update_plot(plot_panel);
                 return
@@ -2534,6 +2581,17 @@ methods
             else
                 obj.remove_card_style(ax);
                 obj.restore_card_panel(plot_panel);
+            end
+        end
+
+        function robot_change(src, ~, plot_panel)
+            obj.robot_bool = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.robot_bool);
+            if obj.robot_bool && isstruct(obj.robot_model) && ~obj.robot_model.ok
+                obj.robot_model = []; % failed before: try loading again
+            end
+            if obj.is_3D_plot_type()
+                obj.update_plot(plot_panel); % same view
             end
         end
 
@@ -2908,7 +2966,7 @@ methods (Access = private)
 
     % The 3D plot's isosurface patch (not the Label Stroke shading)
     function p = find_isosurface_patch(obj, ax)
-        p = findobj(ax, 'Type', 'patch', '-not', 'Tag', obj.STROKE_TAG);
+        p = findobj(ax, 'Type', 'patch', '-not', 'Tag', obj.STROKE_TAG, '-not', 'Tag', obj.ROBOT_TAG);
     end
 
     % "Card Style" for the 3D plot: lights the isosurface, recolours it
@@ -3086,10 +3144,12 @@ methods (Access = private)
             % stroke labels span the old limits; remove them first so the
             % automatic limits follow the data only
             delete(findall(ax, 'Tag', obj.STROKE_TAG));
+            delete(findall(ax, 'Tag', obj.MERGED_3D_MARKER_TAG)); % plane outlines too
             ax.YLimMode = 'auto';
             ax.ZLimMode = 'auto';
         end
         obj.draw_stroke_labels_3D(ax);
+        obj.draw_plane_marks(ax); % plane outlines fill the new y / z box
     end
 
     % "Remove Small" on the 3D plot's isosurface: with remove_small_bool
@@ -4727,6 +4787,7 @@ methods (Access = private)
                 p.FaceVertexCData = color_data;
                 obj.set_stroke_frame_shift(params.shift - conv_shift_bins);
                 obj.draw_stroke_labels_3D(ax);
+                obj.update_robot_3D(ax, d, params.shift, y, z, xlims(2));
         
                 pause(0.1);
 
@@ -4744,6 +4805,7 @@ methods (Access = private)
                 obj.add_stroke_view_listeners(ax);
                 obj.plot_hold_bool = true;
             end
+            obj.update_robot_3D(ax, d, params.shift, y, z, xlims(2)); % before the plane outline is drawn
             obj.apply_fixed_lims(ax);
             obj.set_stroke_frame_shift(params.shift - conv_shift_bins);
             obj.draw_stroke_labels_3D(ax);
@@ -4944,6 +5006,7 @@ methods (Access = private)
         end
         obj.draw_merged_planes(ax, planes);
         set_title();
+        robot_with_xlim();
 
         while obj.play && (obj.frame_ind < N)
             obj.frame_ind = obj.frame_ind + 1;
@@ -4954,6 +5017,7 @@ methods (Access = private)
             p.FaceVertexCData = color_data;
             set_title();
             obj.apply_remove_small(ax);
+            robot_with_xlim();
             pause(0.1);
             if obj.frame_ind == N
                 obj.frame_ind = 0; % reset for next loop iteration
@@ -4963,8 +5027,19 @@ methods (Access = private)
         obj.apply_fixed_lims(ax);
         obj.apply_remove_small(ax);
         xlim(ax, obj.tight_merged_xlim(xlims, p.Vertices(unique(p.Faces), :)));
+        robot_with_xlim();
         if obj.card_style
             obj.apply_card_style(ax);
+        end
+
+        % robot at its true position, wings at the snapshot's wing phase;
+        % the x-axis widened to include it
+        function robot_with_xlim()
+            rx = obj.draw_robot(ax, planes(1).L, (max(obj.frame_ind, 1) - 1) / N, "true", 0);
+            if ~isempty(rx)
+                xl = ax.XLim;
+                xlim(ax, [min(xl(1), rx(1) - 0.5), max(xl(2), rx(2) + 0.5)]);
+            end
         end
 
         function set_title()
@@ -5336,26 +5411,159 @@ methods (Access = private)
         V(:,:,on_bin) = V0(:,:,on_bin);
     end
 
-    % Outline of each measurement plane (its y-z extent; a line in the top
-    % view) in the schematic's green, labelled just past its +y edge so the
-    % label stays clear of the wake, on plot_merged_3D
+    % CAD model of the robot for "Robot" (loaded on first use; a failure
+    % is reported once, and retried when Robot is turned on again).
+    % [] if unavailable.
+    function model = get_robot_model(obj)
+        model = [];
+        if isempty(obj.robot_model)
+            try
+                m = load_robot_model(obj.ROBOT_CAD);
+                obj.robot_model = struct('ok', true, 'model', m, 'msg', "");
+                disp("Robot: loaded from " + obj.ROBOT_CAD.dir)
+            catch err
+                obj.robot_model = struct('ok', false, 'model', [], 'msg', string(err.message));
+                disp("Robot: couldn't load the CAD from " + obj.ROBOT_CAD.dir + " (" + err.message + ")")
+            end
+        end
+        if obj.robot_model.ok
+            model = obj.robot_model.model;
+        end
+    end
+
+    % Wing rotation (deg, from the exported pose) at wing phase `phase`
+    % (cycles; 0 = encoder zero, midstroke moving up), from the quick-
+    % return mechanism at the case's amplitude ("..._20deg_..."). 0 (the
+    % exported pose) if the amplitude isn't in the name or not a known one.
+    function dphi = robot_wing_angle(obj, phase)
+        dphi = 0;
+        tok = regexp(string(obj.case_name), "(\d+)deg", "tokens", "once");
+        if isempty(tok)
+            return
+        end
+        try
+            [d, r] = get_calimero_dims(str2double(tok(1)));
+            dphi = rad2deg(calimero_mechanism(2*pi*phase, d, r)) - obj.ROBOT_PHI_EXPORT;
+        catch
+            dphi = 0;
+        end
+    end
+
+    % Draw (or move) the robot on a 3D plot, wings at wing phase `phase`.
+    % L: chord (m), the plot's length scale. mode "true": at its position in
+    % the wake frame (ROBOT_OFFSET_MM); "front": mirrored in x, since the
+    % 3D plot's x runs with time so upstream is +x, with its tail
+    % ROBOT_GAP_C past x_front (the wake's upstream end). rx: its x extent,
+    % [] if not drawn.
+    function rx = draw_robot(obj, ax, L, phase, mode, x_front)
+        rx = [];
+        old = findall(ax, 'Tag', obj.ROBOT_TAG);
+        if ~obj.robot_bool
+            delete(old);
+            return
+        end
+        model = obj.get_robot_model();
+        if isempty(model)
+            delete(old);
+            return
+        end
+        [F, V] = robot_posed_mesh(model, obj.robot_wing_angle(phase));
+        V = (V + obj.ROBOT_OFFSET_MM) / (1000 * L); % mm -> chords
+        if mode == "front"
+            V(:,1) = -V(:,1);
+            V(:,1) = V(:,1) - min(V(:,1)) + x_front + obj.ROBOT_GAP_C;
+        end
+        if isscalar(old)
+            old.Vertices = V;
+            old.Faces = F;
+        else
+            delete(old);
+            patch(ax, 'Faces', F, 'Vertices', V, 'FaceColor', obj.ROBOT_COLOR, ...
+                'EdgeColor', 'none', 'FaceLighting', 'none', 'Tag', obj.ROBOT_TAG, ...
+                'HandleVisibility', 'off', 'PickableParts', 'none');
+        end
+        rx = [min(V(:,1)) max(V(:,1))];
+    end
+
+    % Robot and plane outline on "phase avg: 3D plot": the robot just
+    % upstream of the wake (the stack's last bin, the fluid crossing the
+    % plane last), wings at the phase that fluid was shed at (its bin
+    % phase less the convection time to the plane, CONV_SPEED), and the
+    % plane outlined between them. x/c axis only (in t/T the robot has no
+    % scale). shift: the stack's circshift (stack_vortices_3D).
+    function update_robot_3D(obj, ax, d, shift, y, z, x_front)
+        obj.plane_marks_3D = [];
+        if ~obj.robot_bool || ~obj.conv_units_bool
+            delete(findall(ax, 'Tag', obj.ROBOT_TAG));
+            delete(findall(ax, 'Tag', obj.MERGED_3D_MARKER_TAG));
+            if obj.robot_bool && ~obj.play
+                disp("Robot: shown on the x/c axis only (x-axis button)")
+            end
+            return
+        end
+        N = d.num_bins;
+        b_last = mod(N - shift - 1, N) + 1; % bin at the stack's upstream end
+        dist = obj.get_downstream_dist();
+        if isnan(dist)
+            dist = 0;
+        end
+        phase = (b_last - 1) / N - dist * d.cycle_freq / obj.CONV_SPEED;
+        obj.plane_marks_3D = struct('x', x_front, 'label', string(obj.current_downstream_type), ...
+            'y', [min(y, [], 'all') max(y, [], 'all')], 'z', [min(z, [], 'all') max(z, [], 'all')]);
+        rx = obj.draw_robot(ax, d.L, phase, "front", x_front);
+        if ~isempty(rx)
+            xl = ax.XLim;
+            xlim(ax, [xl(1), max(xl(2), rx(2) + obj.ROBOT_GAP_C)]);
+        end
+    end
+
+    % Plane outlines of plot_merged_3D: one per measurement plane, at its
+    % x/c, over its data's y-z extent (see draw_plane_marks)
     function draw_merged_planes(obj, ax, planes)
-        delete(findall(ax, 'Tag', obj.MERGED_3D_MARKER_TAG));
-        hold(ax, 'on')
+        marks = struct('x', {}, 'label', {}, 'y', {}, 'z', {});
         for i = 1:numel(planes)
             P = planes(i);
-            x = P.x / P.L;
-            yl = [min(P.yv) max(P.yv)];
-            zl = [min(P.zv) max(P.zv)];
-            h = plot3(ax, x * ones(1, 5), yl([1 2 2 1 1]), zl([1 1 2 2 1]), '-', ...
+            marks(end+1) = struct('x', P.x / P.L, 'label', P.type, ... %#ok<AGROW>
+                'y', [min(P.yv) max(P.yv)], 'z', [min(P.zv) max(P.zv)]);
+        end
+        obj.plane_marks_3D = marks;
+        obj.draw_plane_marks(ax);
+    end
+
+    % Outline of each measurement plane in obj.plane_marks_3D (a line in
+    % the top view) in the schematic's green, labelled just past its +y
+    % edge so the label stays clear of the wake. It spans the data's y-z
+    % extent, or the Fix Limits box while that is on, so it fills the
+    % border of the volume shown.
+    function draw_plane_marks(obj, ax)
+        if isempty(ax) || ~isscalar(ax) || ~isvalid(ax)
+            return
+        end
+        delete(findall(ax, 'Tag', obj.MERGED_3D_MARKER_TAG));
+        if isempty(obj.plane_marks_3D)
+            return
+        end
+        was_hold = ishold(ax);
+        hold(ax, 'on')
+        for i = 1:numel(obj.plane_marks_3D)
+            m = obj.plane_marks_3D(i);
+            yl = m.y;
+            zl = m.z;
+            if obj.fix_lims_bool && obj.fix_lims_set
+                yl = obj.fix_ylim;
+                zl = obj.fix_zlim;
+            end
+            h = plot3(ax, m.x * ones(1, 5), yl([1 2 2 1 1]), zl([1 1 2 2 1]), '-', ...
                 'Color', obj.MERGED_3D_PLANE_COLOR, 'LineWidth', obj.MERGED_3D_PLANE_WIDTH);
             style(h)
-            h = text(ax, x, yl(2), zl(2), P.type, 'HorizontalAlignment', 'center', ...
+            h = text(ax, m.x, yl(2), zl(2), m.label, 'HorizontalAlignment', 'center', ...
                 'VerticalAlignment', 'bottom', 'FontSize', 14, 'Color', 'k', ...
                 'Interpreter', 'none');
             style(h)
         end
-        hold(ax, 'off')
+        if ~was_hold
+            hold(ax, 'off')
+        end
 
         function style(h)
             h.Tag = obj.MERGED_3D_MARKER_TAG;
