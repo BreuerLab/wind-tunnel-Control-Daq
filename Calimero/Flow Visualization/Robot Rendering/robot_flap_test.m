@@ -10,7 +10,9 @@
 % centroid, matched to the nearer wing). Wing bending isn't modelled.
 %
 % Assumes the STLs were exported in one shared coordinate system (the
-% parts line up when loaded together) with +z up (UP_DIR). Run it once and
+% parts line up when loaded together). They are rotated on loading from
+% the CAD axes into the wind tunnel frame of the wake plots (CAD_TO_TUNNEL):
+% x downstream (the robot's nose points to -x), y spanwise, z up. Run it once and
 % look at the check figure (figure 1): the shoulder axes should run along
 % the rods and the wingtip markers should sit at the tips. Then the
 % animation (figure 2) plays NUM_CYCLES wingbeats.
@@ -30,7 +32,12 @@ ROD_FILES  = ["rod1.STL", "rod2.STL"];
 
 AMP = 20;              % wingbeat amplitude (deg): 10, 20 or 30 (get_calimero_dims)
 PHI_EXPORT = 0;        % wing angle (deg) the wings were exported at (0 = midstroke, horizontal)
-UP_DIR = [0 0 1];      % "up" in the STL coordinates (positive phi raises the wingtip along it)
+% CAD axes -> tunnel axes: rows are tunnel x, y, z in CAD coordinates.
+% CAD: x chordwise with the nose at +x, y vertical, z spanwise, so tunnel
+% x (downstream) = -x_CAD, y (span) = z_CAD, z (up) = y_CAD (a proper
+% rotation, det = +1)
+CAD_TO_TUNNEL = [-1 0 0; 0 0 1; 0 1 0];
+UP_DIR = [0 0 1];      % "up" in the tunnel frame (positive phi raises the wingtip along it)
 ROD_MOVES_WITH_WING = false; % true: the rods rotate with their wing (else drawn with the body)
 
 NUM_CYCLES = 3;        % wingbeats to animate
@@ -48,15 +55,16 @@ this_dir = fileparts(mfilename('fullpath'));
 addpath(fullfile(this_dir, "..", "Calimero Properties")) % calimero_mechanism, get_calimero_dims
 
 %% Load the parts
-body = load_part(fullfile(CAD_DIR, BODY_FILE), MAX_FACES);
+assert(abs(det(CAD_TO_TUNNEL) - 1) < 1e-9, "CAD_TO_TUNNEL must be a rotation (det = +1)")
+body = load_part(fullfile(CAD_DIR, BODY_FILE), MAX_FACES, CAD_TO_TUNNEL);
 for k = 1:2
-    wings(k) = load_part(fullfile(CAD_DIR, WING_FILES(k)), MAX_FACES); %#ok<SAGROW>
-    rods(k)  = load_part(fullfile(CAD_DIR, ROD_FILES(k)), MAX_FACES); %#ok<SAGROW>
+    wings(k) = load_part(fullfile(CAD_DIR, WING_FILES(k)), MAX_FACES, CAD_TO_TUNNEL); %#ok<SAGROW>
+    rods(k)  = load_part(fullfile(CAD_DIR, ROD_FILES(k)), MAX_FACES, CAD_TO_TUNNEL); %#ok<SAGROW>
 end
 
 all_V = [body.V; vertcat(wings.V); vertcat(rods.V)];
 extent = max(all_V) - min(all_V);
-fprintf("Robot extent (STL units): %.4g x %.4g x %.4g\n", extent);
+fprintf("Robot extent (mm): %.4g (streamwise) x %.4g (span) x %.4g (vertical)\n", extent);
 if max(extent) > 50
     disp("  (looks like mm)")
 elseif max(extent) < 1
@@ -207,8 +215,9 @@ end
 
 %% Local functions
 
-% STL -> faces / vertices, reduced to max_faces if larger
-function part = load_part(file, max_faces)
+% STL -> faces / vertices, reduced to max_faces if larger, rotated into
+% the tunnel frame (R: rows are the tunnel axes in CAD coordinates)
+function part = load_part(file, max_faces, R)
     if ~isfile(file)
         error("Not found: %s", file);
     end
@@ -228,6 +237,7 @@ function part = load_part(file, max_faces)
         warning("%s starts at the origin: probably shifted to positive space on export " + ...
             "(tick ""Do not translate STL output data to positive space""), so it won't line up with the other parts", file);
     end
+    V = V * R.';
     part = struct('F', F, 'V', V);
 end
 
@@ -273,9 +283,11 @@ end
 function style_axes(ax)
     axis(ax, 'equal')
     axis(ax, 'vis3d')
-    view(ax, 3)
+    % from above, ahead of the robot and to one side, z up
+    view(ax, -37.5, 25)
+    ax.CameraUpVector = [0 0 1];
     grid(ax, 'on')
-    xlabel(ax, "x"); ylabel(ax, "y"); zlabel(ax, "z");
+    xlabel(ax, "x, downstream (mm)"); ylabel(ax, "y, span (mm)"); zlabel(ax, "z, up (mm)");
     camlight(ax, 'headlight')
     camlight(ax, 'right')
     material(ax, 'dull')
