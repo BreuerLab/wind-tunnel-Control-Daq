@@ -86,9 +86,11 @@ orig_vis = get(all_objs, 'Visible');
 if ~iscell(orig_vis), orig_vis = {orig_vis}; end
 
 % ------------------------------------------- freeze limits and the 3D camera
-frozen_props = {'XLim','YLim','ZLim','CameraPosition','CameraTarget', ...
-                'CameraUpVector','CameraViewAngle','DataAspectRatio', ...
-                'PlotBoxAspectRatio'};
+% Only the limits are frozen. With the limits fixed, the automatic camera and
+% aspect ratio no longer change when the data is hidden. Setting the camera or
+% aspect-ratio properties manually would switch off MATLAB's stretch-to-fill
+% and change the shape of the plot relative to what is on screen.
+frozen_props = {'XLim','YLim','ZLim'};
 orig_modes = cell(numel(axs), numel(frozen_props));
 for i = 1:numel(axs)
     for j = 1:numel(frozen_props)
