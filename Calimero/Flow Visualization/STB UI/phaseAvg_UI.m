@@ -205,6 +205,15 @@ properties
     % one: load cell (wingbeat-to-wingbeat, wingbeat_std_forces*) and BA
     % PIV forces (frame-to-frame within each bin, *_before_std)
     std_band;
+    % band of HRPP (particle harmonic regression) curves:
+    %   "frame_sd"  per-frame scatter of the same case's HR / binned forces
+    %               (as the binned and HR bands), curve SE where there is none
+    %   "se_resid"  95% band of the curve, noise from the curve's residuals
+    %               (<name>_hr_se, hr_curve_uncertainty)
+    %   "se_frames" 95% band of the curve, noise from the binned per-frame
+    %               scatter (<name>_hr_se_frames, hr_curve_uncertainty_frames;
+    %               also gives lift.vortY from the per-frame omega_y rate)
+    hrpp_err_method;
     RPCA;
     HR;    % harmonic regression files (_hr, from bools.harmonic_reg)
     HRPP;  % particle pool + harmonic regression files (_<HRPP_METHOD>); not combined with HR / RPCA
@@ -289,6 +298,7 @@ methods
         obj.PIV_sub_case = "ring";
         obj.force_sub = false;
         obj.std_band = true;
+        obj.hrpp_err_method = "frame_sd";
         obj.RPCA = false;
         obj.HR = false;
         obj.HRPP = false;
@@ -733,14 +743,36 @@ methods
 
         % Remaining file output controls.
         % shaded +/- 1 SD band around load cell and BA PIV force curves
-        std_button = uibutton(sidebar_grid, "state");
-        std_button.Layout.Row = 16;
+        % next to it: which band the HRPP curves get (hrpp_err_method)
+        std_grid = uigridlayout(sidebar_grid, [1, 2]);
+        std_grid.Layout.Row = 16;
+        std_grid.Layout.Column = 1;
+        std_grid.ColumnWidth = {'1x', '1x'};
+        std_grid.RowHeight = {'1x'};
+        std_grid.Padding = [0 0 0 0];
+        std_grid.ColumnSpacing = 6;
+
+        std_button = uibutton(std_grid, "state");
+        std_button.Layout.Row = 1;
         std_button.Layout.Column = 1;
         std_button.Text = "+/- 1 SD";
-        std_button.FontSize = 18;
+        std_button.FontSize = 16;
         std_button.Value = obj.std_band;
         std_button.BackgroundColor = obj.get_button_color(obj.std_band);
         std_button.ValueChangedFcn = @(src, event) std_band_change(src, event, plot_panel);
+
+        hrpp_err_dropdown = uidropdown(std_grid);
+        hrpp_err_dropdown.Layout.Row = 1;
+        hrpp_err_dropdown.Layout.Column = 2;
+        hrpp_err_dropdown.Items = ["HRPP: frame SD", "HRPP: SE resid", "HRPP: SE frames"];
+        hrpp_err_dropdown.ItemsData = ["frame_sd", "se_resid", "se_frames"];
+        hrpp_err_dropdown.Value = obj.hrpp_err_method;
+        hrpp_err_dropdown.FontSize = 12;
+        hrpp_err_dropdown.Tooltip = "Band on HRPP curves. frame SD: per-frame scatter of the same case's HR (or binned) " + ...
+            "BA force, like the binned and HR bands. SE resid: 95% band of the curve, noise from its residuals. " + ...
+            "SE frames: 95% band of the curve, noise = binned per-frame SD / sqrt(frames per bin) " + ...
+            "(also covers x*w_y through the time integral of the per-frame w_y rate)";
+        hrpp_err_dropdown.ValueChangedFcn = @(src, event) hrpp_err_change(src, event, plot_panel);
 
         fnl = uilabel(sidebar_grid);
         fnl.Layout.Row = 17;
@@ -952,6 +984,13 @@ methods
             obj.std_band = src.Value;
             src.BackgroundColor = obj.get_button_color(obj.std_band);
             obj.update_plot(plot_panel);
+        end
+
+        function hrpp_err_change(src, ~, plot_panel)
+            obj.hrpp_err_method = string(src.Value);
+            if obj.std_band
+                obj.update_plot(plot_panel);
+            end
         end
 
         function calc_change(src, ~, plot_panel)
@@ -1894,20 +1933,28 @@ methods (Access = private)
     end
 
     % +/- half-width of the 95% band on a particle HR curve: 1.96 x the
-    % standard error saved as <name>_hr_se (lift.vortX -> lift_hr_se.vortX)
-    % by particle_integrals_case. [] if not saved (older processing).
-    function band = get_hr_curve_band(obj, case_files, var_name, n, cur_sel)
+    % standard error saved by particle_integrals_case as <name><suffix>:
+    % "_hr_se" (noise from the curve's residuals; lift.vortX ->
+    % lift_hr_se.vortX) or "_hr_se_frames" (noise from the binned per-frame
+    % scatter). [] if not saved (older processing).
+    function band = get_hr_curve_band(obj, case_files, var_name, n, cur_sel, suffix)
+        if nargin < 6, suffix = "_hr_se"; end
         band = [];
         var_name = string(var_name);
         if contains(var_name, ".")
-            top_name = extractBefore(var_name, ".") + "_hr_se";
+            top_name = extractBefore(var_name, ".") + suffix;
             se_name = top_name + "." + extractAfter(var_name, ".");
         else
-            top_name = var_name + "_hr_se";
+            top_name = var_name + suffix;
             se_name = top_name;
         end
         if ~obj.file_has_var(case_files, top_name)
-            if ~obj.file_has_var(case_files, "hr_band")
+            if suffix == "_hr_se_frames"
+                if ~obj.file_has_var(case_files, "hr_band_frames")
+                    disp("No frame-scatter SE saved for " + cur_sel + " - rerun main_particle_integrals " + ...
+                        "(reuse_fit = true) for it; using the residual SE")
+                end
+            elseif ~obj.file_has_var(case_files, "hr_band")
                 disp("No HR uncertainty saved for " + cur_sel + ...
                     " - rerun main_particle_integrals (the fit is reused) for a band")
             end
@@ -2660,7 +2707,9 @@ methods (Access = private)
                     index <= length(obj.force_var_types) && ismember(var_name, obj.HR_BAND_FORCE_NAMES)
                 ba_name = regexprep(var_name, '\.', '_before_avg.', 'once');
                 if obj.is_particle_hr_selection(cur_sel)
-                    var_std = obj.get_hrpp_frame_std(cur_sel, ba_name, numel(var));
+                    if obj.hrpp_err_method == "frame_sd"
+                        var_std = obj.get_hrpp_frame_std(cur_sel, ba_name, numel(var));
+                    end
                 elseif obj.is_HR_selection(cur_sel)
                     if obj.has_hr_residual_std(case_files, cur_sel)
                         var_std = obj.get_ba_force_std(case_files, ba_name, numel(var), cur_sel);
@@ -2675,7 +2724,12 @@ methods (Access = private)
             % (hr_curve_uncertainty, phase-dependent noise and the fit's
             % leverage)
             if obj.std_band && isempty(var_std) && obj.is_particle_hr_selection(cur_sel)
-                var_std = obj.get_hr_curve_band(case_files, var_name, numel(var), cur_sel);
+                if obj.hrpp_err_method == "se_frames"
+                    var_std = obj.get_hr_curve_band(case_files, var_name, numel(var), cur_sel, "_hr_se_frames");
+                end
+                if isempty(var_std)
+                    var_std = obj.get_hr_curve_band(case_files, var_name, numel(var), cur_sel, "_hr_se");
+                end
             end
             
             % vars_kin = {"phase_avg_pos", "phase_avg_speed", "phase_avg_acc"};
