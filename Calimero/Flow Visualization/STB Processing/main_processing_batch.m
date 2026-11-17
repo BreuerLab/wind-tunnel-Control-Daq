@@ -105,9 +105,13 @@ bools.hr_save_coef = false; % save coefficients (to evaluate fit / exact d/dt at
 % uncertainty mask and DAQ data. Time-averaged cases are skipped.
 % All settings and their meaning: particle_default_opts.m
 bools.particle = particle_default_opts();
+% Redoing only the particle integrals (e.g. to add the frame-scatter
+% uncertainty, *_hr_se_frames, of y*w_x and the drag terms): run = true,
+% only = true, reuse_fit = true. ~2 min per case, no particle refit and no
+% binned reprocessing. Cases without a saved particle fit are refitted.
 bools.particle.run  = true;   % true: add the particle processing
-bools.particle.only = false;   % true: only the particle processing (binned files must exist)
-bools.particle.reuse_fit = false;  % true: reuse saved particle fits, only redo the integrals
+bools.particle.only = true;   % true: only the particle processing (binned files must exist)
+bools.particle.reuse_fit = true;  % true: reuse saved particle fits, only redo the integrals
 % bools.particle.run_tag      = "o3";     % tag non-default fit settings in the file names
 % bools.particle.fit.depthOrder = 5;
 % bools.particle.hr_harmonics = 20;     % harmonic regression across bins, 0 = off
@@ -356,9 +360,10 @@ function cases = scan_cases(names, num_images, save_folder, bools, skip_processe
             end
             done = isfile(Pn.integral);
             % redoing only the integrals: done once the integral file has
-            % the uncertainty bands (hr_band, particle_integrals_case)
+            % the latest uncertainty bands (hr_band_frames, the
+            % frame-scatter SE, particle_integrals_case)
             if done && particle_only && isfield(bools.particle, 'reuse_fit') && bools.particle.reuse_fit
-                done = ismember('hr_band', who('-file', char(Pn.integral)));
+                done = ismember('hr_band_frames', who('-file', char(Pn.integral)));
             end
             if done
                 cases.status(k) = "skipped";
