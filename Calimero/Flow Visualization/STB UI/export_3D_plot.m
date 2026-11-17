@@ -1,10 +1,16 @@
-function export_3D_plot(fig, basename, resolution)
+function export_3D_plot(varargin)
 % EXPORT_3D_PLOT  Export a 3D MATLAB figure as two aligned layers for Illustrator.
 %
 %   export_3D_plot()                       exports gcf to 'figure_data.png' / 'figure_text.pdf'
 %   export_3D_plot(fig)                    exports the given figure
 %   export_3D_plot(fig, basename)          writes <basename>_data.png and <basename>_text.pdf
 %   export_3D_plot(fig, basename, dpi)     sets the raster resolution (default 600)
+%   export_3D_plot(..., show_axes)         show_axes = false hides the axes
+%                                          (lines, ticks, tick labels, axis
+%                                          labels, title) in the PDF. Legends,
+%                                          colorbars, text() and annotation()
+%                                          objects are still exported.
+%   export_3D_plot(false)                  gcf, default names, axes hidden
 %
 % Dense 3D graphics (surfaces, patches, isosurfaces, scatter3) give huge
 % vector files that Illustrator struggles to open. This function splits the
@@ -30,9 +36,19 @@ function export_3D_plot(fig, basename, resolution)
 %   fullfile(matlabroot, 'sys', 'fonts', 'ttf', 'cm')
 % then restart Illustrator.
 
-if nargin < 1 || isempty(fig),        fig = gcf;            end
-if nargin < 2 || isempty(basename),   basename = 'figure';  end
-if nargin < 3 || isempty(resolution), resolution = 600;     end
+% A trailing logical/true-false argument is show_axes; the rest is positional
+show_axes = true;
+args = varargin;
+if ~isempty(args) && (islogical(args{end}) && isscalar(args{end}))
+    show_axes = args{end};
+    args(end) = [];
+end
+args(end+1:3) = {[]};
+[fig, basename, resolution] = args{1:3};
+
+if isempty(fig),        fig = gcf;            end
+if isempty(basename),   basename = 'figure';  end
+if isempty(resolution), resolution = 600;     end
 
 % Drop any extension the user passed
 [p, n] = fileparts(basename);
@@ -54,7 +70,15 @@ txt   = findall(kids, 'flat', 'Type', 'text');   % text() placed on the plot
 lgt   = findall(kids, 'flat', 'Type', 'light');  % keep lights on for the raster
 data  = kids(~ismember(kids, [txt; lgt]));      % everything that is plotted data
 
-overlay = [axs; lg; cb; txt; ann];               % hidden in the raster layer
+% Titles/subtitles stay visible when an axes is turned off, so handle them
+% separately
+titles = gobjects(0, 1);
+for a = axs'
+    titles(end+1, 1) = a.Title; %#ok<AGROW>
+    if isprop(a, 'Subtitle'), titles(end+1, 1) = a.Subtitle; end %#ok<AGROW>
+end
+
+overlay = [axs; titles; lg; cb; txt; ann];       % hidden in the raster layer
 
 % Remember original visibility so we restore exactly what was there
 all_objs = [overlay; data];
@@ -130,6 +154,9 @@ imwrite(C, png_file, 'Alpha', alpha, 'ResolutionUnit', 'meter', ...
 % ------------------------------------------- layer 2: text and axes (vector)
 restore_visibility(all_objs, orig_vis)
 set(data, 'Visible', 'off')
+if ~show_axes
+    set([axs; titles], 'Visible', 'off')
+end
 fig.Color = 'none';               % no figure background rectangle
 set(axs, 'Color', 'none')         % no axes background box
 try
