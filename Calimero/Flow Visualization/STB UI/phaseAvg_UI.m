@@ -2486,7 +2486,9 @@ methods (Access = private)
         yconf = [upper_vals, lower_vals(end:-1:1)];
 
         band = fill(ax, xconf, yconf, obj.get_light_color(original_color));
-        band.HandleVisibility = 'off';
+        % out of the legend, but not a hidden handle: hidden handles are
+        % left out of ax.Children, which order_std_bands reorders
+        band.Annotation.LegendInformation.IconDisplayStyle = 'off';
         band.EdgeColor = 'none';
         band.Tag = 'std_band';
         band.UserData = mean(2 * abs(sd), 'omitnan'); % width, for order_std_bands
