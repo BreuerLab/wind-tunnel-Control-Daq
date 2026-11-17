@@ -24,7 +24,7 @@ properties (Constant, Access = private)
                          0.85 0.30 0.30; 0.60 0.05 0.13];
     % "Remove Small" default: hide isosurface pieces with fewer
     % triangles than this % of the largest piece (0 = keep everything)
-    REMOVE_SMALL_DEFAULT = 2;
+    REMOVE_SMALL_DEFAULT = 1;
     % Derived variable: lift integrand from the wake, computed on the fly
     % from stored fields (term1 in get_wake_lift: -U .* y .* -vortX, with y
     % measured from the mirror centerline)
@@ -428,15 +428,15 @@ methods
         obj.iso_val = obj.Q_ISO_DEFAULT;
         obj.iso_neg = false;
         obj.mirror_bool = false;
-        obj.filter_bool = false;
+        obj.filter_bool = true;     % on by default
         obj.num_cycles = 1;
         obj.conv_units_bool = false;
         obj.conv_scale = [];
-        obj.conv_shift = false;
-        obj.stroke_order = "UDU";
+        obj.conv_shift = true;      % on by default, with the DU stroke order
+        obj.stroke_order = "DU";
         obj.surf_3D = [];
         obj.geom_3D = [];
-        obj.label_stroke = false;
+        obj.label_stroke = true;    % Label Stroke follows Convection Shift
         obj.stroke_3D = [];
         obj.merged_3D = [];
         obj.stack_window_3D = [];
@@ -449,10 +449,10 @@ methods
         obj.seam_stat = obj.SEAM_STATS(1);
         obj.card_style = false;
         obj.card_panel_color = [];
-        obj.remove_small_bool = false;
+        obj.remove_small_bool = true; % on by default
         obj.remove_small_pct = obj.REMOVE_SMALL_DEFAULT;
-        obj.unc_mask_bool = false;
-        obj.unc_mask_thresh = 4; % % of freestream
+        obj.unc_mask_bool = true; % on by default
+        obj.unc_mask_thresh = 3; % % of freestream
         obj.crop_box_bool = false;
         obj.crop_box = [-1.4 1.4 -3.5 -1.2];
         obj.unc_contour_bool = false;
@@ -1081,7 +1081,8 @@ methods
         filter_button.Layout.Column = 1;
         filter_button.Text = "Filter";
         filter_button.FontSize = 18;
-        filter_button.BackgroundColor = obj.INACTIVE_COLOR;
+        filter_button.Value = obj.filter_bool;
+        filter_button.BackgroundColor = obj.get_button_color(obj.filter_bool);
         filter_button.ValueChangedFcn = @(src, event) filter_change(src, event, plot_area_panel);
 
         % Extrapolate (velocity from the vorticity, on the field of view)
