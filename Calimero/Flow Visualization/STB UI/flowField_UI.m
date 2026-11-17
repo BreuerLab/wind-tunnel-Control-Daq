@@ -141,6 +141,9 @@ properties (Constant, Access = private)
     % along x by frozen flow (as in "phase avg: 3D plot") and cut at one
     % y (y slider in the frame slider's place; see plot_xz_plane)
     XZ_PLOT = "xz plane";
+    % "phase avg: 3D plot": tag on the xz / yz slice planes (see
+    % draw_slices_3D)
+    SLICE_TAG = "slice_3D";
 end
 
 properties
@@ -403,6 +406,17 @@ properties
     xz_grid;
     xz_slider;
     xz_y_label;
+    % "phase avg: 3D plot" slice planes: on/off, the xz plane's y/c (NaN:
+    % centre of the field) and the yz plane's x as a fraction of the
+    % plotted window (low-x end = 0), and their buttons / sliders
+    slice_xz_bool;
+    slice_yz_bool;
+    slice_y;
+    slice_x_frac;
+    slice_xz_button;
+    slice_yz_button;
+    slice_xz_slider;
+    slice_yz_slider;
 end
 
 methods
@@ -466,6 +480,10 @@ methods
         obj.seam_ind = 1;
         obj.xz_y = NaN;
         obj.xz_y_vals = [];
+        obj.slice_xz_bool = false;
+        obj.slice_yz_bool = false;
+        obj.slice_y = NaN;
+        obj.slice_x_frac = 0.5;
         obj.seam_stat = obj.SEAM_STATS(1);
         obj.card_style = false;
         obj.card_panel_color = [];
@@ -1300,12 +1318,13 @@ methods
         obj.param_panel.Title = "3D Plot Parameters";
         obj.param_panel.TitlePosition = 'centertop';
 
-        param_grid = uigridlayout(obj.param_panel, [17, 1]);
+        param_grid = uigridlayout(obj.param_panel, [21, 1]);
         param_grid.ColumnWidth = {'1x'};
         % isovalue, iso variable, views, fixed y / z limits, x-axis /
         % shift / stroke labels, Remove Small, Unc Mask, number of
-        % wingbeats, Card Style, Robot / Mid-Stroke, Crop Box
-        param_grid.RowHeight = {22, 55, 30, 50, 18, 24, 80, 30, 30, 30, 30, 30, 22, 55, 30, 30, 52};
+        % wingbeats, Card Style, Robot / Mid-Stroke, Crop Box, xz plane +
+        % its y slider, yz plane + its x slider
+        param_grid.RowHeight = {22, 55, 30, 50, 18, 24, 80, 30, 30, 30, 30, 30, 22, 55, 30, 30, 52, 30, 40, 30, 40};
         param_grid.Padding = [10 8 10 8];
         param_grid.RowSpacing = 6;
 
@@ -1580,6 +1599,49 @@ methods
                 iso_button.ButtonPushedFcn = @(src, event) view_change_handler(src.Text, plot_area_panel);
             end
         end
+
+        % Slice planes through the 3D wake, coloured by the plotted
+        % variable: an xz plane at the y picked below it and a yz plane at
+        % the x picked below it (snap to the data grid / phase bins)
+        obj.slice_xz_button = uibutton(param_grid, "state");
+        obj.slice_xz_button.Layout.Row = 18;
+        obj.slice_xz_button.Layout.Column = 1;
+        obj.slice_xz_button.Text = "xz plane";
+        obj.slice_xz_button.FontSize = 16;
+        obj.slice_xz_button.Value = obj.slice_xz_bool;
+        obj.slice_xz_button.BackgroundColor = obj.get_button_color(obj.slice_xz_bool);
+        obj.slice_xz_button.Tooltip = "Show an xz plane through the wake, coloured by the plotted variable, at the y/c on the slider below";
+        obj.slice_xz_button.ValueChangedFcn = @(src, event) slice_toggle(src, event, plot_area_panel, "xz");
+
+        obj.slice_xz_slider = uislider(param_grid);
+        obj.slice_xz_slider.Layout.Row = 19;
+        obj.slice_xz_slider.Layout.Column = 1;
+        obj.slice_xz_slider.Limits = [-1 1];
+        obj.slice_xz_slider.Value = 0;
+        obj.slice_xz_slider.MinorTicks = [];
+        obj.slice_xz_slider.Enable = obj.slice_xz_bool;
+        obj.slice_xz_slider.Tooltip = "y/c of the xz plane (snaps to the data grid)";
+        obj.slice_xz_slider.ValueChangedFcn = @(src, event) slice_pos_change(src, event, plot_area_panel, "xz");
+
+        obj.slice_yz_button = uibutton(param_grid, "state");
+        obj.slice_yz_button.Layout.Row = 20;
+        obj.slice_yz_button.Layout.Column = 1;
+        obj.slice_yz_button.Text = "yz plane";
+        obj.slice_yz_button.FontSize = 16;
+        obj.slice_yz_button.Value = obj.slice_yz_bool;
+        obj.slice_yz_button.BackgroundColor = obj.get_button_color(obj.slice_yz_bool);
+        obj.slice_yz_button.Tooltip = "Show a yz plane through the wake, coloured by the plotted variable, at the x on the slider below";
+        obj.slice_yz_button.ValueChangedFcn = @(src, event) slice_toggle(src, event, plot_area_panel, "yz");
+
+        obj.slice_yz_slider = uislider(param_grid);
+        obj.slice_yz_slider.Layout.Row = 21;
+        obj.slice_yz_slider.Layout.Column = 1;
+        obj.slice_yz_slider.Limits = [0 1];
+        obj.slice_yz_slider.Value = 0.5;
+        obj.slice_yz_slider.MinorTicks = [];
+        obj.slice_yz_slider.Enable = obj.slice_yz_bool;
+        obj.slice_yz_slider.Tooltip = "x of the yz plane, in the 3D plot's x-axis units (snaps to the phase bins)";
+        obj.slice_yz_slider.ValueChangedFcn = @(src, event) slice_pos_change(src, event, plot_area_panel, "yz");
 
         % Cosmetic "card" look: lighting, red-green diverging colormap
         % (best with ω_x as the colour variable), dark background, axes
@@ -2037,6 +2099,11 @@ methods
             obj.seam_grid.Visible = obj.plot_type == obj.SEAM_PLOT;
             % xz plane: its y slider replaces the frame slider and Play
             obj.xz_grid.Visible = obj.plot_type == obj.XZ_PLOT;
+            % slice planes: "phase avg: 3D plot" only
+            obj.slice_xz_button.Enable = ~is_merged;
+            obj.slice_yz_button.Enable = ~is_merged;
+            obj.slice_xz_slider.Enable = ~is_merged && obj.slice_xz_bool;
+            obj.slice_yz_slider.Enable = ~is_merged && obj.slice_yz_bool;
             set_distance_dropdown_visibility();
         end
 
@@ -2175,7 +2242,7 @@ methods
             row_heights = sidebar_grid.RowHeight;
             if is_visible
                 obj.param_panel.Visible = "on";
-                row_heights{14} = 753; % + the Robot / Mid-Stroke row, x limits row
+                row_heights{14} = 917; % + the Robot / Mid-Stroke row, x limits row, slice planes
             else
                 obj.param_panel.Visible = "off";
                 row_heights{14} = 0;
@@ -2598,7 +2665,8 @@ methods
             ax = findobj(plot_panel.Children, 'Type', 'axes');
             p = obj.find_isosurface_patch(ax);
             if obj.plot_type ~= obj.plot_types(5) || ~isscalar(ax) || ~isscalar(p) || isempty(obj.conv_scale) || ...
-                    obj.robot_bool % the robot is only drawn on the x/c axis
+                    obj.robot_bool || ... % the robot is only drawn on the x/c axis
+                    obj.slice_xz_bool || obj.slice_yz_bool % slices are built from the cached data
                 obj.plot_hold_bool = false;
                 obj.update_plot(plot_panel);
                 return
@@ -2892,6 +2960,45 @@ methods
             if obj.remove_small_bool && obj.is_3D_plot_type()
                 ax = findobj(plot_panel.Children, 'Type', 'axes');
                 obj.apply_remove_small(ax);
+            end
+        end
+
+        % 3D plot slice planes on / off: redraw only the slices when the
+        % plot is there, else a full redraw
+        function slice_toggle(src, ~, plot_panel, which)
+            if which == "xz"
+                obj.slice_xz_bool = src.Value;
+                obj.slice_xz_slider.Enable = src.Value;
+            else
+                obj.slice_yz_bool = src.Value;
+                obj.slice_yz_slider.Enable = src.Value;
+            end
+            src.BackgroundColor = obj.get_button_color(src.Value);
+            redraw_slices(plot_panel);
+        end
+
+        % 3D plot slice position: y/c (xz plane) or x (yz plane), snapped
+        % in draw_slices_3D
+        function slice_pos_change(src, ~, plot_panel, which)
+            if which == "xz"
+                obj.slice_y = src.Value;
+            else
+                lims = src.Limits;
+                obj.slice_x_frac = (src.Value - lims(1)) / diff(lims);
+            end
+            redraw_slices(plot_panel);
+        end
+
+        function redraw_slices(plot_panel)
+            if obj.plot_type ~= obj.plot_types(5)
+                return
+            end
+            S3 = obj.surf_3D;
+            if ~obj.play && ~isempty(S3) && isfield(S3, 'ax') && ~isempty(S3.ax) && ...
+                    isvalid(S3.ax) && isfield(S3, 'slice_shift')
+                obj.draw_slices_3D(S3.ax, S3.slice_shift);
+            elseif ~obj.play
+                obj.update_plot(plot_panel);
             end
         end
 
@@ -3562,6 +3669,91 @@ methods (Access = private)
         p.Faces = S3.ext.faces(keep, :);
         p.FaceVertexCData = S3.ext.cdata;
         p.Clipping = 'on';
+        obj.draw_slices_3D(p.Parent, shift); % slices follow the frame
+    end
+
+    % "phase avg: 3D plot" slice planes, coloured by the plotted variable
+    % (same colour limits as the isosurface): an xz plane at y/c slice_y
+    % and a yz plane at slice_x_frac of the plotted window, both snapped
+    % to the data (y grid / phase-bin columns). Built like
+    % stack_vortices_3D: column m of the stack (x = (m - 1) dz before the
+    % flip) holds bin mod(m - 1 - shift, N) + 1, then x -> a + b - x so the
+    % wake runs downstream. Also keeps the two sliders' limits on the
+    % current plot. Removes old slices first, so it is safe to call on
+    % every frame.
+    function draw_slices_3D(obj, ax, shift)
+        if isempty(ax) || ~isscalar(ax) || ~isvalid(ax)
+            return
+        end
+        delete(findall(ax, 'Tag', obj.SLICE_TAG));
+        S3 = obj.surf_3D;
+        if isempty(S3) || obj.plot_type ~= obj.plot_types(5)
+            return
+        end
+        obj.surf_3D.slice_shift = shift;
+
+        N = S3.params.num_bins;
+        M = S3.params.num_cycles * N;
+        xl = S3.xlims;
+        if M < 2 || diff(xl) <= 0
+            return
+        end
+        dz = (xl(2) - xl(1)) / (M - 1);
+        x_cols = sum(xl) - (xl(1) + (0:M-1) * dz); % flipped, as plotted
+        bins = mod((0:M-1) - shift, N) + 1;
+        y_vals = S3.y(:,1);
+        z_vals = S3.z(1,:);
+
+        % sliders: xz on the y grid, yz on the plotted window
+        if isnan(obj.slice_y)
+            obj.slice_y = y_vals(round((numel(y_vals) + 1) / 2));
+        end
+        [~, iy] = min(abs(y_vals - obj.slice_y));
+        obj.slice_y = y_vals(iy);
+        y_lims = [min(y_vals) max(y_vals)];
+        if diff(y_lims) > 0
+            obj.slice_xz_slider.Limits = y_lims;
+            obj.slice_xz_slider.MajorTicks = obj.coarse_ticks(y_lims);
+        end
+        obj.slice_xz_slider.Value = obj.slice_y;
+
+        x_lims = [min(x_cols) max(x_cols)];
+        x_target = x_lims(1) + obj.slice_x_frac * diff(x_lims);
+        [~, mi] = min(abs(x_cols - x_target));
+        obj.slice_x_frac = (x_cols(mi) - x_lims(1)) / diff(x_lims);
+        obj.slice_yz_slider.Limits = x_lims;
+        obj.slice_yz_slider.MajorTicks = obj.coarse_ticks(x_lims);
+        obj.slice_yz_slider.Value = x_cols(mi);
+
+        obj.slice_xz_button.Text = sprintf("xz plane (y/c = %.2f)", obj.slice_y);
+        obj.slice_yz_button.Text = sprintf("yz plane (x = %.2f)", x_cols(mi));
+
+        hold_state = ishold(ax);
+        hold(ax, 'on');
+        style = {'EdgeColor', 'none', 'FaceColor', 'interp', 'FaceLighting', 'none', ...
+            'Tag', obj.SLICE_TAG, 'HandleVisibility', 'off', 'Clipping', 'on'};
+        if obj.slice_xz_bool
+            C = reshape(S3.val(iy, :, bins), numel(z_vals), M); % z x columns
+            [Xs, Zs] = meshgrid(x_cols, z_vals);
+            Ys = repmat(y_vals(iy), size(Xs));
+            surface(ax, Xs, Ys, Zs, C, style{:});
+        end
+        if obj.slice_yz_bool
+            C = S3.val(:, :, bins(mi)); % y x z
+            Xs = repmat(x_cols(mi), size(S3.y));
+            surface(ax, Xs, S3.y, S3.z, C, style{:});
+        end
+        if ~hold_state
+            hold(ax, 'off');
+        end
+    end
+
+    % 3 to 6 round-numbered ticks across lims (coarse slider ticks)
+    function ticks = coarse_ticks(~, lims)
+        span = diff(lims);
+        step = 10^floor(log10(span / 3));
+        if span / step > 12, step = step * 5; elseif span / step > 6, step = step * 2; end
+        ticks = (ceil(lims(1) / step) : floor(lims(2) / step)) * step;
     end
 
     % Stroke order: bins to shift the 3D plot by, from the stroke
@@ -5089,6 +5281,7 @@ methods (Access = private)
             end
             obj.set_stack_xlabel(ax);
             obj.surf_3D.ax = ax; % Play can restart on this plot without a redraw (play_3D)
+            obj.draw_slices_3D(ax, params.shift);
             % plot_3D draws x/c to equal scale; here the axes fill the
             % plot instead (equal scaling squeezes y and z)
             ax.DataAspectRatioMode = 'auto';
