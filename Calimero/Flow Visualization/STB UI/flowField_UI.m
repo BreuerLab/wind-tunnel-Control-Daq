@@ -2176,13 +2176,18 @@ methods
                 obj.play = true;
                 src.BackgroundColor = obj.ACTIVE_COLOR;
                 src.Text = "Stop";
+                obj.update_plot(plot_panel); % runs the Play loop
             else
+                % Stop: the running Play loop sees obj.play at its next
+                % frame and ends, leaving that frame on screen. No redraw
+                % here: a full update_plot (reloading the case) inside the
+                % loop is what delayed stopping. The loop may have just
+                % wrapped frame_ind to 0, so take the frame shown.
                 obj.play = false;
                 src.BackgroundColor = obj.INACTIVE_COLOR;
                 src.Text = "Play";
+                obj.frame_ind = max(round(obj.slider.Value), 1);
             end
-
-            obj.update_plot(plot_panel);
         end
 
         % User toggled trimming to the wake region.
