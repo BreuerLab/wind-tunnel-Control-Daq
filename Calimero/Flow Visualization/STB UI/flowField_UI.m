@@ -137,6 +137,10 @@ properties (Constant, Access = private)
     % equals the difference of the two planes' time averages, independent
     % of U_c), "rms" (sensitive to the phase alignment, i.e. to U_c)
     SEAM_STATS = ["mean", "rms"];
+    % "xz plane": the phase-averaged field of the selected plane laid out
+    % along x by frozen flow (as in "phase avg: 3D plot") and cut at one
+    % y (y slider in the frame slider's place; see plot_xz_plane)
+    XZ_PLOT = "xz plane";
 end
 
 properties
@@ -391,6 +395,14 @@ properties
     seam_grid;
     seam_slider;
     seam_conv_field;
+    % "xz plane": selected y/c (NaN: centre of the field), the y grid of
+    % the last plot (the slider snaps to it), and its controls (xz_grid
+    % sits in the frame slider's row)
+    xz_y;
+    xz_y_vals;
+    xz_grid;
+    xz_slider;
+    xz_y_label;
 end
 
 methods
@@ -421,7 +433,8 @@ methods
             "image wingbeat phase", "wingbeat frequency","wake forces","phase avg: planar avg",...
             "time avg: section avg", "frozen flow", obj.MERGED_3D_PLOT,...
             "phase avg: section avg",... % 13: listed after "time avg: section avg" (order_plot_types)
-            obj.SEAM_PLOT]; % 14: listed after "phase avg: 3D all planes" (order_plot_types)
+            obj.SEAM_PLOT,... % 14: listed after "phase avg: 3D all planes" (order_plot_types)
+            obj.XZ_PLOT]; % 15: listed after "phase avg: movie" (order_plot_types)
         obj.plot_type = obj.plot_types(1);
         obj.plot_hold_bool = false;
         obj.iso_var_list = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
@@ -451,6 +464,8 @@ methods
         obj.plane_marks_3D = [];
         obj.merged_conv_speed = [];
         obj.seam_ind = 1;
+        obj.xz_y = NaN;
+        obj.xz_y_vals = [];
         obj.seam_stat = obj.SEAM_STATS(1);
         obj.card_style = false;
         obj.card_panel_color = [];
@@ -1244,6 +1259,32 @@ methods
         seam_uc_reset_button.Tooltip = "Back to each file's freestream speed U";
         seam_uc_reset_button.ButtonPushedFcn = @(src, event) merged_conv_reset(src, event, plot_area_panel);
 
+        % "xz plane" only, in the frame slider's place (no Play): the y of
+        % the slice
+        obj.xz_grid = uigridlayout(plot_grid, [1, 2]);
+        obj.xz_grid.Layout.Row = 2;
+        obj.xz_grid.Layout.Column = 1;
+        obj.xz_grid.ColumnWidth = {90, '1x'};
+        obj.xz_grid.RowHeight = {'1x'};
+        obj.xz_grid.Padding = [0 0 0 0];
+        obj.xz_grid.ColumnSpacing = 8;
+        obj.xz_grid.Visible = "off";
+
+        obj.xz_y_label = uilabel(obj.xz_grid);
+        obj.xz_y_label.Layout.Row = 1;
+        obj.xz_y_label.Layout.Column = 1;
+        obj.xz_y_label.Text = "y/c";
+        obj.xz_y_label.FontSize = 14;
+        obj.xz_y_label.HorizontalAlignment = 'right';
+
+        obj.xz_slider = uislider(obj.xz_grid);
+        obj.xz_slider.Layout.Row = 1;
+        obj.xz_slider.Layout.Column = 2;
+        obj.xz_slider.Limits = [-1 1];
+        obj.xz_slider.Value = 0;
+        obj.xz_slider.Tooltip = "Spanwise position y/c of the xz slice (snaps to the data grid)";
+        obj.xz_slider.ValueChangedFcn = @(src, event) xz_y_change(src, event, plot_area_panel);
+
         obj.play_button = uibutton(plot_grid, "state");
         obj.play_button.Layout.Row = 3;
         obj.play_button.Layout.Column = 1;
@@ -1936,7 +1977,7 @@ methods
         end
 
         function refresh_variable_dropdown(previous_plot_type)
-            phase_avg_plots = obj.plot_types([1 2 5 9 12 14]);
+            phase_avg_plots = obj.plot_types([1 2 5 9 12 14 15]);
             phase_std_plots = obj.plot_types([3 4]);
             same_phase_avg_family = ismember(previous_plot_type, phase_avg_plots) && ...
                 ismember(obj.plot_type, phase_avg_plots);
@@ -1994,6 +2035,8 @@ methods
             % seam comparison: its seam controls replace the frame slider
             % and Play (plot_seam_comparison hides those)
             obj.seam_grid.Visible = obj.plot_type == obj.SEAM_PLOT;
+            % xz plane: its y slider replaces the frame slider and Play
+            obj.xz_grid.Visible = obj.plot_type == obj.XZ_PLOT;
             set_distance_dropdown_visibility();
         end
 
@@ -2850,6 +2893,16 @@ methods
                 ax = findobj(plot_panel.Children, 'Type', 'axes');
                 obj.apply_remove_small(ax);
             end
+        end
+
+        % xz plane: snap to the nearest y of the data grid
+        function xz_y_change(src, ~, plot_panel)
+            if ~isempty(obj.xz_y_vals)
+                [~, k] = min(abs(obj.xz_y_vals - src.Value));
+                src.Value = obj.xz_y_vals(k);
+            end
+            obj.xz_y = src.Value;
+            obj.update_plot(plot_panel);
         end
 
         function frame_change(src, ~, plot_panel)
@@ -4300,6 +4353,13 @@ methods (Access = private)
             k = find(rest == obj.plot_types(10), 1);
             plot_types = [rest(1:k), obj.plot_types(13), rest(k+1:end)];
         end
+        % "xz plane" right after "phase avg: movie"
+        is_xz = plot_types == obj.XZ_PLOT;
+        if any(is_xz) && any(plot_types == obj.plot_types(2))
+            rest = plot_types(~is_xz);
+            k = find(rest == obj.plot_types(2), 1);
+            plot_types = [rest(1:k), obj.XZ_PLOT, rest(k+1:end)];
+        end
         % "seam comparison" right after "phase avg: 3D all planes"
         is_seam = plot_types == obj.SEAM_PLOT;
         if any(is_seam) && any(plot_types == obj.MERGED_3D_PLOT)
@@ -4355,13 +4415,13 @@ methods (Access = private)
         use_extrapolated_data = obj.extrapolate_bool && ~using_time_avg_file;
         % extrapolated - measured velocity: stored on the field of view grid
         % of the extrapolation, so it is loaded like the extrapolated data
-        is_extrap_diff = any(obj.variable_name == obj.EXTRAP_DIFF_VARS) && ismember(plot_idx, [1, 2, 5, 9]);
+        is_extrap_diff = any(obj.variable_name == obj.EXTRAP_DIFF_VARS) && ismember(plot_idx, [1, 2, 5, 9, 15]);
         if is_extrap_diff
-            if using_time_avg_file || ~ismember(plot_idx, [1, 2])
+            if using_time_avg_file || ~ismember(plot_idx, [1, 2, 15])
                 delete(findobj(plot_panel.Children, 'Type', 'axes'));
                 ax = axes(plot_panel);
                 text(ax, 0.5, 0.5, "Extrapolated - measured is only available for phase averages " + ...
-                    "(time avg of phase avg / phase avg: movie)", 'HorizontalAlignment', 'center', FontSize=14);
+                    "(time avg of phase avg / phase avg: movie / xz plane)", 'HorizontalAlignment', 'center', FontSize=14);
                 axis(ax, 'off');
                 obj.plot_hold_bool = false;
                 return
@@ -4374,7 +4434,7 @@ methods (Access = private)
         if is_transport
             use_extrapolated_data = false;
         end
-        q_mask_enabled = obj.q_mask_bool && ismember(plot_idx, [1, 2]) && ~use_extrapolated_data;
+        q_mask_enabled = obj.q_mask_bool && ismember(plot_idx, [1, 2, 15]) && ~use_extrapolated_data;
         q_mask_var_name = "Q";
 
         cur_secondary_vars = {};
@@ -4389,7 +4449,7 @@ methods (Access = private)
             return
         end
 
-        if ismember(plot_idx, [1, 2, 5, 9])
+        if ismember(plot_idx, [1, 2, 5, 9, 15])
             if using_time_avg_file
                 var_name = obj.time_avg_var_name_dict(obj.variable_name);
                 vars = {"L","U","z","y"};
@@ -4522,7 +4582,7 @@ methods (Access = private)
         case_files = obj.get_current_case();
 
         % field of view of the extrapolation (newer files), for the crop / box
-        if use_extrapolated_data && ~is_extrap_diff && ismember(plot_idx, [1, 2])
+        if use_extrapolated_data && ~is_extrap_diff && ismember(plot_idx, [1, 2, 15])
             integral_vars = stb_who(case_files);
             if all(ismember({'y_B_fov', 'z_B_fov'}, integral_vars))
                 cur_secondary_vars = [cur_secondary_vars, {"y_B_fov", "z_B_fov"}];
@@ -4572,10 +4632,10 @@ methods (Access = private)
             obj.play_button.Visible = "off";
         end
 
-        if ismember(plot_idx, [1, 2, 5, 9]) && strcmp(var_name, obj.LIFT_WX_FIELD)
+        if ismember(plot_idx, [1, 2, 5, 9, 15]) && strcmp(var_name, obj.LIFT_WX_FIELD)
             d.(var_name) = obj.compute_lift_wx_field(d, using_time_avg_file);
         end
-        if ismember(plot_idx, [1, 2, 5, 9]) && is_transport && ...
+        if ismember(plot_idx, [1, 2, 5, 9, 15]) && is_transport && ...
                 all(isfield(d, cellstr([transport_pairs(:); transport_own_vort])))
             % omega_j du_i/dx_j (c^2/U^2), or a row sum / growth of them;
             % left missing when the gradients aren't saved (older
@@ -4600,7 +4660,7 @@ methods (Access = private)
             q_mask_val = d.(q_mask_var_name);
         end
 
-        if ismember(plot_idx, [1, 2, 3, 4, 5, 9])
+        if ismember(plot_idx, [1, 2, 3, 4, 5, 9, 15])
             if is_extrap_diff
                 y = d.y_B_fov;
                 z = d.z_B_fov;
@@ -4614,7 +4674,7 @@ methods (Access = private)
                 end
                 % Extrapolate alone: only the original field of view
                 % (velocity from the vorticity there); Full Section: all
-                if ~obj.full_section_bool && ismember(plot_idx, [1, 2])
+                if ~obj.full_section_bool && ismember(plot_idx, [1, 2, 15])
                     [iy_fov, iz_fov] = obj.get_extrap_fov_indices(d);
                     if ~isempty(iy_fov)
                         y = y(iy_fov, iz_fov);
@@ -4736,7 +4796,7 @@ methods (Access = private)
                 val(val < (params.zero + obj.thresh) & val > (params.zero - obj.thresh)) = params.zero;
             end
 
-            if q_mask_enabled && plot_idx == 2
+            if q_mask_enabled && ismember(plot_idx, [2, 15])
                 val(q_mask_val <= obj.q_mask_thresh) = NaN;
             end
         end
@@ -4834,13 +4894,16 @@ methods (Access = private)
         end
 
         switch plot_idx
-        case {1,2,5}
+        case {1,2,5,15}
             params.cb_lab = obj.label_dict(obj.variable_name);
         case {3,4}
             params.cb_lab = obj.std_label_dict(obj.variable_name);
         end
 
-        if plot_idx == 1
+        if plot_idx == 15
+            params.clims = var_clims;
+            obj.plot_xz_plane(ax, y, z, val, params, d);
+        elseif plot_idx == 1
             params.clims = var_clims;
 
             if using_time_avg_file
@@ -5134,6 +5197,62 @@ methods (Access = private)
             xlabel(ax, "Time", FontSize=16)
             ylabel(ax, obj.label_dict(obj.variable_name), FontSize=16, Interpreter="latex")
         end
+    end
+
+    % "xz plane": the phase average of the selected plane, laid out along
+    % x by frozen flow and cut at the y picked on the y slider. The bins are
+    % binned on the robot's wing phase, so at the snapshot time (wing phase
+    % at the robot = bin 1) the fluid that crossed the plane j bins earlier
+    % is j U T / N downstream of it: column j is bin mod(-j, N) + 1. One
+    % wingbeat of wake is shown (the first bin is repeated at the far end
+    % so it closes), x in x/c from the robot (from the plane when its
+    % distance is unknown, e.g. turbine cases), downstream to the right.
+    % val: y x z x bins (already trimmed / mirrored / filtered).
+    function plot_xz_plane(obj, ax, y, z, val, params, d)
+        y_vals = y(:,1);
+        z_vals = z(1,:);
+        N = size(val, 3);
+
+        % y slider: limits on this grid, value snapped to it
+        obj.xz_y_vals = y_vals;
+        if isnan(obj.xz_y)
+            obj.xz_y = y_vals(round((numel(y_vals) + 1) / 2));
+        end
+        [~, iy] = min(abs(y_vals - obj.xz_y));
+        obj.xz_y = y_vals(iy);
+        y_lims = [min(y_vals) max(y_vals)];
+        if diff(y_lims) <= 0
+            y_lims = y_lims + [-0.5 0.5];
+        end
+        obj.xz_slider.Limits = y_lims;
+        obj.xz_slider.Value = obj.xz_y;
+        span = diff(y_lims);
+        step = 10^floor(log10(span / 4));
+        if span / step > 10, step = step * 5; elseif span / step > 5, step = step * 2; end
+        obj.xz_slider.MajorTicks = (ceil(y_lims(1) / step) : floor(y_lims(2) / step)) * step;
+        obj.xz_slider.MinorTicks = y_vals;
+
+        % frozen flow: bin of each column, and its distance downstream
+        j = 0:N;                      % N + 1: closes the wingbeat
+        bins = mod(-j, N) + 1;
+        dist = obj.get_downstream_dist();
+        from_robot = ~isnan(dist);
+        if ~from_robot, dist = 0; end
+        x_vals = (dist + d.U * j / (d.cycle_freq * N)) / d.L;
+
+        slice = squeeze(val(iy, :, bins));   % z x (N + 1)
+        if isvector(slice), slice = reshape(slice, numel(z_vals), []); end
+        [X, Z] = meshgrid(x_vals, z_vals);
+        PIV_plot(X, Z, slice, params, ax);
+        if from_robot
+            xlabel(ax, "x/c downstream of the robot", FontSize=16)
+        else
+            xlabel(ax, "x/c downstream of the plane", FontSize=16)
+        end
+        ylabel(ax, "z/c", FontSize=16)
+        xlim(ax, [min(x_vals) max(x_vals)])
+        title(ax, sprintf("y/c = %.2f", obj.xz_y), FontSize=18);
+        obj.xz_y_label.Text = sprintf("y/c = %.2f", obj.xz_y);
     end
 
     % "phase avg: 3D all planes": one case (e.g. wings_20deg_6Hz) at every
