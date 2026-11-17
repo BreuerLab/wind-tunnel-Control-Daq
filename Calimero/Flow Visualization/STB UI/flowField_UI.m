@@ -351,6 +351,10 @@ properties
     fix_ylim;
     fix_zlim;
     fix_lims_set;
+    % "phase avg: 3D plot" Fix Limits x: the part of the wake shown, as
+    % [lower upper] % of its length from the robot's (upstream) end, so
+    % [0 25] shows the quarter most recently shed
+    fix_xpct;
     % "phase avg: 3D all planes": per-plane fields (trimmed / mirrored /
     % filtered) of the last plot and the settings they depend on (key),
     % so moving through the bins only rebuilds the isosurfaces
@@ -459,6 +463,7 @@ methods
         obj.fix_lims_bool = false;
         obj.fix_ylim = [-5 5];
         obj.fix_zlim = [-3 3];
+        obj.fix_xpct = [0 100];
         obj.fix_lims_set = false;
         obj.trim_bool = true;
         obj.extrapolate_bool = false;
@@ -1253,7 +1258,7 @@ methods
         % isovalue, iso variable, views, fixed y / z limits, x-axis /
         % shift / stroke labels, Remove Small, Unc Mask, number of
         % wingbeats, Card Style, Robot / Mid-Stroke, Crop Box
-        param_grid.RowHeight = {22, 55, 30, 50, 18, 24, 52, 30, 30, 30, 30, 30, 22, 55, 30, 30, 52};
+        param_grid.RowHeight = {22, 55, 30, 50, 18, 24, 80, 30, 30, 30, 30, 30, 22, 55, 30, 30, 52};
         param_grid.Padding = [10 8 10 8];
         param_grid.RowSpacing = 6;
 
@@ -1315,23 +1320,24 @@ methods
         % Fix Limits: hold the y and z axes at the limits typed beside it,
         % so different cases are drawn on the same axes. Turning it on the
         % first time fills the boxes with the current plot's limits.
-        lims_grid = uigridlayout(param_grid, [2, 4]);
+        lims_grid = uigridlayout(param_grid, [3, 4]);
         lims_grid.Layout.Row = 7;
         lims_grid.Layout.Column = 1;
-        lims_grid.ColumnWidth = {'1x', 14, 44, 44};
-        lims_grid.RowHeight = {'1x', '1x'};
+        lims_grid.ColumnWidth = {'1x', 24, 44, 44};
+        lims_grid.RowHeight = {'1x', '1x', '1x'};
         lims_grid.Padding = [0 0 0 0];
         lims_grid.RowSpacing = 4;
         lims_grid.ColumnSpacing = 3;
 
         fix_lims_button = uibutton(lims_grid, "state");
-        fix_lims_button.Layout.Row = [1 2];
+        fix_lims_button.Layout.Row = [1 3];
         fix_lims_button.Layout.Column = 1;
         fix_lims_button.Text = "Fix Limits";
         fix_lims_button.FontSize = 14;
         fix_lims_button.Value = obj.fix_lims_bool;
         fix_lims_button.BackgroundColor = obj.get_button_color(obj.fix_lims_bool);
-        fix_lims_button.Tooltip = "Hold the y/c and z/c axis limits at the values beside it (x is always 0 to 1 in t/T). Off: limits follow the data";
+        fix_lims_button.Tooltip = "Hold the y/c and z/c axis limits at the values beside it, and on the 3D plot show the " + ...
+            "part of the wake in x % (from the robot's end). Off: limits follow the data";
         fix_lims_button.ValueChangedFcn = @(src, event) fix_lims_change(src, event, plot_area_panel);
 
         lim_names = ["y", "z"];
@@ -1358,6 +1364,27 @@ methods
                 lim_f.ValueChangedFcn = @(src, event) fix_lims_value_change(src, event, plot_area_panel);
                 lim_fields(lim_row, lim_col) = lim_f;
             end
+        end
+
+        % x (3D plot only): % of the wake's length from the robot's end
+        xpct_label = uilabel(lims_grid);
+        xpct_label.Layout.Row = 3;
+        xpct_label.Layout.Column = 2;
+        xpct_label.Text = "x %";
+        xpct_label.HorizontalAlignment = 'right';
+        xpct_fields = gobjects(1, 2);
+        for lim_col = 1:2
+            lim_f = uieditfield(lims_grid, "numeric");
+            lim_f.Layout.Row = 3;
+            lim_f.Layout.Column = 2 + lim_col;
+            lim_f.HorizontalAlignment = 'center';
+            lim_f.ValueDisplayFormat = '%.3g';
+            lim_f.Limits = [0 100];
+            lim_f.Value = obj.fix_xpct(lim_col);
+            lim_f.Tooltip = "phase avg: 3D plot: " + lim_sides(lim_col) + " end of the wake shown, " + ...
+                "% of its length from the robot's end (0 to 25 = the quarter most recently shed; Fix Limits)";
+            lim_f.ValueChangedFcn = @(src, event) fix_xpct_change(src, event, plot_area_panel);
+            xpct_fields(lim_col) = lim_f;
         end
 
         % x-axis as wingbeat time (t/T) or convective distance (x/c = U t / c)
@@ -2099,7 +2126,7 @@ methods
             row_heights = sidebar_grid.RowHeight;
             if is_visible
                 obj.param_panel.Visible = "on";
-                row_heights{14} = 725; % + the Robot / Mid-Stroke row
+                row_heights{14} = 753; % + the Robot / Mid-Stroke row, x limits row
             else
                 obj.param_panel.Visible = "off";
                 row_heights{14} = 0;
@@ -2657,6 +2684,20 @@ methods
             end
         end
 
+        function fix_xpct_change(~, ~, plot_panel)
+            pct_new = [xpct_fields(1).Value, xpct_fields(2).Value];
+            if pct_new(1) >= pct_new(2)
+                xpct_fields(1).Value = obj.fix_xpct(1); % lower must be below upper: undo
+                xpct_fields(2).Value = obj.fix_xpct(2);
+                return
+            end
+            obj.fix_xpct = pct_new;
+            if obj.fix_lims_bool && obj.is_3D_plot_type()
+                ax = findobj(plot_panel.Children, 'Type', 'axes');
+                obj.apply_fixed_lims(ax);
+            end
+        end
+
         function set_lim_fields()
             lim_fields(1,1).Value = obj.fix_ylim(1);
             lim_fields(1,2).Value = obj.fix_ylim(2);
@@ -3180,6 +3221,29 @@ methods (Access = private)
         end
         obj.draw_stroke_labels_3D(ax);
         obj.draw_plane_marks(ax); % plane outlines fill the new y / z box
+        if obj.plot_type == obj.plot_types(5)
+            obj.set_stack_xlim(ax);
+        end
+    end
+
+    % x-limits of "phase avg: 3D plot": the stacked wake's window, or with
+    % Fix Limits the part of it in fix_xpct (% from the robot's end, the
+    % window's low-x end); widened to take in the robot when that end is
+    % shown
+    function set_stack_xlim(obj, ax)
+        w = obj.stack_window_3D;
+        if isempty(w)
+            return
+        end
+        xl = w;
+        if obj.fix_lims_bool
+            xl = w(1) + obj.fix_xpct / 100 * diff(w);
+        end
+        rb = findall(ax, 'Tag', obj.ROBOT_TAG);
+        if isscalar(rb) && (~obj.fix_lims_bool || obj.fix_xpct(1) == 0)
+            xl(1) = min(xl(1), min(rb.Vertices(:,1)) - obj.ROBOT_GAP_C);
+        end
+        xlim(ax, xl)
     end
 
     % "Remove Small" on the 3D plot's isosurface: with remove_small_bool
@@ -3344,7 +3408,7 @@ methods (Access = private)
         p.Faces = S3.ext.faces(keep, :);
         p.FaceVertexCData = S3.ext.cdata;
         p.Clipping = 'on';
-        xlim(ax, xl)
+        obj.set_stack_xlim(ax); % the window, or its Fix Limits part, and the robot
 
         obj.set_stroke_frame_shift(S3.base_shift - S3.conv_shift_bins + flip_bins);
         obj.draw_stroke_labels_3D(ax);
@@ -5582,11 +5646,7 @@ methods (Access = private)
         phase = (b_last - 1) / N - dist * d.cycle_freq / obj.CONV_SPEED;
         obj.plane_marks_3D = struct('x', x_front, 'label', string(obj.current_downstream_type), ...
             'y', [min(y, [], 'all') max(y, [], 'all')], 'z', [min(z, [], 'all') max(z, [], 'all')]);
-        rx = obj.draw_robot(ax, d.L, phase, "front", x_front);
-        if ~isempty(rx)
-            xl = ax.XLim;
-            xlim(ax, [min(xl(1), rx(1) - obj.ROBOT_GAP_C), xl(2)]);
-        end
+        obj.draw_robot(ax, d.L, phase, "front", x_front); % x-limits: set_stack_xlim
     end
 
     % Plane outlines of plot_merged_3D: one per measurement plane, at its
