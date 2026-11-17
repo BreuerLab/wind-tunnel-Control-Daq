@@ -47,8 +47,9 @@ num_images = "auto";
 
 % true: skip cases that already have a processed file (with the version,
 % HR and RPCA settings below) in save_filepath_local or its phase_avg\ /
-% time_avg\ subfolders
-skip_processed = true;
+% time_avg\ subfolders. false when reprocessing cases that are already
+% processed (e.g. to add lift_before_std.vortY_rate for the x*w_y SE)
+skip_processed = false;
 
 % save_filepath = "R:\ENG_Breuer_Shared\rgissler\Calimero Flow Viz\Processed Results\";
 save_filepath_local = "C:\Users\rgissler\Documents\STB Processed Results\";
@@ -109,9 +110,15 @@ bools.particle = particle_default_opts();
 % uncertainty, *_hr_se_frames, of y*w_x and the drag terms): run = true,
 % only = true, reuse_fit = true. ~2 min per case, no particle refit and no
 % binned reprocessing. Cases without a saved particle fit are refitted.
-bools.particle.run  = false;   % true: add the particle processing
+% For the x*w_y frame-scatter SE (lift_hr_se_frames.vortY) the binned
+% processing must be redone first, so it saves the per-frame omega_y rate
+% SD (lift_before_std.vortY_rate): run = true, only = false,
+% reuse_fit = true, skip_processed = false. The binned run (bin_hr with
+% harmonic_reg = true) is then also the one the particle integrals take
+% the per-frame SDs from.
+bools.particle.run  = true;   % true: add the particle processing
 bools.particle.only = false;   % true: only the particle processing (binned files must exist)
-bools.particle.reuse_fit = false;  % true: reuse saved particle fits, only redo the integrals
+bools.particle.reuse_fit = true;  % true: reuse saved particle fits, only redo the integrals
 % bools.particle.run_tag      = "o3";     % tag non-default fit settings in the file names
 % bools.particle.fit.depthOrder = 5;
 % bools.particle.hr_harmonics = 20;     % harmonic regression across bins, 0 = off
