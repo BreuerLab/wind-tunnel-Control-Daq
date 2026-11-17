@@ -117,6 +117,10 @@ properties (Constant, Access = private)
     % plane distances (plane_downstream_dists) are measured from (all-planes
     % plot only), y / z from the wake's y = 0 / z = 0
     ROBOT_OFFSET_MM = [0 0 0];
+    % mounting pitch (deg, positive = nose up): the posed robot is rotated
+    % about the spanwise axis through the midpoint of its two shoulder
+    % axes, so the wing roots stay in place
+    ROBOT_PITCH_DEG = 10;
     ROBOT_OFFSET_C = [0 0 -0.25];  % further shift of the robot in chords (x/c, y/c, z/c), after ROBOT_OFFSET_MM
     ROBOT_NOSE_ON_CENTRELINE = true; % shift the robot in y so its nose tip is at y = 0 (before ROBOT_OFFSET_MM)
     ROBOT_GAP_C = 0.5;         % 3D plot: x/c between the wake's upstream end and the robot's tail
@@ -5607,6 +5611,15 @@ methods (Access = private)
             return
         end
         [F, V] = robot_posed_mesh(model, obj.robot_wing_angle(phase));
+        if obj.ROBOT_PITCH_DEG ~= 0
+            % nose up: x downstream, z up, so a positive rotation about +y
+            % lifts the nose (at -x)
+            pivot = (model.hinge(1).p + model.hinge(2).p) / 2;
+            c = cosd(obj.ROBOT_PITCH_DEG);
+            sn = sind(obj.ROBOT_PITCH_DEG);
+            Ry = [c 0 sn; 0 1 0; -sn 0 c];
+            V = (V - pivot) * Ry.' + pivot;
+        end
         if obj.ROBOT_NOSE_ON_CENTRELINE && isfield(model, 'nose')
             V(:,2) = V(:,2) - model.nose(2); % nose tip on the wake's centreline
         end
