@@ -1966,6 +1966,9 @@ methods (Access = private)
         try
             se = eval("d." + se_name);
         catch
+            if suffix == "_hr_se_frames"
+                disp("No " + se_name + " saved for " + cur_sel + " (no per-frame SD for it in the binned file)")
+            end
             return   % this series has no band (not a per-bin series)
         end
         if numel(se) ~= n, return; end
@@ -2802,11 +2805,26 @@ methods (Access = private)
             % 95% band on the curve from its saved standard error
             % (hr_curve_uncertainty, phase-dependent noise and the fit's
             % leverage)
+            % x*w_y (lift.vortY) is the time integral of the w_y rate: its
+            % errors add up into slow drifts that the harmonic curve
+            % follows, so its residuals are near zero whatever the noise
+            % and the residual SE says nothing. It has no per-frame value
+            % either, so its only band is the frame-scatter SE (any
+            % method), none if that isn't saved.
+            is_integrated = ismember(var_name, ["lift.vortY", "lift.vortY_edge"]);
             if obj.std_band && isempty(var_std) && obj.is_particle_hr_selection(cur_sel)
-                if obj.hrpp_err_method == "se_frames"
+                if obj.hrpp_err_method == "se_frames" || is_integrated
                     var_std = obj.get_hr_curve_band(case_files, var_name, numel(var), cur_sel, "_hr_se_frames");
+                    if is_integrated && isempty(var_std)
+                        disp("No frame-scatter SE of " + var_name + " for " + cur_sel + ...
+                            " - no band (the residual SE of a time integral is meaningless). Reprocess the " + ...
+                            "binned phase average, then the particle integrals (reuse_fit = true)")
+                    elseif is_integrated && obj.hrpp_err_method ~= "se_frames"
+                        disp(var_name + " band for " + cur_sel + ": 95% frame-scatter SE of the curve " + ...
+                            "(no per-frame value or valid residual SE), not the same quantity as a per-frame SD band")
+                    end
                 end
-                if isempty(var_std)
+                if isempty(var_std) && ~is_integrated
                     var_std = obj.get_hr_curve_band(case_files, var_name, numel(var), cur_sel, "_hr_se");
                 end
             end
