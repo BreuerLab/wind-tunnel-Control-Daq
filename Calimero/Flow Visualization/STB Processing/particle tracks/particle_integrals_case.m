@@ -199,10 +199,14 @@ end
 
 % -------------------------------------------------------------------------
 function M = lift_vortY_operator(t, period)
-% Linear map from the per-bin omega_y rate to lift.vortY, as get_wake_lift
-% computes it: remove the periodic mean (trapezoidal weights wrapping the
-% period, periodic_mean), then cumtrapz over the bin times. The constant
-% 2*rho*U*U is already in the rate (lift.vortY_rate).
+% Linear map from the per-bin omega_y rate to lift.vortY as it is plotted:
+% remove the periodic mean (trapezoidal weights wrapping the period,
+% periodic_mean), cumtrapz over the bin times, then remove the mean of the
+% result as well (phaseAvg_UI plots every curve with its mean removed).
+% Without that last step the integral is pinned to zero at the first bin,
+% so the band pinched to zero there; with it the integration constant is
+% the curve's mean, as plotted. The constant 2*rho*U*U is already in the
+% rate (lift.vortY_rate).
     t = t(:);  nb = numel(t);
     tp = [t(end) - period; t; t(1) + period];
     wt = (tp(3:end) - tp(1:end-2)) / 2;           % sums to the period
@@ -214,7 +218,7 @@ function M = lift_vortY_operator(t, period)
         C(i, i - 1) = C(i, i - 1) + dt / 2;
         C(i, i) = C(i, i) + dt / 2;
     end
-    M = C * P;
+    M = P * C * P;
 end
 
 % -------------------------------------------------------------------------
