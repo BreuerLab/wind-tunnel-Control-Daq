@@ -2501,6 +2501,9 @@ methods (Access = private)
         if isempty(ax) || ~isgraphics(ax)
             return
         end
+        % draw in child order: with the default 'depth' sorting, coplanar
+        % patches in a 2-D view are not reliably drawn in child order
+        ax.SortMethod = 'childorder';
         sides = "left";
         if dual_plot
             sides = ["left", "right"];
@@ -2509,16 +2512,23 @@ methods (Access = private)
             if dual_plot
                 yyaxis(ax, side)
             end
-            bands = findobj(ax.Children, 'flat', 'Tag', 'std_band');
-            if numel(bands) < 2
+            kids = ax.Children;
+            is_band = strcmp(get(kids, 'Tag'), 'std_band');
+            if nnz(is_band) < 2
                 continue
             end
-            widths = arrayfun(@(b) double(b.UserData), bands);
-            widths(~isfinite(widths)) = 0;
-            [~, order] = sort(widths, 'ascend');   % narrowest first ...
-            for b = reshape(bands(order), 1, [])
-                uistack(b, 'bottom');              % ... so the widest ends up at the back
+            bands = kids(is_band);
+            widths = zeros(numel(bands), 1);
+            for k = 1:numel(bands)
+                w = double(bands(k).UserData);
+                if isscalar(w) && isfinite(w), widths(k) = w; end
             end
+            [widths, order] = sort(widths, 'ascend');   % narrowest first = nearest the curves
+            % Children(1) is drawn last (on top): curves etc. first, then
+            % the bands narrow to wide, so the widest is at the very back
+            ax.Children = [kids(~is_band); bands(order)];
+            disp("SD bands stacked narrow over wide (mean widths " + ...
+                strjoin(compose("%.4g", widths'), ", ") + ")")
         end
         if dual_plot
             yyaxis(ax, 'left')
