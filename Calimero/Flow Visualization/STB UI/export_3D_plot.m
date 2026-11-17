@@ -13,8 +13,11 @@ function export_3D_plot(fig, basename, resolution)
 %   <basename>_text.pdf  - axes, ticks, labels, titles, legends, colorbars,
 %                          text() and annotation() objects (vector, editable)
 %
-% Both are written with PRINT (not EXPORTGRAPHICS) so they cover the same
-% full-figure area and line up exactly. The axis limits and camera are frozen
+% Both are rendered with PRINT (not EXPORTGRAPHICS) so they cover the same
+% full-figure area and line up exactly. Both have transparent backgrounds:
+% the PDF has no figure or axes background, and the PNG gets an alpha channel
+% computed by rendering the data on white and on black (exact, including
+% anti-aliased edges). The axis limits and camera are frozen
 % during the export so text() objects stay in place when the data is hidden.
 % The figure is restored to its original state afterwards.
 %
@@ -70,22 +73,49 @@ for i = 1:numel(axs)
     end
 end
 
-orig_paper_mode = fig.PaperPositionMode;
-fig.PaperPositionMode = 'auto';   % print at on-screen size
+% ------------------------------------------------- remember figure settings
+S.fig          = fig;
+S.all_objs     = all_objs;
+S.orig_vis     = orig_vis;
+S.axs          = axs;
+S.frozen_props = frozen_props;
+S.orig_modes   = orig_modes;
+S.paper_mode   = fig.PaperPositionMode;
+S.fig_color    = fig.Color;
+S.invert_hc    = fig.InvertHardcopy;
+S.ax_color     = get(axs, 'Color');
+if ~iscell(S.ax_color), S.ax_color = {S.ax_color}; end
 
 % Restore the figure on exit, including after an error. The anonymous
-% function captures everything it needs by value, because the main
-% function's workspace is already gone when onCleanup runs.
-cleanup = onCleanup(@() restore_figure(fig, all_objs, orig_vis, axs, ...
-                                       frozen_props, orig_modes, orig_paper_mode));
+% function captures S by value, because the main function's workspace is
+% already gone when onCleanup runs.
+cleanup = onCleanup(@() restore_figure(S));
+
+fig.PaperPositionMode = 'auto';   % print at on-screen size
+fig.InvertHardcopy    = 'off';    % keep the colours we set below
 
 % ---------------------------------------------------- layer 1: data (raster)
+% Render twice, on white and on black, and recover colour + alpha:
+%   W = a*C + (1-a)*1,  B = a*C   =>   a = 1 - (W - B),  C = B / a
 set(overlay, 'Visible', 'off')
-print(fig, png_file, '-dpng', sprintf('-r%d', resolution))
+res = sprintf('-r%d', resolution);
+
+fig.Color = 'w';
+W = double(print(fig, '-RGBImage', res)) / 255;
+fig.Color = 'k';
+B = double(print(fig, '-RGBImage', res)) / 255;
+
+alpha = 1 - mean(W - B, 3);
+alpha = min(max(alpha, 0), 1);
+C = B ./ max(alpha, eps);
+C = min(max(C, 0), 1);
+imwrite(C, png_file, 'Alpha', alpha);
 
 % ------------------------------------------- layer 2: text and axes (vector)
 restore_visibility(all_objs, orig_vis)
 set(data, 'Visible', 'off')
+fig.Color = 'none';               % no figure background rectangle
+set(axs, 'Color', 'none')         % no axes background box
 try
     print(fig, pdf_file, '-dpdf', '-vector')      % R2021b and later
 catch
@@ -104,14 +134,17 @@ for k = 1:numel(all_objs)
 end
 end
 
-function restore_figure(fig, all_objs, orig_vis, axs, frozen_props, orig_modes, orig_paper_mode)
-if ~isvalid(fig), return, end
-restore_visibility(all_objs, orig_vis)
-for ii = 1:numel(axs)
-    if ~isvalid(axs(ii)), continue, end
-    for jj = 1:numel(frozen_props)
-        axs(ii).([frozen_props{jj} 'Mode']) = orig_modes{ii,jj};
+function restore_figure(S)
+if ~isvalid(S.fig), return, end
+restore_visibility(S.all_objs, S.orig_vis)
+for ii = 1:numel(S.axs)
+    if ~isvalid(S.axs(ii)), continue, end
+    S.axs(ii).Color = S.ax_color{ii};
+    for jj = 1:numel(S.frozen_props)
+        S.axs(ii).([S.frozen_props{jj} 'Mode']) = S.orig_modes{ii,jj};
     end
 end
-fig.PaperPositionMode = orig_paper_mode;
+S.fig.Color             = S.fig_color;
+S.fig.InvertHardcopy    = S.invert_hc;
+S.fig.PaperPositionMode = S.paper_mode;
 end
