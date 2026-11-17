@@ -4876,7 +4876,10 @@ methods (Access = private)
             obj.stack_window_3D = xlims;
             surface_data = obj.flip_stack_x(surface_data); % downstream to +x (cache stays unflipped)
             setColorBar(ax, params)
-            xlim(ax,xlims) % otherwise when plotting multiple wingbeats awkward extra space added
+            % the wake's window (otherwise multiple wingbeats get awkward
+            % extra space), or its Fix Limits x part, and the robot; also
+            % holds while playing
+            obj.set_stack_xlim(ax);
 
             % kept so the stroke order can shift this plot without a full redraw
             obj.surf_3D = struct('y', y, 'z', z, 'val', val, 'Q', Q, ...
@@ -4897,6 +4900,7 @@ methods (Access = private)
                 obj.set_stroke_frame_shift(params.shift - conv_shift_bins);
                 obj.draw_stroke_labels_3D(ax);
                 obj.update_robot_3D(ax, d, params.shift, y, z, xlims(1));
+                obj.set_stack_xlim(ax); % Fix Limits x window and the robot while playing
         
                 pause(0.1);
 
