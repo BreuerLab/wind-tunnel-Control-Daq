@@ -91,7 +91,7 @@ bools.version = "";
 % Reynolds stresses and Q_inst are still computed per bin. Saved with
 % "_hr" added to the version name (e.g. coarse_hr), so it doesn't
 % overwrite the bin-averaged files. See harmonic_regression_STB.m.
-bools.harmonic_reg = false;
+bools.harmonic_reg = true;
 bools.num_harmonics = 20; % 2*10+1 = 21 coefficients per point and field
 bools.hr_save_coef = false; % save coefficients (to evaluate fit / exact d/dt at any phase); large files
 
@@ -109,9 +109,9 @@ bools.particle = particle_default_opts();
 % uncertainty, *_hr_se_frames, of y*w_x and the drag terms): run = true,
 % only = true, reuse_fit = true. ~2 min per case, no particle refit and no
 % binned reprocessing. Cases without a saved particle fit are refitted.
-bools.particle.run  = true;   % true: add the particle processing
-bools.particle.only = true;   % true: only the particle processing (binned files must exist)
-bools.particle.reuse_fit = true;  % true: reuse saved particle fits, only redo the integrals
+bools.particle.run  = false;   % true: add the particle processing
+bools.particle.only = false;   % true: only the particle processing (binned files must exist)
+bools.particle.reuse_fit = false;  % true: reuse saved particle fits, only redo the integrals
 % bools.particle.run_tag      = "o3";     % tag non-default fit settings in the file names
 % bools.particle.fit.depthOrder = 5;
 % bools.particle.hr_harmonics = 20;     % harmonic regression across bins, 0 = off
