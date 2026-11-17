@@ -7,6 +7,7 @@ function outFile = exportFigPNG(fig, outFile, opts)
 %   exportFigPNG(fig, 'name.png', 'Size', [1200 800])
 %   exportFigPNG(fig, 'name.png', 'Size', [1200 800], 'DPI', 600)
 %   exportFigPNG(fig, 'Preview', true)     only resize the figure, no export
+%   exportFigPNG(fig, 'name.png', 'Margin', 20)   keep a 20 px white border
 %
 %   Size is the figure's [width height] in MATLAB position units (pixels),
 %   the same units as fig.Position. The open figure is resized to that size
@@ -25,6 +26,7 @@ function outFile = exportFigPNG(fig, outFile, opts)
         opts.Size (1,2) double {mustBePositive} = [800 600]   % [width height], MATLAB position pixels
         opts.DPI  (1,1) double {mustBePositive} = 300
         opts.Preview (1,1) logical = false
+        opts.Margin (1,1) double {mustBeNonnegative, mustBeInteger} = 0  % white border kept around content, image pixels
     end
 
     % Resize the open figure to the export size and leave it that way
@@ -55,9 +57,32 @@ function outFile = exportFigPNG(fig, outFile, opts)
         'Resolution', opts.DPI, ...
         'BackgroundColor', 'white');
 
+    % exportgraphics' bounding box can still include empty space, e.g. from
+    % invisible objects spanning the figure, so trim any white border left
+    % in the saved image as well
+    trimWhiteBorder(outFile, opts.Margin, opts.DPI);
+
     info = imfinfo(outFile);
     fprintf('Saved %s (figure %d x %d, image %d x %d px, %g dpi)\n', ...
         outFile, opts.Size(1), opts.Size(2), info.Width, info.Height, opts.DPI);
+end
+
+function trimWhiteBorder(file, margin, dpi)
+    img = imread(file);
+    % A pixel counts as content if any channel is noticeably darker than white
+    content = any(img < 250, 3);
+    rows = find(any(content, 2));
+    cols = find(any(content, 1));
+    if isempty(rows), return; end   % blank image, leave as is
+
+    [h, w, ~] = size(img);
+    r1 = max(rows(1)   - margin, 1);  r2 = min(rows(end) + margin, h);
+    c1 = max(cols(1)   - margin, 1);  c2 = min(cols(end) + margin, w);
+    if r1 == 1 && c1 == 1 && r2 == h && c2 == w, return; end   % nothing to trim
+
+    ppm = round(dpi / 0.0254);      % keep the dpi tag in the PNG
+    imwrite(img(r1:r2, c1:c2, :), file, ...
+        'ResolutionUnit', 'meter', 'XResolution', ppm, 'YResolution', ppm);
 end
 
 function resizeFigure(fig, sz)
