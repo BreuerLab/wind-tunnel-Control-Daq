@@ -113,6 +113,11 @@ function [lift, drag, integrands] = get_wake_lift(U, L, D, vort_bool, density, o
         I2 = @(F) squeeze(trapz(z(1,:), trapz(y(:,1), F, 1), 2));
         [phi, dphi_dy, dphi_dz] = edge_taper_weight(y, z, opts.edge_taper * L);
         lift.vortX_taper = 2 * density * U * I2(y .* phi .* vortX);
+        % omega_y rate (N/s): d(lift.vortY)/dt before its mean is removed,
+        % 2*rho*U * U * int int omega_y dA. Per frame in phase_avg_STB, so
+        % its frame-to-frame SD (lift_before_std.vortY_rate) gives the
+        % uncertainty of lift.vortY (hr_curve_uncertainty_frames).
+        lift.vortY_rate = 2 * density * U * U * I2(vortY);
 
         if ~(isscalar(x))
         % ---- omega_y (spanwise starting/stopping vorticity) estimate ----

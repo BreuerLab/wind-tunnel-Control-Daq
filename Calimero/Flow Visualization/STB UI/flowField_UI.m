@@ -2176,7 +2176,11 @@ methods
                 obj.play = true;
                 src.BackgroundColor = obj.ACTIVE_COLOR;
                 src.Text = "Stop";
-                obj.update_plot(plot_panel); % runs the Play loop
+                if obj.can_play_3D()
+                    obj.play_3D(); % from the plot as shown: no redraw
+                else
+                    obj.update_plot(plot_panel); % runs the Play loop
+                end
             else
                 % Stop: the running Play loop sees obj.play at its next
                 % frame and ends, leaving that frame on screen. No redraw
@@ -2566,6 +2570,9 @@ methods
             ax.XLim = ax.XLim * scale;
             % the flip (a + b - x) is linear, so it scales with the axis
             obj.stack_window_3D = obj.stack_window_3D * scale;
+            % the cached surface is in the old units: drop it, so slider /
+            % Play / stroke order do one full redraw first
+            obj.surf_3D = [];
 
             % axes scaled to fill the plot in both units (equal scaling
             % squeezes y and z against a wake many chords long)
@@ -2850,7 +2857,11 @@ methods
             src.Value = round(src.Value);
 
             obj.frame_ind = src.Value;
-            obj.update_plot(plot_panel);
+            if ~obj.play && obj.can_play_3D()
+                obj.show_3D_frame(); % 3D plot: slide the surface, no redraw
+            else
+                obj.update_plot(plot_panel);
+            end
         end
 
     end
@@ -3397,20 +3408,81 @@ methods (Access = private)
 
     % The 3D plot's isosurface over one extra wingbeat, unshifted, computed
     % once per plot (obj.surf_3D.ext) for place_3D_ext
+    % (Remove Small applied to it once too, so frames don't redo it)
     function ensure_3D_ext(obj)
         S3 = obj.surf_3D;
-        if isempty(S3) || ~isempty(S3.ext)
+        if isempty(S3)
             return
         end
-        params_ext = S3.params;
-        params_ext.surface = [];
-        params_ext.num_cycles = S3.params.num_cycles + 1;
-        params_ext.shift = 0;
-        N = S3.params.num_bins;
-        [xl_ext, s_ext, c_ext] = stack_vortices_3D(S3.y, S3.z, S3.val, S3.Q, S3.cycle_freq, params_ext);
-        S3.ext = struct('vertices', s_ext.vertices, 'faces', s_ext.faces, 'cdata', c_ext, ...
-            'dz', xl_ext(2) / (params_ext.num_cycles * N - 1)); % bin spacing on the x-axis
-        obj.surf_3D = S3;
+        changed = false;
+        if isempty(S3.ext)
+            params_ext = S3.params;
+            params_ext.surface = [];
+            params_ext.num_cycles = S3.params.num_cycles + 1;
+            params_ext.shift = 0;
+            N = S3.params.num_bins;
+            [xl_ext, s_ext, c_ext] = stack_vortices_3D(S3.y, S3.z, S3.val, S3.Q, S3.cycle_freq, params_ext);
+            S3.ext = struct('vertices', s_ext.vertices, 'faces', s_ext.faces, 'faces_all', s_ext.faces, ...
+                'cdata', c_ext, 'dz', xl_ext(2) / (params_ext.num_cycles * N - 1), ... % bin spacing on the x-axis
+                'rs_key', "");
+            changed = true;
+        end
+        rs_key = string(obj.remove_small_bool) + "|" + sprintf("%.10g", obj.remove_small_pct);
+        if S3.ext.rs_key ~= rs_key
+            if obj.remove_small_bool
+                S3.ext.faces = obj.despeckle_faces(S3.ext.faces_all, obj.remove_small_pct);
+            else
+                S3.ext.faces = S3.ext.faces_all;
+            end
+            S3.ext.rs_key = rs_key;
+            changed = true;
+        end
+        if changed
+            obj.surf_3D = S3;
+        end
+    end
+
+    % Play on "phase avg: 3D plot" from the plot as it is (after Stop, or
+    % a slider move): only slides the precomputed surface and moves the
+    % robot, no reload or new isosurface, so Stop / Play is seamless.
+    function tf = can_play_3D(obj)
+        S3 = obj.surf_3D;
+        tf = obj.plot_type == obj.plot_types(5) && ~isempty(S3) && isfield(S3, 'ax') && ...
+            ~isempty(S3.ax) && isvalid(S3.ax) && isscalar(obj.find_isosurface_patch(S3.ax));
+    end
+
+    function play_3D(obj)
+        ax = obj.surf_3D.ax;
+        N = obj.surf_3D.params.num_bins;
+        while obj.play && isvalid(ax)
+            obj.frame_ind = mod(obj.frame_ind, N) + 1; % next bin, wrapping
+            obj.slider.Value = obj.frame_ind;
+            obj.show_3D_frame();
+            drawnow % shows the frame and lets Stop through
+            pause(obj.PLAY_PAUSE_S);
+        end
+    end
+
+    % "phase avg: 3D plot" at slider bin obj.frame_ind by sliding the
+    % precomputed surface (place_3D_ext), with the stroke labels, robot
+    % and x-limits to match. base_shift follows, so a later stroke-order
+    % change keeps this bin.
+    function show_3D_frame(obj)
+        obj.ensure_3D_ext();
+        S3 = obj.surf_3D;
+        ax = S3.ax;
+        p = obj.find_isosurface_patch(ax);
+        if ~isscalar(p)
+            return
+        end
+        base = obj.frame_ind - 1 + S3.conv_shift_bins;
+        shift = base + S3.stroke_flip_bins;
+        obj.surf_3D.base_shift = base;
+        obj.place_3D_ext(p, shift);
+        obj.set_stroke_frame_shift(shift - S3.conv_shift_bins);
+        obj.draw_stroke_labels_3D(ax);
+        obj.update_robot_3D(ax, S3.d_info, shift, S3.y, S3.z, S3.xlims(1));
+        obj.set_stack_xlim(ax); % the plane outline stays where the full redraw put it
     end
 
     % Show the 3D plot circshifted by `shift` bins by sliding the extended
@@ -4912,7 +4984,10 @@ methods (Access = private)
             obj.surf_3D = struct('y', y, 'z', z, 'val', val, 'Q', Q, ...
                 'cycle_freq', d.cycle_freq, 'params', params, 'xlims', xlims, ...
                 'base_shift', obj.frame_ind - 1 + conv_shift_bins, ...
-                'conv_shift_bins', conv_shift_bins, 'ext', []);
+                'conv_shift_bins', conv_shift_bins, 'ext', [], ...
+                'stroke_flip_bins', stroke_flip_bins, ...
+                'd_info', struct('num_bins', d.num_bins, 'cycle_freq', d.cycle_freq, 'L', d.L), ...
+                'ax', []);
 
             if obj.play && isscalar(p)
                 % frames only slide one precomputed surface along x (the
@@ -4950,6 +5025,7 @@ methods (Access = private)
                 obj.plot_hold_bool = true;
             end
             obj.set_stack_xlabel(ax);
+            obj.surf_3D.ax = ax; % Play can restart on this plot without a redraw (play_3D)
             % plot_3D draws x/c to equal scale; here the axes fill the
             % plot instead (equal scaling squeezes y and z)
             ax.DataAspectRatioMode = 'auto';
