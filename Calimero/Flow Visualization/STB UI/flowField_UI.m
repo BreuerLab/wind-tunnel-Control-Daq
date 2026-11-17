@@ -117,6 +117,7 @@ properties (Constant, Access = private)
     % plane distances (plane_downstream_dists) are measured from (all-planes
     % plot only), y / z from the wake's y = 0 / z = 0
     ROBOT_OFFSET_MM = [0 0 0];
+    ROBOT_OFFSET_C = [0 0 -0.25];  % further shift of the robot in chords (x/c, y/c, z/c), after ROBOT_OFFSET_MM
     ROBOT_NOSE_ON_CENTRELINE = true; % shift the robot in y so its nose tip is at y = 0 (before ROBOT_OFFSET_MM)
     ROBOT_GAP_C = 0.5;         % 3D plot: x/c between the wake's upstream end and the robot's tail
     ROBOT_COLOR = [0.25 0.25 0.25]; % dark grey, unlit
@@ -5540,7 +5541,7 @@ methods (Access = private)
         if obj.ROBOT_NOSE_ON_CENTRELINE && isfield(model, 'nose')
             V(:,2) = V(:,2) - model.nose(2); % nose tip on the wake's centreline
         end
-        V = (V + obj.ROBOT_OFFSET_MM) / (1000 * L); % mm -> chords
+        V = (V + obj.ROBOT_OFFSET_MM) / (1000 * L) + obj.ROBOT_OFFSET_C; % mm -> chords, then the shift in chords
         if mode == "front"
             V(:,1) = V(:,1) - max(V(:,1)) + x_front - obj.ROBOT_GAP_C;
         end
