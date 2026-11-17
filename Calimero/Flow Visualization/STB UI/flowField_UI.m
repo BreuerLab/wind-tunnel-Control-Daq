@@ -3732,16 +3732,33 @@ methods (Access = private)
         hold(ax, 'on');
         style = {'EdgeColor', 'none', 'FaceColor', 'interp', 'FaceLighting', 'none', ...
             'Tag', obj.SLICE_TAG, 'HandleVisibility', 'off', 'Clipping', 'on'};
+        % thin black border, and a label styled like the measurement
+        % plane's (draw_plane_marks)
+        edge = {'-', 'Color', 'k', 'LineWidth', 0.75, 'Tag', obj.SLICE_TAG, ...
+            'HandleVisibility', 'off', 'PickableParts', 'none'};
+        lab = {'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom', ...
+            'FontSize', 14, 'Color', 'k', 'Interpreter', 'none', 'Tag', obj.SLICE_TAG, ...
+            'HandleVisibility', 'off', 'PickableParts', 'none'};
         if obj.slice_xz_bool
             C = reshape(S3.val(iy, :, bins), numel(z_vals), M); % z x columns
             [Xs, Zs] = meshgrid(x_cols, z_vals);
             Ys = repmat(y_vals(iy), size(Xs));
             surface(ax, Xs, Ys, Zs, C, style{:});
+            xb = x_lims([1 2 2 1 1]);
+            zb = [min(z_vals) max(z_vals)];
+            plot3(ax, xb, y_vals(iy) * ones(1, 5), zb([1 1 2 2 1]), edge{:});
+            % label at the top of its downstream end
+            text(ax, x_lims(2), y_vals(iy), zb(2), "xz", lab{:});
         end
         if obj.slice_yz_bool
             C = S3.val(:, :, bins(mi)); % y x z
             Xs = repmat(x_cols(mi), size(S3.y));
             surface(ax, Xs, S3.y, S3.z, C, style{:});
+            yb = [min(y_vals) max(y_vals)];
+            zb = [min(z_vals) max(z_vals)];
+            plot3(ax, x_cols(mi) * ones(1, 5), yb([1 2 2 1 1]), zb([1 1 2 2 1]), edge{:});
+            % label just past its +y edge, as the measurement plane's
+            text(ax, x_cols(mi), yb(2), zb(2), "yz", lab{:});
         end
         if ~hold_state
             hold(ax, 'off');
