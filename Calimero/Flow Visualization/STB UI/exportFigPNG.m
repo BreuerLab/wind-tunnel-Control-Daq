@@ -3,7 +3,7 @@ function outFile = exportFigPNG(fig, outFile, opts)
 %
 %   exportFigPNG()                         exports gcf, asks where to save
 %   exportFigPNG(fig)                      exports fig, asks where to save
-%   exportFigPNG(fig, 'name.png')          figure sized to 1000 x 600, 300 dpi
+%   exportFigPNG(fig, 'name.png')          figure sized to 800 x 600, 300 dpi
 %   exportFigPNG(fig, 'name.png', 'Size', [1200 800])
 %   exportFigPNG(fig, 'name.png', 'Size', [1200 800], 'DPI', 600)
 %   exportFigPNG(fig, 'Preview', true)     only resize the figure, no export
@@ -14,8 +14,10 @@ function outFile = exportFigPNG(fig, outFile, opts)
 %   export, so what you see on screen is what gets saved. Use 'Preview' to
 %   resize first, adjust the legend or labels, then export.
 %
-%   The PNG's pixel dimensions are Size / (screen ppi) * DPI. On Windows
-%   (96 ppi), 1000 x 600 at 300 dpi gives about 3125 x 1875 px.
+%   The saved image is cropped tightly to the plotted content (axes, tick
+%   labels, title, legend, colorbar), so empty figure margins are left out.
+%   Its pixel dimensions are therefore at most Size / (screen ppi) * DPI;
+%   on Windows (96 ppi), 800 x 600 at 300 dpi gives at most 2500 x 1875 px.
 
     arguments
         fig = gcf
@@ -47,14 +49,11 @@ function outFile = exportFigPNG(fig, outFile, opts)
     [p, n, ~] = fileparts(char(outFile));
     outFile = fullfile(p, [n '.png']);
 
-    % Print settings, restored afterwards
-    old.PaperPositionMode = fig.PaperPositionMode;
-    old.InvertHardcopy    = fig.InvertHardcopy;
-    restore = onCleanup(@() restorePrintSettings(fig, old)); %#ok<NASGU>
-    fig.PaperPositionMode = 'auto';   % print at the on-screen size
-    fig.InvertHardcopy    = 'on';     % white background
-
-    print(fig, outFile, '-dpng', sprintf('-r%d', round(opts.DPI)));
+    % exportgraphics crops tightly around the plotted content (axes, labels,
+    % legend, colorbar), so empty figure margins are not saved
+    exportgraphics(fig, outFile, ...
+        'Resolution', opts.DPI, ...
+        'BackgroundColor', 'white');
 
     info = imfinfo(outFile);
     fprintf('Saved %s (figure %d x %d, image %d x %d px, %g dpi)\n', ...
@@ -73,10 +72,4 @@ function resizeFigure(fig, sz)
     fig.Position = [pos(1), top - sz(2), sz(1), sz(2)];
     fig.Units = oldUnits;
     drawnow;
-end
-
-function restorePrintSettings(fig, old)
-    if ~isvalid(fig), return; end
-    fig.PaperPositionMode = old.PaperPositionMode;
-    fig.InvertHardcopy    = old.InvertHardcopy;
 end
