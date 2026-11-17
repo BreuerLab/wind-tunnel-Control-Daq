@@ -3432,7 +3432,10 @@ methods (Access = private)
     %   UD : the bottom of the stroke moves to the start
     % Without the wing position the strokes are taken as equal with the
     % downstroke centred.
-    function flip_bins = get_stroke_shift_bins(obj, num_bins, frame_offset)
+    % Stroke order shift (bins). DU / UD put the top / bottom of the stroke
+    % at slider bin 1; the slider and Play then step on from there (the
+    % shift doesn't depend on the slider, which it used to cancel)
+    function flip_bins = get_stroke_shift_bins(obj, num_bins, ~)
         S = obj.stroke_3D;
         if isempty(S)
             switch obj.stroke_order
@@ -3454,9 +3457,9 @@ methods (Access = private)
                 up_mid = S.bottom + up_len / 2;
                 flip_bins = round(mod(down_mid - up_mid, N));
             case "DU"
-                flip_bins = round(mod(-(S.top - 1) - frame_offset, N));
+                flip_bins = round(mod(-(S.top - 1), N));
             case "UD"
-                flip_bins = round(mod(-(S.bottom - 1) - frame_offset, N));
+                flip_bins = round(mod(-(S.bottom - 1), N));
             otherwise % UDU
                 flip_bins = 0;
         end
