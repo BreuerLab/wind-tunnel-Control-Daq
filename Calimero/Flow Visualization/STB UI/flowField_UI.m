@@ -118,7 +118,7 @@ properties (Constant, Access = private)
     % plot only), y / z from the wake's y = 0 / z = 0
     ROBOT_OFFSET_MM = [0 0 0];
     ROBOT_GAP_C = 0.5;         % 3D plot: x/c between the wake's upstream end and the robot's tail
-    ROBOT_COLOR = [0 0 0];
+    ROBOT_COLOR = [0.25 0.25 0.25]; % dark grey, unlit
     ROBOT_TAG = "robot_3D";
     % "seam comparison": at the seam where the frozen-flow reconstruction
     % behind one plane (as on "phase avg: 3D all planes") meets the next
@@ -357,6 +357,11 @@ properties
     % msg, [] until first needed); plane_marks_3D: plane outlines of the
     % current 3D plot (x, label, data y / z extent), redrawn to the Fix
     % Limits box
+    % "phase avg: 3D plot": x-limits of the stacked wake ([a b], current
+    % units). Its x is flipped (x -> a + b - x, flip_stack_x) so that, like
+    % the all-planes plot, it runs downstream: the fluid that crossed the
+    % plane last sits at a, the earliest at b
+    stack_window_3D;
     robot_bool;
     robot_mid_stroke; % wings held at midstroke (phi = 0) instead of following the wingbeat
     robot_model;
@@ -428,6 +433,7 @@ methods
         obj.label_stroke = false;
         obj.stroke_3D = [];
         obj.merged_3D = [];
+        obj.stack_window_3D = [];
         obj.robot_bool = false;
         obj.robot_mid_stroke = false;
         obj.robot_model = [];
@@ -2518,14 +2524,15 @@ methods
             end
             p.Vertices(:,1) = p.Vertices(:,1) * scale;
             ax.XLim = ax.XLim * scale;
+            % the flip (a + b - x) is linear, so it scales with the axis
+            obj.stack_window_3D = obj.stack_window_3D * scale;
 
             if obj.conv_units_bool
-                xlabel(ax, "x/c = U t / c", FontSize=16)
                 daspect(ax, [1 1 1]) % true shapes: all axes in chords
             else
-                xlabel(ax, "t/T", FontSize=16)
                 ax.DataAspectRatioMode = 'auto';
             end
+            obj.set_stack_xlabel(ax);
             obj.draw_stroke_labels_3D(ax); % redraw in the new units
         end
 
@@ -3330,6 +3337,8 @@ methods (Access = private)
         xl = S3.xlims;
         fx = reshape(verts(S3.ext.faces, 1), size(S3.ext.faces));
         keep = any(fx >= xl(1), 2) & any(fx <= xl(2), 2);
+        verts(:,1) = sum(xl) - verts(:,1); % downstream to +x, as the full redraw
+        obj.stack_window_3D = xl;
 
         p.Vertices = verts;
         p.Faces = S3.ext.faces(keep, :);
@@ -3458,7 +3467,13 @@ methods (Access = private)
         cam = [sind(az)*cosd(el), -cosd(az)*cosd(el), sind(el)];
         up = [-sind(az)*sind(el), cosd(az)*sind(el), cosd(el)];
 
-        xl = ax.XLim; yl = ax.YLim; zl = ax.ZLim;
+        % stroke positions are worked out along the stack's own x (time) over
+        % its window, then flipped like the surface (flip_stack_x)
+        xl = obj.stack_window_3D;
+        if isempty(xl)
+            xl = ax.XLim;
+        end
+        yl = ax.YLim; zl = ax.ZLim;
 
         % reversal positions in wingbeat phase [0, 1) of the plotted data:
         % bin k (1-based) is plotted at index mod(k - 1 + frame_shift, N)
@@ -3479,6 +3494,10 @@ methods (Access = private)
         up_iv = clip_intervals([p_bottom + cycles; p_top + cycles + (p_top < p_bottom)]' * period);
         rev_x = [p_top + cycles, p_bottom + cycles] * period;
         rev_x = rev_x(rev_x >= xl(1) & rev_x <= xl(2));
+        x_sum = sum(xl);
+        down = x_sum - down(:, [2 1]);
+        up_iv = x_sum - up_iv(:, [2 1]);
+        rev_x = x_sum - rev_x;
 
         if along_y
             near = yl(1 + (cam(2) > 0)); far = yl(2 - (cam(2) > 0));
@@ -4790,6 +4809,8 @@ methods (Access = private)
             [xlims, surface_data, color_data] = stack_vortices_3D(y, z, val, Q, d.cycle_freq, params);
             params.surface = []; % frames while playing need their own surface
             obj.geom_3D = struct('key', geom_key, 'surface', surface_data, 'Q', Q);
+            obj.stack_window_3D = xlims;
+            surface_data = obj.flip_stack_x(surface_data); % downstream to +x (cache stays unflipped)
             setColorBar(ax, params)
             xlim(ax,xlims) % otherwise when plotting multiple wingbeats awkward extra space added
 
@@ -4805,12 +4826,13 @@ methods (Access = private)
                 params.shift = obj.frame_ind - 1 + conv_shift_bins + stroke_flip_bins; % same as the slider (frame 1 = no shift)
         
                 [~, surface_data, color_data] = stack_vortices_3D(y, z, val, Q, d.cycle_freq, params);
+                surface_data = obj.flip_stack_x(surface_data);
                 p.Vertices = surface_data.vertices;
                 p.Faces = surface_data.faces;
                 p.FaceVertexCData = color_data;
                 obj.set_stroke_frame_shift(params.shift - conv_shift_bins);
                 obj.draw_stroke_labels_3D(ax);
-                obj.update_robot_3D(ax, d, params.shift, y, z, xlims(2));
+                obj.update_robot_3D(ax, d, params.shift, y, z, xlims(1));
         
                 pause(0.1);
 
@@ -4828,7 +4850,8 @@ methods (Access = private)
                 obj.add_stroke_view_listeners(ax);
                 obj.plot_hold_bool = true;
             end
-            obj.update_robot_3D(ax, d, params.shift, y, z, xlims(2)); % before the plane outline is drawn
+            obj.set_stack_xlabel(ax);
+            obj.update_robot_3D(ax, d, params.shift, y, z, xlims(1)); % before the plane outline is drawn
             obj.apply_fixed_lims(ax);
             obj.set_stroke_frame_shift(params.shift - conv_shift_bins);
             obj.draw_stroke_labels_3D(ax);
@@ -5434,6 +5457,24 @@ methods (Access = private)
         V(:,:,on_bin) = V0(:,:,on_bin);
     end
 
+    % "phase avg: 3D plot" runs downstream like the all-planes plot: the
+    % stack's x (time, so upstream is +x) mirrored over its window
+    % stack_window_3D [a b], x -> a + b - x. x is then the distance (x/c)
+    % or time (t/T) since the fluid crossed the plane, plus a.
+    function s = flip_stack_x(obj, s)
+        if ~isempty(obj.stack_window_3D) && ~isempty(s.vertices)
+            s.vertices(:,1) = sum(obj.stack_window_3D) - s.vertices(:,1);
+        end
+    end
+
+    function set_stack_xlabel(obj, ax)
+        if obj.conv_units_bool
+            xlabel(ax, "x/c = U t / c downstream of the plane", FontSize=16)
+        else
+            xlabel(ax, "t/T since crossing the plane", FontSize=16)
+        end
+    end
+
     % CAD model of the robot for "Robot" (loaded on first use; a failure
     % is reported once, and retried when Robot is turned on again).
     % [] if unavailable.
@@ -5478,10 +5519,9 @@ methods (Access = private)
 
     % Draw (or move) the robot on a 3D plot, wings at wing phase `phase`.
     % L: chord (m), the plot's length scale. mode "true": at its position in
-    % the wake frame (ROBOT_OFFSET_MM); "front": mirrored in x, since the
-    % 3D plot's x runs with time so upstream is +x, with its tail
-    % ROBOT_GAP_C past x_front (the wake's upstream end). rx: its x extent,
-    % [] if not drawn.
+    % the wake frame (ROBOT_OFFSET_MM); "front": with its tail ROBOT_GAP_C
+    % upstream of x_front (the wake's upstream end, which the flipped 3D
+    % plot has at its lowest x). rx: its x extent, [] if not drawn.
     function rx = draw_robot(obj, ax, L, phase, mode, x_front)
         rx = [];
         old = findall(ax, 'Tag', obj.ROBOT_TAG);
@@ -5497,8 +5537,7 @@ methods (Access = private)
         [F, V] = robot_posed_mesh(model, obj.robot_wing_angle(phase));
         V = (V + obj.ROBOT_OFFSET_MM) / (1000 * L); % mm -> chords
         if mode == "front"
-            V(:,1) = -V(:,1);
-            V(:,1) = V(:,1) - min(V(:,1)) + x_front + obj.ROBOT_GAP_C;
+            V(:,1) = V(:,1) - max(V(:,1)) + x_front - obj.ROBOT_GAP_C;
         end
         if isscalar(old)
             old.Vertices = V;
@@ -5514,7 +5553,7 @@ methods (Access = private)
 
     % Robot and plane outline on "phase avg: 3D plot": the robot just
     % upstream of the wake (the stack's last bin, the fluid crossing the
-    % plane last), wings at the phase that fluid was shed at (its bin
+    % plane last, at the flipped plot's lowest x, x_front), wings at the phase that fluid was shed at (its bin
     % phase less the convection time to the plane, CONV_SPEED), and the
     % plane outlined between them. x/c axis only (in t/T the robot has no
     % scale). shift: the stack's circshift (stack_vortices_3D).
@@ -5540,7 +5579,7 @@ methods (Access = private)
         rx = obj.draw_robot(ax, d.L, phase, "front", x_front);
         if ~isempty(rx)
             xl = ax.XLim;
-            xlim(ax, [xl(1), max(xl(2), rx(2) + obj.ROBOT_GAP_C)]);
+            xlim(ax, [min(xl(1), rx(1) - obj.ROBOT_GAP_C), xl(2)]);
         end
     end
 
