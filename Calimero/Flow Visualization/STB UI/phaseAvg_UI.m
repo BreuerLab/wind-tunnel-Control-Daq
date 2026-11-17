@@ -1855,6 +1855,44 @@ methods (Access = private)
             ~isempty(regexp(char(cur_sel), '_hr\d+$', 'once'));
     end
 
+    % Per-frame scatter band for an HRPP (particle harmonic regression)
+    % force curve: the BA force SD (ba_name, *_before_avg) of the binned
+    % processing of the same case and version, which used the same frames:
+    % first its HR file (<case>[_<version>]_hr, SD of the frames about the
+    % fitted curve, reprocessed with the residual SD), else its binned file
+    % (SD within each bin). [] if neither is there or the bin counts
+    % differ.
+    function var_std = get_hrpp_frame_std(obj, cur_sel, ba_name, n)
+        var_std = [];
+        base = regexprep(char(cur_sel), '_particle\w*$', '');
+        for key = [string(base) + "_hr", string(base)]
+            if ~isKey(obj.phase_case_map, char(key))
+                continue
+            end
+            files = obj.get_phase_avg_case(key);
+            if endsWith(key, "_hr")
+                % only the SD about the fit (older HR files: about the bin means)
+                if ~obj.file_has_var(files, "hr")
+                    continue
+                end
+                dh = stb_load(files, "hr");
+                if ~(isfield(dh.hr, 'before_std_type') && string(dh.hr.before_std_type) == "residual")
+                    continue
+                end
+                kind = "residual SD about the HR fit";
+            else
+                kind = "frame-to-frame SD within each bin";
+            end
+            var_std = obj.get_ba_force_std(files, ba_name, n, key);
+            if ~isempty(var_std)
+                disp("HRPP band for " + cur_sel + ": " + kind + " of " + key)
+                return
+            end
+        end
+        disp("HRPP band for " + cur_sel + ": no HR or binned file of the same case with " + ba_name + ...
+            " and the same bins - using the saved curve standard error instead")
+    end
+
     % +/- half-width of the 95% band on a particle HR curve: 1.96 x the
     % standard error saved as <name>_hr_se (lift.vortX -> lift_hr_se.vortX)
     % by particle_integrals_case. [] if not saved (older processing).
@@ -2608,12 +2646,26 @@ methods (Access = private)
                 end
             end
 
-            % HR cases: band for force curves from the fitted fields, from
-            % the scatter of the per-frame force about its fit
-            if obj.std_band && isempty(var_std) && obj.is_HR_selection(cur_sel) && ...
+            % Field-based force curves (y*w_x, drag terms): the band is
+            % the per-frame scatter of the matching BA force
+            % (*_before_std), the same quantity for every method:
+            %   binned: frame-to-frame SD within each bin (= the BA band)
+            %   HR:     SD of the frames about the fitted curve (residuals)
+            %   HRPP:   the particle fit has no per-frame forces, so the
+            %           residual SD of the same case's HR file (same frames,
+            %           same kind of fit), else its binned SD
+            %           (get_hrpp_frame_std); without either, the saved
+            %           curve SE below as before
+            if obj.std_band && isempty(var_std) && ...
                     index <= length(obj.force_var_types) && ismember(var_name, obj.HR_BAND_FORCE_NAMES)
-                if obj.has_hr_residual_std(case_files, cur_sel)
-                    ba_name = regexprep(var_name, '\.', '_before_avg.', 'once');
+                ba_name = regexprep(var_name, '\.', '_before_avg.', 'once');
+                if obj.is_particle_hr_selection(cur_sel)
+                    var_std = obj.get_hrpp_frame_std(cur_sel, ba_name, numel(var));
+                elseif obj.is_HR_selection(cur_sel)
+                    if obj.has_hr_residual_std(case_files, cur_sel)
+                        var_std = obj.get_ba_force_std(case_files, ba_name, numel(var), cur_sel);
+                    end
+                else
                     var_std = obj.get_ba_force_std(case_files, ba_name, numel(var), cur_sel);
                 end
             end
