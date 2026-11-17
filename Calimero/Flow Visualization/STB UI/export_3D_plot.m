@@ -73,14 +73,18 @@ end
 orig_paper_mode = fig.PaperPositionMode;
 fig.PaperPositionMode = 'auto';   % print at on-screen size
 
-cleanup = onCleanup(@() restore_figure());
+% Restore the figure on exit, including after an error. The anonymous
+% function captures everything it needs by value, because the main
+% function's workspace is already gone when onCleanup runs.
+cleanup = onCleanup(@() restore_figure(fig, all_objs, orig_vis, axs, ...
+                                       frozen_props, orig_modes, orig_paper_mode));
 
 % ---------------------------------------------------- layer 1: data (raster)
 set(overlay, 'Visible', 'off')
 print(fig, png_file, '-dpng', sprintf('-r%d', resolution))
 
 % ------------------------------------------- layer 2: text and axes (vector)
-restore_visibility()
+restore_visibility(all_objs, orig_vis)
 set(data, 'Visible', 'off')
 try
     print(fig, pdf_file, '-dpdf', '-vector')      % R2021b and later
@@ -89,25 +93,25 @@ catch
 end
 
 fprintf('Wrote %s\nWrote %s\n', png_file, pdf_file);
+end
 
-% ------------------------------------------------------------------ helpers
-    function restore_visibility()
-        for k = 1:numel(all_objs)
-            if isvalid(all_objs(k))
-                all_objs(k).Visible = orig_vis{k};
-            end
-        end
+% ------------------------------------------------------------ local functions
+function restore_visibility(all_objs, orig_vis)
+for k = 1:numel(all_objs)
+    if isvalid(all_objs(k))
+        all_objs(k).Visible = orig_vis{k};
     end
+end
+end
 
-    function restore_figure()
-        if ~isvalid(fig), return, end
-        restore_visibility()
-        for ii = 1:numel(axs)
-            if ~isvalid(axs(ii)), continue, end
-            for jj = 1:numel(frozen_props)
-                axs(ii).([frozen_props{jj} 'Mode']) = orig_modes{ii,jj};
-            end
-        end
-        fig.PaperPositionMode = orig_paper_mode;
+function restore_figure(fig, all_objs, orig_vis, axs, frozen_props, orig_modes, orig_paper_mode)
+if ~isvalid(fig), return, end
+restore_visibility(all_objs, orig_vis)
+for ii = 1:numel(axs)
+    if ~isvalid(axs(ii)), continue, end
+    for jj = 1:numel(frozen_props)
+        axs(ii).([frozen_props{jj} 'Mode']) = orig_modes{ii,jj};
     end
+end
+fig.PaperPositionMode = orig_paper_mode;
 end
