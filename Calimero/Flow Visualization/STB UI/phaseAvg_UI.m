@@ -2488,7 +2488,41 @@ methods (Access = private)
         band = fill(ax, xconf, yconf, obj.get_light_color(original_color));
         band.HandleVisibility = 'off';
         band.EdgeColor = 'none';
+        band.Tag = 'std_band';
+        band.UserData = mean(2 * abs(sd), 'omitnan'); % width, for order_std_bands
         uistack(band, 'bottom');
+    end
+
+    % Overlapping bands are opaque, so a narrow one drawn before a wide
+    % one would vanish behind it. Restack them all behind the curves by
+    % width: the widest at the very back, the narrowest just under the
+    % curves (each y-axis side of a dual plot on its own).
+    function order_std_bands(~, ax, dual_plot)
+        if isempty(ax) || ~isgraphics(ax)
+            return
+        end
+        sides = "left";
+        if dual_plot
+            sides = ["left", "right"];
+        end
+        for side = sides
+            if dual_plot
+                yyaxis(ax, side)
+            end
+            bands = findobj(ax.Children, 'flat', 'Tag', 'std_band');
+            if numel(bands) < 2
+                continue
+            end
+            widths = arrayfun(@(b) double(b.UserData), bands);
+            widths(~isfinite(widths)) = 0;
+            [~, order] = sort(widths, 'ascend');   % narrowest first ...
+            for b = reshape(bands(order), 1, [])
+                uistack(b, 'bottom');              % ... so the widest ends up at the back
+            end
+        end
+        if dual_plot
+            yyaxis(ax, 'left')
+        end
     end
 
     % Linearly interpolate between the original colour and white
@@ -3067,6 +3101,11 @@ methods (Access = private)
         end
         end
         end
+
+        % bands stacked by width, narrow over wide, all behind the curves
+        % (before the stroke shading, which goes to the very back)
+        obj.order_std_bands(ax, dual_plot);
+        obj.order_std_bands(ax_target, dual_plot);
 
         if ~show_corr && obj.conv_shift && obj.label_stroke && ~isempty(obj.selection)
             % reversals move with the stroke order shift (time base (1:N)/N)
