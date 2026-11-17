@@ -20,6 +20,8 @@ function model = load_robot_model(cfg)
 %                    moves = 0 for the static parts, 1 / 2 for each wing
 %   model.hinge(w)   p (point on the axis), u (unit direction, signed so
 %                    positive rotation raises wing w's tip), tip (wingtip)
+%   model.nose       nose tip of the body: its most upstream point (lowest
+%                    tunnel x), averaged over the body within 1 mm of it
 %   model.units      "mm" (the STLs' units, unchanged)
 %
 % The STLs must share one coordinate system (exported from the assembly
@@ -79,7 +81,12 @@ end
 parts = struct('F', {body.F, rods(1).F, rods(2).F, wings(1).F, wings(2).F}, ...
     'V', {body.V, rods(1).V, rods(2).V, wings(1).V, wings(2).V}, ...
     'moves', {0, 0, 0, 1, 2});
-model = struct('parts', parts, 'hinge', hinge, 'units', "mm");
+% nose tip: most upstream point of the body (averaged over the tip)
+x_min = min(body.V(:,1));
+at_tip = body.V(:,1) < x_min + 1;
+nose = [x_min, mean(body.V(at_tip, 2)), mean(body.V(at_tip, 3))];
+
+model = struct('parts', parts, 'hinge', hinge, 'nose', nose, 'units', "mm");
 end
 
 function part = load_part(file, max_faces, R)

@@ -117,6 +117,7 @@ properties (Constant, Access = private)
     % plane distances (plane_downstream_dists) are measured from (all-planes
     % plot only), y / z from the wake's y = 0 / z = 0
     ROBOT_OFFSET_MM = [0 0 0];
+    ROBOT_NOSE_ON_CENTRELINE = true; % shift the robot in y so its nose tip is at y = 0 (before ROBOT_OFFSET_MM)
     ROBOT_GAP_C = 0.5;         % 3D plot: x/c between the wake's upstream end and the robot's tail
     ROBOT_COLOR = [0.25 0.25 0.25]; % dark grey, unlit
     ROBOT_TAG = "robot_3D";
@@ -2527,11 +2528,9 @@ methods
             % the flip (a + b - x) is linear, so it scales with the axis
             obj.stack_window_3D = obj.stack_window_3D * scale;
 
-            if obj.conv_units_bool
-                daspect(ax, [1 1 1]) % true shapes: all axes in chords
-            else
-                ax.DataAspectRatioMode = 'auto';
-            end
+            % axes scaled to fill the plot in both units (equal scaling
+            % squeezes y and z against a wake many chords long)
+            ax.DataAspectRatioMode = 'auto';
             obj.set_stack_xlabel(ax);
             obj.draw_stroke_labels_3D(ax); % redraw in the new units
         end
@@ -4851,6 +4850,9 @@ methods (Access = private)
                 obj.plot_hold_bool = true;
             end
             obj.set_stack_xlabel(ax);
+            % plot_3D draws x/c to equal scale; here the axes fill the
+            % plot instead (equal scaling squeezes y and z)
+            ax.DataAspectRatioMode = 'auto';
             obj.update_robot_3D(ax, d, params.shift, y, z, xlims(1)); % before the plane outline is drawn
             obj.apply_fixed_lims(ax);
             obj.set_stroke_frame_shift(params.shift - conv_shift_bins);
@@ -5535,6 +5537,9 @@ methods (Access = private)
             return
         end
         [F, V] = robot_posed_mesh(model, obj.robot_wing_angle(phase));
+        if obj.ROBOT_NOSE_ON_CENTRELINE && isfield(model, 'nose')
+            V(:,2) = V(:,2) - model.nose(2); % nose tip on the wake's centreline
+        end
         V = (V + obj.ROBOT_OFFSET_MM) / (1000 * L); % mm -> chords
         if mode == "front"
             V(:,1) = V(:,1) - max(V(:,1)) + x_front - obj.ROBOT_GAP_C;
