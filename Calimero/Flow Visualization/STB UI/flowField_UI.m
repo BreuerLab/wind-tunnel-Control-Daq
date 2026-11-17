@@ -126,6 +126,7 @@ properties (Constant, Access = private)
     ROBOT_GAP_C = 0.5;         % 3D plot: x/c between the wake's upstream end and the robot's tail
     ROBOT_COLOR = [0.25 0.25 0.25]; % dark grey, unlit
     ROBOT_TAG = "robot_3D";
+    PLAY_PAUSE_S = 0.03; % 3D plot: pause between Play frames (s); lower for faster playback
     % "seam comparison": at the seam where the frozen-flow reconstruction
     % behind one plane (as on "phase avg: 3D all planes") meets the next
     % plane downstream, the measured field there minus the reconstruction,
@@ -3376,33 +3377,51 @@ methods (Access = private)
             return
         end
 
-        params = S3.params;
-        N = params.num_bins;
-        n = params.num_cycles;
-
-        if isempty(S3.ext)
-            params_ext = params;
-            params_ext.num_cycles = n + 1;
-            params_ext.shift = 0;
-            [xl_ext, s_ext, c_ext] = stack_vortices_3D(S3.y, S3.z, S3.val, S3.Q, S3.cycle_freq, params_ext);
-            S3.ext = struct('vertices', s_ext.vertices, 'faces', s_ext.faces, 'cdata', c_ext, ...
-                'dz', xl_ext(2) / ((n + 1) * N - 1)); % bin spacing on the x-axis
-            obj.surf_3D = S3;
-        end
-
+        N = S3.params.num_bins;
         flip_bins = 0;
         if obj.conv_shift && obj.stroke_order ~= "UDU"
             flip_bins = obj.get_stroke_shift_bins(N, S3.base_shift - S3.conv_shift_bins);
         end
-        shift = mod(S3.base_shift + flip_bins, N);
+        obj.place_3D_ext(p, S3.base_shift + flip_bins);
+        obj.set_stack_xlim(ax); % the window, or its Fix Limits part, and the robot
 
-        % plotted bin k holds original bin k - shift (circshift), which is
-        % bin k - shift + N of the unshifted extended surface
+        obj.set_stroke_frame_shift(S3.base_shift - S3.conv_shift_bins + flip_bins);
+        obj.draw_stroke_labels_3D(ax);
+        ok = true;
+    end
+
+    % The 3D plot's isosurface over one extra wingbeat, unshifted, computed
+    % once per plot (obj.surf_3D.ext) for place_3D_ext
+    function ensure_3D_ext(obj)
+        S3 = obj.surf_3D;
+        if isempty(S3) || ~isempty(S3.ext)
+            return
+        end
+        params_ext = S3.params;
+        params_ext.surface = [];
+        params_ext.num_cycles = S3.params.num_cycles + 1;
+        params_ext.shift = 0;
+        N = S3.params.num_bins;
+        [xl_ext, s_ext, c_ext] = stack_vortices_3D(S3.y, S3.z, S3.val, S3.Q, S3.cycle_freq, params_ext);
+        S3.ext = struct('vertices', s_ext.vertices, 'faces', s_ext.faces, 'cdata', c_ext, ...
+            'dz', xl_ext(2) / (params_ext.num_cycles * N - 1)); % bin spacing on the x-axis
+        obj.surf_3D = S3;
+    end
+
+    % Show the 3D plot circshifted by `shift` bins by sliding the extended
+    % surface along x (same picture as stack_vortices_3D with that shift,
+    % without recomputing the isosurface): plotted bin k holds original bin
+    % k - shift, i.e. bin k - shift + N of the extended surface. Faces
+    % entirely outside the plotted window are dropped, the axes clip the
+    % ones crossing its ends; then flipped to run downstream.
+    function place_3D_ext(obj, p, shift)
+        obj.ensure_3D_ext();
+        S3 = obj.surf_3D;
+        N = S3.params.num_bins;
+        shift = mod(shift, N);
         verts = S3.ext.vertices;
         verts(:,1) = verts(:,1) + (shift - N) * S3.ext.dz;
 
-        % drop faces entirely outside the plotted window (the axes clip
-        % the ones crossing its ends)
         xl = S3.xlims;
         fx = reshape(verts(S3.ext.faces, 1), size(S3.ext.faces));
         keep = any(fx >= xl(1), 2) & any(fx <= xl(2), 2);
@@ -3413,11 +3432,6 @@ methods (Access = private)
         p.Faces = S3.ext.faces(keep, :);
         p.FaceVertexCData = S3.ext.cdata;
         p.Clipping = 'on';
-        obj.set_stack_xlim(ax); % the window, or its Fix Limits part, and the robot
-
-        obj.set_stroke_frame_shift(S3.base_shift - S3.conv_shift_bins + flip_bins);
-        obj.draw_stroke_labels_3D(ax);
-        ok = true;
     end
 
     % Stroke order: bins to shift the 3D plot by, from the stroke
@@ -4895,22 +4909,26 @@ methods (Access = private)
                 'base_shift', obj.frame_ind - 1 + conv_shift_bins, ...
                 'conv_shift_bins', conv_shift_bins, 'ext', []);
 
+            if obj.play && isscalar(p)
+                % frames only slide one precomputed surface along x (the
+                % wake is periodic), instead of a new isosurface each frame
+                obj.ensure_3D_ext();
+            end
             while obj.play && (obj.frame_ind < obj.num_bins)
                 obj.frame_ind = obj.frame_ind + 1;
                 obj.slider.Value = obj.frame_ind;
                 params.shift = obj.frame_ind - 1 + conv_shift_bins + stroke_flip_bins; % same as the slider (frame 1 = no shift)
-        
-                [~, surface_data, color_data] = stack_vortices_3D(y, z, val, Q, d.cycle_freq, params);
-                surface_data = obj.flip_stack_x(surface_data);
-                p.Vertices = surface_data.vertices;
-                p.Faces = surface_data.faces;
-                p.FaceVertexCData = color_data;
+
+                obj.place_3D_ext(p, params.shift);
+                surface_data = struct('vertices', p.Vertices, 'faces', p.Faces);
+                color_data = p.FaceVertexCData;
                 obj.set_stroke_frame_shift(params.shift - conv_shift_bins);
                 obj.draw_stroke_labels_3D(ax);
                 obj.update_robot_3D(ax, d, params.shift, y, z, xlims(1));
                 obj.set_stack_xlim(ax); % Fix Limits x window and the robot while playing
-        
-                pause(0.1);
+
+                drawnow limitrate
+                pause(obj.PLAY_PAUSE_S);
 
                 if obj.frame_ind == obj.num_bins
                     obj.frame_ind = 0; % reset for next loop iteration
