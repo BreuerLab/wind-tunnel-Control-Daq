@@ -23,7 +23,7 @@ function export_3D_plot(varargin)
 % full-figure area and line up exactly. Both have transparent backgrounds:
 % the PDF has no figure or axes background, and the PNG gets an alpha channel
 % computed by rendering the data on white and on black (exact, including
-% anti-aliased edges). The axis limits and camera are frozen
+% anti-aliased edges). The axis limits are frozen
 % during the export so text() objects stay in place when the data is hidden.
 % The figure is restored to its original state afterwards.
 %
@@ -85,7 +85,7 @@ all_objs = [overlay; data];
 orig_vis = get(all_objs, 'Visible');
 if ~iscell(orig_vis), orig_vis = {orig_vis}; end
 
-% ------------------------------------------- freeze limits and the 3D camera
+% ----------------------------------------------------- freeze axis limits
 % Only the limits are frozen. With the limits fixed, the automatic camera and
 % aspect ratio no longer change when the data is hidden. Setting the camera or
 % aspect-ratio properties manually would switch off MATLAB's stretch-to-fill
