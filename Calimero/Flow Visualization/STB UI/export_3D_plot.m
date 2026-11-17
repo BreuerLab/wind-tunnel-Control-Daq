@@ -21,8 +21,8 @@ function export_3D_plot(fig, basename, resolution)
 % during the export so text() objects stay in place when the data is hidden.
 % The figure is restored to its original state afterwards.
 %
-% In Illustrator: open <basename>_text.pdf, File > Place <basename>_data.png,
-% scale it to the artboard width, snap it to the corner and send it to the back.
+% In Illustrator: open <basename>_text.pdf, File > Place <basename>_data.png
+% (100% scale), align it to the artboard's top-left corner and send it to the back.
 %
 % LaTeX text: MATLAB's LaTeX interpreter uses its own Computer Modern fonts
 % (mwa_cmr10, mwa_cmmi10, ...). Illustrator only displays them correctly if
@@ -81,6 +81,9 @@ S.axs          = axs;
 S.frozen_props = frozen_props;
 S.orig_modes   = orig_modes;
 S.paper_mode   = fig.PaperPositionMode;
+S.paper_units  = fig.PaperUnits;
+S.paper_size   = fig.PaperSize;
+S.paper_pos    = fig.PaperPosition;
 S.fig_color    = fig.Color;
 S.invert_hc    = fig.InvertHardcopy;
 S.ax_color     = get(axs, 'Color');
@@ -91,7 +94,16 @@ if ~iscell(S.ax_color), S.ax_color = {S.ax_color}; end
 % already gone when onCleanup runs.
 cleanup = onCleanup(@() restore_figure(S));
 
-fig.PaperPositionMode = 'auto';   % print at on-screen size
+% Make the PDF page exactly the figure size (print otherwise puts the figure
+% on a full letter/A4 page) and render the PNG at the same physical size.
+fig_units  = fig.Units;
+fig.Units  = 'inches';
+fig_in     = fig.Position(3:4);
+fig.Units  = fig_units;
+fig.PaperUnits        = 'inches';
+fig.PaperPositionMode = 'manual';
+fig.PaperSize         = fig_in;
+fig.PaperPosition     = [0 0 fig_in];
 fig.InvertHardcopy    = 'off';    % keep the colours we set below
 
 % ---------------------------------------------------- layer 1: data (raster)
@@ -109,7 +121,11 @@ alpha = 1 - mean(W - B, 3);
 alpha = min(max(alpha, 0), 1);
 C = B ./ max(alpha, eps);
 C = min(max(C, 0), 1);
-imwrite(C, png_file, 'Alpha', alpha);
+% Tag the PNG with its resolution so Illustrator places it at the same
+% physical size as the PDF (without this it assumes 72 ppi).
+ppm = resolution / 0.0254;        % pixels per metre
+imwrite(C, png_file, 'Alpha', alpha, 'ResolutionUnit', 'meter', ...
+        'XResolution', ppm, 'YResolution', ppm);
 
 % ------------------------------------------- layer 2: text and axes (vector)
 restore_visibility(all_objs, orig_vis)
@@ -146,5 +162,8 @@ for ii = 1:numel(S.axs)
 end
 S.fig.Color             = S.fig_color;
 S.fig.InvertHardcopy    = S.invert_hc;
+S.fig.PaperUnits        = S.paper_units;
+S.fig.PaperSize         = S.paper_size;
+S.fig.PaperPosition     = S.paper_pos;
 S.fig.PaperPositionMode = S.paper_mode;
 end
