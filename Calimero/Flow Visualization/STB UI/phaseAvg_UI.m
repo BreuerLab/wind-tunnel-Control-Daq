@@ -22,7 +22,9 @@ classdef phaseAvg_UI < handle
         % is the fit of the per-frame integral, so the two share their
         % scatter. Products of velocities (lift.vel_diff, lift_vel,
         % drag_vel, Bernoulli) are left out; their BA versions have bands.
-        HR_BAND_FORCE_NAMES = ["lift.vortX", "drag.tot", "drag.vortY", "drag.vortZ"];
+        % force curves whose band is the per-frame scatter of their BA
+        % version (u*w = lift_vel, (u-U)*u = drag_vel included)
+        HR_BAND_FORCE_NAMES = ["lift.vortX", "drag.tot", "drag.vortY", "drag.vortZ", "lift_vel", "drag_vel"];
         NUM_VARS = 4; % variables plotted at once (Variables panel)
         cur_types = ["flexible";"UP_one_flexible";"UP_two_flexible"];
         downstream_distance_labels = ["x = 0.9m"; "x = 1.3m"; "x = 1.7m"];
@@ -2705,7 +2707,11 @@ methods (Access = private)
             %           curve SE below as before
             if obj.std_band && isempty(var_std) && ...
                     index <= length(obj.force_var_types) && ismember(var_name, obj.HR_BAND_FORCE_NAMES)
-                ba_name = regexprep(var_name, '\.', '_before_avg.', 'once');
+                if contains(var_name, ".")
+                    ba_name = regexprep(var_name, '\.', '_before_avg.', 'once');   % lift.vortX -> lift_before_avg.vortX
+                else
+                    ba_name = var_name + "_before_avg";                           % lift_vel -> lift_vel_before_avg
+                end
                 if obj.is_particle_hr_selection(cur_sel)
                     if obj.hrpp_err_method == "frame_sd"
                         var_std = obj.get_hrpp_frame_std(cur_sel, ba_name, numel(var));
