@@ -124,7 +124,13 @@ properties (Constant, Access = private)
     ROBOT_OFFSET_C = [0 0 -0.25];  % further shift of the robot in chords (x/c, y/c, z/c), after ROBOT_OFFSET_MM
     ROBOT_NOSE_ON_CENTRELINE = true; % shift the robot in y so its nose tip is at y = 0 (before ROBOT_OFFSET_MM)
     ROBOT_GAP_C = 0.5;         % 3D plot: x/c between the wake's upstream end and the robot's tail
-    ROBOT_COLOR = [0.25 0.25 0.25]; % dark grey, unlit
+    ROBOT_BODY_COLOR = [0.6 0.6 0.6];    % grey body (and shoulder rods)
+    ROBOT_WING_COLOR = [0.06 0.06 0.06]; % black wings
+    % camera light on the robot only (the wake and slices are unlit),
+    % at (az, el) relative to the camera; off while Card Style lights the
+    % scene with its own lights
+    ROBOT_LIGHT_TAG = "robot_light_3D";
+    ROBOT_LIGHT_POS = [30 30];
     ROBOT_TAG = "robot_3D";
     PLAY_PAUSE_S = 0.03; % 3D plot: pause between Play frames (s); lower for faster playback
     % "seam comparison": at the seam where the frozen-flow reconstruction
@@ -2757,6 +2763,7 @@ methods
                 end
             else
                 obj.remove_card_style(ax);
+                obj.update_robot_light(ax); % back to the robot's own light
                 obj.restore_card_panel(plot_panel);
             end
         end
@@ -3236,6 +3243,8 @@ methods (Access = private)
         if isempty(p)
             return
         end
+        % its own lights light the robot too
+        delete(findall(ax, 'Type', 'light', 'Tag', obj.ROBOT_LIGHT_TAG));
         panel = ax.Parent;
         cb = findall(panel, 'Type', 'colorbar');
 
@@ -4001,6 +4010,9 @@ methods (Access = private)
             h.Tag = obj.STROKE_TAG;
             h.HandleVisibility = 'off';
             h.PickableParts = 'none';
+            if isprop(h, 'FaceLighting')
+                h.FaceLighting = 'none'; % only the robot is lit
+            end
         end
     end
 
@@ -6034,11 +6046,13 @@ methods (Access = private)
         old = findall(ax, 'Tag', obj.ROBOT_TAG);
         if ~obj.robot_bool
             delete(old);
+            obj.update_robot_light(ax);
             return
         end
         model = obj.get_robot_model();
         if isempty(model)
             delete(old);
+            obj.update_robot_light(ax);
             return
         end
         [F, V] = robot_posed_mesh(model, obj.robot_wing_angle(phase));
@@ -6058,16 +6072,68 @@ methods (Access = private)
         if mode == "front"
             V(:,1) = V(:,1) - max(V(:,1)) + x_front - obj.ROBOT_GAP_C;
         end
+        % per-face colour: wings (parts that flap) black, the rest grey
+        nf = arrayfun(@(P) size(P.F, 1), model.parts);
+        is_wing = repelem([model.parts.moves] > 0, nf)';
+        C = repmat(obj.ROBOT_BODY_COLOR, numel(is_wing), 1);
+        C(is_wing, :) = repmat(obj.ROBOT_WING_COLOR, nnz(is_wing), 1);
         if isscalar(old)
             old.Vertices = V;
             old.Faces = F;
+            old.FaceVertexCData = C;
         else
             delete(old);
-            patch(ax, 'Faces', F, 'Vertices', V, 'FaceColor', obj.ROBOT_COLOR, ...
-                'EdgeColor', 'none', 'FaceLighting', 'none', 'Tag', obj.ROBOT_TAG, ...
-                'HandleVisibility', 'off', 'PickableParts', 'none');
+            patch(ax, 'Faces', F, 'Vertices', V, 'FaceVertexCData', C, 'FaceColor', 'flat', ...
+                'EdgeColor', 'none', 'FaceLighting', 'flat', 'AmbientStrength', 0.45, ...
+                'DiffuseStrength', 0.7, 'SpecularStrength', 0.3, 'SpecularExponent', 15, ...
+                'Tag', obj.ROBOT_TAG, 'HandleVisibility', 'off', 'PickableParts', 'none');
         end
+        obj.update_robot_light(ax);
         rx = [min(V(:,1)) max(V(:,1))];
+    end
+
+    % Camera light for the robot: added while the robot is drawn (and Card
+    % Style, which has its own lights, is off), removed otherwise. Lights
+    % act on the whole axes, so everything else (wake isosurface, stroke
+    % shading, slices) is kept unlit; it follows the camera on rotation.
+    function update_robot_light(obj, ax)
+        if isempty(ax) || ~isscalar(ax) || ~isvalid(ax)
+            return
+        end
+        has_robot = ~isempty(findall(ax, 'Tag', obj.ROBOT_TAG));
+        card_on = isappdata(ax, 'card_style_orig');
+        lgt = findall(ax, 'Type', 'light', 'Tag', obj.ROBOT_LIGHT_TAG);
+        if ~has_robot || card_on
+            delete(lgt);
+            return
+        end
+        p = obj.find_isosurface_patch(ax);
+        if ~isempty(p)
+            set(p, 'FaceLighting', 'none');
+        end
+        if isempty(lgt)
+            lgt = light(ax, 'Tag', obj.ROBOT_LIGHT_TAG, 'HandleVisibility', 'off');
+        end
+        obj.aim_robot_light(ax);
+        if ~isappdata(ax, 'robot_light_listeners')
+            for prop = ["View", "CameraPosition"]
+                try
+                    addlistener(ax, prop, 'PostSet', @(~, ~) obj.aim_robot_light(ax));
+                catch
+                end
+            end
+            setappdata(ax, 'robot_light_listeners', true);
+        end
+    end
+
+    function aim_robot_light(obj, ax)
+        if ~isvalid(ax)
+            return
+        end
+        lgt = findall(ax, 'Type', 'light', 'Tag', obj.ROBOT_LIGHT_TAG);
+        for l = lgt(:)'
+            camlight(l, obj.ROBOT_LIGHT_POS(1), obj.ROBOT_LIGHT_POS(2));
+        end
     end
 
     % Robot and plane outline on "phase avg: 3D plot": the robot just
