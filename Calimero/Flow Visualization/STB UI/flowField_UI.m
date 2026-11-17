@@ -358,6 +358,7 @@ properties
     % current 3D plot (x, label, data y / z extent), redrawn to the Fix
     % Limits box
     robot_bool;
+    robot_mid_stroke; % wings held at midstroke (phi = 0) instead of following the wingbeat
     robot_model;
     plane_marks_3D;
     % convection speed (m/s) of the frozen-flow reconstruction on that
@@ -428,6 +429,7 @@ methods
         obj.stroke_3D = [];
         obj.merged_3D = [];
         obj.robot_bool = false;
+        obj.robot_mid_stroke = false;
         obj.robot_model = [];
         obj.plane_marks_3D = [];
         obj.merged_conv_speed = [];
@@ -1238,12 +1240,12 @@ methods
         obj.param_panel.Title = "3D Plot Parameters";
         obj.param_panel.TitlePosition = 'centertop';
 
-        param_grid = uigridlayout(obj.param_panel, [16, 1]);
+        param_grid = uigridlayout(obj.param_panel, [17, 1]);
         param_grid.ColumnWidth = {'1x'};
         % isovalue, iso variable, views, fixed y / z limits, x-axis /
         % shift / stroke labels, Remove Small, Unc Mask, number of
-        % wingbeats, Card Style, Crop Box
-        param_grid.RowHeight = {22, 55, 30, 50, 18, 24, 52, 30, 30, 30, 30, 30, 22, 55, 30, 52};
+        % wingbeats, Card Style, Robot / Mid-Stroke, Crop Box
+        param_grid.RowHeight = {22, 55, 30, 50, 18, 24, 52, 30, 30, 30, 30, 30, 22, 55, 30, 30, 52};
         param_grid.Padding = [10 8 10 8];
         param_grid.RowSpacing = 6;
 
@@ -1500,36 +1502,48 @@ methods
         % Cosmetic "card" look: lighting, red-green diverging colormap
         % (best with ω_x as the colour variable), dark background, axes
         % hidden. Turning it off restores the plot exactly as it was.
-        style_grid = uigridlayout(param_grid, [1, 2]);
-        style_grid.Layout.Row = 15;
-        style_grid.Layout.Column = 1;
-        style_grid.ColumnWidth = {'1x', '1x'};
-        style_grid.RowHeight = {'1x'};
-        style_grid.Padding = [0 0 0 0];
-        style_grid.ColumnSpacing = 4;
-
-        card_style_button = uibutton(style_grid, "state");
-        card_style_button.Layout.Row = 1;
+        card_style_button = uibutton(param_grid, "state");
+        card_style_button.Layout.Row = 15;
         card_style_button.Layout.Column = 1;
         card_style_button.Text = "Card Style";
-        card_style_button.FontSize = 14;
+        card_style_button.FontSize = 16;
         card_style_button.Value = obj.card_style;
         card_style_button.BackgroundColor = obj.get_button_color(obj.card_style);
         card_style_button.Tooltip = "Lit isosurface, red-green colormap symmetric about zero (choose ω_x as the variable), dark background and no axes. Off restores the original look";
         card_style_button.ValueChangedFcn = @(src, event) card_style_change(src, event, plot_area_panel);
 
         % Robot: Calimero (CAD) drawn with the wake, wings at the
-        % snapshot's wing angle
-        robot_button = uibutton(style_grid, "state");
+        % snapshot's wing angle, or held at midstroke with Mid-Stroke
+        robot_grid = uigridlayout(param_grid, [1, 2]);
+        robot_grid.Layout.Row = 16;
+        robot_grid.Layout.Column = 1;
+        robot_grid.ColumnWidth = {'1x', '1x'};
+        robot_grid.RowHeight = {'1x'};
+        robot_grid.Padding = [0 0 0 0];
+        robot_grid.ColumnSpacing = 4;
+
+        robot_button = uibutton(robot_grid, "state");
         robot_button.Layout.Row = 1;
-        robot_button.Layout.Column = 2;
+        robot_button.Layout.Column = 1;
         robot_button.Text = "Robot";
-        robot_button.FontSize = 14;
+        robot_button.FontSize = 16;
         robot_button.Value = obj.robot_bool;
         robot_button.BackgroundColor = obj.get_button_color(obj.robot_bool);
         robot_button.Tooltip = "Draw the robot (solid black, wings at the snapshot's wing angle): " + ...
             "at its true position on the all-planes plot, just upstream of the wake on the 3D plot (x/c axis only)";
         robot_button.ValueChangedFcn = @(src, event) robot_change(src, event, plot_area_panel);
+
+        mid_stroke_button = uibutton(robot_grid, "state");
+        mid_stroke_button.Layout.Row = 1;
+        mid_stroke_button.Layout.Column = 2;
+        mid_stroke_button.Text = "Mid-Stroke";
+        mid_stroke_button.FontSize = 16;
+        mid_stroke_button.Value = obj.robot_mid_stroke;
+        mid_stroke_button.BackgroundColor = obj.get_button_color(obj.robot_mid_stroke);
+        mid_stroke_button.Enable = obj.robot_bool;
+        mid_stroke_button.Tooltip = "Hold the robot's wings at midstroke (horizontal, gliding) instead of " + ...
+            "following the wingbeat. Needs Robot on";
+        mid_stroke_button.ValueChangedFcn = @(src, event) mid_stroke_change(src, event, plot_area_panel);
 
         % Remove Small: hide small disconnected pieces of the isosurface
         % (speckle), threshold as % of the largest piece
@@ -1604,7 +1618,7 @@ methods
         % second copy for the 2D plots (centroid) is made below; both set
         % the same box.
         crop_ctrls = struct('button', {}, 'fields', {});
-        crop_ctrls(1) = make_crop_controls(param_grid, 16, 1, ...
+        crop_ctrls(1) = make_crop_controls(param_grid, 17, 1, ...
             "Hide the isosurface inside the y-z box beside it (e.g. the wake of the robot's wires). " + ...
             "y from the mirror centreline, z as plotted, in chords. Also leaves the box out of the 2D centroid. " + ...
             "Display only: the data and other calculations are unchanged");
@@ -2077,7 +2091,7 @@ methods
             row_heights = sidebar_grid.RowHeight;
             if is_visible
                 obj.param_panel.Visible = "on";
-                row_heights{14} = 689;
+                row_heights{14} = 725; % + the Robot / Mid-Stroke row
             else
                 obj.param_panel.Visible = "off";
                 row_heights{14} = 0;
@@ -2587,10 +2601,19 @@ methods
         function robot_change(src, ~, plot_panel)
             obj.robot_bool = src.Value;
             src.BackgroundColor = obj.get_button_color(obj.robot_bool);
+            mid_stroke_button.Enable = obj.robot_bool; % Mid-Stroke only with the robot shown
             if obj.robot_bool && isstruct(obj.robot_model) && ~obj.robot_model.ok
                 obj.robot_model = []; % failed before: try loading again
             end
             if obj.is_3D_plot_type()
+                obj.update_plot(plot_panel); % same view
+            end
+        end
+
+        function mid_stroke_change(src, ~, plot_panel)
+            obj.robot_mid_stroke = src.Value;
+            src.BackgroundColor = obj.get_button_color(obj.robot_mid_stroke);
+            if obj.robot_bool && obj.is_3D_plot_type()
                 obj.update_plot(plot_panel); % same view
             end
         end
@@ -5437,6 +5460,10 @@ methods (Access = private)
     % exported pose) if the amplitude isn't in the name or not a known one.
     function dphi = robot_wing_angle(obj, phase)
         dphi = 0;
+        if obj.robot_mid_stroke
+            dphi = -obj.ROBOT_PHI_EXPORT; % midstroke: phi = 0, horizontal
+            return
+        end
         tok = regexp(string(obj.case_name), "(\d+)deg", "tokens", "once");
         if isempty(tok)
             return
