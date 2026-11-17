@@ -2041,8 +2041,8 @@ methods (Access = private)
             set(a, "FontSize", 14);
             xlabel(a, "Lag (wingbeats, t/T)");
             ylabel(a, "Normalized cross-correlation");
-            title(a, "Aligned to: " + names(1), "Interpreter", "none");
-            legend(a, h, "Location", "best", "Interpreter", "none");
+            title(a, "Aligned to: " + names(1), "Interpreter", "latex");
+            legend(a, h, "Location", "best", "Interpreter", "latex");
         end
     end
 
@@ -2072,13 +2072,78 @@ methods (Access = private)
     function legend_entry = get_load_cell_legend_entry(obj, amp, freq, index)
         legend_entry = strrep(amp + " deg, " + freq + " Hz", "_", " ");
         if length(obj.inds) > 1
-            legend_entry = legend_entry + " - " + obj.active_types(index);
+            legend_entry = legend_entry + " - " + obj.get_type_legend_label(index);
         end
+    end
+
+    % Legend text (LaTeX) of a plotted variable: force / flow expressions
+    % in math mode (y*w_x -> $y\,\omega_x$), and the load cell lift / drag
+    % as "Load Cell" when every plotted variable is a force of that one
+    % component (e.g. y*w_x with lift (LC))
+    function label = get_type_legend_label(obj, index)
+        type = string(obj.active_types(index));
+        if ismember(obj.active_names(index), ["LC_lift", "LC_drag"]) && ...
+                strlength(obj.get_single_force_component()) > 0
+            label = "Load Cell";
+        elseif obj.is_force_index(index) || obj.is_flow_index(index)
+            label = obj.latex_var_label(type);
+        else
+            label = obj.escape_latex_text(type);
+        end
+    end
+
+    % y*w_x -> $y\,\omega_x$, (u-U)*w -> $(u-U)\,w$, u'w_x' -> $u'\omega_x'$;
+    % a "BA: " prefix and a trailing "(u avg)", "(edge)", ... stay as text,
+    % and word labels (Drag - Vorticity, wx - stretch, hel, ...) stay text
+    function label = latex_var_label(obj, type)
+        type = string(type);
+        prefix = "";
+        if startsWith(type, "BA: ")
+            prefix = "BA: ";
+            type = extractAfter(type, 4);
+        end
+        tok = regexp(char(type), '^(.*?)(\s\(.*\))?$', 'tokens', 'once');
+        expr = string(tok{1});
+        suffix = string(tok{2});
+        compact = regexprep(char(expr), '\s*\*\s*', '*');
+        if ~isempty(compact) && ~isempty(regexp(compact, '^[uvwUxyzd''/_()\-\*]+$', 'once'))
+            math = strrep(compact, '*', '\,'); % * -> small space
+            math = regexprep(math, 'w_?([xyz])', '\\omega_$1'); % wx, w_x -> \omega_x
+            label = prefix + "$" + string(math) + "$" + obj.escape_latex_text(suffix);
+        else
+            label = prefix + obj.escape_latex_text(type);
+        end
+    end
+
+    function text = escape_latex_text(~, text)
+        text = regexprep(string(text), '([_%&#])', '\\$1');
+    end
+
+    % "lift" / "drag" when every plotted variable is a force (PIV or load
+    % cell) of that one component, "" otherwise
+    function component = get_single_force_component(obj)
+        component = "";
+        if isempty(obj.inds) || ~all(arrayfun(@(index) obj.is_force_like_index(index), obj.inds))
+            return
+        end
+        labels = unique(obj.active_labels(obj.inds));
+        if isscalar(labels) && labels == "Lift (N)"
+            component = "lift";
+        elseif isscalar(labels) && labels == "Drag (N)"
+            component = "drag";
+        end
+    end
+
+    % "Lift (N)" -> "Lift Force (N)", "Drag (N)" -> "Drag Force (N)"
+    function label = get_force_axis_label(~, label)
+        label = string(label);
+        label(label == "Lift (N)") = "Lift Force (N)";
+        label(label == "Drag (N)") = "Drag Force (N)";
     end
 
     function legend_entry = get_aligned_legend_entry(obj, cur_sel, index)
         case_label = obj.get_case_label(cur_sel);
-        index_label = obj.active_types(index);
+        index_label = obj.get_type_legend_label(index);
 
         if length(obj.selection) > 1 && length(obj.inds) > 1
             legend_entry = case_label + " - " + index_label;
@@ -2338,11 +2403,19 @@ methods (Access = private)
         else
             ylabs(2) = "Plot Parameter Values";
         end
+        ylabs = obj.get_force_axis_label(ylabs);
     end
 
     function y_label = get_single_axis_label(obj)
         if ~isempty(obj.inds) && all(arrayfun(@(index) obj.is_force_like_index(index), obj.inds))
-            y_label = "Force (N)";
+            component = obj.get_single_force_component();
+            if component == "lift"
+                y_label = "Lift Force (N)";
+            elseif component == "drag"
+                y_label = "Drag Force (N)";
+            else
+                y_label = "Force (N)";
+            end
         else
             y_label = obj.active_labels(obj.inds(1));
         end
