@@ -397,6 +397,7 @@ properties
     % the all-planes plot, it runs downstream: the fluid that crossed the
     % plane last sits at a, the earliest at b
     stack_window_3D;
+    equal_axes_bool; % "=": equal axis scaling on the 3D plot's x/c axis
     robot_bool;
     robot_mid_stroke; % wings held at midstroke (phi = 0) instead of following the wingbeat
     robot_model;
@@ -490,6 +491,7 @@ methods
         obj.merged_3D = [];
         obj.merged_ext = [];
         obj.stack_window_3D = [];
+        obj.equal_axes_bool = false;
         obj.robot_bool = false;
         obj.robot_mid_stroke = false;
         obj.robot_model = [];
@@ -1472,8 +1474,17 @@ methods
         end
 
         % x-axis as wingbeat time (t/T) or convective distance (x/c = U t / c)
-        conv_units_button = uibutton(param_grid, "state");
-        conv_units_button.Layout.Row = 8;
+        % x-axis units, and "=" beside it: equal axis scaling (x/c only)
+        units_grid = uigridlayout(param_grid, [1, 2]);
+        units_grid.Layout.Row = 8;
+        units_grid.Layout.Column = 1;
+        units_grid.ColumnWidth = {'1x', 36};
+        units_grid.RowHeight = {'1x'};
+        units_grid.Padding = [0 0 0 0];
+        units_grid.ColumnSpacing = 4;
+
+        conv_units_button = uibutton(units_grid, "state");
+        conv_units_button.Layout.Row = 1;
         conv_units_button.Layout.Column = 1;
         conv_units_button.Text = "x-axis: t/T";
         conv_units_button.FontSize = 16;
@@ -1481,6 +1492,18 @@ methods
         conv_units_button.BackgroundColor = obj.INACTIVE_COLOR;
         conv_units_button.Tooltip = "Toggle the 3D plot x-axis between wingbeat time t/T and convective units x/c = U t / c";
         conv_units_button.ValueChangedFcn = @(src, event) conv_units_change(src, event, plot_area_panel);
+
+        equal_axes_button = uibutton(units_grid, "state");
+        equal_axes_button.Layout.Row = 1;
+        equal_axes_button.Layout.Column = 2;
+        equal_axes_button.Text = "=";
+        equal_axes_button.FontSize = 16;
+        equal_axes_button.Value = obj.equal_axes_bool;
+        equal_axes_button.BackgroundColor = obj.get_button_color(obj.equal_axes_bool);
+        equal_axes_button.Enable = obj.conv_units_bool;
+        equal_axes_button.Tooltip = "Equal axis scaling (axis equal) on the 3D plot, so the robot and " + ...
+            "vortices keep their true shapes. x/c axis only";
+        equal_axes_button.ValueChangedFcn = @(src, event) equal_axes_change(src, event, plot_area_panel);
 
         % Phase shift by the convection time from the robot to the imaging
         % plane (same as phaseAvg_UI's Convection Shift button), and next
@@ -2102,6 +2125,7 @@ methods
         function set_merged_controls()
             is_merged = obj.plot_type == obj.MERGED_3D_PLOT;
             conv_units_button.Enable = ~is_merged;
+            equal_axes_button.Enable = ~is_merged && obj.conv_units_bool; % all planes: always equal
             conv_shift_button.Enable = ~is_merged;
             stroke_order_dropdown.Enable = obj.conv_shift && ~is_merged;
             % U_c takes Convection Shift's place on the all-planes plot
@@ -2832,7 +2856,12 @@ methods
             else
                 src.Text = "x-axis: t/T";
                 src.BackgroundColor = obj.INACTIVE_COLOR;
+                % "=" only means something in chords: off with t/T
+                obj.equal_axes_bool = false;
+                equal_axes_button.Value = false;
+                equal_axes_button.BackgroundColor = obj.get_button_color(false);
             end
+            equal_axes_button.Enable = obj.conv_units_bool && obj.plot_type ~= obj.MERGED_3D_PLOT;
 
             % The two axes differ only by a constant factor, so rescale the
             % existing isosurface in place (keeps the current view and
@@ -2860,11 +2889,21 @@ methods
             % Play / stroke order do one full redraw first
             obj.surf_3D = [];
 
-            % axes scaled to fill the plot in both units (equal scaling
-            % squeezes y and z against a wake many chords long)
-            ax.DataAspectRatioMode = 'auto';
+            obj.apply_3D_aspect(ax); % fill the plot, or equal with "="
             obj.set_stack_xlabel(ax);
             obj.draw_stroke_labels_3D(ax); % redraw in the new units
+        end
+
+        function equal_axes_change(src, ~, plot_panel)
+            obj.equal_axes_bool = src.Value && obj.conv_units_bool;
+            src.Value = obj.equal_axes_bool;
+            src.BackgroundColor = obj.get_button_color(obj.equal_axes_bool);
+            if obj.plot_type == obj.plot_types(5)
+                ax = findobj(plot_panel.Children, 'Type', 'axes');
+                if isscalar(ax)
+                    obj.apply_3D_aspect(ax); % in place, view kept
+                end
+            end
         end
 
         function conv_shift_change(src, ~, plot_panel)
@@ -5497,8 +5536,8 @@ methods (Access = private)
             obj.surf_3D.ax = ax; % Play can restart on this plot without a redraw (play_3D)
             obj.draw_slices_3D(ax, params.shift);
             % plot_3D draws x/c to equal scale; here the axes fill the
-            % plot instead (equal scaling squeezes y and z)
-            ax.DataAspectRatioMode = 'auto';
+            % plot instead (equal scaling squeezes y and z), unless "="
+            obj.apply_3D_aspect(ax);
             obj.update_robot_3D(ax, d, params.shift, y, z, xlims(1)); % before the plane outline is drawn
             obj.apply_fixed_lims(ax);
             obj.set_stroke_frame_shift(params.shift - conv_shift_bins);
@@ -6319,6 +6358,17 @@ methods (Access = private)
     function s = flip_stack_x(obj, s)
         if ~isempty(obj.stack_window_3D) && ~isempty(s.vertices)
             s.vertices(:,1) = sum(obj.stack_window_3D) - s.vertices(:,1);
+        end
+    end
+
+    % "phase avg: 3D plot" axis scaling: filling the plot, or equal
+    % (axis equal, true shapes for the robot and vortices) with "=" on the
+    % x/c axis
+    function apply_3D_aspect(obj, ax)
+        if obj.conv_units_bool && obj.equal_axes_bool
+            daspect(ax, [1 1 1])
+        else
+            ax.DataAspectRatioMode = 'auto';
         end
     end
 
