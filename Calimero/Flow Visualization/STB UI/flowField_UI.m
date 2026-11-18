@@ -1796,7 +1796,7 @@ methods
         save_movie_button.FontSize = 18;
         save_movie_button.BackgroundColor = obj.INACTIVE_COLOR;
         save_movie_button.Tooltip = "Save the movie (every phase bin, from bin 1 to the last) as a .gif. " + ...
-            "Only for phase avg: movie and phase std: movie";
+            "For phase avg: movie, phase std: movie and phase avg: 3D all planes (the 3D view as shown)";
         save_movie_button.ButtonPushedFcn = @(src, event) save_movie(src, event, plot_area_panel);
 
         % Uncertainty isolines on the 2D plots (types 1-4), like Unc Mask
@@ -2210,8 +2210,9 @@ methods
                 unc_contour_button.Visible = "off";
                 row_heights{17} = 0;
             end
-            % Save Movie: only the 2D movies (phase avg / phase std)
-            if ismember(obj.plot_type, obj.plot_types([2 4 13]))
+            % Save Movie: the 2D movies (phase avg / phase std) and the
+            % all-planes 3D plot
+            if ismember(obj.plot_type, obj.plot_types([2 4 13])) || obj.plot_type == obj.MERGED_3D_PLOT
                 save_movie_button.Enable = "on";
             else
                 save_movie_button.Enable = "off";
@@ -2534,8 +2535,14 @@ methods
         % capture_frame after drawing each bin.
         function save_movie(~, ~, plot_panel)
             fig = ancestor(plot_panel, 'figure');
-            if ~ismember(obj.plot_type, obj.plot_types([2 4 13]))
-                uialert(fig, "Save Movie is only for phase avg: movie and phase std: movie.", "Save Movie");
+            is_merged = obj.plot_type == obj.MERGED_3D_PLOT;
+            if ~ismember(obj.plot_type, obj.plot_types([2 4 13])) && ~is_merged
+                uialert(fig, "Save Movie is only for phase avg: movie, phase std: movie " + ...
+                    "and phase avg: 3D all planes.", "Save Movie");
+                return
+            end
+            if is_merged && ~obj.can_play_merged()
+                uialert(fig, "Draw the all-planes plot first (nothing to save).", "Save Movie");
                 return
             end
             if obj.play
@@ -2570,11 +2577,15 @@ methods
             frames = {};
             bbox = [Inf -Inf Inf -Inf]; % [row_min row_max col_min col_max]
             try
-                obj.frame_ind = 1;
-                obj.slider.Value = 1;
-                obj.movie_frame_fcn = @capture_frame;
-                obj.play = true; % play loop runs bin 1 -> last bin, capture_frame stops it
-                obj.update_plot(plot_panel);
+                if is_merged
+                    save_merged_frames();
+                else
+                    obj.frame_ind = 1;
+                    obj.slider.Value = 1;
+                    obj.movie_frame_fcn = @capture_frame;
+                    obj.play = true; % play loop runs bin 1 -> last bin, capture_frame stops it
+                    obj.update_plot(plot_panel);
+                end
             catch save_error
             end
             was_cancelled = dlg.CancelRequested;
@@ -2604,6 +2615,32 @@ methods
                     " bins saved to " + filename, "Save Movie", 'Icon', 'warning');
             else
                 disp("Saved " + num_saved + " bins to " + filename)
+            end
+
+            % "phase avg: 3D all planes": every bin from the plot as shown
+            % (the camera as it is: view, rotation, zoom), sliding the
+            % precomputed surface like Play. The x-limits are Play's (the
+            % full reconstructed length, robot included), held at bin 1's
+            % for every frame so the picture doesn't jump.
+            function save_merged_frames()
+                ax = obj.merged_ext.ax;
+                N = obj.merged_ext.N;
+                xl_hold = [];
+                for kb = 1:N
+                    obj.frame_ind = kb;
+                    obj.slider.Value = kb;
+                    obj.show_merged_frame(true);
+                    if isempty(xl_hold)
+                        xl_hold = ax.XLim;
+                    else
+                        ax.XLim = xl_hold;
+                    end
+                    drawnow
+                    capture_frame();
+                    if dlg.CancelRequested
+                        break
+                    end
+                end
             end
 
             function capture_frame()
