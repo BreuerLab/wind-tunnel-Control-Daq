@@ -377,6 +377,11 @@ properties
     % filtered) of the last plot and the settings they depend on (key),
     % so moving through the bins only rebuilds the isosurfaces
     merged_3D;
+    % "phase avg: 3D all planes": each plane's isosurface over its segment
+    % plus one wingbeat upstream, at bin 1, computed once (key) so a frame
+    % only slides it (place_merged_ext); with the axes, planes and bins of
+    % the plot it belongs to, for Play / the slider without a redraw
+    merged_ext;
     % "Robot" on the 3D plots; robot_model: loaded CAD (struct ok / model /
     % msg, [] until first needed); plane_marks_3D: plane outlines of the
     % current 3D plot (x, label, data y / z extent), redrawn to the Fix
@@ -477,6 +482,7 @@ methods
         obj.label_stroke = true;    % Label Stroke follows Convection Shift
         obj.stroke_3D = [];
         obj.merged_3D = [];
+        obj.merged_ext = [];
         obj.stack_window_3D = [];
         obj.robot_bool = false;
         obj.robot_mid_stroke = false;
@@ -2294,6 +2300,8 @@ methods
                 src.Text = "Stop";
                 if obj.can_play_3D()
                     obj.play_3D(); % from the plot as shown: no redraw
+                elseif obj.can_play_merged()
+                    obj.play_merged_3D(); % all planes: same, no redraw
                 else
                     obj.update_plot(plot_panel); % runs the Play loop
                 end
@@ -3026,6 +3034,8 @@ methods
             obj.frame_ind = src.Value;
             if ~obj.play && obj.can_play_3D()
                 obj.show_3D_frame(); % 3D plot: slide the surface, no redraw
+            elseif ~obj.play && obj.can_play_merged()
+                obj.show_merged_frame(false); % all planes: likewise
             else
                 obj.update_plot(plot_panel);
             end
@@ -5547,76 +5557,40 @@ methods (Access = private)
             obj.merged_3D.report_key = report_key;
         end
 
-        [surface_data, color_data, xlims] = obj.build_merged_surface(planes, (obj.frame_ind - 1) / N);
+        % isosurfaces once per setting; each frame slides them
+        obj.ensure_merged_ext(planes, M.key);
+        xlims = obj.merged_ext.xlims;
+        phi = (obj.frame_ind - 1) / N;
 
         if isscalar(p) && isscalar(ax)
-            p.Vertices = surface_data.vertices;
-            p.Faces = surface_data.faces;
-            p.FaceVertexCData = color_data;
+            obj.show_merged_surface(p, phi);
         else
             delete(ax);
             ax = axes(plot_panel);
+            [surface_data, color_data] = obj.place_merged_ext(phi);
             plot_3D(ax, surface_data, color_data, params);
             p = obj.find_isosurface_patch(ax);
+            obj.show_merged_surface(p, phi); % + Remove Small bookkeeping
             obj.plot_hold_bool = true;
         end
+        obj.merged_ext.ax = ax;
+        obj.merged_ext.planes = planes;
+        obj.merged_ext.N = N;
         setColorBar(ax, params)
         xlabel(ax, "x/c (downstream of the robot)", FontSize=16)
         % while playing the full reconstructed length (the surface moves),
         % otherwise cropped to where the isosurface ends
-        if obj.play
-            xlim(ax, [max(0, xlims(1) - obj.MERGED_3D_LEAD_C), xlims(2)])
-        else
-            xlim(ax, obj.tight_merged_xlim(xlims, surface_data.vertices))
-        end
         obj.draw_merged_planes(ax, planes);
-        set_title();
-        robot_with_xlim();
-
-        while obj.play && (obj.frame_ind < N)
-            obj.frame_ind = obj.frame_ind + 1;
-            obj.slider.Value = obj.frame_ind;
-            [surface_data, color_data] = obj.build_merged_surface(planes, (obj.frame_ind - 1) / N);
-            p.Vertices = surface_data.vertices;
-            p.Faces = surface_data.faces;
-            p.FaceVertexCData = color_data;
-            set_title();
-            obj.apply_remove_small(ax);
-            robot_with_xlim();
-            pause(0.1);
-            if obj.frame_ind == N
-                obj.frame_ind = 0; % reset for next loop iteration
-            end
-        end
-
         obj.apply_fixed_lims(ax);
-        obj.apply_remove_small(ax);
-        xlim(ax, obj.tight_merged_xlim(xlims, p.Vertices(unique(p.Faces), :)));
-        robot_with_xlim();
+        obj.show_merged_frame(obj.play); % title, x-limits, robot
         if obj.card_style
             obj.apply_card_style(ax);
         end
 
-        % robot at its true position, wings at the snapshot's wing phase;
-        % the x-axis widened to include it
-        function robot_with_xlim()
-            rx = obj.draw_robot(ax, planes(1).L, (max(obj.frame_ind, 1) - 1) / N, "true", 0);
-            if ~isempty(rx)
-                xl = ax.XLim;
-                xlim(ax, [min(xl(1), rx(1) - 0.5), max(xl(2), rx(2) + 0.5)]);
-            end
-        end
-
-        function set_title()
-            if isempty(obj.merged_conv_speed)
-                uc_str = "U_c = U = " + sprintf("%.3g", planes(1).U) + " m/s";
-            else
-                uc_str = "U_c = " + sprintf("%.3g", obj.merged_conv_speed) + " m/s";
-            end
-            ax.Title.String = obj.case_name + "  (" + strjoin([planes.type], ", ") + ...
-                "),  " + uc_str + ",  wing phase at robot: bin " + max(obj.frame_ind, 1) + " / " + N;
-            ax.Title.Interpreter = 'none';
-            ax.Title.FontSize = 14;
+        % Play pressed with no plot to play from: drawn above, now play it
+        % (only slides the surface per frame, like the 3D plot)
+        if obj.play
+            obj.play_merged_3D();
         end
 
         function show_message(text_str)
@@ -5865,6 +5839,193 @@ methods (Access = private)
         P.zv = z(1,:)';
         P.val = val;
         P.Q = Q;
+    end
+
+    % Isosurfaces of plot_merged_3D for every frame at once. Frozen flow
+    % makes the field at wing phase phi the bin-1 field moved phi
+    % wingbeats downstream, so each plane's isosurface is computed once at
+    % bin 1 over its segment plus one wingbeat upstream (sampled on the
+    % bins, so every frame is exact) and place_merged_ext slides it. Remove
+    % Small is done once on the whole extended surface. Recomputed only
+    % when the planes (M_key), U_c, wingbeats or iso value change.
+    function ensure_merged_ext(obj, planes, M_key)
+        key = M_key + "|" + mat2str(obj.merged_conv_speed) + "|" + obj.num_cycles + ...
+            "|" + sprintf("%.10g", obj.iso_val);
+        E = obj.merged_ext;
+        if isempty(E) || ~isequal(E.key, key)
+            verts = zeros(0, 3);
+            faces = zeros(0, 3);
+            cdata = zeros(0, 1);
+            vseg = zeros(0, 1);
+            fseg = zeros(0, 1);
+            n = numel(planes);
+            a_c = zeros(n, 1);
+            b_c = zeros(n, 1);
+            lam_c = zeros(n, 1);
+            x_end = 0;
+            for i = 1:n
+                P = planes(i);
+                lambda = obj.merged_speed(P) / P.f; % wake wavelength, m per wingbeat
+                a = P.x;
+                if i < n
+                    b = planes(i+1).x;            % cut off where the next plane starts
+                else
+                    b = a + obj.num_cycles * lambda;
+                end
+                x_end = b;
+                a_c(i) = a / P.L;
+                b_c(i) = b / P.L;
+                lam_c(i) = lambda / P.L;
+                dx = lambda / P.N;                % one bin of convection
+                K = ceil((b - a + lambda) / dx - 1e-9);
+                xs = a - lambda + (0:K) * dx;
+                % at bin 1, the fluid at xs crossed the plane (xs - a)/U_c ago
+                phase = -(xs - a) / lambda;
+                Qs = obj.phase_interp(P.Q, phase);
+                Cs = obj.phase_interp(P.val, phase);
+
+                [Xg, Yg, Zg] = meshgrid(xs / P.L, P.yv, P.zv);
+                Qs = permute(Qs, [1 3 2]);
+                Cs = permute(Cs, [1 3 2]);
+                si = isosurface(Xg, Yg, Zg, Qs, obj.iso_val);
+                if isempty(si.vertices)
+                    continue
+                end
+                ci = interp3(Xg, Yg, Zg, Cs, si.vertices(:,1), si.vertices(:,2), si.vertices(:,3));
+                faces = [faces; si.faces + size(verts, 1)]; %#ok<AGROW>
+                verts = [verts; si.vertices]; %#ok<AGROW>
+                cdata = [cdata; ci(:)]; %#ok<AGROW>
+                vseg = [vseg; i * ones(size(si.vertices, 1), 1)]; %#ok<AGROW>
+                fseg = [fseg; i * ones(size(si.faces, 1), 1)]; %#ok<AGROW>
+            end
+            E = struct('key', key, 'verts', verts, 'faces', faces, 'cdata', cdata, ...
+                'vseg', vseg, 'fseg', fseg, 'a_c', a_c, 'b_c', b_c, 'lam_c', lam_c, ...
+                'xlims', [planes(1).x, x_end] / planes(1).L, 'keep', true(size(faces, 1), 1), ...
+                'rs_key', "", 'ax', [], 'planes', {planes}, 'N', planes(1).N);
+        end
+        obj.merged_ext = E;
+        obj.refresh_merged_rs();
+    end
+
+    % The all-planes surface at wing phase phi (cycles): each plane's
+    % extended isosurface moved phi wingbeats downstream, keeping the
+    % faces whose centre is in that plane's segment. faces_full: before
+    % Remove Small.
+    function [s, cdata, faces_full] = place_merged_ext(obj, phi)
+        E = obj.merged_ext;
+        v = E.verts;
+        if ~isempty(v)
+            v(:,1) = v(:,1) + phi * E.lam_c(E.vseg);
+        end
+        if isempty(E.faces)
+            inside = false(0, 1);
+        else
+            fx = mean(reshape(v(E.faces, 1), size(E.faces)), 2);
+            inside = fx >= E.a_c(E.fseg) & fx <= E.b_c(E.fseg);
+        end
+        faces_full = E.faces(inside, :);
+        s = struct('vertices', v, 'faces', E.faces(inside & E.keep, :));
+        cdata = E.cdata;
+    end
+
+    % Put the surface at phase phi on patch p, with the Remove Small
+    % bookkeeping apply_remove_small expects (so the button still toggles)
+    function show_merged_surface(obj, p, phi)
+        obj.refresh_merged_rs(); % Remove Small changed since the last frame
+        [s, cdata, faces_full] = obj.place_merged_ext(phi);
+        p.Vertices = s.vertices;
+        p.Faces = s.faces;
+        p.FaceVertexCData = cdata;
+        if obj.remove_small_bool
+            setappdata(p, 'remove_small', struct('faces_full', faces_full, 'faces_kept', s.faces));
+        elseif isappdata(p, 'remove_small')
+            rmappdata(p, 'remove_small');
+        end
+    end
+
+    % Remove Small on the extended all-planes surface, redone only when
+    % its setting changes
+    function refresh_merged_rs(obj)
+        E = obj.merged_ext;
+        if isempty(E)
+            return
+        end
+        rs_key = string(obj.remove_small_bool) + "|" + sprintf("%.10g", obj.remove_small_pct);
+        if E.rs_key ~= rs_key
+            E.keep = true(size(E.faces, 1), 1);
+            if obj.remove_small_bool && ~isempty(E.faces)
+                kept = obj.despeckle_faces(E.faces, obj.remove_small_pct);
+                E.keep = ismember(E.faces, kept, 'rows');
+            end
+            E.rs_key = rs_key;
+            obj.merged_ext = E;
+        end
+    end
+
+    % Play on "phase avg: 3D all planes" from the plot as it is: frames
+    % only slide the precomputed surface (no reload or isosurface), so
+    % they come quickly and Stop takes effect at the next frame
+    function tf = can_play_merged(obj)
+        E = obj.merged_ext;
+        tf = obj.plot_type == obj.MERGED_3D_PLOT && ~isempty(E) && ~isempty(E.ax) && ...
+            isvalid(E.ax) && isscalar(obj.find_isosurface_patch(E.ax));
+    end
+
+    function play_merged_3D(obj)
+        ax = obj.merged_ext.ax;
+        N = obj.merged_ext.N;
+        while obj.play && isvalid(ax)
+            obj.frame_ind = mod(obj.frame_ind, N) + 1; % next bin, wrapping
+            obj.slider.Value = obj.frame_ind;
+            obj.show_merged_frame(true);
+            drawnow % shows the frame and lets Stop through
+            pause(obj.PLAY_PAUSE_S);
+        end
+        if isvalid(ax)
+            obj.show_merged_frame(false); % stopped: x-axis cropped again
+        end
+    end
+
+    % All-planes plot at slider bin obj.frame_ind: surface, title, robot
+    % (true position, wings at that phase) and x-limits (while playing the
+    % full reconstructed length, as the surface moves; otherwise cropped
+    % to where the isosurface ends), widened to take in the robot
+    function show_merged_frame(obj, playing)
+        E = obj.merged_ext;
+        ax = E.ax;
+        if isempty(ax) || ~isvalid(ax)
+            return
+        end
+        p = obj.find_isosurface_patch(ax);
+        if ~isscalar(p)
+            return
+        end
+        N = E.N;
+        planes = E.planes;
+        k = max(obj.frame_ind, 1);
+        obj.show_merged_surface(p, (k - 1) / N);
+
+        if isempty(obj.merged_conv_speed)
+            uc_str = "U_c = U = " + sprintf("%.3g", planes(1).U) + " m/s";
+        else
+            uc_str = "U_c = " + sprintf("%.3g", obj.merged_conv_speed) + " m/s";
+        end
+        ax.Title.String = obj.case_name + "  (" + strjoin([planes.type], ", ") + ...
+            "),  " + uc_str + ",  wing phase at robot: bin " + k + " / " + N;
+        ax.Title.Interpreter = 'none';
+        ax.Title.FontSize = 14;
+
+        xlims = E.xlims;
+        if playing
+            xlim(ax, [max(0, xlims(1) - obj.MERGED_3D_LEAD_C), xlims(2)])
+        else
+            xlim(ax, obj.tight_merged_xlim(xlims, p.Vertices(unique(p.Faces), :)));
+        end
+        rx = obj.draw_robot(ax, planes(1).L, (k - 1) / N, "true", 0);
+        if ~isempty(rx)
+            xl = ax.XLim;
+            xlim(ax, [min(xl(1), rx(1) - 0.5), max(xl(2), rx(2) + 0.5)]);
+        end
     end
 
     % Isosurface of plot_merged_3D at wing phase phi_ref (cycles): one
