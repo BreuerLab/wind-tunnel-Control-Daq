@@ -2571,6 +2571,7 @@ methods
         % MOVIE_CROP_PAD), as a .png at screen resolution, with a .fig of
         % the same styled copy next to it.
         function save_3D_frame_image(plot_panel)
+            % 3D plot: the plane outline is saved without its label (x3...)
             fig = ancestor(plot_panel, 'figure');
             k0 = max(round(obj.frame_ind), 1);
             default_name = regexprep(obj.plot_type + "_" + obj.get_current_case_id() + ...
@@ -2604,6 +2605,7 @@ methods
                 xl_hold = ax.XLim;
                 drawnow
                 obj.copy_plot_to_figure(plot_panel, fignew);
+                drop_plane_label_from(fignew);
                 layout = obj.style_movie_copy(fignew, struct('cb_pos', [], 'ax_pos', []));
                 % this bin, drawn as its movie frame
                 obj.frame_ind = k0;
@@ -2612,6 +2614,7 @@ methods
                 drawnow
                 delete(fignew.Children);
                 obj.copy_plot_to_figure(plot_panel, fignew);
+                drop_plane_label_from(fignew);
                 obj.style_movie_copy(fignew, layout);
                 img = print(fignew, '-RGBImage', '-r0');
                 bb = obj.movie_content_bbox(img);
@@ -2642,6 +2645,15 @@ methods
                 disp("Saved bin " + k0 + " to " + filename + " (and .fig)")
             else
                 uialert(fig, "Saving the figure failed: " + save_error.message, "Save Figure");
+            end
+        end
+
+        % Save Figure, phase avg: 3D plot: drop the plane label (e.g. "x3")
+        % from the copy, keeping the green outline. Before the styling, so
+        % the layout is fitted without it.
+        function drop_plane_label_from(fig_copy)
+            if obj.plot_type == obj.plot_types(5)
+                delete(findall(fig_copy, 'Type', 'text', 'Tag', obj.MERGED_3D_MARKER_TAG));
             end
         end
 
