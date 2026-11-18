@@ -3755,6 +3755,20 @@ methods (Access = private)
             ~isempty(S3.ax) && isvalid(S3.ax) && isscalar(obj.find_isosurface_patch(S3.ax));
     end
 
+    % Stack shift (bins) of slider frame obj.frame_ind on "phase avg: 3D
+    % plot", before the convection and stroke-order shifts. The stack's
+    % robot end holds bin N - shift, so the shift DEcreases as the frame
+    % advances: the bin at the robot end, and the robot's wing phase, then
+    % step forward in time and the wake slides downstream (away from the
+    % robot). It used to be +(frame_ind - 1), which played the wingbeat
+    % backwards (fast downstroke, wake sliding upstream into the robot).
+    % With Convection Shift on, frame k shows the robot at wing phase
+    % about (k - 1)/N (to within a bin), as on "phase avg: 3D all
+    % planes"; frame 1 is unchanged.
+    function s = frame_shift_3D(obj)
+        s = -(obj.frame_ind - 1);
+    end
+
     function play_3D(obj)
         ax = obj.surf_3D.ax;
         N = obj.surf_3D.params.num_bins;
@@ -3779,7 +3793,7 @@ methods (Access = private)
         if ~isscalar(p)
             return
         end
-        base = obj.frame_ind - 1 + S3.conv_shift_bins;
+        base = obj.frame_shift_3D() + S3.conv_shift_bins;
         shift = base + S3.stroke_flip_bins;
         obj.surf_3D.base_shift = base;
         obj.place_3D_ext(p, shift);
@@ -5375,9 +5389,9 @@ methods (Access = private)
             % is part of the stroke labels' shift too.
             stroke_flip_bins = 0;
             if obj.conv_shift && obj.stroke_order ~= "UDU"
-                stroke_flip_bins = obj.get_stroke_shift_bins(d.num_bins, obj.frame_ind - 1);
+                stroke_flip_bins = obj.get_stroke_shift_bins(d.num_bins, obj.frame_shift_3D());
             end
-            params.shift = obj.frame_ind - 1 + conv_shift_bins + stroke_flip_bins;
+            params.shift = obj.frame_shift_3D() + conv_shift_bins + stroke_flip_bins;
             params.isoValue = obj.iso_val; % 0.05
             params.num_cycles = obj.num_cycles;
             params.conv_units = obj.conv_units_bool;
@@ -5402,7 +5416,7 @@ methods (Access = private)
             % kept so the stroke order can shift this plot without a full redraw
             obj.surf_3D = struct('y', y, 'z', z, 'val', val, 'Q', Q, ...
                 'cycle_freq', d.cycle_freq, 'params', params, 'xlims', xlims, ...
-                'base_shift', obj.frame_ind - 1 + conv_shift_bins, ...
+                'base_shift', obj.frame_shift_3D() + conv_shift_bins, ...
                 'conv_shift_bins', conv_shift_bins, 'ext', [], ...
                 'stroke_flip_bins', stroke_flip_bins, ...
                 'd_info', struct('num_bins', d.num_bins, 'cycle_freq', d.cycle_freq, 'L', d.L), ...
@@ -5416,7 +5430,7 @@ methods (Access = private)
             while obj.play && (obj.frame_ind < obj.num_bins)
                 obj.frame_ind = obj.frame_ind + 1;
                 obj.slider.Value = obj.frame_ind;
-                params.shift = obj.frame_ind - 1 + conv_shift_bins + stroke_flip_bins; % same as the slider (frame 1 = no shift)
+                params.shift = obj.frame_shift_3D() + conv_shift_bins + stroke_flip_bins; % same as the slider (frame 1 = no shift)
 
                 obj.place_3D_ext(p, params.shift);
                 surface_data = struct('vertices', p.Vertices, 'faces', p.Faces);
