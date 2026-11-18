@@ -4,6 +4,11 @@ properties (Constant, Access = private)
     INACTIVE_COLOR = [1 1 1];
     MOVIE_FRAME_DELAY = 0.1;    % s between frames of the .gif from Save Movie
     MOVIE_CROP_PAD = 10;        % px of margin kept around the plot when Save Movie crops the frames
+    % Save Movie styling, applied to every frame's copy of the plot (the
+    % UI itself is unchanged)
+    MOVIE_HIDE_TITLE = true;    % no title
+    MOVIE_FONT_SCALE = 1.3;     % all text (ticks, labels, colorbar, plane labels) this much larger
+    MOVIE_CB_HEIGHT_FRAC = 1;   % 3D plots: colorbar as tall as the drawn plot times this, centred on it
     Q_ISO_RANGE = [0.005 0.1];  % Q isovalue slider range (negated by "+/-")
     Q_ISO_DEFAULT = 0.05;       % Q isovalue slider default
     % Tag on the 3D plot's stroke lines / shading / labels (Label Stroke),
@@ -2576,6 +2581,7 @@ methods
             % crop: the smallest box holding the content of every frame
             frames = {};
             bbox = [Inf -Inf Inf -Inf]; % [row_min row_max col_min col_max]
+            movie_cb_pos = []; % 3D plots: colorbar position, fitted on the first frame and kept
             try
                 if is_merged
                     save_merged_frames();
@@ -2647,6 +2653,7 @@ methods
                 k = obj.frame_ind;
                 delete(fignew.Children);
                 obj.copy_plot_to_figure(plot_panel, fignew);
+                style_movie_frame();
                 img = print(fignew, '-RGBImage', '-r0');
                 % content = pixels that differ from the background (corner
                 % pixel colour); widen the box to cover this frame
@@ -2666,6 +2673,54 @@ methods
                 if k >= obj.num_bins || dlg.CancelRequested
                     obj.play = false; % ends the play loop in update_plot
                 end
+            end
+
+            % Movie look (MOVIE_*), on the copy only: no title, larger text,
+            % and on the 3D plots a colorbar as tall as the drawn plot
+            % rather than the whole axes box (most of which is empty)
+            function style_movie_frame()
+                if obj.MOVIE_HIDE_TITLE
+                    for a = findall(fignew, 'Type', 'axes')'
+                        a.Title.String = '';
+                    end
+                end
+                if obj.MOVIE_FONT_SCALE ~= 1
+                    % sizes read first, then set: labels following their
+                    % axes' size would otherwise be scaled twice
+                    h = findall(fignew, '-property', 'FontSize');
+                    fs = get(h, 'FontSize');
+                    if ~iscell(fs)
+                        fs = {fs};
+                    end
+                    for kh = 1:numel(h)
+                        h(kh).FontSize = fs{kh} * obj.MOVIE_FONT_SCALE;
+                    end
+                end
+                cb = findall(fignew, 'Type', 'colorbar');
+                if ~isscalar(cb) || ~obj.is_3D_plot_type()
+                    return
+                end
+                if isempty(movie_cb_pos)
+                    % height of what's drawn (plot, axis labels, robot),
+                    % measured with the colorbar hidden
+                    cb.Visible = 'off';
+                    img0 = print(fignew, '-RGBImage', '-r0');
+                    cb.Visible = 'on';
+                    bg0 = img0(1, 1, :);
+                    rows0 = find(any(any(abs(int16(img0) - int16(bg0)) > 8, 3), 2));
+                    if isempty(rows0)
+                        return
+                    end
+                    H = size(img0, 1);
+                    y_lo = 1 - rows0(end) / H;       % normalized, from the bottom
+                    y_hi = 1 - (rows0(1) - 1) / H;
+                    cb.Units = 'normalized';
+                    pos = cb.Position;
+                    hgt = obj.MOVIE_CB_HEIGHT_FRAC * (y_hi - y_lo);
+                    movie_cb_pos = [pos(1), (y_lo + y_hi) / 2 - hgt / 2, pos(3), hgt];
+                end
+                cb.Units = 'normalized';
+                cb.Position = movie_cb_pos;
             end
 
             % crop every frame to the common box (plus MOVIE_CROP_PAD) and
