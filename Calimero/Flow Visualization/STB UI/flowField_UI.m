@@ -2528,12 +2528,97 @@ methods
         end
 
         function save_figure(~, ~, plot_panel)
+            if obj.is_3D_plot_type() && ~obj.play && ...
+                    (obj.can_play_merged() || (obj.plot_type == obj.plot_types(5) && obj.can_play_3D()))
+                save_3D_frame_image(plot_panel);
+                return
+            end
             filename = "saved_figure.fig";
             fignew = figure('Visible','off'); % Invisible figure
             obj.copy_plot_to_figure(plot_panel, fignew);
             set(fignew,'CreateFcn','set(gcbf,''Visible'',''on'')'); % Make it visible upon loading
             savefig(fignew,filename);
             delete(fignew);
+        end
+
+        % Save Figure on the 3D plots: the current bin exactly as its frame
+        % of Save Movie (same panel size, movie styling fitted on bin 1,
+        % Play's x-limits held at bin 1's, cropped to what's drawn plus
+        % MOVIE_CROP_PAD), as a .png at screen resolution, with a .fig of
+        % the same styled copy next to it.
+        function save_3D_frame_image(plot_panel)
+            fig = ancestor(plot_panel, 'figure');
+            k0 = max(round(obj.frame_ind), 1);
+            default_name = regexprep(obj.plot_type + "_" + obj.get_current_case_id() + ...
+                "_" + obj.variable_name + "_bin" + k0, "[^\w\-]+", "_") + ".png";
+            [file, folder] = uiputfile("*.png", "Save Figure", default_name);
+            figure(fig);
+            if isequal(file, 0)
+                return
+            end
+            filename = fullfile(folder, file);
+
+            is_merged = obj.plot_type == obj.MERGED_3D_PLOT;
+            if is_merged
+                ax = obj.merged_ext.ax;
+                show = @() obj.show_merged_frame(true); % Play's x-limits, as the movie
+            else
+                ax = obj.surf_3D.ax;
+                show = @() obj.show_3D_frame();
+            end
+            panel_units = plot_panel.Units;
+            plot_panel.Units = 'pixels';
+            panel_pos = plot_panel.Position;
+            plot_panel.Units = panel_units;
+            fignew = figure('Visible', 'off', 'Units', 'pixels', ...
+                'Position', [100 100 panel_pos(3) panel_pos(4)]);
+            save_error = [];
+            try
+                % bin 1, as the movie's first frame: x-limits and layout
+                obj.frame_ind = 1;
+                show();
+                xl_hold = ax.XLim;
+                drawnow
+                obj.copy_plot_to_figure(plot_panel, fignew);
+                layout = obj.style_movie_copy(fignew, struct('cb_pos', [], 'ax_pos', []));
+                % this bin, drawn as its movie frame
+                obj.frame_ind = k0;
+                show();
+                ax.XLim = xl_hold;
+                drawnow
+                delete(fignew.Children);
+                obj.copy_plot_to_figure(plot_panel, fignew);
+                obj.style_movie_copy(fignew, layout);
+                img = print(fignew, '-RGBImage', '-r0');
+                bb = obj.movie_content_bbox(img);
+                if ~isempty(bb)
+                    pad = obj.MOVIE_CROP_PAD;
+                    [h, w, ~] = size(img);
+                    img = img(max(1, bb(1) - pad):min(h, bb(2) + pad), ...
+                              max(1, bb(3) - pad):min(w, bb(4) + pad), :);
+                end
+                imwrite(img, filename);
+                fig_file = regexprep(filename, '\.png$', '', 'ignorecase') + ".fig";
+                set(fignew, 'CreateFcn', 'set(gcbf,''Visible'',''on'')');
+                savefig(fignew, fig_file);
+            catch save_error
+            end
+            if isvalid(fignew)
+                delete(fignew);
+            end
+            % back to the plot as it was
+            obj.frame_ind = k0;
+            obj.slider.Value = k0;
+            if is_merged
+                obj.show_merged_frame(false);
+            else
+                obj.show_3D_frame();
+            end
+            if isempty(save_error)
+                disp("Saved bin " + k0 + " to " + filename + " (and .fig)")
+            else
+                uialert(fig, "Saving the figure failed: " + save_error.message, "Save Figure");
+            end
         end
 
         % Steps the 2D movie through every phase bin (bin 1 to the last)
@@ -2588,8 +2673,9 @@ methods
             % crop: the smallest box holding the content of every frame
             frames = {};
             bbox = [Inf -Inf Inf -Inf]; % [row_min row_max col_min col_max]
-            movie_cb_pos = []; % 3D plots: colorbar position, fitted on the first frame and kept
-            movie_ax_pos = []; % 3D plots: axes inner box clear of the colorbar, also kept
+            % 3D plots: colorbar position and the axes box clear of it,
+            % fitted on the first frame and kept (style_movie_copy)
+            movie_layout = struct('cb_pos', [], 'ax_pos', []);
             try
                 if is_merged
                     save_merged_frames();
@@ -2688,17 +2774,13 @@ methods
                 k = obj.frame_ind;
                 delete(fignew.Children);
                 obj.copy_plot_to_figure(plot_panel, fignew);
-                style_movie_frame();
+                movie_layout = obj.style_movie_copy(fignew, movie_layout);
                 img = print(fignew, '-RGBImage', '-r0');
-                % content = pixels that differ from the background (corner
-                % pixel colour); widen the box to cover this frame
-                bg = img(1, 1, :);
-                content = any(abs(int16(img) - int16(bg)) > 8, 3);
-                rows = find(any(content, 2));
-                cols = find(any(content, 1));
-                if ~isempty(rows)
-                    bbox = [min(bbox(1), rows(1)), max(bbox(2), rows(end)), ...
-                            min(bbox(3), cols(1)), max(bbox(4), cols(end))];
+                % widen the crop box to cover this frame
+                bb = obj.movie_content_bbox(img);
+                if ~isempty(bb)
+                    bbox = [min(bbox(1), bb(1)), max(bbox(2), bb(2)), ...
+                            min(bbox(3), bb(3)), max(bbox(4), bb(4))];
                 end
                 frames{end+1} = img;
                 num_saved = num_saved + 1;
@@ -2708,93 +2790,6 @@ methods
                 if k >= obj.num_bins || dlg.CancelRequested
                     obj.play = false; % ends the play loop in update_plot
                 end
-            end
-
-            % Movie look (MOVIE_*), on the copy only: no title, larger text,
-            % and on the 3D plots a colorbar as tall as the drawn plot
-            % rather than the whole axes box (most of which is empty)
-            function style_movie_frame()
-                if obj.MOVIE_HIDE_TITLE
-                    for a = findall(fignew, 'Type', 'axes')'
-                        a.Title.String = '';
-                    end
-                end
-                if obj.MOVIE_FONT_SCALE ~= 1
-                    % sizes read first, then set: labels following their
-                    % axes' size would otherwise be scaled twice
-                    h = findall(fignew, '-property', 'FontSize');
-                    fs = get(h, 'FontSize');
-                    if ~iscell(fs)
-                        fs = {fs};
-                    end
-                    for kh = 1:numel(h)
-                        h(kh).FontSize = fs{kh} * obj.MOVIE_FONT_SCALE;
-                    end
-                end
-                cb = findall(fignew, 'Type', 'colorbar');
-                ax_all = findall(fignew, 'Type', 'axes');
-                if ~isscalar(cb) || isempty(ax_all) || ~obj.is_3D_plot_type()
-                    return
-                end
-                % the plot's axes: the largest (any overlay axes are small)
-                areas = arrayfun(@(a) prod(a.Position(3:4)), ax_all);
-                [~, i_ax] = max(areas);
-                ax_m = ax_all(i_ax);
-                cb.Units = 'normalized';
-                ax_m.Units = 'normalized';
-                cb_left = cb.Position(1); % before the colorbar is moved
-
-                if isempty(movie_ax_pos)
-                    % Keep what's drawn clear of the colorbar. The 3D
-                    % camera holds its view angle (vis3d, rotate / zoom),
-                    % so narrowing the axes doesn't shrink the scene, and
-                    % 3D content isn't clipped at the axes box: measure
-                    % where the plot is drawn (colorbar hidden) and scale
-                    % the axes box evenly, about its centre, which scales
-                    % the scene with it, until its right edge clears.
-                    cb.Visible = 'off';
-                    ip = ax_m.InnerPosition;
-                    for it = 1:4
-                        ax_m.InnerPosition = ip;
-                        img0 = print(fignew, '-RGBImage', '-r0');
-                        W = size(img0, 2);
-                        bg0 = img0(1, 1, :);
-                        cols0 = find(any(any(abs(int16(img0) - int16(bg0)) > 8, 3), 1));
-                        target = (cb_left - obj.MOVIE_CB_GAP) * W;   % px
-                        cx = (ip(1) + ip(3) / 2) * W;                 % centre, px
-                        if isempty(cols0) || cols0(end) <= target || cols0(end) <= cx
-                            break
-                        end
-                        k = 0.98 * (target - cx) / (cols0(end) - cx);
-                        c = ip(1:2) + ip(3:4) / 2;
-                        ip = [c - k * ip(3:4) / 2, k * ip(3:4)];
-                    end
-                    cb.Visible = 'on';
-                    movie_ax_pos = ip;
-                end
-                ax_m.InnerPosition = movie_ax_pos;
-
-                if isempty(movie_cb_pos)
-                    % height of what's drawn (plot, axis labels, robot),
-                    % measured with the colorbar hidden
-                    cb.Visible = 'off';
-                    img0 = print(fignew, '-RGBImage', '-r0');
-                    cb.Visible = 'on';
-                    bg0 = img0(1, 1, :);
-                    rows0 = find(any(any(abs(int16(img0) - int16(bg0)) > 8, 3), 2));
-                    if isempty(rows0)
-                        return
-                    end
-                    H = size(img0, 1);
-                    y_lo = 1 - rows0(end) / H;       % normalized, from the bottom
-                    y_hi = 1 - (rows0(1) - 1) / H;
-                    pos = cb.Position;
-                    hgt = obj.MOVIE_CB_HEIGHT_FRAC * (y_hi - y_lo);
-                    movie_cb_pos = [cb_left, (y_lo + y_hi) / 2 - hgt / 2, pos(3), hgt];
-                end
-                cb.Units = 'normalized';
-                cb.Position = movie_cb_pos;
-                ax_m.InnerPosition = movie_ax_pos; % again, in case moving the colorbar moved it
             end
 
             % crop every frame to the common box (plus MOVIE_CROP_PAD) and
@@ -7347,6 +7342,110 @@ methods (Access = private)
                 str = str + " (" + strjoin(notes, ", ") + ")";
             end
             h_title.String = str;
+        end
+    end
+
+    % Movie look (MOVIE_*), on a copy of the plot (copy_plot_to_figure):
+    % no title, larger text, and on the 3D plots a colorbar as tall as the
+    % drawn plot rather than the whole axes box (most of which is empty),
+    % with the plot kept clear of it. layout (cb_pos, ax_pos; [] to fit)
+    % is fitted on the first copy and passed back in for the rest, so all
+    % frames of a movie - and Save Figure, fitted the same way - match.
+    function layout = style_movie_copy(obj, fignew, layout)
+        if obj.MOVIE_HIDE_TITLE
+            for a = findall(fignew, 'Type', 'axes')'
+                a.Title.String = '';
+            end
+        end
+        if obj.MOVIE_FONT_SCALE ~= 1
+            % sizes read first, then set: labels following their
+            % axes' size would otherwise be scaled twice
+            h = findall(fignew, '-property', 'FontSize');
+            fs = get(h, 'FontSize');
+            if ~iscell(fs)
+                fs = {fs};
+            end
+            for kh = 1:numel(h)
+                h(kh).FontSize = fs{kh} * obj.MOVIE_FONT_SCALE;
+            end
+        end
+        cb = findall(fignew, 'Type', 'colorbar');
+        ax_all = findall(fignew, 'Type', 'axes');
+        if ~isscalar(cb) || isempty(ax_all) || ~obj.is_3D_plot_type()
+            return
+        end
+        % the plot's axes: the largest (any overlay axes are small)
+        areas = arrayfun(@(a) prod(a.Position(3:4)), ax_all);
+        [~, i_ax] = max(areas);
+        ax_m = ax_all(i_ax);
+        cb.Units = 'normalized';
+        ax_m.Units = 'normalized';
+        cb_left = cb.Position(1); % before the colorbar is moved
+
+        if isempty(layout.ax_pos)
+            % Keep what's drawn clear of the colorbar. The 3D
+            % camera holds its view angle (vis3d, rotate / zoom),
+            % so narrowing the axes doesn't shrink the scene, and
+            % 3D content isn't clipped at the axes box: measure
+            % where the plot is drawn (colorbar hidden) and scale
+            % the axes box evenly, about its centre, which scales
+            % the scene with it, until its right edge clears.
+            cb.Visible = 'off';
+            ip = ax_m.InnerPosition;
+            for it = 1:4
+                ax_m.InnerPosition = ip;
+                img0 = print(fignew, '-RGBImage', '-r0');
+                W = size(img0, 2);
+                bg0 = img0(1, 1, :);
+                cols0 = find(any(any(abs(int16(img0) - int16(bg0)) > 8, 3), 1));
+                target = (cb_left - obj.MOVIE_CB_GAP) * W;   % px
+                cx = (ip(1) + ip(3) / 2) * W;                 % centre, px
+                if isempty(cols0) || cols0(end) <= target || cols0(end) <= cx
+                    break
+                end
+                k = 0.98 * (target - cx) / (cols0(end) - cx);
+                c = ip(1:2) + ip(3:4) / 2;
+                ip = [c - k * ip(3:4) / 2, k * ip(3:4)];
+            end
+            cb.Visible = 'on';
+            layout.ax_pos = ip;
+        end
+        ax_m.InnerPosition = layout.ax_pos;
+
+        if isempty(layout.cb_pos)
+            % height of what's drawn (plot, axis labels, robot),
+            % measured with the colorbar hidden
+            cb.Visible = 'off';
+            img0 = print(fignew, '-RGBImage', '-r0');
+            cb.Visible = 'on';
+            bg0 = img0(1, 1, :);
+            rows0 = find(any(any(abs(int16(img0) - int16(bg0)) > 8, 3), 2));
+            if isempty(rows0)
+                return
+            end
+            H = size(img0, 1);
+            y_lo = 1 - rows0(end) / H;       % normalized, from the bottom
+            y_hi = 1 - (rows0(1) - 1) / H;
+            pos = cb.Position;
+            hgt = obj.MOVIE_CB_HEIGHT_FRAC * (y_hi - y_lo);
+            layout.cb_pos = [cb_left, (y_lo + y_hi) / 2 - hgt / 2, pos(3), hgt];
+        end
+        cb.Units = 'normalized';
+        cb.Position = layout.cb_pos;
+        ax_m.InnerPosition = layout.ax_pos; % again, in case moving the colorbar moved it
+    end
+
+    % Pixel box [row_min row_max col_min col_max] of what's drawn in a
+    % frame: pixels differing from the background (corner pixel colour);
+    % [] if nothing
+    function bb = movie_content_bbox(~, img)
+        bg = img(1, 1, :);
+        content = any(abs(int16(img) - int16(bg)) > 8, 3);
+        rows = find(any(content, 2));
+        cols = find(any(content, 1));
+        bb = [];
+        if ~isempty(rows)
+            bb = [rows(1), rows(end), cols(1), cols(end)];
         end
     end
 
