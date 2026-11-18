@@ -2732,26 +2732,48 @@ methods
                     end
                 end
                 cb = findall(fignew, 'Type', 'colorbar');
-                ax_m = findall(fignew, 'Type', 'axes');
-                if ~isscalar(cb) || ~isscalar(ax_m) || ~obj.is_3D_plot_type()
+                ax_all = findall(fignew, 'Type', 'axes');
+                if ~isscalar(cb) || isempty(ax_all) || ~obj.is_3D_plot_type()
                     return
                 end
-                % Moving the colorbar fixes its position and lets the axes
-                % grow into the space it had kept for it (on the top view
-                % the plot fills the axes, so the colorbar sat on the
-                % wake): hold the axes' plot box left of the colorbar,
-                % before measuring the plot's height
+                % the plot's axes: the largest (any overlay axes are small)
+                areas = arrayfun(@(a) prod(a.Position(3:4)), ax_all);
+                [~, i_ax] = max(areas);
+                ax_m = ax_all(i_ax);
                 cb.Units = 'normalized';
                 ax_m.Units = 'normalized';
+                cb_left = cb.Position(1); % before the colorbar is moved
+
                 if isempty(movie_ax_pos)
+                    % Keep what's drawn clear of the colorbar. The 3D
+                    % camera holds its view angle (vis3d, rotate / zoom),
+                    % so narrowing the axes doesn't shrink the scene, and
+                    % 3D content isn't clipped at the axes box: measure
+                    % where the plot is drawn (colorbar hidden) and scale
+                    % the axes box evenly, about its centre, which scales
+                    % the scene with it, until its right edge clears.
+                    cb.Visible = 'off';
                     ip = ax_m.InnerPosition;
-                    right = cb.Position(1) - obj.MOVIE_CB_GAP;
-                    if ip(1) + ip(3) > right
-                        ip(3) = right - ip(1);
+                    for it = 1:4
+                        ax_m.InnerPosition = ip;
+                        img0 = print(fignew, '-RGBImage', '-r0');
+                        W = size(img0, 2);
+                        bg0 = img0(1, 1, :);
+                        cols0 = find(any(any(abs(int16(img0) - int16(bg0)) > 8, 3), 1));
+                        target = (cb_left - obj.MOVIE_CB_GAP) * W;   % px
+                        cx = (ip(1) + ip(3) / 2) * W;                 % centre, px
+                        if isempty(cols0) || cols0(end) <= target || cols0(end) <= cx
+                            break
+                        end
+                        k = 0.98 * (target - cx) / (cols0(end) - cx);
+                        c = ip(1:2) + ip(3:4) / 2;
+                        ip = [c - k * ip(3:4) / 2, k * ip(3:4)];
                     end
+                    cb.Visible = 'on';
                     movie_ax_pos = ip;
                 end
                 ax_m.InnerPosition = movie_ax_pos;
+
                 if isempty(movie_cb_pos)
                     % height of what's drawn (plot, axis labels, robot),
                     % measured with the colorbar hidden
@@ -2766,10 +2788,9 @@ methods
                     H = size(img0, 1);
                     y_lo = 1 - rows0(end) / H;       % normalized, from the bottom
                     y_hi = 1 - (rows0(1) - 1) / H;
-                    cb.Units = 'normalized';
                     pos = cb.Position;
                     hgt = obj.MOVIE_CB_HEIGHT_FRAC * (y_hi - y_lo);
-                    movie_cb_pos = [pos(1), (y_lo + y_hi) / 2 - hgt / 2, pos(3), hgt];
+                    movie_cb_pos = [cb_left, (y_lo + y_hi) / 2 - hgt / 2, pos(3), hgt];
                 end
                 cb.Units = 'normalized';
                 cb.Position = movie_cb_pos;
