@@ -6372,11 +6372,76 @@ methods (Access = private)
         end
     end
 
+    % Axis labels of "phase avg: 3D plot", typeset with LaTeX (ticks too,
+    % so the numbers match): x/c or t/T along the stack, y/c, z/c. The x
+    % and y labels are turned to lie along their axes as drawn, and follow
+    % the view (align_axis_labels_3D).
     function set_stack_xlabel(obj, ax)
         if obj.conv_units_bool
-            xlabel(ax, "x/c = U t / c downstream of the plane", FontSize=16)
+            xlabel(ax, "$x/c$", 'Interpreter', 'latex', 'FontSize', 20)
         else
-            xlabel(ax, "t/T since crossing the plane", FontSize=16)
+            xlabel(ax, "$t/T$", 'Interpreter', 'latex', 'FontSize', 20)
+        end
+        ylabel(ax, "$y/c$", 'Interpreter', 'latex', 'FontSize', 20)
+        zlabel(ax, "$z/c$", 'Interpreter', 'latex', 'FontSize', 20)
+        ax.TickLabelInterpreter = 'latex';
+        ax.FontSize = 16;
+        obj.align_axis_labels_3D(ax);
+        if ~isappdata(ax, 'label_align_listeners')
+            ls = event.listener.empty;
+            for prop = ["View", "CameraPosition", "CameraUpVector", "XLim", "YLim", "ZLim", ...
+                    "DataAspectRatio", "PlotBoxAspectRatio"]
+                try
+                    ls(end+1) = addlistener(ax, prop, 'PostSet', ...
+                        @(~, ~) obj.align_axis_labels_3D(ax)); %#ok<AGROW>
+                catch
+                end
+            end
+            setappdata(ax, 'label_align_listeners', ls);
+        end
+    end
+
+    % Turn the x and y labels of a 3D axes to run along their axes on the
+    % screen. Each axis direction is projected with the camera (in plot box
+    % units: limits scaled to PlotBoxAspectRatio, as MATLAB draws them);
+    % the angle is kept readable (within +/-90 deg). Exact for
+    % orthographic views, close for perspective.
+    function align_axis_labels_3D(~, ax)
+        if ~isvalid(ax)
+            return
+        end
+        lims = [ax.XLim; ax.YLim; ax.ZLim];
+        pba = ax.PlotBoxAspectRatio(:);
+        to_box = @(p) (p(:) - lims(:,1)) ./ (lims(:,2) - lims(:,1)) .* pba;
+        d = to_box(ax.CameraTarget) - to_box(ax.CameraPosition);
+        if norm(d) == 0
+            return
+        end
+        d = d / norm(d);
+        up = ax.CameraUpVector(:) ./ (lims(:,2) - lims(:,1)) .* pba; % a direction, scaled the same
+        right = cross(d, up);
+        if norm(right) < eps
+            return
+        end
+        right = right / norm(right);
+        scr_up = cross(right, d);
+        labels = [ax.XLabel, ax.YLabel];
+        for k = 1:2
+            e = zeros(3, 1);
+            e(k) = pba(k); % axis k across the box
+            sx = dot(e, right);
+            sy = dot(e, scr_up);
+            if hypot(sx, sy) < 1e-3 * norm(pba)
+                labels(k).Rotation = 0; % axis points at the viewer
+                continue
+            end
+            ang = atan2d(sy, sx);
+            if ang > 90
+                ang = ang - 180;
+            elseif ang < -90
+                ang = ang + 180;
+            end
+            labels(k).Rotation = ang;
         end
     end
 
