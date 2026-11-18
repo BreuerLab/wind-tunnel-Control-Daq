@@ -2216,9 +2216,9 @@ methods
                 unc_contour_button.Visible = "off";
                 row_heights{17} = 0;
             end
-            % Save Movie: the 2D movies (phase avg / phase std) and the
-            % all-planes 3D plot
-            if ismember(obj.plot_type, obj.plot_types([2 4 13])) || obj.plot_type == obj.MERGED_3D_PLOT
+            % Save Movie: the 2D movies (phase avg / phase std) and both 3D
+            % plots
+            if ismember(obj.plot_type, obj.plot_types([2 4 5 13])) || obj.plot_type == obj.MERGED_3D_PLOT
                 save_movie_button.Enable = "on";
             else
                 save_movie_button.Enable = "off";
