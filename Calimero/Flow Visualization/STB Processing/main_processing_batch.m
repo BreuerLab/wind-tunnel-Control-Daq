@@ -18,7 +18,7 @@ addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path
 
 % Alternatively, select cases by filter. Leave a filter empty to accept
 % any value. Uncomment the line below the filters to use them.
-positions = ["x3"];        % "x1"-"x5", "MPS", "UP_one", "UP_two", "" = old 0.9 m cases (no prefix)
+positions = ["x1"];        % "x1"-"x5", "MPS", "UP_one", "UP_two", "" = old 0.9 m cases (no prefix)
 amps = [20];               % flapping amplitude (deg)
 freqs = [6];         % wingbeat frequency (Hz), 0 = gliding
 sel_case_names = select_cases(get_PIV_paths(), positions, amps, freqs);
@@ -92,7 +92,7 @@ bools.version = "";
 % Reynolds stresses and Q_inst are still computed per bin. Saved with
 % "_hr" added to the version name (e.g. coarse_hr), so it doesn't
 % overwrite the bin-averaged files. See harmonic_regression_STB.m.
-bools.harmonic_reg = true;
+bools.harmonic_reg = false;
 bools.num_harmonics = 20; % 2*10+1 = 21 coefficients per point and field
 bools.hr_save_coef = false; % save coefficients (to evaluate fit / exact d/dt at any phase); large files
 
@@ -118,7 +118,7 @@ bools.particle = particle_default_opts();
 % the per-frame SDs from.
 bools.particle.run  = true;   % true: add the particle processing
 bools.particle.only = false;   % true: only the particle processing (binned files must exist)
-bools.particle.reuse_fit = true;  % true: reuse saved particle fits, only redo the integrals
+bools.particle.reuse_fit = false;  % true: reuse saved particle fits, only redo the integrals
 % bools.particle.run_tag      = "o3";     % tag non-default fit settings in the file names
 % bools.particle.fit.depthOrder = 5;
 % bools.particle.hr_harmonics = 20;     % harmonic regression across bins, 0 = off

@@ -509,7 +509,7 @@ methods
         obj.unc_mask_bool = true; % on by default
         obj.unc_mask_thresh = 3; % % of freestream
         obj.crop_box_bool = false;
-        obj.crop_box = [-1.4 1.4 -3.5 -1.2];
+        obj.crop_box = [-1.4 1.4 -3.5 -1.4];
         obj.unc_contour_bool = false;
         obj.unc_contour_levels = 1:4; % % of freestream
         obj.centroid_bool = false;
