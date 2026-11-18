@@ -6388,11 +6388,11 @@ methods (Access = private)
         ax.FontSize = 16;
         obj.align_axis_labels_3D(ax);
         if ~isappdata(ax, 'label_align_listeners')
-            ls = event.listener.empty;
+            ls = {}; % property listeners, kept with the axes
             for prop = ["View", "CameraPosition", "CameraUpVector", "XLim", "YLim", "ZLim", ...
                     "DataAspectRatio", "PlotBoxAspectRatio"]
                 try
-                    ls(end+1) = addlistener(ax, prop, 'PostSet', ...
+                    ls{end+1} = addlistener(ax, prop, 'PostSet', ...
                         @(~, ~) obj.align_axis_labels_3D(ax)); %#ok<AGROW>
                 catch
                 end
