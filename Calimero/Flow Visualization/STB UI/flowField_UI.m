@@ -1801,7 +1801,8 @@ methods
         save_movie_button.FontSize = 18;
         save_movie_button.BackgroundColor = obj.INACTIVE_COLOR;
         save_movie_button.Tooltip = "Save the movie (every phase bin, from bin 1 to the last) as a .gif. " + ...
-            "For phase avg: movie, phase std: movie and phase avg: 3D all planes (the 3D view as shown)";
+            "For phase avg: movie, phase std: movie, phase avg: 3D plot and phase avg: 3D all planes " + ...
+            "(the 3D views as shown, with any Fix Limits)";
         save_movie_button.ButtonPushedFcn = @(src, event) save_movie(src, event, plot_area_panel);
 
         % Uncertainty isolines on the 2D plots (types 1-4), like Unc Mask
@@ -2541,13 +2542,18 @@ methods
         function save_movie(~, ~, plot_panel)
             fig = ancestor(plot_panel, 'figure');
             is_merged = obj.plot_type == obj.MERGED_3D_PLOT;
-            if ~ismember(obj.plot_type, obj.plot_types([2 4 13])) && ~is_merged
-                uialert(fig, "Save Movie is only for phase avg: movie, phase std: movie " + ...
-                    "and phase avg: 3D all planes.", "Save Movie");
+            is_3D = obj.plot_type == obj.plot_types(5);
+            if ~ismember(obj.plot_type, obj.plot_types([2 4 13])) && ~is_merged && ~is_3D
+                uialert(fig, "Save Movie is only for phase avg: movie, phase std: movie, " + ...
+                    "phase avg: 3D plot and phase avg: 3D all planes.", "Save Movie");
                 return
             end
             if is_merged && ~obj.can_play_merged()
                 uialert(fig, "Draw the all-planes plot first (nothing to save).", "Save Movie");
+                return
+            end
+            if is_3D && ~obj.can_play_3D()
+                uialert(fig, "Draw the 3D plot first (nothing to save).", "Save Movie");
                 return
             end
             if obj.play
@@ -2585,6 +2591,8 @@ methods
             try
                 if is_merged
                     save_merged_frames();
+                elseif is_3D
+                    save_3D_frames();
                 else
                     obj.frame_ind = 1;
                     obj.slider.Value = 1;
@@ -2636,6 +2644,31 @@ methods
                     obj.frame_ind = kb;
                     obj.slider.Value = kb;
                     obj.show_merged_frame(true);
+                    if isempty(xl_hold)
+                        xl_hold = ax.XLim;
+                    else
+                        ax.XLim = xl_hold;
+                    end
+                    drawnow
+                    capture_frame();
+                    if dlg.CancelRequested
+                        break
+                    end
+                end
+            end
+
+            % "phase avg: 3D plot": every bin from the plot as shown (camera,
+            % Fix Limits y / z and x %, robot), sliding the precomputed
+            % surface like Play. x-limits held at bin 1's so the picture
+            % doesn't jump as the robot's wings move.
+            function save_3D_frames()
+                ax = obj.surf_3D.ax;
+                N = obj.surf_3D.params.num_bins;
+                xl_hold = [];
+                for kb = 1:N
+                    obj.frame_ind = kb;
+                    obj.slider.Value = kb;
+                    obj.show_3D_frame();
                     if isempty(xl_hold)
                         xl_hold = ax.XLim;
                     else
