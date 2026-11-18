@@ -6408,7 +6408,10 @@ methods (Access = private)
     end
 
     % Turn the x and y labels of a 3D axes to run along their axes on the
-    % screen. Each axis direction is projected with the camera (in plot box
+    % screen, centred on them: MATLAB's automatic place (kept for which
+    % edge and how far out) slides labels along the axis to clear the
+    % tick labels as if the text were horizontal, so each label's own
+    % coordinate is reset to the middle of its axis range. Each axis direction is projected with the camera (in plot box
     % units: limits scaled to PlotBoxAspectRatio, as MATLAB draws them);
     % the angle is kept readable (within +/-90 deg). Exact for
     % orthographic views, close for perspective.
@@ -6448,6 +6451,13 @@ methods (Access = private)
                 ang = ang + 180;
             end
             labels(k).Rotation = ang;
+        end
+        lim_k = {ax.XLim, ax.YLim};
+        for k = 1:2
+            labels(k).PositionMode = 'auto'; % MATLAB's edge and offset for this view
+            pos = labels(k).Position;
+            pos(k) = mean(lim_k{k});          % centred along its axis
+            labels(k).Position = pos;
         end
     end
 
