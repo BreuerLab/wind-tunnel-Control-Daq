@@ -5791,7 +5791,7 @@ methods (Access = private)
         obj.merged_ext.planes = planes;
         obj.merged_ext.N = N;
         setColorBar(ax, params)
-        xlabel(ax, "x/c (downstream of the robot)", FontSize=16)
+        obj.set_3D_axis_labels(ax, "$x/c$"); % x/c from the robot; LaTeX, along the axes
         % while playing the full reconstructed length (the surface moves),
         % otherwise cropped to where the isosurface ends
         obj.draw_merged_planes(ax, planes);
@@ -6372,16 +6372,22 @@ methods (Access = private)
         end
     end
 
-    % Axis labels of "phase avg: 3D plot", typeset with LaTeX (ticks too,
+    % Axis labels of the 3D plots, typeset with LaTeX (ticks too,
     % so the numbers match): x/c or t/T along the stack, y/c, z/c. The x
     % and y labels are turned to lie along their axes as drawn, and follow
     % the view (align_axis_labels_3D).
     function set_stack_xlabel(obj, ax)
         if obj.conv_units_bool
-            xlabel(ax, "$x/c$", 'Interpreter', 'latex', 'FontSize', 20)
+            obj.set_3D_axis_labels(ax, "$x/c$");
         else
-            xlabel(ax, "$t/T$", 'Interpreter', 'latex', 'FontSize', 20)
+            obj.set_3D_axis_labels(ax, "$t/T$");
         end
+    end
+
+    % LaTeX axis labels and ticks of a 3D plot (both 3D plots), x label
+    % xlab, the x and y labels kept along their axes
+    function set_3D_axis_labels(obj, ax, xlab)
+        xlabel(ax, xlab, 'Interpreter', 'latex', 'FontSize', 20)
         ylabel(ax, "$y/c$", 'Interpreter', 'latex', 'FontSize', 20)
         zlabel(ax, "$z/c$", 'Interpreter', 'latex', 'FontSize', 20)
         ax.TickLabelInterpreter = 'latex';
