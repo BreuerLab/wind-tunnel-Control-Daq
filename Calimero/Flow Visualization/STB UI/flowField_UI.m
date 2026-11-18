@@ -9,6 +9,7 @@ properties (Constant, Access = private)
     MOVIE_HIDE_TITLE = true;    % no title
     MOVIE_FONT_SCALE = 1.3;     % all text (ticks, labels, colorbar, plane labels) this much larger
     MOVIE_CB_HEIGHT_FRAC = 1;   % 3D plots: colorbar as tall as the drawn plot times this, centred on it
+    MOVIE_CB_GAP = 0.01;        % 3D plots: figure-width gap kept between the plot and the colorbar
     Q_ISO_RANGE = [0.005 0.1];  % Q isovalue slider range (negated by "+/-")
     Q_ISO_DEFAULT = 0.05;       % Q isovalue slider default
     % Tag on the 3D plot's stroke lines / shading / labels (Label Stroke),
@@ -2588,6 +2589,7 @@ methods
             frames = {};
             bbox = [Inf -Inf Inf -Inf]; % [row_min row_max col_min col_max]
             movie_cb_pos = []; % 3D plots: colorbar position, fitted on the first frame and kept
+            movie_ax_pos = []; % 3D plots: axes inner box clear of the colorbar, also kept
             try
                 if is_merged
                     save_merged_frames();
@@ -2730,9 +2732,26 @@ methods
                     end
                 end
                 cb = findall(fignew, 'Type', 'colorbar');
-                if ~isscalar(cb) || ~obj.is_3D_plot_type()
+                ax_m = findall(fignew, 'Type', 'axes');
+                if ~isscalar(cb) || ~isscalar(ax_m) || ~obj.is_3D_plot_type()
                     return
                 end
+                % Moving the colorbar fixes its position and lets the axes
+                % grow into the space it had kept for it (on the top view
+                % the plot fills the axes, so the colorbar sat on the
+                % wake): hold the axes' plot box left of the colorbar,
+                % before measuring the plot's height
+                cb.Units = 'normalized';
+                ax_m.Units = 'normalized';
+                if isempty(movie_ax_pos)
+                    ip = ax_m.InnerPosition;
+                    right = cb.Position(1) - obj.MOVIE_CB_GAP;
+                    if ip(1) + ip(3) > right
+                        ip(3) = right - ip(1);
+                    end
+                    movie_ax_pos = ip;
+                end
+                ax_m.InnerPosition = movie_ax_pos;
                 if isempty(movie_cb_pos)
                     % height of what's drawn (plot, axis labels, robot),
                     % measured with the colorbar hidden
@@ -2754,6 +2773,7 @@ methods
                 end
                 cb.Units = 'normalized';
                 cb.Position = movie_cb_pos;
+                ax_m.InnerPosition = movie_ax_pos; % again, in case moving the colorbar moved it
             end
 
             % crop every frame to the common box (plus MOVIE_CROP_PAD) and
