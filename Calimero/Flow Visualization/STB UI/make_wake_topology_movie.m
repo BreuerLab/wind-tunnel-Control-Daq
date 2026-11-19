@@ -531,7 +531,7 @@ for fi = 0:n_frames - 1
 
     % ---- frame
     drawnow
-    img = grab_frame(fig, o.resolution);
+    img = grab_frame(fig, o.resolution, o.crop);
     writeVideo(vw, img);
     if o.save_png
         imwrite(img, fullfile(png_dir, sprintf("frame_%05d.png", fi)));
@@ -614,8 +614,11 @@ o.robot_alpha_head_on = 1;   % < 1 to see the plane through the robot in the hea
 o.resolution = [1920 1080];
 o.axes_pos = [0 0 0.8 1];            % normalized figure position of the 3D axes
 o.colorbar_pos = [0.74 0.2 0.016 0.6]; % colorbar (over the axes' empty right side); its label sits to its right
-o.caption_pos_head_on = [0.16 0.88 0.7 0.09]; % caption textbox (top-left anchored) in the head-on view
+o.caption_pos_head_on = [0.16 0.745 0.7 0.09]; % caption textbox (top-left anchored) in the head-on view
 o.caption_pos_iso = [0.16 0.72 0.7 0.09];     % ... and in the isometric view (moves over "rotate")
+o.crop = [0.15 0.14 0.70 0.70]; % part of the figure kept, [left top width height] as fractions from
+                                % its top-left: the frame is rendered 1/width larger and this part cut
+                                % out at 'resolution', so the plots fill the video; [] = no crop
 o.background = [1 1 1];
 o.text_color = [0 0 0];
 o.font_size = 16;
@@ -964,12 +967,26 @@ function str = onoff(tf)
 if tf, str = 'on'; else, str = 'off'; end
 end
 
-function img = grab_frame(fig, res)
+function img = grab_frame(fig, res, crop)
 % figure as an RGB image of exactly res = [width height] pixels (print
-% renders off screen, so it works with an invisible figure; resized if the
-% display scaling changes the size)
-img = print(fig, '-RGBImage', '-r0');
+% renders off screen, so it works with an invisible figure). With crop =
+% [left top width height] (fractions from the top-left), the figure is
+% printed 1/width times larger (text, lines and all, so the layout is
+% unchanged) and only that part is kept: the same picture, zoomed in.
+scale = 1;
+if ~isempty(crop)
+    scale = 1 / crop(3);
+end
+ppi = get(groot, 'ScreenPixelsPerInch');
+img = print(fig, '-RGBImage', sprintf('-r%d', round(ppi * scale)));
+if ~isempty(crop)
+    [h, w, ~] = size(img);
+    c0 = max(1, round(crop(1) * w) + 1);  c1 = min(w, round((crop(1) + crop(3)) * w));
+    r0 = max(1, round(crop(2) * h) + 1);  r1 = min(h, round((crop(2) + crop(4)) * h));
+    img = img(r0:r1, c0:c1, :);
+end
 if size(img, 1) ~= res(2) || size(img, 2) ~= res(1)
     img = imresize(img, [res(2) res(1)]);
 end
+
 end
