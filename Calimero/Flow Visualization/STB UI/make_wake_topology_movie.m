@@ -443,6 +443,12 @@ for fi = 0:n_frames - 1
         end
         set(h_cap, 'String', cap);
     end
+    % the frozen-flow title is held a little longer than the build itself:
+    % from caption_build_lead s before it (end of the camera move) to
+    % caption_build_lag s after it (start of the reveal)
+    if t >= t_build - o.caption_build_lead && t < t_build_end + o.caption_build_lag
+        set(h_cap, 'String', o.caption_build);
+    end
     if cb_key ~= cur_cb
         if cb_key == "iso"
             ax.Colormap = cm.iso;  clim(ax, o.clim_wx);  cb.Label.String = o.cb_label_wx;
@@ -614,11 +620,13 @@ o.cb_label_w = "\boldmath$\frac{w}{U_{\infty}}$";
 o.cb_label_wx = "\boldmath$\frac{\omega_x c}{U_{\infty}}$";
 o.cb_label_Q = "\boldmath$\frac{Q c^2}{U_{\infty}^2}$";
 o.caption_w = "Downwash $w/U_{\infty}$ in the imaging plane";
-o.caption_mirror = "Mirrored about the centreline: the wake of both wings";
+o.caption_mirror = "Mirrored about the centerline: the wake of both wings";
 o.caption_wx = "Streamwise vorticity $\omega_x c/U_{\infty}$";
 o.caption_Q = "$Q$-criterion $Q c^2/U_{\infty}^2$";
+o.caption_build_lead = 1.5;  % s the frozen-flow title shows before the build starts
+o.caption_build_lag = 1.5;   % s it stays after the build ends
 o.caption_build = "Frozen flow: $x = U_{\infty} t$ stacks the plane into a 3D wake";
-o.caption_reveal = "$Q$ isosurfaces coloured by $\omega_x c/U_{\infty}$";
+o.caption_reveal = "$Q$ isosurfaces colored by $\omega_x c/U_{\infty}$";
 % --- output
 o.out_dir = "C:\Users\rgissler\Documents\DFD 2026"; % where the .mp4 (and PNG frames) go; made if missing
 o.out_file = "";             % "" = <case>_wake_topology.mp4 in out_dir; a name with a folder overrides out_dir
