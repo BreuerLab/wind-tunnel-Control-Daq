@@ -619,14 +619,14 @@ o.light_az_el = [30 30];         % relative to the isometric camera
 o.cb_label_w = "\boldmath$\frac{w}{U_{\infty}}$";
 o.cb_label_wx = "\boldmath$\frac{\omega_x c}{U_{\infty}}$";
 o.cb_label_Q = "\boldmath$\frac{Q c^2}{U_{\infty}^2}$";
-o.caption_w = "Downwash $w/U_{\infty}$ in the imaging plane";
-o.caption_mirror = "Mirrored about the centerline: the wake of both wings";
-o.caption_wx = "Streamwise vorticity $\omega_x c/U_{\infty}$";
-o.caption_Q = "$Q$-criterion $Q c^2/U_{\infty}^2$";
+o.caption_w = "Downwash $w$ in the imaging plane";
+o.caption_mirror = "Mirrored about the centerline to obtain the wake of both wings";
+o.caption_wx = "Streamwise vorticity $\omega_x$";
+o.caption_Q = "$Q$-criterion";
 o.caption_build_lead = 1.5;  % s the frozen-flow title shows before the build starts
 o.caption_build_lag = 1.5;   % s it stays after the build ends
 o.caption_build = "Frozen flow: $x = U_{\infty} t$ stacks the plane into a 3D wake";
-o.caption_reveal = "$Q$ isosurfaces colored by $\omega_x c/U_{\infty}$";
+o.caption_reveal = "$Q$ isosurfaces colored by $\omega_x$";
 % --- output
 o.out_dir = "C:\Users\rgissler\Documents\DFD 2026"; % where the .mp4 (and PNG frames) go; made if missing
 o.out_file = "";             % "" = <case>_wake_topology.mp4 in out_dir; a name with a folder overrides out_dir
