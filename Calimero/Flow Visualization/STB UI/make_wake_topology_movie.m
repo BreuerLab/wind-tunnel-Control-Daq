@@ -245,7 +245,7 @@ p0 = build_start_phase(o, amp, delay);
 %% ------------------------------------------------------------ scene
 fig = figure('Color', o.background, 'Units', 'pixels', 'Visible', o.visible, ...
     'Position', [50 50 o.resolution], 'InvertHardcopy', 'off', 'Renderer', 'opengl');
-ax = axes(fig, 'Position', [0 0 0.86 1], 'Color', o.background);
+ax = axes(fig, 'Position', o.axes_pos, 'Color', o.background);
 hold(ax, 'on')
 axis(ax, 'off')
 daspect(ax, [1 1 1])
@@ -326,13 +326,14 @@ camlight(h_light, o.light_az_el(1), o.light_az_el(2));
 set_camera(ax, cam_head);
 
 % colorbar and caption
-cb = colorbar(ax, 'Position', [0.885 0.2 0.018 0.6], 'TickLabelInterpreter', 'latex', ...
+cb = colorbar(ax, 'Position', o.colorbar_pos, 'TickLabelInterpreter', 'latex', ...
     'FontSize', o.font_size, 'Color', o.text_color);
 cb.Label.Interpreter = 'latex';
 cb.Label.FontSize = o.font_size + 4;
 cb.Label.Rotation = 0;
 cb.Label.Color = o.text_color;
-ax.Position = [0 0 0.86 1];   % creating the colorbar shrinks the axes
+cb.Label.HorizontalAlignment = 'left'; % label to the right of the ticks, inside the frame
+ax.Position = o.axes_pos;   % creating the colorbar shrinks the axes
 h_cap = annotation(fig, 'textbox', [0.03 0.88 0.8 0.09], 'String', "", ...
     'Interpreter', 'latex', 'FontSize', o.font_size + 6, 'EdgeColor', 'none', ...
     'Color', o.text_color, 'VerticalAlignment', 'top', 'Visible', onoff(o.captions));
@@ -340,7 +341,10 @@ h_cap = annotation(fig, 'textbox', [0.03 0.88 0.8 0.09], 'String', "", ...
 %% ------------------------------------------------------------ output
 [out_dir, out_name] = fileparts(o.out_file);
 if strlength(out_dir) == 0
-    out_dir = string(pwd);
+    out_dir = string(o.out_dir);
+end
+if ~isfolder(out_dir)
+    mkdir(out_dir);
 end
 if strlength(string(out_name)) == 0
     out_name = case_label + "_wake_topology";
@@ -570,6 +574,8 @@ o.robot_wing_color = [0.06 0.06 0.06];
 o.robot_alpha_head_on = 1;   % < 1 to see the plane through the robot in the head-on view
 % --- look
 o.resolution = [1920 1080];
+o.axes_pos = [0 0 0.8 1];            % normalized figure position of the 3D axes
+o.colorbar_pos = [0.82 0.2 0.016 0.6]; % colorbar; its label sits to its right
 o.background = [1 1 1];
 o.text_color = [0 0 0];
 o.font_size = 16;
@@ -594,7 +600,8 @@ o.caption_Q = "$Q$-criterion $Q c^2/U_{\infty}^2$";
 o.caption_build = "Frozen flow: $x = U_{\infty} t$ stacks the plane into a 3D wake";
 o.caption_reveal = "$Q$ isosurfaces coloured by $\omega_x c/U_{\infty}$";
 % --- output
-o.out_file = "";             % "" = <case>_wake_topology.mp4 in the current folder
+o.out_dir = "C:\Users\rgissler\Documents\DFD 2026"; % where the .mp4 (and PNG frames) go; made if missing
+o.out_file = "";             % "" = <case>_wake_topology.mp4 in out_dir; a name with a folder overrides out_dir
 o.quality = 95;
 o.save_png = false;          % also write every frame as a PNG
 o.visible = 'on';            % 'off' renders without showing the figure
