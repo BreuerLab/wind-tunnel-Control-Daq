@@ -23,16 +23,16 @@ data_file_path = ["C:\Users\rgissler\Documents\STB Processed Results\", "W:\STB 
 
 % Explainer movie of how the "phase avg: 3D plot" is built (one case,
 % run on its own; 'preview', true for a quick low-res check)
-% make_wake_topology_movie("C:\Users\rgissler\Documents\STB Processed Results\", ...
-%     "x3_wings_20deg_8Hz_particle_pool_hr20", 'preview', true);
+make_wake_topology_movie("C:\Users\rgissler\Documents\STB Processed Results\", ...
+    "x3_wings_20deg_6Hz_hr", 'preview', true)
 
 % GUI for plotting instantaneous vector fields before phase averaging
 % b = flowFieldInst_UI(data_file_path);
 % b.dynamic_plotting();
 
 % GUI for plotting phase averaged quantities
-c = phaseAvg_UI(data_file_path);
-c.dynamic_plotting();
+% c = phaseAvg_UI(data_file_path);
+% c.dynamic_plotting();
 
 % % GUI for plotting time averaged quantities
 % d = timeAvg_UI(data_file_path);
