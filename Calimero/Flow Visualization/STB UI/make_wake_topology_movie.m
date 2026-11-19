@@ -15,7 +15,11 @@ function out_file = make_wake_topology_movie(data_root, case_label, varargin)
 %
 % Storyboard (segment names in brackets, durations in opts.seg):
 %   1 [w]        head-on view: the robot flaps, the plane behind it shows
-%                the phase-averaged downwash w
+%                the phase-averaged downwash w of the measured (one wing)
+%                half, placed with the mirror's offset (centreline at y = 0)
+%   1b [mirror]  the half is reflected about the centreline (flowField_UI
+%                Mirror): the copy swings out to -y, giving both wings'
+%                wake ('mirror', false leaves this out and stays one-sided)
 %   2 [w_to_wx]  crossfade to the streamwise vorticity omega_x
 %   3 [wx]       omega_x
 %   4 [wx_to_Q]  crossfade to Q
@@ -25,7 +29,8 @@ function out_file = make_wake_topology_movie(data_root, case_label, varargin)
 %                flow: each phase the plane sees is laid out at
 %                x = U (t_now - t_shed), so the wake grows downstream
 %   8 [reveal]   the plane fades to its green outline, the isosurfaces
-%                take on omega_x colours
+%                take on omega_x colours and lose their lighting (unlit,
+%                as the GUI's 3D plot)
 %   9 [hold]     the finished picture (optional slow orbit)
 %
 % Conventions follow "phase avg: 3D plot" with the x/c axis and Robot on:
@@ -34,7 +39,7 @@ function out_file = make_wake_topology_movie(data_root, case_label, varargin)
 % tail ROBOT_GAP_C upstream of the plane and its wings at the phase the
 % fluid at the plane was shed at (bin phase minus dist * f / CONV_SPEED,
 % as update_robot_3D). The plane fields and Q get the GUI's default
-% processing (trim, median filter; for the isosurface also the 3%
+% processing (trim, mirror, median filter; for the isosurface also the 3%
 % uncertainty mask and Remove Small 1%). The phase bins are upsampled by
 % Fourier interpolation (interpft) so the flapping and the convecting
 % wake are smooth; 'upsample', 1 gives the GUI's own bins.
@@ -80,7 +85,7 @@ case_files = cases(k).files;
 stem = string(cases(k).stem);
 
 % imaging plane, its distance from the robot and the trim box
-[plane_type, dist, trim_y, trim_z] = plane_info(stem, o);
+[plane_type, dist, trim_y, trim_z, mirror_c] = plane_info(stem, o);
 amp = regexp(stem, "(\d+)deg", "tokens", "once");
 if isempty(amp)
     error("make_wake_topology_movie:amp", "No wingbeat amplitude (..._20deg_...) in '%s'", stem);
@@ -120,8 +125,53 @@ iy = find(y(:,1) > trim_y(1) & y(:,1) < trim_y(2));
 iz = find(z(1,:) > trim_z(1) & z(1,:) < trim_z(2));
 y = y(iy, iz);   z = z(iy, iz);
 W = W(iy, iz, :);   WX = WX(iy, iz, :);   Q = Q(iy, iz, :);
+unc = [];
+if o.unc_mask_pct > 0
+    if isfield(d, "uncTot_phase_avg")
+        unc = mean(centre(d.uncTot_phase_avg), 3, "omitnan");
+        unc = unc(iy, iz);
+    else
+        warning("make_wake_topology_movie:unc", "uncTot_phase_avg missing: no uncertainty mask");
+    end
+end
 
-% median filter (filter_bool, on by default)
+% increasing grid vectors (plaid, for isosurface / interp3, and so the
+% mirror below stacks the reflected half in order)
+if y(end,1) < y(1,1)
+    y = flip(y, 1); z = flip(z, 1);
+    W = flip(W, 1); WX = flip(WX, 1); Q = flip(Q, 1);
+    if ~isempty(unc), unc = flip(unc, 1); end
+end
+if z(1,end) < z(1,1)
+    y = flip(y, 2); z = flip(z, 2);
+    W = flip(W, 2); WX = flip(WX, 2); Q = flip(Q, 2);
+    if ~isempty(unc), unc = flip(unc, 2); end
+end
+
+% mirror about the wake centreline, as flowField_UI (mirror_bool): keep
+% y > mirror_center_y and shift so the first kept row is y = 0 (the
+% robot's nose is on y = 0), then reflect it, skipping that row so it
+% isn't doubled. The measured half is rows n_add+1:end; the reflected
+% half, rows 1:n_add, is only shown from the "mirror" step on. omega_x is
+% odd in y, so its reflection changes sign (as the GUI's 3D plot, cFlip).
+iy_m = find(y(:,1) > mirror_c);
+y = y(iy_m, :);   z = z(iy_m, :);
+W = W(iy_m, :, :);   WX = WX(iy_m, :, :);   Q = Q(iy_m, :, :);
+if ~isempty(unc), unc = unc(iy_m, :); end
+y = y - min(y, [], 'all');
+n_add = 0;
+if o.mirror
+    n_add = size(y, 1) - 1;
+    reflect = @(A, sgn) [sgn * flip(A(2:end, :, :), 1); A];
+    y = [flip(-y(2:end, :), 1); y];
+    z = reflect(z, 1);
+    W = reflect(W, 1);   WX = reflect(WX, -1);   Q = reflect(Q, 1);
+    if ~isempty(unc), unc = reflect(unc, 1); end
+end
+yv = y(:,1);
+zv = z(1,:)';
+
+% median filter (filter_bool, on by default; after the mirror, as the GUI)
 if o.filter
     W = nan_safe_medfilt(W);  WX = nan_safe_medfilt(WX);  Q = nan_safe_medfilt(Q);
 end
@@ -129,29 +179,11 @@ end
 % the isosurface's Q: uncertainty mask (display only, as the GUI: masked
 % points get the median of Q, so no surface forms there)
 Q_iso = Q;
-if o.unc_mask_pct > 0
-    if isfield(d, "uncTot_phase_avg")
-        unc = mean(centre(d.uncTot_phase_avg), 3, "omitnan");
-        unc = unc(iy, iz);
-        mask = unc > o.unc_mask_pct / 100 | isnan(unc);
-        mask3 = repmat(mask, 1, 1, N);
-        Q_iso(mask3) = median(Q_iso(~mask3), "omitnan");
-        fprintf("Uncertainty mask: %.1f%% of points hidden\n", 100 * mean(mask(:)));
-    else
-        warning("make_wake_topology_movie:unc", "uncTot_phase_avg missing: no uncertainty mask");
-    end
-end
-
-% plaid, increasing grid vectors for isosurface / interp3
-yv = y(:,1);
-zv = z(1,:)';
-if yv(end) < yv(1)
-    yv = flip(yv); y = flip(y, 1); z = flip(z, 1);
-    W = flip(W, 1); WX = flip(WX, 1); Q = flip(Q, 1); Q_iso = flip(Q_iso, 1);
-end
-if zv(end) < zv(1)
-    zv = flip(zv); y = flip(y, 2); z = flip(z, 2);
-    W = flip(W, 2); WX = flip(WX, 2); Q = flip(Q, 2); Q_iso = flip(Q_iso, 2);
+if ~isempty(unc)
+    mask = unc > o.unc_mask_pct / 100 | isnan(unc);
+    mask3 = repmat(mask, 1, 1, N);
+    Q_iso(mask3) = median(Q_iso(~mask3), "omitnan");
+    fprintf("Uncertainty mask: %.1f%% of points hidden\n", 100 * mean(mask(:)));
 end
 
 % upsample in phase (periodic): bin j (0-based) at wing phase j / M
@@ -183,10 +215,13 @@ if o.robot
 end
 
 %% ------------------------------------------------------------ timeline
-seg_names = ["w", "w_to_wx", "wx", "wx_to_Q", "Q", "rotate", "build", "reveal", "hold"];
+seg_names = ["w", "mirror", "w_to_wx", "wx", "wx_to_Q", "Q", "rotate", "build", "reveal", "hold"];
 seg_dur = zeros(size(seg_names));
 for i = 1:numel(seg_names)
     seg_dur(i) = o.seg.(seg_names(i));
+end
+if ~o.mirror
+    seg_dur(seg_names == "mirror") = 0; % never selected (find picks the next segment)
 end
 seg_dur(seg_names == "build") = o.build_cycles * o.cycle_s; % exactly the wake's length
 seg_start = [0, cumsum(seg_dur(1:end-1))];
@@ -210,7 +245,7 @@ p0 = build_start_phase(o, amp, delay);
 %% ------------------------------------------------------------ scene
 fig = figure('Color', o.background, 'Units', 'pixels', 'Visible', o.visible, ...
     'Position', [50 50 o.resolution], 'InvertHardcopy', 'off', 'Renderer', 'opengl');
-ax = axes(fig, 'Position', [0 0 0.86 1], 'Color', o.background);
+ax = axes(fig, 'Position', o.axes_pos, 'Color', o.background);
 hold(ax, 'on')
 axis(ax, 'off')
 daspect(ax, [1 1 1])
@@ -223,6 +258,19 @@ h_plane = surface(ax, Xp, Yp, Zp, zeros([size(y) 3]), 'EdgeColor', 'none', ...
     'FaceColor', 'interp', 'FaceLighting', 'none', 'FaceAlpha', 'interp', ...
     'AlphaDataMapping', 'none', 'AlphaData', ones(size(y)), 'Clipping', 'off');
 
+% reflected half while it unfolds in the "mirror" step: rows 1:n_add + 1
+% (down to the centreline row), swung about the centreline (x = 0, y = 0)
+% from on top of the measured half to its place at -y
+rows_unf = 1:n_add + 1;
+r_unf = -y(rows_unf, :);   % distance from the centreline
+h_unf = gobjects(0);
+if n_add > 0
+    h_unf = surface(ax, zeros(size(r_unf)), r_unf, z(rows_unf, :), zeros([size(r_unf) 3]), ...
+        'EdgeColor', 'none', 'FaceColor', 'interp', 'FaceLighting', 'none', 'FaceAlpha', 'interp', ...
+        'AlphaDataMapping', 'none', 'AlphaData', zeros(size(r_unf)), 'Clipping', 'off', 'Visible', 'off');
+end
+show_rows = true(size(y, 1), 1);
+
 % plane outline (GUI MERGED_3D_PLANE_COLOR / _WIDTH)
 yl = [min(yv) max(yv)];  zl = [min(zv) max(zv)];
 h_box = plot3(ax, zeros(1, 5), yl([1 2 2 1 1]), zl([1 1 2 2 1]), '-', ...
@@ -231,8 +279,8 @@ h_box = plot3(ax, zeros(1, 5), yl([1 2 2 1 1]), zl([1 1 2 2 1]), '-', ...
 % wake isosurface (lit)
 h_iso = patch(ax, 'Faces', zeros(0, 3), 'Vertices', zeros(0, 3), ...
     'FaceVertexCData', zeros(0, 3), 'FaceColor', 'interp', 'EdgeColor', 'none', ...
-    'FaceLighting', 'gouraud', 'AmbientStrength', 0.4, 'DiffuseStrength', 0.7, ...
-    'SpecularStrength', 0.3, 'SpecularExponent', 15, 'BackFaceLighting', 'reverselit', ...
+    'FaceLighting', 'gouraud', 'AmbientStrength', o.iso_light(1), 'DiffuseStrength', o.iso_light(2), ...
+    'SpecularStrength', o.iso_light(3), 'SpecularExponent', 15, 'BackFaceLighting', 'reverselit', ...
     'Clipping', 'off');
 
 % robot (lit, flat)
@@ -278,13 +326,14 @@ camlight(h_light, o.light_az_el(1), o.light_az_el(2));
 set_camera(ax, cam_head);
 
 % colorbar and caption
-cb = colorbar(ax, 'Position', [0.885 0.2 0.018 0.6], 'TickLabelInterpreter', 'latex', ...
+cb = colorbar(ax, 'Position', o.colorbar_pos, 'TickLabelInterpreter', 'latex', ...
     'FontSize', o.font_size, 'Color', o.text_color);
 cb.Label.Interpreter = 'latex';
 cb.Label.FontSize = o.font_size + 4;
 cb.Label.Rotation = 0;
 cb.Label.Color = o.text_color;
-ax.Position = [0 0 0.86 1];   % creating the colorbar shrinks the axes
+cb.Label.HorizontalAlignment = 'left'; % label to the right of the ticks, inside the frame
+ax.Position = o.axes_pos;   % creating the colorbar shrinks the axes
 h_cap = annotation(fig, 'textbox', [0.03 0.88 0.8 0.09], 'String', "", ...
     'Interpreter', 'latex', 'FontSize', o.font_size + 6, 'EdgeColor', 'none', ...
     'Color', o.text_color, 'VerticalAlignment', 'top', 'Visible', onoff(o.captions));
@@ -292,7 +341,10 @@ h_cap = annotation(fig, 'textbox', [0.03 0.88 0.8 0.09], 'String', "", ...
 %% ------------------------------------------------------------ output
 [out_dir, out_name] = fileparts(o.out_file);
 if strlength(out_dir) == 0
-    out_dir = string(pwd);
+    out_dir = string(o.out_dir);
+end
+if ~isfolder(out_dir)
+    mkdir(out_dir);
 end
 if strlength(string(out_name)) == 0
     out_name = case_label + "_wake_topology";
@@ -339,9 +391,24 @@ for fi = 0:n_frames - 1
     end
     shown = fa;
     if mix >= 0.5, shown = fb; end
-    valid = ~isnan(sample_phase(fld.(shown).A, p, M));
-    set(h_plane, 'CData', rgb, 'AlphaData', double(valid) * alpha_plane, ...
+    valid = double(~isnan(sample_phase(fld.(shown).A, p, M)));
+    % the measured half only, until the reflected half has unfolded
+    show_rows(:) = true;
+    if ismember(seg, ["w", "mirror"])
+        show_rows(1:n_add) = false;
+    end
+    set(h_plane, 'CData', rgb, 'AlphaData', valid .* show_rows * alpha_plane, ...
         'Visible', onoff(alpha_plane > 0));
+    if seg == "mirror" && n_add > 0
+        th = pi * ease(s);
+        sw = 1;
+        if o.mirror_swing == "upstream", sw = -1; end
+        fade = min(1, s / o.mirror_fade_frac);
+        set(h_unf, 'XData', sw * r_unf * sin(th), 'YData', r_unf * cos(th), ...
+            'CData', rgb(rows_unf, :, :), 'AlphaData', valid(rows_unf, :) * fade, 'Visible', 'on');
+    else
+        set(h_unf, 'Visible', 'off');
+    end
 
     if ismember(seg, ["reveal", "hold"])
         cb_key = "iso";
@@ -349,6 +416,9 @@ for fi = 0:n_frames - 1
     elseif seg == "build"
         cb_key = "Q";
         set(h_cap, 'String', o.caption_build);
+    elseif seg == "mirror"
+        cb_key = "w";
+        set(h_cap, 'String', o.caption_mirror);
     else
         cb_key = shown;
         set(h_cap, 'String', fld.(shown).caption);
@@ -380,6 +450,17 @@ for fi = 0:n_frames - 1
             rgb_iso = (1 - c_mix) * rgb_iso + c_mix * values_to_rgb(Cw, cm.iso, o.clim_wx);
         end
         set(h_iso, 'Vertices', Vw, 'Faces', Fw, 'FaceVertexCData', rgb_iso, 'VertexNormals', Nw);
+        % lit while grey; the lighting goes as the omega_x colours come in
+        % (all ambient = the colours as they are, then lighting off, as
+        % the GUI's unlit 3D plot)
+        if c_mix >= 1
+            h_iso.FaceLighting = 'none';
+        else
+            set(h_iso, 'FaceLighting', 'gouraud', ...
+                'AmbientStrength', o.iso_light(1) + (1 - o.iso_light(1)) * c_mix, ...
+                'DiffuseStrength', o.iso_light(2) * (1 - c_mix), ...
+                'SpecularStrength', o.iso_light(3) * (1 - c_mix));
+        end
     else
         set(h_iso, 'Faces', zeros(0, 3), 'Vertices', zeros(0, 3), 'FaceVertexCData', zeros(0, 3));
     end
@@ -388,7 +469,7 @@ for fi = 0:n_frames - 1
     if ~isempty(h_robot)
         h_robot.Vertices = robot.vertices(p - delay);
         a = 1;
-        if ismember(seg, ["w", "w_to_wx", "wx", "wx_to_Q", "Q"])
+        if ismember(seg, ["w", "mirror", "w_to_wx", "wx", "wx_to_Q", "Q"])
             a = o.robot_alpha_head_on;
         elseif seg == "rotate"
             a = o.robot_alpha_head_on + (1 - o.robot_alpha_head_on) * ease(s);
@@ -435,6 +516,7 @@ end
         mix = 0;
         switch seg
             case "w",       fa = "w";
+            case "mirror",  fa = "w";
             case "w_to_wx", fa = "w";  fb = "wx"; mix = ease(s);
             case "wx",      fa = "wx";
             case "wx_to_Q", fa = "wx"; fb = "Q";  mix = ease(s);
@@ -450,11 +532,13 @@ function o = default_options()
 o.fps = 30;
 o.cycle_s = 2.5;             % movie seconds per wingbeat (slow motion)
 o.build_cycles = 1;          % wingbeats of wake built (GUI "num_cycles"); also sets the build's length
-o.seg = struct('w', 3, 'w_to_wx', 1, 'wx', 3, 'wx_to_Q', 1, 'Q', 3, ...
+o.seg = struct('w', 3, 'mirror', 3, 'w_to_wx', 1, 'wx', 3, 'wx_to_Q', 1, 'Q', 3, ...
     'rotate', 3, 'build', NaN, 'reveal', 3, 'hold', 3); % s; build = build_cycles * cycle_s
 o.build_start = "top";       % robot at the "top" / "bottom" of its stroke when the build starts, or a wing phase (cycles)
 o.reveal_flapping = true;    % keep flapping (wake keeps convecting) after the build; false freezes it
-o.plane_fade_frac = 0.6;     % part of "reveal" over which the plane fades out
+o.plane_fade_frac = 0.6;
+o.mirror_fade_frac = 0.15;   % part of "mirror" over which the reflected half fades in
+o.mirror_swing = "downstream"; % the reflected half swings out "downstream" (away from the robot) or "upstream"     % part of "reveal" over which the plane fades out
 o.hold_orbit_deg = 0;        % camera azimuth change over "hold"
 o.segments = strings(0);     % render only these segments ([] = all)
 % --- data (flowField_UI defaults)
@@ -467,6 +551,8 @@ o.unc_mask_pct = 3;          % unc_mask_thresh (% of U), 0 = off
 o.remove_small_pct = 1;      % REMOVE_SMALL_DEFAULT, 0 = off
 o.trim_y = [];               % [] = the source mode's trim box (NEW/OLD_FLAPPER_TRIM_*)
 o.trim_z = [];
+o.mirror = true;             % mirror about the centreline (GUI mirror_bool) from the "mirror" step on
+o.mirror_center_y = [];      % [] = the source mode's (NEW/OLD_FLAPPER_MIRROR_CENTER_Y)
 o.conv_speed = plane_downstream_dists("conv_speed");
 o.upsample = 4;              % phase upsampling (interpft); 1 = the GUI's bins
 o.clim_w = [-0.2 0.2];       % mean_clims
@@ -488,6 +574,8 @@ o.robot_wing_color = [0.06 0.06 0.06];
 o.robot_alpha_head_on = 1;   % < 1 to see the plane through the robot in the head-on view
 % --- look
 o.resolution = [1920 1080];
+o.axes_pos = [0 0 0.8 1];            % normalized figure position of the 3D axes
+o.colorbar_pos = [0.82 0.2 0.016 0.6]; % colorbar; its label sits to its right
 o.background = [1 1 1];
 o.text_color = [0 0 0];
 o.font_size = 16;
@@ -495,6 +583,7 @@ o.captions = true;
 o.box_color = [0.30 0.69 0.20];  % MERGED_3D_PLANE_COLOR
 o.box_width = 3;
 o.iso_grey = [0.72 0.72 0.75];
+o.iso_light = [0.4 0.7 0.3]; % grey isosurface: ambient, diffuse, specular strength
 o.view_angle = 12;               % deg (camera view angle, fixed)
 o.head_on_az_el = [0 0];         % camera direction: az = 0, el = 0 looks downstream from upstream
 o.iso_az_el = [60 22];           % az from upstream towards -y, el above
@@ -505,12 +594,14 @@ o.cb_label_w = "\boldmath$\frac{w}{U_{\infty}}$";
 o.cb_label_wx = "\boldmath$\frac{\omega_x c}{U_{\infty}}$";
 o.cb_label_Q = "\boldmath$\frac{Q c^2}{U_{\infty}^2}$";
 o.caption_w = "Downwash $w/U_{\infty}$ in the imaging plane";
+o.caption_mirror = "Mirrored about the centreline: the wake of both wings";
 o.caption_wx = "Streamwise vorticity $\omega_x c/U_{\infty}$";
 o.caption_Q = "$Q$-criterion $Q c^2/U_{\infty}^2$";
 o.caption_build = "Frozen flow: $x = U_{\infty} t$ stacks the plane into a 3D wake";
 o.caption_reveal = "$Q$ isosurfaces coloured by $\omega_x c/U_{\infty}$";
 % --- output
-o.out_file = "";             % "" = <case>_wake_topology.mp4 in the current folder
+o.out_dir = "C:\Users\rgissler\Documents\DFD 2026"; % where the .mp4 (and PNG frames) go; made if missing
+o.out_file = "";             % "" = <case>_wake_topology.mp4 in out_dir; a name with a folder overrides out_dir
 o.quality = 95;
 o.save_png = false;          % also write every frame as a PNG
 o.visible = 'on';            % 'off' renders without showing the figure
@@ -541,7 +632,7 @@ end
 end
 
 %% ===================================================================== case
-function [plane_type, dist, trim_y, trim_z] = plane_info(stem, o)
+function [plane_type, dist, trim_y, trim_z, mirror_c] = plane_info(stem, o)
 % plane type from the stem's prefix, its distance from the robot
 % (plane_downstream_dists, as flowField_UI) and the source mode's trim box
 new_types = ["x1"; "x2"; "x3"; "x4"; "x5"; "MPS"];
@@ -554,12 +645,14 @@ for k = 1:numel(new_types)
     if startsWith(stem, new_types(k) + "_")
         plane_type = new_types(k);  dist = new_d(k);
         trim_y = [-2.4 2.8];  trim_z = [-2.9 3.1];  % NEW_FLAPPER_TRIM_*
+        mirror_c = -2.06;                           % NEW_FLAPPER_MIRROR_CENTER_Y
     end
 end
 for k = 1:numel(old_types)
     if plane_type == "" && startsWith(stem, old_types(k) + "_")
         plane_type = old_types(k);  dist = old_d(k);
         trim_y = [-2.26 2];  trim_z = [-2.36 2.55]; % OLD_FLAPPER_TRIM_*
+        mirror_c = -2.26;                           % OLD_FLAPPER_MIRROR_CENTER_Y
     end
 end
 if plane_type == ""
@@ -567,6 +660,7 @@ if plane_type == ""
 end
 if ~isempty(o.trim_y), trim_y = o.trim_y; end
 if ~isempty(o.trim_z), trim_z = o.trim_z; end
+if ~isempty(o.mirror_center_y), mirror_c = o.mirror_center_y; end
 end
 
 function p0 = build_start_phase(o, amp, delay)
