@@ -44,6 +44,10 @@ function out_file = make_wake_topology_movie(data_root, case_label, varargin)
 % Fourier interpolation (interpft) so the flapping and the convecting
 % wake are smooth; 'upsample', 1 gives the GUI's own bins.
 %
+% The wake's isosurface is computed once over every phase the movie
+% shows and then only slid downstream and trimmed per frame (as the GUI's
+% Play / convection shift, ensure_3D_ext / place_3D_ext).
+%
 % Every graphics object is created once and only updated per frame. All
 % colours are truecolor, so the plane, the grey / omega_x isosurfaces and
 % the robot can use different colormaps in the same axes; the axes
@@ -361,6 +365,18 @@ vw.Quality = o.quality;
 open(vw);
 cleanup = onCleanup(@() safe_close(vw)); % also on an error
 
+%% ------------------------------------------------------------ wake surface
+% computed once, as flowField_UI's ensure_3D_ext / place_3D_ext (Play and
+% the convection / stroke-order shifts): one isosurface over all the wake
+% any frame shows, in xi = -psi * lambda (psi = phase the fluid crossed the
+% plane), so each frame only slides it to x = xi + p * lambda and trims it
+% to the window [0, (p - lo) * lambda]
+psi_span = [p0, wing_phase_at(T_total)];
+tic
+wake = precompute_wake(psi_span, M, lambda, Q_iso, WX, yv, zv, o.iso_val, o.remove_small_pct);
+fprintf("Wake isosurface: %d triangles over %.2f wingbeats (%.1f s)\n", ...
+    size(wake.F, 1), diff(psi_span), toc);
+
 %% ------------------------------------------------------------ render
 n_frames = floor(T_total * o.fps);
 render_segs = string(o.segments);
@@ -421,7 +437,11 @@ for fi = 0:n_frames - 1
         set(h_cap, 'String', o.caption_mirror);
     else
         cb_key = shown;
-        set(h_cap, 'String', fld.(shown).caption);
+        cap = fld.(shown).caption;
+        if seg == "w_to_wx" && shown == "w" && o.mirror
+            cap = o.caption_mirror; % straight from the mirror title to omega_x's
+        end
+        set(h_cap, 'String', cap);
     end
     if cb_key ~= cur_cb
         if cb_key == "iso"
@@ -439,7 +459,7 @@ for fi = 0:n_frames - 1
     % ---- wake
     if ismember(seg, ["build", "reveal", "hold"])
         lo = max(p0, p - o.build_cycles);
-        [Fw, Vw, Cw, Nw] = wake_surface(p, lo, M, lambda, Q_iso, WX, yv, zv, o.iso_val, o.remove_small_pct);
+        [Fw, Vw, Cw, Nw] = place_wake(wake, p, lo, lambda);
         c_mix = 0;
         switch seg
             case "reveal", c_mix = ease(s);
@@ -732,37 +752,60 @@ on_bin = w == 0;
 V(:,:,on_bin) = A(:,:,k0(on_bin) + 1);
 end
 
-function [F, V, C, Nrm] = wake_surface(p, lo, M, lambda, Q, WX, yv, zv, iso, min_pct)
-% Q isosurface of the wake shed between phases lo and p (cycles): the
-% fluid that crossed the plane at phase psi is at x = (p - psi) lambda.
-% Slices at the bins in between, plus the two (interpolated) ends so the
-% wake grows and slides smoothly.
-F = zeros(0, 3);  V = zeros(0, 3);  C = zeros(0, 1);  Nrm = zeros(0, 3);
-tol = 0.2 / M;
-if p - lo <= tol
-    return
-end
-grid = (floor(p * M):-1:ceil(lo * M)) / M;             % descending
-grid = grid(grid < p - tol & grid > lo + tol);
-psi = [p, grid, lo];
-if numel(psi) < 2
-    return
-end
-x = (p - psi) * lambda;                                % ascending
-Vq = permute(sample_phase(Q, psi, M), [1 3 2]);        % y, x, z
+function W = precompute_wake(psi_span, M, lambda, Q, WX, yv, zv, iso, min_pct)
+% Q isosurface of the wake shed over phases psi_span (cycles, plus a bin
+% each side), on the M-bin phase grid, with x as xi = -psi * lambda (so a
+% frame at plane phase p puts it at x = xi + p * lambda: the fluid that
+% crossed the plane at psi is (p - psi) lambda downstream). omega_x and
+% normals per vertex, Remove Small applied once (as ensure_3D_ext).
+j = (ceil(psi_span(2) * M) + 1:-1:floor(psi_span(1) * M) - 1);  % descending psi
+psi = j / M;
+xi = -psi * lambda;                                             % ascending
+Vq = permute(sample_phase(Q, psi, M), [1 3 2]);                 % y, x, z
 Vc = permute(sample_phase(WX, psi, M), [1 3 2]);
-[X, Y, Z] = meshgrid(x, yv, zv);
+[X, Y, Z] = meshgrid(xi, yv, zv);
 s = isosurface(X, Y, Z, Vq, iso);
-if isempty(s.faces)
+W.F = s.faces;
+V = s.vertices;
+if isempty(W.F)
+    W.F = zeros(0, 3);  V = zeros(0, 3);
+end
+if min_pct > 0
+    W.F = despeckle_faces(W.F, min_pct);
+end
+W.xi = V(:,1);
+W.YZ = V(:,2:3);
+W.C = interp3(X, Y, Z, Vc, V(:,1), V(:,2), V(:,3));
+W.N = isonormals(X, Y, Z, Vq, V);
+end
+
+function [F, V, C, Nrm] = place_wake(W, p, lo, lambda)
+% the precomputed wake at plane phase p, showing what was shed since lo:
+% slid to x = xi + p * lambda, faces wholly outside [0, x_end] dropped and
+% the vertices of those crossing an end clamped onto it (a clean cut at
+% the plane and at the downstream end, as the GUI's axes clipping), then
+% only the vertices still used kept
+F = zeros(0, 3);  V = zeros(0, 3);  C = zeros(0, 1);  Nrm = zeros(0, 3);
+x_end = (p - lo) * lambda;
+if x_end <= 0 || isempty(W.F)
     return
 end
-F = s.faces;
-V = s.vertices;
-if min_pct > 0
-    F = despeckle_faces(F, min_pct);
+x = W.xi + p * lambda;
+fx = reshape(x(W.F), size(W.F));
+keep = any(fx >= 0, 2) & any(fx <= x_end, 2);
+if ~any(keep)
+    return
 end
-C = interp3(X, Y, Z, Vc, V(:,1), V(:,2), V(:,3));
-Nrm = isonormals(X, Y, Z, Vq, V);
+Fk = W.F(keep, :);
+used = false(numel(x), 1);
+used(Fk) = true;
+idx = find(used);
+map = zeros(numel(x), 1);
+map(idx) = 1:numel(idx);
+F = reshape(map(Fk), size(Fk));
+V = [min(max(x(idx), 0), x_end), W.YZ(idx, :)];
+C = W.C(idx);
+Nrm = W.N(idx, :);
 end
 
 function faces = despeckle_faces(faces, min_pct)
