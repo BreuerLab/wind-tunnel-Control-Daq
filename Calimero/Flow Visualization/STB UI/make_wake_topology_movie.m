@@ -338,7 +338,7 @@ cb.Label.Rotation = 0;
 cb.Label.Color = o.text_color;
 cb.Label.HorizontalAlignment = 'left'; % label to the right of the ticks, inside the frame
 ax.Position = o.axes_pos;   % creating the colorbar shrinks the axes
-h_cap = annotation(fig, 'textbox', [0.03 0.88 0.8 0.09], 'String', "", ...
+h_cap = annotation(fig, 'textbox', o.caption_pos_head_on, 'String', "", ...
     'Interpreter', 'latex', 'FontSize', o.font_size + 6, 'EdgeColor', 'none', ...
     'Color', o.text_color, 'VerticalAlignment', 'top', 'Visible', onoff(o.captions));
 
@@ -503,6 +503,18 @@ for fi = 0:n_frames - 1
         h_robot.FaceAlpha = a;
     end
 
+    % ---- caption position: above the plane head-on, moving down to just
+    % above the wake as the camera turns
+    switch seg
+        case "rotate"
+            h_cap.Position = o.caption_pos_head_on + ...
+                (o.caption_pos_iso - o.caption_pos_head_on) * ease(s);
+        case {"build", "reveal", "hold"}
+            h_cap.Position = o.caption_pos_iso;
+        otherwise
+            h_cap.Position = o.caption_pos_head_on;
+    end
+
     % ---- camera
     switch seg
         case "rotate"
@@ -559,7 +571,7 @@ o.fps = 30;
 o.cycle_s = 2.5;             % movie seconds per wingbeat (slow motion)
 o.build_cycles = 1;          % wingbeats of wake built (GUI "num_cycles"); also sets the build's length
 o.seg = struct('w', 3, 'mirror', 3, 'w_to_wx', 1, 'wx', 3, 'wx_to_Q', 1, 'Q', 3, ...
-    'rotate', 3, 'build', NaN, 'reveal', 3, 'hold', 3); % s; build = build_cycles * cycle_s
+    'rotate', 3, 'build', NaN, 'reveal', 3, 'hold', 5); % s; build = build_cycles * cycle_s
 o.build_start = "top";       % robot at the "top" / "bottom" of its stroke when the build starts, or a wing phase (cycles)
 o.reveal_flapping = true;    % keep flapping (wake keeps convecting) after the build; false freezes it
 o.plane_fade_frac = 0.6;
@@ -601,7 +613,9 @@ o.robot_alpha_head_on = 1;   % < 1 to see the plane through the robot in the hea
 % --- look
 o.resolution = [1920 1080];
 o.axes_pos = [0 0 0.8 1];            % normalized figure position of the 3D axes
-o.colorbar_pos = [0.82 0.2 0.016 0.6]; % colorbar; its label sits to its right
+o.colorbar_pos = [0.74 0.2 0.016 0.6]; % colorbar (over the axes' empty right side); its label sits to its right
+o.caption_pos_head_on = [0.16 0.88 0.7 0.09]; % caption textbox (top-left anchored) in the head-on view
+o.caption_pos_iso = [0.16 0.72 0.7 0.09];     % ... and in the isometric view (moves over "rotate")
 o.background = [1 1 1];
 o.text_color = [0 0 0];
 o.font_size = 16;
