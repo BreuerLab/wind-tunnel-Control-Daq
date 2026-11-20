@@ -7600,44 +7600,6 @@ methods (Access = private)
         end
         ax_m.InnerPosition = layout.ax_pos;
 
-        % If what's drawn still reaches the colorbar (e.g. the x-axis
-        % tick labels at its far end, or shrinking the axes couldn't move
-        % the scene), move the colorbar right just past it and widen the
-        % figure by that much, everything else kept where it is in
-        % pixels. Measured once (first frame); the wider figure is kept
-        % for the rest.
-        if ~isfield(layout, 'cb_shift_done') || isempty(layout.cb_shift_done)
-            cb.Visible = 'off';
-            img0 = print(fignew, '-RGBImage', '-r0');
-            cb.Visible = 'on';
-            bg0 = img0(1, 1, :);
-            cols0 = find(any(any(abs(int16(img0) - int16(bg0)) > 8, 3), 1));
-            if ~isempty(cols0)
-                need = cols0(end) / size(img0, 2) + obj.MOVIE_CB_GAP; % normalized
-                if need > cb_left
-                    fig_units = fignew.Units;
-                    fignew.Units = 'pixels';
-                    Wf = fignew.Position(3);
-                    dx = ceil((need - cb_left) * Wf);
-                    movers = [findall(fignew, 'Type', 'axes'); cb];
-                    old_units = get(movers, 'Units');
-                    set(movers, 'Units', 'pixels');
-                    fignew.Position(3) = Wf + dx;
-                    cb.Position(1) = cb.Position(1) + dx;
-                    set(movers, {'Units'}, cellstr(old_units));
-                    cb.Units = 'normalized';
-                    ax_m.Units = 'normalized';
-                    fignew.Units = fig_units;
-                    layout.ax_pos = ax_m.InnerPosition;
-                    cb_left = cb.Position(1);
-                    if ~isempty(layout.cb_pos) % keep its height, new x
-                        layout.cb_pos(1) = cb_left;
-                    end
-                end
-            end
-            layout.cb_shift_done = true;
-        end
-
         if isempty(layout.cb_pos)
             % height of what's drawn (plot, axis labels, robot),
             % measured with the colorbar hidden
@@ -7659,6 +7621,42 @@ methods (Access = private)
         cb.Units = 'normalized';
         cb.Position = layout.cb_pos;
         ax_m.InnerPosition = layout.ax_pos; % again, in case moving the colorbar moved it
+
+        % Final check, with the colorbar and axes where the frame has them
+        % (both placed by hand now, so hiding the colorbar can't re-lay
+        % out the axes as it can while the colorbar sits "eastoutside"):
+        % if what's drawn (e.g. the far x-axis tick labels) still reaches
+        % the colorbar, move the colorbar right just past it (plus
+        % MOVIE_CB_GAP) and widen the figure by the same amount, all else
+        % kept where it is in pixels. First frame only; the wider figure
+        % and the new colorbar position are kept for the rest.
+        if ~isfield(layout, 'cb_shift_done') || isempty(layout.cb_shift_done)
+            layout.cb_shift_done = true;
+            cb.Visible = 'off';
+            img0 = print(fignew, '-RGBImage', '-r0');
+            cb.Visible = 'on';
+            bg0 = img0(1, 1, :);
+            cols0 = find(any(any(abs(int16(img0) - int16(bg0)) > 8, 3), 1));
+            if isempty(cols0)
+                return
+            end
+            cb.Units = 'normalized';
+            need = cols0(end) / size(img0, 2) + obj.MOVIE_CB_GAP; % normalized
+            if need > cb.Position(1)
+                fig_units = fignew.Units;
+                fignew.Units = 'pixels';
+                Wf = fignew.Position(3);
+                dx = ceil((need - cb.Position(1)) * Wf);
+                movers = [findall(fignew, 'Type', 'axes'); findall(fignew, 'Type', 'colorbar')];
+                set(movers, 'Units', 'pixels');
+                fignew.Position(3) = Wf + dx;
+                cb.Position(1) = cb.Position(1) + dx;
+                set(movers, 'Units', 'normalized');
+                fignew.Units = fig_units;
+                layout.ax_pos = ax_m.InnerPosition;
+                layout.cb_pos = cb.Position;
+            end
+        end
     end
 
     % Save Figure (2D plots): .png of the plot at FIGURE_PNG_DPI with the
