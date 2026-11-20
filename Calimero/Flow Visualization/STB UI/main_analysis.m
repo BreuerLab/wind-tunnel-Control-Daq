@@ -22,8 +22,8 @@ data_file_path = ["C:\Users\rgissler\Documents\STB Processed Results\", "W:\STB 
 % data_file_path = "R:\ENG_Breuer_Shared\group\Wind turbine\Turbine_STB\Turbine_STB_02_17_2026\Processed Data\";
 
 % GUI for plotting vector fields and wake topology
-% a = flowField_UI(data_file_path);
-% a.dynamic_plotting();
+a = flowField_UI(data_file_path);
+a.dynamic_plotting();
 
 % Explainer movie of how the "phase avg: 3D plot" is built (one case,
 % run on its own; 'preview', true for a quick low-res check)
@@ -31,8 +31,8 @@ data_file_path = ["C:\Users\rgissler\Documents\STB Processed Results\", "W:\STB 
 %     "x3_wings_20deg_6Hz_hr")
 
 % GUI for plotting instantaneous vector fields before phase averaging
-b = flowFieldInst_UI(data_file_path);
-b.dynamic_plotting();
+% b = flowFieldInst_UI(data_file_path);
+% b.dynamic_plotting();
 
 % GUI for plotting phase averaged quantities
 % c = phaseAvg_UI(data_file_path);
