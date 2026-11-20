@@ -3,6 +3,14 @@ properties (Constant, Access = private)
     ACTIVE_COLOR = [0.3010 0.7450 0.9330];
     INACTIVE_COLOR = [1 1 1];
     PENDING_COLOR = [1.0000 0.8000 0.3500]; % Load All Frames: only a preview is loaded
+    % Save Movie (as flowField_UI): delay between .gif frames, margin kept
+    % around the plot when the frames are cropped, and the movie styling
+    % applied to each frame's off-screen copy of the plot (the UI itself
+    % is unchanged)
+    MOVIE_FRAME_DELAY = 0.1;    % s between frames of the .gif
+    MOVIE_CROP_PAD = 10;        % px of margin kept around the plot
+    MOVIE_HIDE_TITLE = true;    % no title
+    MOVIE_FONT_SCALE = 1.3;     % all text (ticks, labels, colorbar) this much larger
     U_INF = 4;      % freestream velocity (m/s) used for nondimensionalization
     L_CHORD = 0.07; % guess of mean aerodynamic chord (m)
     % Trim bounds and mirror centerline for each flapper source mode (same
@@ -111,6 +119,10 @@ properties
     binning_cache;
     % Per-case .vc7 frame list (get_case_frames), keyed by case id
     frames_cache;
+
+    % Save Movie: called by the play loop after each frame is drawn, []
+    % otherwise
+    movie_frame_fcn = [];
 
     % Callers already reported for opening a stray figure window (see
     % without_stray_figures)
@@ -419,13 +431,23 @@ methods
         RPCA_button.BackgroundColor = obj.INACTIVE_COLOR;
         RPCA_button.ValueChangedFcn = @(src, event) RPCA_change(src, event, plot_panel);
 
-        save_button_y = 0.05*screen_height;
+        save_button_y = 0.05*screen_height + 40;
         save_button = uibutton(option_panel,"state");
         save_button.Text = "Save Figure";
         save_button.FontSize = 18;
         save_button.Position = [30 save_button_y 120 unit_height];
         save_button.BackgroundColor = obj.INACTIVE_COLOR;
         save_button.ValueChangedFcn = @(src, event) save_figure(src, event, plot_panel);
+
+        save_movie_y = 0.05*screen_height;
+        save_movie_button = uibutton(option_panel, "push");
+        save_movie_button.Text = "Save Movie";
+        save_movie_button.FontSize = 18;
+        save_movie_button.Position = [30 save_movie_y 120 unit_height];
+        save_movie_button.BackgroundColor = obj.INACTIVE_COLOR;
+        save_movie_button.Tooltip = "Save every frame of the selected bin, as currently plotted, " + ...
+            "as a .gif (loads all frames of the bin first if only the preview is loaded)";
+        save_movie_button.ButtonPushedFcn = @(src, event) save_movie(src, event, plot_panel);
 
         % Preview the initial selection
         obj.render_plot(plot_panel);
@@ -643,6 +665,150 @@ methods
             set(fignew,'CreateFcn','set(gcbf,''Visible'',''on'')'); % Make it visible upon loading
             savefig(fignew,filename);
             delete(fignew);
+        end
+
+        % Steps through every frame of the selected bin (frame 1 to the
+        % last) and appends each one, as currently plotted (variable,
+        % trim, mirror, filter, RPCA), to a .gif. The frames are drawn by
+        % the same play loop as the Play button (render_plot), which calls
+        % capture_frame after drawing each one.
+        function save_movie(~, ~, plot_panel)
+            fig = ancestor(plot_panel, 'figure');
+            if obj.play
+                uialert(fig, "Stop the movie before saving it.", "Save Movie");
+                return
+            end
+            if ~obj.data_loaded || strlength(obj.case_name) == 0
+                uialert(fig, "Select a case and bin first (nothing to save).", "Save Movie");
+                return
+            end
+            % every frame of the bin is needed
+            if ~(obj.is_selection_loaded() && obj.loaded_full)
+                obj.load_all_frames(plot_panel);
+                if ~(obj.is_selection_loaded() && obj.loaded_full)
+                    return % loading failed (already reported)
+                end
+            end
+            num_frames = obj.bin_count;
+
+            if obj.plot_type == obj.plot_types(2)
+                if obj.RPCA_sparse
+                    kind = "RPCA_sparse";
+                else
+                    kind = "RPCA_lowrank";
+                end
+            else
+                kind = "frames";
+            end
+            default_name = regexprep(obj.loaded_case_id + "_bin" + obj.loaded_bin_ind + ...
+                "_" + kind + "_" + obj.variable_name, "[^\w\-]+", "_") + ".gif";
+            [file, folder] = uiputfile("*.gif", "Save Movie", default_name);
+            figure(fig); % uiputfile can leave the app behind other windows
+            if isequal(file, 0)
+                return
+            end
+            filename = fullfile(folder, file);
+
+            dlg = uiprogressdlg(fig, 'Title', "Saving Movie", ...
+                'Message', "Preparing...", 'Cancelable', 'on');
+            panel_units = plot_panel.Units;
+            plot_panel.Units = 'pixels';
+            panel_pos = plot_panel.Position;
+            plot_panel.Units = panel_units;
+            % off-screen copy of the plot panel, one frame per .vc7 frame
+            fignew = figure('Visible', 'off', 'Units', 'pixels', ...
+                'Position', [100 100 panel_pos(3) panel_pos(4)]);
+
+            start_frame = obj.frame_ind;
+            num_saved = 0;
+            save_error = [];
+            % frames are kept until the end so all of them get the same
+            % crop: the smallest box holding the content of every frame
+            frames = {};
+            bbox = [Inf -Inf Inf -Inf]; % [row_min row_max col_min col_max]
+            try
+                obj.frame_ind = 1;
+                obj.slider_frame.Value = 1;
+                obj.movie_frame_fcn = @capture_frame;
+                obj.play = true; % play loop runs frame 1 -> last, capture_frame stops it
+                obj.render_plot(plot_panel);
+            catch save_error
+            end
+            was_cancelled = dlg.CancelRequested;
+            if isempty(save_error) && ~isempty(frames)
+                dlg.Message = "Writing " + numel(frames) + " frames...";
+                try
+                    write_gif();
+                catch save_error
+                end
+            end
+
+            % back to the frame shown before saving
+            obj.movie_frame_fcn = [];
+            obj.play = false;
+            obj.frame_ind = min(max(start_frame, 1), num_frames);
+            obj.slider_frame.Value = obj.frame_ind;
+            if isvalid(fignew)
+                delete(fignew);
+            end
+            close(dlg);
+            obj.render_plot(plot_panel);
+
+            if ~isempty(save_error)
+                uialert(fig, "Saving the movie failed: " + save_error.message, "Save Movie");
+            elseif isempty(frames)
+                uialert(fig, "Nothing was drawn, so no movie was saved.", "Save Movie");
+            elseif was_cancelled
+                uialert(fig, "Cancelled: " + num_saved + " of " + num_frames + ...
+                    " frames saved to " + filename, "Save Movie", 'Icon', 'warning');
+            else
+                disp("Saved " + num_saved + " frames to " + filename)
+            end
+
+            function capture_frame()
+                k = obj.frame_ind;
+                delete(fignew.Children);
+                obj.copy_plot_to_figure(plot_panel, fignew);
+                obj.style_movie_copy(fignew);
+                img = print(fignew, '-RGBImage', '-r0');
+                % widen the crop box to cover this frame
+                bb = obj.movie_content_bbox(img);
+                if ~isempty(bb)
+                    bbox = [min(bbox(1), bb(1)), max(bbox(2), bb(2)), ...
+                            min(bbox(3), bb(3)), max(bbox(4), bb(4))];
+                end
+                frames{end+1} = img;
+                num_saved = num_saved + 1;
+
+                dlg.Value = k / num_frames;
+                dlg.Message = "Saving frame " + k + " of " + num_frames;
+                if k >= num_frames || dlg.CancelRequested
+                    obj.play = false; % ends the play loop in render_plot
+                end
+            end
+
+            % crop every frame to the common box (plus MOVIE_CROP_PAD) and
+            % write the .gif
+            function write_gif()
+                [h, w, ~] = size(frames{1});
+                pad = obj.MOVIE_CROP_PAD;
+                if all(isfinite(bbox))
+                    r = max(1, bbox(1) - pad):min(h, bbox(2) + pad);
+                    c = max(1, bbox(3) - pad):min(w, bbox(4) + pad);
+                else
+                    r = 1:h; c = 1:w; % nothing drawn: keep the full frame
+                end
+                for f = 1:numel(frames)
+                    [A, cmap] = rgb2ind(frames{f}(r, c, :), 256);
+                    if f == 1
+                        imwrite(A, cmap, filename, "gif", "LoopCount", Inf, ...
+                            "DelayTime", obj.MOVIE_FRAME_DELAY);
+                    else
+                        imwrite(A, cmap, filename, "gif", "WriteMode", "append", ...
+                            "DelayTime", obj.MOVIE_FRAME_DELAY);
+                    end
+                end
+            end
         end
 
     end
@@ -1164,6 +1330,11 @@ methods (Access = private)
         h = PIV_plot(y_tr, z_tr, obj.get_display_frame(val_tr, obj.frame_ind), params, ax);
         t = title(ax, obj.get_plot_title(), FontSize=18, Interpreter="none");
 
+        if ~isempty(obj.movie_frame_fcn) % Save Movie: first frame
+            drawnow;
+            obj.movie_frame_fcn();
+        end
+
         while obj.play && (obj.frame_ind < num_frames)
             obj.frame_ind = obj.frame_ind + 1;
             obj.slider_frame.Value = obj.frame_ind;
@@ -1184,11 +1355,59 @@ methods (Access = private)
             set(t, 'String', obj.get_plot_title());
 
             drawnow;
-            pause(0.1);
+            if isempty(obj.movie_frame_fcn)
+                pause(0.1);
+            else
+                obj.movie_frame_fcn(); % Save Movie: add this frame to the .gif
+            end
 
             if obj.frame_ind == num_frames
                 obj.frame_ind = 0; % reset for next loop iteration
             end
+        end
+    end
+
+    % Copies the axes and colorbars of the plot panel into fig (Save Movie)
+    function copy_plot_to_figure(~, plot_panel, fig)
+        ax = findobj(plot_panel.Children, 'Type', 'axes');
+        cb = findobj(plot_panel.Children, 'Type', 'colorbar');
+        if ~isempty(ax) || ~isempty(cb)
+            copyobj([ax(:); cb(:)], fig);
+        end
+    end
+
+    % Movie look (MOVIE_*), on a copy of the plot: no title, larger text
+    function style_movie_copy(obj, fignew)
+        if obj.MOVIE_HIDE_TITLE
+            for a = findall(fignew, 'Type', 'axes')'
+                a.Title.String = '';
+            end
+        end
+        if obj.MOVIE_FONT_SCALE ~= 1
+            % sizes read first, then set: labels following their axes'
+            % size would otherwise be scaled twice
+            h = findall(fignew, '-property', 'FontSize');
+            fs = get(h, 'FontSize');
+            if ~iscell(fs)
+                fs = {fs};
+            end
+            for kh = 1:numel(h)
+                h(kh).FontSize = fs{kh} * obj.MOVIE_FONT_SCALE;
+            end
+        end
+    end
+
+    % Pixel box [row_min row_max col_min col_max] of what's drawn in a
+    % frame: pixels differing from the background (corner pixel colour);
+    % [] if nothing
+    function bb = movie_content_bbox(~, img)
+        bg = img(1, 1, :);
+        content = any(abs(int16(img) - int16(bg)) > 8, 3);
+        rows = find(any(content, 2));
+        cols = find(any(content, 1));
+        bb = [];
+        if ~isempty(rows)
+            bb = [rows(1), rows(end), cols(1), cols(end)];
         end
     end
 
