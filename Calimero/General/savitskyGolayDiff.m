@@ -1,22 +1,25 @@
 function [x,v,a] = savitskyGolayDiff(x_raw, order, framelen, dt)
-
-% Get SG filter coefficients
-[b, g] = sgolay(order, framelen);
-
-% Preallocate velocity
+% Savitzky-Golay smoothing (x), first derivative (v) and second derivative
+% (a) of x_raw. The first and last (framelen-1)/2 samples are set to zero
+% since a full window isn't available there.
+%
+% Implemented as a convolution with the (flipped) Savitzky-Golay kernels,
+% which is identical to sliding the window and taking dot products sample
+% by sample, but much faster. Only the outputs requested are computed.
+[~, g] = sgolay(order, framelen);
 halfwin = (framelen-1)/2;
+n = numel(x_raw);
+valid = false(size(x_raw));
+valid((halfwin+1):(n-halfwin)) = true;
 
-x = zeros(size(x_raw)); v = zeros(size(x_raw)); a = zeros(size(x_raw));
+% conv(x, flip(g(:,k)), 'same') at sample n = dot(g(:,k), x(n-halfwin:n+halfwin))
+sg = @(k) conv(x_raw, flipud(g(:,k)), 'same') .* valid;
 
-% Compute 1st derivative using g(:,2) over a sliding window
-for n = (halfwin+1):(length(x_raw)-halfwin)
-    x(n) = dot(g(:,1), x_raw(n-halfwin:n+halfwin));
-    v(n) = dot(g(:,2), x_raw(n-halfwin:n+halfwin));
-    a(n) = dot(g(:,3), x_raw(n-halfwin:n+halfwin));
+x = sg(1);
+if nargout > 1
+    v = sg(2) / dt;
 end
-
-% Scale by sample spacing
-v = v / dt;
-a = (a * 2) / (dt^2);
-
+if nargout > 2
+    a = (sg(3) * 2) / (dt^2);
+end
 end

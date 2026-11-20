@@ -1,4 +1,4 @@
-function raw_extra_plot(f, tiles, time, extra_data, case_name, rate, fc, titles)
+function raw_extra_plot(f, tiles, time, extra_data, case_name, rate, fc, titles, LC_time, end_time)
     figure(f);
 
     % --- Filtering extra data (3 channels)
@@ -20,6 +20,11 @@ function raw_extra_plot(f, tiles, time, extra_data, case_name, rate, fc, titles)
                "    SD: " + extra_SDs(j)], FontSize=8);
         else
         title([titles(j+6)], FontSize=8);
+        end
+
+        if nargin >= 10
+        xline(LC_time)
+        xline(end_time)
         end
         % xlabel(axes_labels(1));
         % ylabel(axes_labels(j+3));

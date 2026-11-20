@@ -7,10 +7,13 @@ function wind_tunnel_save(case_name)
     filepath = trial_name + ".mat";
     filepath_string = "'" + filepath + "'";
 
-    load("R:\ENG_Breuer_Shared\group\AFAM_state.mat")
+    AFAM_Tunnel = load_afam_data;
     % not needed if AFAM_Tunnel already in base workspace
     % (i.e. running experiment code on AFAM PC)
-    evalin('base',"save(" + filepath_string + ", 'AFAM_Tunnel');");
+    time_now.Format = 'dd-MMM-yyyy HH:mm:ss'; % to match AFAM format
+    
+
+    eval("save(" + filepath_string + ", 'AFAM_Tunnel');");
     
     % Only keep wind tunnel file if values aren't NaN
     load(filepath)

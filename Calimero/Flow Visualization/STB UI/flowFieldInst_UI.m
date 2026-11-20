@@ -1,0 +1,1763 @@
+classdef flowFieldInst_UI < handle
+properties (Constant, Access = private)
+    ACTIVE_COLOR = [0.3010 0.7450 0.9330];
+    INACTIVE_COLOR = [1 1 1];
+    PENDING_COLOR = [1.0000 0.8000 0.3500]; % Load All Frames: only a preview is loaded
+    % Save Movie (as flowField_UI): delay between .gif frames, margin kept
+    % around the plot when the frames are cropped, and the movie styling
+    % applied to each frame's off-screen copy of the plot (the UI itself
+    % is unchanged)
+    MOVIE_FRAME_DELAY = 0.1;    % s between frames of the .gif
+    MOVIE_CROP_PAD = 10;        % px of margin kept around the plot
+    MOVIE_HIDE_TITLE = false;   % keep the title (case, bin, frame number) on each frame
+    MOVIE_FONT_SCALE = 1.3;     % all text (ticks, labels, colorbar) this much larger
+    U_INF = 4;      % freestream velocity (m/s) used for nondimensionalization
+    L_CHORD = 0.07; % guess of mean aerodynamic chord (m)
+    % Trim bounds and mirror centerline for each flapper source mode (same
+    % values as flowField_UI). The active set is copied into trim_y_bounds
+    % / trim_z_bounds / mirror_center_y by set_trim_settings_for_source_mode().
+    OLD_FLAPPER_TRIM_Y_BOUNDS = [-2.26 2]; % roughly -0.15 to 0.15 m
+    OLD_FLAPPER_TRIM_Z_BOUNDS = [-2.36 2.55]; % roughly -0.2 to 0.2 m
+    OLD_FLAPPER_MIRROR_CENTER_Y = -2.26;
+    NEW_FLAPPER_TRIM_Y_BOUNDS = [-2.4 2.8];
+    NEW_FLAPPER_TRIM_Z_BOUNDS = [-2.9 3.1];
+    NEW_FLAPPER_MIRROR_CENTER_Y = -2.06;
+    % Variables not read from the .vc7 files but computed from the loaded
+    % frames (see get_variable_volume)
+    Q_FIELDS = ["Qx","Qy","Qz","Q"];
+    DIV_FIELD = "div";
+    OLD_FLAPPER_SOURCE_MODE = "old flapper";
+    NEW_FLAPPER_SOURCE_MODE = "new flapper";
+    OLD_FLAPPER_DOWNSTREAM_TYPES = ["flexible";"UP_one_flexible";"UP_two_flexible"];
+    OLD_FLAPPER_DISTANCE_LABELS = ["x = 0.9m";"x = 1.3m";"x = 1.7m"];
+    NEW_FLAPPER_DOWNSTREAM_TYPES = ["x1";"x2";"x3";"x4";"x5";"MPS"];
+    NEW_FLAPPER_DISTANCE_LABELS = ["x1";"x2";"x3";"x4";"x5";"MPS"];
+end
+
+properties
+    % Display and dataset selection
+    data_roots;             % data roots given to the UI (string array)
+    shared_file_map;        % case id (<case>[_<version>]) -> its _shared.mat
+    source_mode;
+    source_modes;
+    case_name;
+    case_name_list;
+    phase_flapper_case_name_list;
+    phase_old_flapper_case_name_list;
+    phase_new_flapper_case_name_list;
+    phase_old_flapper_stems;
+    phase_new_flapper_stems;
+    phase_avg_case_ids;
+    current_downstream_type;
+    downstream_types;
+    distance_labels;
+    downstream_type_by_distance;
+    old_flapper_downstream_types;
+    old_flapper_distance_labels;
+    old_flapper_downstream_type_by_distance;
+    new_flapper_downstream_types;
+    new_flapper_distance_labels;
+    new_flapper_downstream_type_by_distance;
+
+    num_bins;
+    bin_ind;
+    bin_count;
+    frame_ind;
+    play;
+
+    % Plot and variable selection
+    plot_type;
+    plot_types;
+    variable_name;
+    var_name_list;
+    movie_3D_avg_vars;
+
+    variable_name_dict;
+    label_dict;
+
+    % Color limits
+    clims;
+    clim_dict;
+    mean_clims;
+
+    % UI handles that callbacks need to update
+    var_dropdown;
+    slider_bin;
+    slider_frame;
+    load_button;
+    placeholder_label;
+    
+    % Plot settings
+    mirror_bool;
+    filter_bool;
+    trim_bool;
+    trim_y_bounds;      % active set, see set_trim_settings_for_source_mode
+    trim_z_bounds;
+    mirror_center_y;
+
+    RPCA_sparse;
+
+    % What is currently loaded in memory. Selection changes load a
+    % one-frame preview (load_preview); the Load All Frames button loads
+    % every frame in the bin (load_all_frames).
+    data_loaded = false;
+    loaded_full = false;    % true once all frames in the bin are loaded
+    loaded_case_id = "";
+    loaded_bin_ind = -1;
+    loaded_num_bins = 0;
+    loaded_frames = [];     % .vc7 frame indices currently in memory
+    cached_x;
+    cached_y;
+    cached_z;
+    cached_data;
+    cached_L;               % RPCA, only computed after a full load
+    cached_S;
+    derived_cache;          % Q / div computed from the loaded frames
+
+    % Per-case binning (frame -> bin), keyed by case id, so it is computed
+    % or read at most once per case per session.
+    binning_cache;
+    % Per-case .vc7 frame list (get_case_frames), keyed by case id
+    frames_cache;
+
+    % Save Movie: called by the play loop after each frame is drawn, []
+    % otherwise
+    movie_frame_fcn = [];
+
+    % Callers already reported for opening a stray figure window (see
+    % without_stray_figures)
+    stray_figure_callers = strings(0);
+    stray_figure_pending = strings(0);
+end
+
+methods
+    % Constructor Function
+    % Defines constants and default values for parameters
+    function obj = flowFieldInst_UI(file_path)
+        % file_path: one data root, or several as a string array (e.g. the
+        % new flapper data and the old flapper STB Round 1 folder). Cases
+        % from all roots are listed; a case in more than one root comes
+        % from the first.
+        obj.data_roots = string(file_path(:))';
+        obj.case_name = "";
+        obj.variable_name = "";
+        obj.binning_cache = containers.Map('KeyType', 'char', 'ValueType', 'any');
+        obj.frames_cache = containers.Map('KeyType', 'char', 'ValueType', 'any');
+        obj.derived_cache = containers.Map('KeyType', 'char', 'ValueType', 'any');
+
+        obj.num_bins = 5;
+        obj.bin_ind = 1;
+        obj.bin_count = 5;
+        obj.frame_ind = 1;
+
+        obj.play = false;
+        obj.RPCA_sparse = false;
+
+        obj.plot_types = ["frames", "RPCA"];
+        obj.plot_type = obj.plot_types(1);
+        obj.mirror_bool = false;
+        obj.filter_bool = false;
+        obj.trim_bool = true;
+
+        % Phase-averaged cases of every data root (new layout:
+        % <stem>_<method>_fields.mat + <stem>_shared.mat, see
+        % stb_list_phase_avg). All methods of a case (bin, _hr, _RPCA,
+        % particle pool) share one binning, kept in its _shared file, so
+        % each case is listed once, by its stem.
+        obj.shared_file_map = containers.Map('KeyType', 'char', 'ValueType', 'char');
+        phase_avg_stems = strings(1, 0);
+        for r = 1:numel(obj.data_roots)
+            phase_dir = processed_results_dir(obj.data_roots(r)) + "phase_avg\";
+            if ~isfolder(phase_dir)
+                warning("flowFieldInst_UI:noPhaseAvg", "No phase_avg folder in %s", obj.data_roots(r));
+                continue
+            end
+            cases = stb_list_phase_avg(phase_dir);
+            for k = 1:numel(cases)
+                stem = string(cases(k).stem);
+                if ~isKey(obj.shared_file_map, char(stem))
+                    obj.shared_file_map(char(stem)) = char(cases(k).files.shared);
+                    phase_avg_stems(end + 1) = stem; %#ok<AGROW>
+                end
+            end
+        end
+        obj.phase_avg_case_ids = phase_avg_stems;
+
+        flapper_stems = phase_avg_stems(~contains(phase_avg_stems, "turbine"));
+
+        old_flapper_stems = obj.get_old_flapper_stems(flapper_stems);
+        new_flapper_stems = obj.get_new_flapper_stems(flapper_stems);
+        obj.phase_old_flapper_stems = old_flapper_stems;
+        obj.phase_new_flapper_stems = new_flapper_stems;
+
+        [obj.old_flapper_downstream_types, obj.old_flapper_distance_labels] = ...
+            obj.get_available_downstream_options(old_flapper_stems, obj.OLD_FLAPPER_SOURCE_MODE);
+        obj.old_flapper_downstream_type_by_distance = ...
+            obj.build_downstream_type_map(obj.old_flapper_distance_labels, obj.old_flapper_downstream_types);
+        [obj.new_flapper_downstream_types, obj.new_flapper_distance_labels] = ...
+            obj.get_available_downstream_options(new_flapper_stems, obj.NEW_FLAPPER_SOURCE_MODE);
+        obj.new_flapper_downstream_type_by_distance = ...
+            obj.build_downstream_type_map(obj.new_flapper_distance_labels, obj.new_flapper_downstream_types);
+
+        obj.phase_old_flapper_case_name_list = obj.get_flapper_case_names(...
+            old_flapper_stems, obj.old_flapper_downstream_types, ...
+            obj.old_flapper_distance_labels, obj.OLD_FLAPPER_SOURCE_MODE);
+        obj.phase_new_flapper_case_name_list = obj.get_flapper_case_names(...
+            new_flapper_stems, obj.new_flapper_downstream_types, ...
+            obj.new_flapper_distance_labels, obj.NEW_FLAPPER_SOURCE_MODE);
+        obj.phase_flapper_case_name_list = unique([obj.phase_old_flapper_case_name_list, obj.phase_new_flapper_case_name_list], 'stable');
+        obj.source_modes = obj.get_available_source_modes();
+        if isempty(obj.source_modes)
+            obj.source_mode = "";
+        else
+            obj.source_mode = obj.source_modes(1);
+        end
+        obj.set_downstream_options_for_source_mode(obj.source_mode);
+        obj.set_trim_settings_for_source_mode(obj.source_mode);
+        obj.case_name_list = obj.get_case_name_list_for_active_plot_type();
+
+        % Instantaneous variables: those import_STB_data reads from the
+        % .vc7 files, plus Q (calQlate3D on each frame, as inst_Q_avg)
+        % and div computed from the loaded frames. (KE and power are
+        % phase-average quantities, so they aren't offered here.)
+        obj.movie_3D_avg_vars = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
+                    "Q_x","Q_y","Q_z","|Q|","u_unc","v_unc","w_unc","|unc|","helicity", "# particles",...
+                    "du/dx","du/dy","du/dz","dv/dx","dv/dy","dv/dz","dw/dx","dw/dy","dw/dz",...
+                    "div"];
+        movie_3D_avg_values = ["u","v","w","Utot",...
+        "vortX","vortY","vortZ","vortTot",...
+        "Qx","Qy","Qz","Q","uncU","uncV","uncW",...
+        "uncTot","hel", "numP",...
+        "dudx","dudy","dudz",...
+        "dvdx","dvdy","dvdz",...
+        "dwdx","dwdy","dwdz",...
+        "div"];
+        
+        obj.var_name_list = obj.movie_3D_avg_vars;
+        obj.mean_clims = [-1.1, -0.9;...
+                     -0.2, 0.2;...
+                      -0.2, 0.2;...
+                      -1.1, -0.9;...
+                      -1, 1;...
+                      -1, 1;...
+                      -1, 1;...
+                      0, 2;...
+                      0, 0.1;...
+                      0, 0.1;...
+                      0, 0.1;...
+                      0, 0.1;...
+                      0, 0.04;...
+                      0, 0.04;...
+                      0, 0.04;...
+                      0, 0.04;...
+                      -1, 1;...
+                      0, 150;      % # particles (as flowField_UI)
+                      -0.1, 0.1;
+                      -1, 1;
+                      -1, 1;
+                      -0.2, 0.2;
+                      -1, 1;
+                      -1, 1;
+                      -0.2, 0.2;
+                      -1, 1;
+                      -1, 1;
+                      -0.1, 0.1];  % div (as flowField_UI)
+
+        obj.clims = obj.mean_clims;
+        obj.clim_dict = obj.build_clim_dict(obj.movie_3D_avg_vars, obj.mean_clims);
+        movie_3D_avg_labels = ["\boldmath$\frac{u}{U_{\infty}}$",...
+                            "\boldmath$\frac{v}{U_{\infty}}$",...
+                            "\boldmath$\frac{w}{U_{\infty}}$",...
+                            "\boldmath$\frac{U}{U_{\infty}}$",...
+                            "\boldmath$\frac{\omega_x c}{U_{\infty}}$",...
+                            "\boldmath$\frac{\omega_y c}{U_{\infty}}$",...
+                            "\boldmath$\frac{\omega_z c}{U_{\infty}}$",...
+                            "\boldmath$\frac{\omega c}{U_{\infty}}$",...
+                            "\boldmath$Q_x \frac{c^2}{U_{\infty}^2}$",...
+                            "\boldmath$Q_y \frac{c^2}{U_{\infty}^2}$",...
+                            "\boldmath$Q_z \frac{c^2}{U_{\infty}^2}$",...
+                            "\boldmath$Q \frac{c^2}{U_{\infty}^2}$",...
+                            "\boldmath$\frac{u}{U_{\infty}}$",...
+                            "\boldmath$\frac{v}{U_{\infty}}$",...
+                            "\boldmath$\frac{w}{U_{\infty}}$",...
+                            "\boldmath$\frac{U}{U_{\infty}}$",...
+                            "","count",...
+                            "\boldmath$\frac{\partial u}{\partial x} \frac{c}{U_{\infty}}$",...
+                            "\boldmath$\frac{\partial u}{\partial y} \frac{c}{U_{\infty}}$",...
+                            "\boldmath$\frac{\partial u}{\partial z} \frac{c}{U_{\infty}}$",...
+                            "\boldmath$\frac{\partial v}{\partial x} \frac{c}{U_{\infty}}$",...
+                            "\boldmath$\frac{\partial v}{\partial y} \frac{c}{U_{\infty}}$",...
+                            "\boldmath$\frac{\partial v}{\partial z} \frac{c}{U_{\infty}}$",...
+                            "\boldmath$\frac{\partial w}{\partial x} \frac{c}{U_{\infty}}$",...
+                            "\boldmath$\frac{\partial w}{\partial y} \frac{c}{U_{\infty}}$",...
+                            "\boldmath$\frac{\partial w}{\partial z} \frac{c}{U_{\infty}}$",...
+                            "\boldmath$\nabla \cdot u \frac{c}{U_{\infty}}$"];
+
+        keys = cellstr(obj.movie_3D_avg_vars);
+        values = movie_3D_avg_values;
+        labels = movie_3D_avg_labels;
+        obj.variable_name_dict = containers.Map(keys, values);
+        obj.label_dict = containers.Map(keys, labels);
+    end
+
+    % Builds figure with all UI elements and defines all callback
+    % functions to be used when user clicks on UI elements
+    function dynamic_plotting(obj)
+        % Create a GUI figure with a grid layout
+        [option_panel, plot_panel, screen_size] = setupFig();
+        pause(1.8) % wait until GUI opened
+
+        screen_height = screen_size(4);
+        unit_height = round(0.03*screen_height);
+
+        source_dropdown_y = screen_height*0.85 - 30;
+        source_dropdown = uidropdown(option_panel);
+        source_dropdown.Position = [10 source_dropdown_y 180 30];
+        if isempty(obj.source_modes)
+            source_dropdown.Items = "No flapper data";
+            source_dropdown.Value = "No flapper data";
+            source_dropdown.Enable = "off";
+        else
+            source_dropdown.Items = obj.source_modes;
+            source_dropdown.Value = obj.source_mode;
+        end
+        source_dropdown.ValueChangedFcn = @(src, event) source_change(src, event, plot_panel);
+
+        % Dropdown box for which cases axes to display
+        distance_dropdown_y = source_dropdown_y - 35;
+        distance_dropdown = uidropdown(option_panel);
+        distance_dropdown.Position = [10 distance_dropdown_y 180 30];
+        distance_dropdown.ValueChangedFcn = @(src, event) distance_change(src, event, plot_panel);
+        refresh_distance_dropdown();
+
+        case_dropdown_y = distance_dropdown_y - 35;
+        case_dropdown = uidropdown(option_panel);
+        case_dropdown.Position = [10 case_dropdown_y 180 30];
+        case_dropdown.Items = obj.case_name_list;
+        obj.case_name = string(case_dropdown.Value); % use current value in box
+        case_dropdown.ValueChangedFcn = @(src, event) case_change(src, event, plot_panel);
+
+        plot_type_dropdown_y = case_dropdown_y - 35;
+        plot_type_dropdown = uidropdown(option_panel);
+        plot_type_dropdown.Position = [10 plot_type_dropdown_y 180 30];
+        plot_type_dropdown.Items = obj.get_available_plot_types_for_current_case();
+        obj.plot_type = plot_type_dropdown.Value; % use current value in box
+        plot_type_dropdown.ValueChangedFcn = @(src, event) type_change(src, event, plot_panel);
+
+        % Dropdown box for which variables to display
+        variable_dropdown_y = plot_type_dropdown_y - 35;
+        obj.var_dropdown = uidropdown(option_panel);
+        obj.var_dropdown.Position = [10 variable_dropdown_y 180 30];
+        obj.var_dropdown.Items = obj.var_name_list;
+        obj.variable_name = obj.var_dropdown.Value; % use current value in box
+        obj.var_dropdown.ValueChangedFcn = @(src, event) variable_change(src, event, plot_panel);
+
+        % Changing source/distance/case/bin loads only the first frame of
+        % the selected bin (quick preview). This button then loads every
+        % frame in the bin (slower) for the frame slider, Play and RPCA.
+        % It is amber whenever only the preview is in memory. Display-only
+        % controls (variable, trim, mirror, filter, frame, play, sparse)
+        % redraw from the data already in memory.
+        load_button_y = variable_dropdown_y - 50;
+        obj.load_button = uibutton(option_panel, "push");
+        obj.load_button.Text = "Load All Frames";
+        obj.load_button.FontSize = 16;
+        obj.load_button.FontWeight = "bold";
+        obj.load_button.Position = [15 load_button_y 150 unit_height];
+        obj.load_button.ButtonPushedFcn = @(src, event) obj.load_all_frames(plot_panel);
+
+        trim_button_y = load_button_y - 50;
+        trim_button = uibutton(option_panel,"state");
+        trim_button.Value = true;
+        trim_button.Text = "Trim";
+        trim_button.FontSize = 18;
+        trim_button.Position = [30 trim_button_y 120 unit_height];
+        trim_button.BackgroundColor = obj.ACTIVE_COLOR;
+        trim_button.ValueChangedFcn = @(src, event) trim_change(src, event, plot_panel);
+
+        mirror_button_y = trim_button_y - 40;
+        mirror_button = uibutton(option_panel,"state");
+        mirror_button.Text = "Mirror";
+        mirror_button.FontSize = 18;
+        mirror_button.Position = [30 mirror_button_y 120 unit_height];
+        mirror_button.BackgroundColor = obj.INACTIVE_COLOR;
+        mirror_button.ValueChangedFcn = @(src, event) mirror_change(src, event, plot_panel);
+
+        filter_button_y = mirror_button_y - 35;
+        filter_button = uibutton(option_panel,"state");
+        filter_button.Text = "Filter";
+        filter_button.FontSize = 18;
+        filter_button.Position = [30 filter_button_y 120 unit_height];
+        filter_button.BackgroundColor = obj.INACTIVE_COLOR;
+        filter_button.ValueChangedFcn = @(src, event) filter_change(src, event, plot_panel);
+
+        panel_width = plot_panel.Position(3);
+        frame_slider_width = panel_width * (3/4);
+        frame_slider_x = (panel_width - frame_slider_width)/2; % end of right monitor around 1690
+        frame_slider_y = 0.05*screen_height;
+        obj.slider_bin = uislider(plot_panel);
+        obj.slider_bin.Position = [frame_slider_x frame_slider_y frame_slider_width 3];
+        obj.slider_bin.Limits = [1 obj.num_bins];
+        obj.slider_bin.Value = obj.bin_ind;
+        obj.slider_bin.MajorTicks = 1:5:obj.num_bins;
+        obj.slider_bin.MinorTicks = 1:obj.num_bins;
+        obj.slider_bin.ValueChangedFcn = @(src, event) bin_change(src, event, plot_panel);
+
+        panel_width = option_panel.Position(3);
+        frame_slider_width = panel_width * (3/4);
+        frame_slider_x = (panel_width - frame_slider_width)/2; % end of right monitor around 1690
+        frame_slider_y = filter_button_y - 35;
+        obj.slider_frame = uislider(option_panel);
+        obj.slider_frame.Position = [frame_slider_x frame_slider_y frame_slider_width 3];
+        obj.slider_frame.Limits = [1 obj.bin_count];
+        obj.slider_frame.Value = obj.frame_ind;
+        obj.slider_frame.MajorTicks = 1:5:obj.bin_count;
+        obj.slider_frame.MinorTicks = 1:obj.bin_count;
+        obj.slider_frame.ValueChangedFcn = @(src, event) frame_change(src, event, plot_panel);
+
+        play_button_y = frame_slider_y - 60;
+        play_button = uibutton(option_panel,"state");
+        play_button.Text = "Play";
+        play_button.FontSize = 18;
+        play_button.Position = [30 play_button_y 120 unit_height];
+        play_button.BackgroundColor = obj.INACTIVE_COLOR;
+        play_button.ValueChangedFcn = @(src, event) playStop_change(src, event, plot_panel);
+
+        RPCA_button_y = play_button_y - 35;
+        RPCA_button = uibutton(option_panel,"state");
+        RPCA_button.Text = "Sparse Matrix";
+        RPCA_button.FontSize = 18;
+        RPCA_button.Position = [30 RPCA_button_y 120 unit_height];
+        RPCA_button.BackgroundColor = obj.INACTIVE_COLOR;
+        RPCA_button.ValueChangedFcn = @(src, event) RPCA_change(src, event, plot_panel);
+
+        save_button_y = 0.05*screen_height + 40;
+        save_button = uibutton(option_panel,"state");
+        save_button.Text = "Save Figure";
+        save_button.FontSize = 18;
+        save_button.Position = [30 save_button_y 120 unit_height];
+        save_button.BackgroundColor = obj.INACTIVE_COLOR;
+        save_button.ValueChangedFcn = @(src, event) save_figure(src, event, plot_panel);
+
+        save_movie_y = 0.05*screen_height;
+        save_movie_button = uibutton(option_panel, "push");
+        save_movie_button.Text = "Save Movie";
+        save_movie_button.FontSize = 18;
+        save_movie_button.Position = [30 save_movie_y 120 unit_height];
+        save_movie_button.BackgroundColor = obj.INACTIVE_COLOR;
+        save_movie_button.Tooltip = "Save every frame of the selected bin, as currently plotted, " + ...
+            "as a .gif (loads all frames of the bin first if only the preview is loaded)";
+        save_movie_button.ButtonPushedFcn = @(src, event) save_movie(src, event, plot_panel);
+
+        % Preview the initial selection
+        obj.render_plot(plot_panel);
+        obj.load_preview(plot_panel);
+
+        % Callbacks are nested so each handler mutates this handle object.
+        % Selection callbacks (source, distance, case, bin) load a one-frame
+        % preview; Load All Frames loads the rest of the bin.
+
+        function source_change(src, ~, plot_panel)
+            obj.source_mode = src.Value;
+            obj.set_trim_settings_for_source_mode(obj.source_mode);
+            refresh_distance_dropdown();
+            refresh_case_dropdown();
+            refresh_plot_type_dropdown();
+            refresh_variable_dropdown();
+
+            % Force bin slider back to 1 since not all datasets have the
+            % same number of bins.
+            obj.bin_ind = 1;
+            obj.slider_bin.Value = obj.bin_ind;
+
+            obj.load_preview(plot_panel);
+        end
+
+        function distance_change(src, ~, plot_panel)
+            obj.current_downstream_type = string(obj.downstream_type_by_distance(char(src.Value)));
+            refresh_case_dropdown();
+            refresh_plot_type_dropdown();
+            refresh_variable_dropdown();
+
+            obj.bin_ind = 1;
+            obj.slider_bin.Value = obj.bin_ind;
+
+            obj.load_preview(plot_panel);
+        end
+
+        function case_change(src, ~, plot_panel)
+            obj.case_name = string(src.Value);
+            refresh_plot_type_dropdown();
+            refresh_variable_dropdown();
+
+            obj.bin_ind = 1;
+            obj.slider_bin.Value = obj.bin_ind;
+
+            obj.load_preview(plot_panel);
+        end
+
+        % User selected a new plot type.
+        % RPCA needs every frame in the bin, so selecting it marks Load
+        % All Frames if only a preview is loaded.
+        function type_change(src, ~, plot_panel)
+            obj.plot_type = src.Value;
+
+            refresh_case_dropdown();
+            refresh_plot_type_dropdown();
+            refresh_variable_dropdown();
+
+            obj.update_load_button_state();
+            obj.render_plot(plot_panel);
+        end
+
+        % User selected a new variable to plot (all variables are already
+        % in memory, so this redraws without loading).
+        function variable_change(src, ~, plot_panel)
+            obj.variable_name = src.Value;
+            obj.render_plot(plot_panel);
+        end
+
+        function refresh_distance_dropdown()
+            obj.set_downstream_options_for_source_mode(obj.source_mode);
+            if isempty(obj.distance_labels)
+                distance_dropdown.Items = "No downstream data";
+                distance_dropdown.Value = "No downstream data";
+                distance_dropdown.Visible = "off";
+                distance_dropdown.Enable = "off";
+            else
+                distance_dropdown.Items = obj.distance_labels;
+                distance_dropdown.Value = obj.distance_labels(1);
+                distance_dropdown.Visible = "on";
+                distance_dropdown.Enable = "on";
+                obj.current_downstream_type = string(obj.downstream_type_by_distance(char(distance_dropdown.Value)));
+            end
+        end
+
+        function refresh_case_dropdown()
+            obj.case_name_list = obj.get_case_name_list_for_active_plot_type();
+            if isempty(obj.case_name_list) && obj.plot_type ~= obj.plot_types(1)
+                obj.plot_type = obj.plot_types(1);
+                obj.case_name_list = obj.get_case_name_list_for_active_plot_type();
+            end
+
+            case_dropdown.Items = obj.case_name_list;
+            if ~any(obj.case_name_list == obj.case_name)
+                if isempty(obj.case_name_list)
+                    obj.case_name = "";
+                else
+                    obj.case_name = string(case_dropdown.Value);
+                end
+            else
+                case_dropdown.Value = obj.case_name;
+            end
+        end
+
+        function refresh_plot_type_dropdown()
+            available_plot_types = obj.get_available_plot_types_for_current_case();
+            plot_type_dropdown.Items = available_plot_types;
+            if ~any(available_plot_types == obj.plot_type)
+                obj.plot_type = available_plot_types(1);
+            end
+            plot_type_dropdown.Value = obj.plot_type;
+        end
+
+        function refresh_variable_dropdown()
+            obj.var_name_list = obj.movie_3D_avg_vars;
+            obj.var_dropdown.Items = obj.var_name_list;
+            if ~any(obj.var_name_list == obj.variable_name)
+                obj.variable_name = obj.var_dropdown.Value;
+            else
+                obj.var_dropdown.Value = obj.variable_name;
+            end
+        end
+
+        % User toggled trimming to the wake region.
+        function trim_change(src, ~, plot_panel)
+            if (src.Value)
+                obj.trim_bool = true;
+                src.BackgroundColor = obj.ACTIVE_COLOR;
+            else
+                obj.trim_bool = false;
+                src.BackgroundColor = obj.INACTIVE_COLOR;
+            end
+
+            obj.render_plot(plot_panel);
+        end
+
+        function mirror_change(src, ~, plot_panel)
+            if (src.Value)
+                obj.mirror_bool = true;
+                src.BackgroundColor = obj.ACTIVE_COLOR;
+            else
+                obj.mirror_bool = false;
+                src.BackgroundColor = obj.INACTIVE_COLOR;
+            end
+
+            obj.render_plot(plot_panel);
+        end
+
+        function filter_change(src, ~, plot_panel)
+            if (src.Value)
+                obj.filter_bool = true;
+                src.BackgroundColor = obj.ACTIVE_COLOR;
+            else
+                obj.filter_bool = false;
+                src.BackgroundColor = obj.INACTIVE_COLOR;
+            end
+
+            obj.render_plot(plot_panel);
+        end
+
+        % New bin = new set of frames: preview its first frame.
+        function bin_change(src, ~, plot_panel)
+            % Force the slider value to the nearest integer immediately
+            src.Value = round(src.Value);
+
+            obj.bin_ind = src.Value;
+            obj.load_preview(plot_panel);
+        end
+
+        function frame_change(src, ~, plot_panel)
+            % Force the slider value to the nearest integer immediately
+            src.Value = round(src.Value);
+
+            obj.frame_ind = src.Value;
+            obj.render_plot(plot_panel);
+        end
+
+        % User toggled movie playback.
+        function playStop_change(src, ~, plot_panel)
+            if (src.Value)
+                obj.play = true;
+                src.BackgroundColor = obj.ACTIVE_COLOR;
+                src.Text = "Stop";
+            else
+                obj.play = false;
+                src.BackgroundColor = obj.INACTIVE_COLOR;
+                src.Text = "Play";
+            end
+
+            obj.render_plot(plot_panel);
+        end
+
+        function RPCA_change(src, ~, plot_panel)
+            if (src.Value)
+                obj.RPCA_sparse = true;
+                src.BackgroundColor = obj.ACTIVE_COLOR;
+            else
+                obj.RPCA_sparse = false;
+                src.BackgroundColor = obj.INACTIVE_COLOR;
+            end
+
+            % reset frame index
+            obj.frame_ind = 1;
+            obj.slider_frame.Value = obj.frame_ind;
+            obj.render_plot(plot_panel);
+        end
+
+        function save_figure(~, ~, plot_panel)
+            ax = findobj(plot_panel.Children, 'Type', 'axes');
+            cb = findobj(plot_panel.Children, 'Type', 'colorbar');
+
+            filename = "saved_figure.fig";
+            fignew = figure('Visible','off'); % Invisible figure
+            copyobj([ax cb], fignew);
+            set(fignew,'CreateFcn','set(gcbf,''Visible'',''on'')'); % Make it visible upon loading
+            savefig(fignew,filename);
+            delete(fignew);
+        end
+
+        % Steps through every frame of the selected bin (frame 1 to the
+        % last) and appends each one, as currently plotted (variable,
+        % trim, mirror, filter, RPCA), to a .gif. The frames are drawn by
+        % the same play loop as the Play button (render_plot), which calls
+        % capture_frame after drawing each one.
+        function save_movie(~, ~, plot_panel)
+            fig = ancestor(plot_panel, 'figure');
+            if obj.play
+                uialert(fig, "Stop the movie before saving it.", "Save Movie");
+                return
+            end
+            if ~obj.data_loaded || strlength(obj.case_name) == 0
+                uialert(fig, "Select a case and bin first (nothing to save).", "Save Movie");
+                return
+            end
+            % every frame of the bin is needed
+            if ~(obj.is_selection_loaded() && obj.loaded_full)
+                obj.load_all_frames(plot_panel);
+                if ~(obj.is_selection_loaded() && obj.loaded_full)
+                    return % loading failed (already reported)
+                end
+            end
+            num_frames = obj.bin_count;
+
+            if obj.plot_type == obj.plot_types(2)
+                if obj.RPCA_sparse
+                    kind = "RPCA_sparse";
+                else
+                    kind = "RPCA_lowrank";
+                end
+            else
+                kind = "frames";
+            end
+            default_name = regexprep(obj.loaded_case_id + "_bin" + obj.loaded_bin_ind + ...
+                "_" + kind + "_" + obj.variable_name, "[^\w\-]+", "_") + ".gif";
+            [file, folder] = uiputfile("*.gif", "Save Movie", default_name);
+            figure(fig); % uiputfile can leave the app behind other windows
+            if isequal(file, 0)
+                return
+            end
+            filename = fullfile(folder, file);
+
+            dlg = uiprogressdlg(fig, 'Title', "Saving Movie", ...
+                'Message', "Preparing...", 'Cancelable', 'on');
+            panel_units = plot_panel.Units;
+            plot_panel.Units = 'pixels';
+            panel_pos = plot_panel.Position;
+            plot_panel.Units = panel_units;
+            % off-screen copy of the plot panel, one frame per .vc7 frame
+            fignew = figure('Visible', 'off', 'Units', 'pixels', ...
+                'Position', [100 100 panel_pos(3) panel_pos(4)]);
+
+            start_frame = obj.frame_ind;
+            num_saved = 0;
+            save_error = [];
+            % frames are kept until the end so all of them get the same
+            % crop: the smallest box holding the content of every frame
+            frames = {};
+            bbox = [Inf -Inf Inf -Inf]; % [row_min row_max col_min col_max]
+            try
+                obj.frame_ind = 1;
+                obj.slider_frame.Value = 1;
+                obj.movie_frame_fcn = @capture_frame;
+                obj.play = true; % play loop runs frame 1 -> last, capture_frame stops it
+                obj.render_plot(plot_panel);
+            catch save_error
+            end
+            was_cancelled = dlg.CancelRequested;
+            if isempty(save_error) && ~isempty(frames)
+                dlg.Message = "Writing " + numel(frames) + " frames...";
+                try
+                    write_gif();
+                catch save_error
+                end
+            end
+
+            % back to the frame shown before saving
+            obj.movie_frame_fcn = [];
+            obj.play = false;
+            obj.frame_ind = min(max(start_frame, 1), num_frames);
+            obj.slider_frame.Value = obj.frame_ind;
+            if isvalid(fignew)
+                delete(fignew);
+            end
+            close(dlg);
+            obj.render_plot(plot_panel);
+
+            if ~isempty(save_error)
+                uialert(fig, "Saving the movie failed: " + save_error.message, "Save Movie");
+            elseif isempty(frames)
+                uialert(fig, "Nothing was drawn, so no movie was saved.", "Save Movie");
+            elseif was_cancelled
+                uialert(fig, "Cancelled: " + num_saved + " of " + num_frames + ...
+                    " frames saved to " + filename, "Save Movie", 'Icon', 'warning');
+            else
+                disp("Saved " + num_saved + " frames to " + filename)
+            end
+
+            function capture_frame()
+                k = obj.frame_ind;
+                delete(fignew.Children);
+                obj.copy_plot_to_figure(plot_panel, fignew);
+                obj.style_movie_copy(fignew);
+                img = print(fignew, '-RGBImage', '-r0');
+                % widen the crop box to cover this frame
+                bb = obj.movie_content_bbox(img);
+                if ~isempty(bb)
+                    bbox = [min(bbox(1), bb(1)), max(bbox(2), bb(2)), ...
+                            min(bbox(3), bb(3)), max(bbox(4), bb(4))];
+                end
+                frames{end+1} = img;
+                num_saved = num_saved + 1;
+
+                dlg.Value = k / num_frames;
+                dlg.Message = "Saving frame " + k + " of " + num_frames;
+                if k >= num_frames || dlg.CancelRequested
+                    obj.play = false; % ends the play loop in render_plot
+                end
+            end
+
+            % crop every frame to the common box (plus MOVIE_CROP_PAD) and
+            % write the .gif
+            function write_gif()
+                [h, w, ~] = size(frames{1});
+                pad = obj.MOVIE_CROP_PAD;
+                if all(isfinite(bbox))
+                    r = max(1, bbox(1) - pad):min(h, bbox(2) + pad);
+                    c = max(1, bbox(3) - pad):min(w, bbox(4) + pad);
+                else
+                    r = 1:h; c = 1:w; % nothing drawn: keep the full frame
+                end
+                for f = 1:numel(frames)
+                    [A, cmap] = rgb2ind(frames{f}(r, c, :), 256);
+                    if f == 1
+                        imwrite(A, cmap, filename, "gif", "LoopCount", Inf, ...
+                            "DelayTime", obj.MOVIE_FRAME_DELAY);
+                    else
+                        imwrite(A, cmap, filename, "gif", "WriteMode", "append", ...
+                            "DelayTime", obj.MOVIE_FRAME_DELAY);
+                    end
+                end
+            end
+        end
+
+    end
+
+    % Called whenever source/distance/case/bin changes: load only the
+    % first frame of the selected bin so the plot updates quickly.
+    function load_preview(obj, plot_panel)
+        obj.without_stray_figures(@() obj.load_preview_impl(plot_panel));
+    end
+
+    % Load All Frames button
+    function load_all_frames(obj, plot_panel)
+        obj.without_stray_figures(@() obj.load_all_frames_impl(plot_panel));
+    end
+end
+
+methods (Access = private)
+    function load_preview_impl(obj, plot_panel)
+        if strlength(obj.case_name) == 0
+            return
+        end
+        fig = ancestor(plot_panel, 'figure');
+        case_id = obj.get_current_case_id();
+
+        obj.set_busy(fig, "Loading preview...");
+        t_start = tic;
+        try
+            B = obj.get_case_binning(case_id, true);
+            obj.bin_ind = min(max(1, round(obj.bin_ind)), B.num_bins);
+            obj.set_slider_range(obj.slider_bin, B.num_bins);
+            obj.slider_bin.Value = obj.bin_ind;
+            obj.slider_bin.Visible = "on";
+
+            frames = obj.get_bin_frames(case_id, B, obj.bin_ind);
+
+            % Same case and bin already in memory (preview or full)
+            if obj.data_loaded && case_id == obj.loaded_case_id && ...
+                    obj.bin_ind == obj.loaded_bin_ind
+                obj.clear_busy(fig);
+                obj.render_plot(plot_panel);
+                return
+            end
+
+            [x, y, z, data] = obj.read_frames(case_id, frames(1));
+        catch ME
+            obj.clear_busy(fig);
+            uialert(fig, ME.message, "Loading preview failed");
+            return
+        end
+
+        obj.commit_data(case_id, B.num_bins, frames(1), x, y, z, data);
+        obj.loaded_full = isscalar(frames); % a one-frame bin is already complete
+        obj.bin_count = numel(frames);
+        obj.frame_ind = 1;
+        obj.set_slider_range(obj.slider_frame, 1); % only frame 1 until full load
+        obj.slider_frame.Value = 1;
+
+        fprintf("Preview: %s bin %d, frame 1 of %d (%.1f s)\n", ...
+            case_id, obj.bin_ind, numel(frames), toc(t_start));
+
+        obj.clear_busy(fig);
+        obj.render_plot(plot_panel);
+    end
+
+    % Load All Frames button: load every frame of the selected bin (reusing
+    % the preview frame if it is already in memory) and redraw.
+    function load_all_frames_impl(obj, plot_panel)
+        if strlength(obj.case_name) == 0
+            return
+        end
+        fig = ancestor(plot_panel, 'figure');
+        case_id = obj.get_current_case_id();
+
+        if obj.is_selection_loaded() && obj.loaded_full
+            obj.render_plot(plot_panel); % nothing new to load
+            return
+        end
+
+        obj.set_busy(fig, "Loading frames...");
+        t_start = tic;
+        try
+            B = obj.get_case_binning(case_id, true);
+            obj.bin_ind = min(max(1, round(obj.bin_ind)), B.num_bins);
+            frames = obj.get_bin_frames(case_id, B, obj.bin_ind);
+
+            same_bin = obj.data_loaded && case_id == obj.loaded_case_id && ...
+                obj.bin_ind == obj.loaded_bin_ind;
+            if same_bin
+                have = obj.loaded_frames;
+                missing = frames(~ismember(frames, have));
+            else
+                have = [];
+                missing = frames;
+            end
+
+            [x, y, z, new_data] = obj.read_frames(case_id, missing);
+
+            if isempty(have)
+                data = new_data;
+            else
+                % Append to the frames already loaded, then put everything
+                % back in bin order.
+                all_frames = [have, missing];
+                [~, ord] = ismember(frames, all_frames);
+                data = cellfun(@(a, b) cat(4, a, b), obj.cached_data, new_data, ...
+                    'UniformOutput', false);
+                data = cellfun(@(a) a(:,:,:,ord), data, 'UniformOutput', false);
+            end
+        catch ME
+            obj.clear_busy(fig);
+            uialert(fig, ME.message, "Load All Frames failed");
+            return
+        end
+
+        obj.commit_data(case_id, B.num_bins, frames, x, y, z, data);
+        obj.loaded_full = true;
+        obj.bin_count = numel(frames);
+        obj.frame_ind = 1;
+        obj.set_slider_range(obj.slider_frame, obj.bin_count);
+        obj.slider_frame.Value = 1;
+
+        fprintf("Loaded %s bin %d: %d frames in %.1f s\n", ...
+            case_id, obj.bin_ind, numel(frames), toc(t_start));
+
+        obj.clear_busy(fig);
+        obj.render_plot(plot_panel);
+    end
+
+    % Run fn and close any empty figure window opened while it ran.
+    % Something called during loading/plotting can open an ordinary
+    % figure (a gcf/gca/figure call can't see the UI's uifigure, so MATLAB
+    % creates a new window); the first time a caller does it, it is named
+    % in the Command Window so it can be fixed at the source.
+    function without_stray_figures(obj, fn)
+        before = findall(groot, 'Type', 'figure');
+        old_fcn = get(groot, 'DefaultFigureCreateFcn');
+        set(groot, 'DefaultFigureCreateFcn', @(~, ~) obj.note_stray_figure());
+        restore = onCleanup(@() set(groot, 'DefaultFigureCreateFcn', old_fcn));
+        fn();
+        delete(restore);
+
+        after = findall(groot, 'Type', 'figure');
+        new_figs = after(~ismember(after, before));
+        for k = 1:numel(new_figs)
+            f = new_figs(k);
+            if isvalid(f) && isempty(f.Children)
+                delete(f);
+            end
+        end
+        for c = obj.stray_figure_pending
+            if ~any(obj.stray_figure_callers == c)
+                obj.stray_figure_callers(end + 1) = c;
+                warning("flowFieldInst_UI:strayFigure", ...
+                    "Closed an empty figure window opened by %s", c);
+            end
+        end
+        obj.stray_figure_pending = strings(0);
+    end
+
+    % DefaultFigureCreateFcn while loading/plotting: note who opened the
+    % figure (the deepest stack frame in our code, i.e. not this
+    % callback and not a MATLAB toolbox file such as gca.m)
+    function note_stray_figure(obj)
+        st = dbstack('-completenames');
+        caller = "unknown caller";
+        for k = 1:numel(st)
+            name = string(st(k).name);
+            file = string(st(k).file);
+            if contains(name, "note_stray_figure") || contains(name, "@") || ...
+                    startsWith(file, string(matlabroot))
+                continue
+            end
+            caller = name + " (" + file + ", line " + st(k).line + ")";
+            break
+        end
+        obj.stray_figure_pending(end + 1) = caller;
+    end
+
+    function file_stems = get_file_stems(~, files, suffix)
+        file_names = string({files.name});
+        avg_files = endsWith(file_names, suffix + ".mat");
+        file_stems = erase(file_names(avg_files), suffix + ".mat");
+    end
+
+    function old_flapper_stems = get_old_flapper_stems(obj, flapper_stems)
+        flapper_stems = string(flapper_stems);
+        old_flapper_stems = flapper_stems(~obj.is_new_flapper_stem(flapper_stems));
+    end
+
+    function new_flapper_stems = get_new_flapper_stems(obj, flapper_stems)
+        flapper_stems = string(flapper_stems);
+        new_flapper_stems = flapper_stems(obj.is_new_flapper_stem(flapper_stems));
+    end
+
+    function mask = is_new_flapper_stem(obj, stems)
+        stems = string(stems);
+        % position-independent cases (freestream) belong to the new set
+        mask = ismember(stems, position_independent_cases());
+        for i = 1:length(obj.NEW_FLAPPER_DOWNSTREAM_TYPES)
+            downstream_type = obj.NEW_FLAPPER_DOWNSTREAM_TYPES(i);
+            mask = mask | stems == downstream_type | startsWith(stems, downstream_type + "_");
+        end
+    end
+
+    function set_downstream_options_for_source_mode(obj, source_mode)
+        [obj.downstream_types, obj.distance_labels, obj.downstream_type_by_distance] = ...
+            obj.get_downstream_options_for_source_mode(source_mode);
+        if isempty(obj.downstream_types)
+            obj.current_downstream_type = "";
+        else
+            obj.current_downstream_type = obj.downstream_types(1);
+        end
+    end
+
+    function [downstream_types, distance_labels, downstream_type_by_distance] = get_downstream_options_for_source_mode(obj, source_mode)
+        if source_mode == obj.OLD_FLAPPER_SOURCE_MODE
+            downstream_types = obj.old_flapper_downstream_types;
+            distance_labels = obj.old_flapper_distance_labels;
+            downstream_type_by_distance = obj.old_flapper_downstream_type_by_distance;
+        elseif source_mode == obj.NEW_FLAPPER_SOURCE_MODE
+            downstream_types = obj.new_flapper_downstream_types;
+            distance_labels = obj.new_flapper_distance_labels;
+            downstream_type_by_distance = obj.new_flapper_downstream_type_by_distance;
+        else
+            downstream_types = strings(0, 1);
+            distance_labels = strings(0, 1);
+            downstream_type_by_distance = obj.build_downstream_type_map(distance_labels, downstream_types);
+        end
+    end
+
+    function downstream_type_by_distance = build_downstream_type_map(~, distance_labels, downstream_types)
+        if isempty(distance_labels)
+            downstream_type_by_distance = containers.Map('KeyType', 'char', 'ValueType', 'char');
+        else
+            downstream_type_by_distance = containers.Map(cellstr(distance_labels), cellstr(downstream_types));
+        end
+    end
+
+    function [downstream_types, distance_labels] = get_available_downstream_options(obj, flapper_stems, source_mode)
+        downstream_types = strings(0, 1);
+        distance_labels = strings(0, 1);
+
+        [known_downstream_types, known_distance_labels] = obj.get_known_downstream_options(source_mode);
+        for i = 1:length(known_downstream_types)
+            downstream_type = known_downstream_types(i);
+            matching_stems = obj.get_downstream_stems_for_type(flapper_stems, downstream_type, source_mode);
+            if ~isempty(matching_stems)
+                downstream_types(end + 1, 1) = downstream_type;
+                distance_labels(end + 1, 1) = known_distance_labels(i);
+            end
+        end
+    end
+
+    function [downstream_types, distance_labels] = get_known_downstream_options(obj, source_mode)
+        if source_mode == obj.OLD_FLAPPER_SOURCE_MODE
+            downstream_types = obj.OLD_FLAPPER_DOWNSTREAM_TYPES;
+            distance_labels = obj.OLD_FLAPPER_DISTANCE_LABELS;
+        elseif source_mode == obj.NEW_FLAPPER_SOURCE_MODE
+            downstream_types = obj.NEW_FLAPPER_DOWNSTREAM_TYPES;
+            distance_labels = obj.NEW_FLAPPER_DISTANCE_LABELS;
+        else
+            downstream_types = strings(0, 1);
+            distance_labels = strings(0, 1);
+        end
+    end
+
+    function matching_stems = get_downstream_stems_for_type(obj, flapper_stems, downstream_type, source_mode)
+        flapper_stems = string(flapper_stems);
+        prefix = downstream_type + "_";
+        mask = flapper_stems == downstream_type | startsWith(flapper_stems, prefix);
+
+        if source_mode == obj.OLD_FLAPPER_SOURCE_MODE && downstream_type == obj.OLD_FLAPPER_DOWNSTREAM_TYPES(1)
+            mask = mask | obj.is_legacy_default_distance_stem(flapper_stems);
+        end
+
+        matching_stems = flapper_stems(mask);
+    end
+
+    function mask = is_legacy_default_distance_stem(obj, stems)
+        stems = string(stems);
+        mask = ~obj.starts_with_any_downstream_type(stems, obj.OLD_FLAPPER_DOWNSTREAM_TYPES) & ...
+               ~obj.is_new_flapper_stem(stems);
+    end
+
+    function mask = starts_with_any_downstream_type(~, stems, downstream_types)
+        stems = string(stems);
+        mask = false(size(stems));
+        for i = 1:length(downstream_types)
+            downstream_type = downstream_types(i);
+            mask = mask | stems == downstream_type | startsWith(stems, downstream_type + "_");
+        end
+    end
+
+    function source_modes = get_available_source_modes(obj)
+        source_modes = strings(0);
+
+        % new flapper first, so it is the default (as flowField_UI)
+        if ~isempty(obj.phase_new_flapper_case_name_list)
+            source_modes(end + 1) = obj.NEW_FLAPPER_SOURCE_MODE;
+        end
+
+        if ~isempty(obj.phase_old_flapper_case_name_list)
+            source_modes(end + 1) = obj.OLD_FLAPPER_SOURCE_MODE;
+        end
+    end
+
+    function set_trim_settings_for_source_mode(obj, source_mode)
+        if source_mode == obj.OLD_FLAPPER_SOURCE_MODE
+            obj.trim_y_bounds = obj.OLD_FLAPPER_TRIM_Y_BOUNDS;
+            obj.trim_z_bounds = obj.OLD_FLAPPER_TRIM_Z_BOUNDS;
+            obj.mirror_center_y = obj.OLD_FLAPPER_MIRROR_CENTER_Y;
+        else
+            obj.trim_y_bounds = obj.NEW_FLAPPER_TRIM_Y_BOUNDS;
+            obj.trim_z_bounds = obj.NEW_FLAPPER_TRIM_Z_BOUNDS;
+            obj.mirror_center_y = obj.NEW_FLAPPER_MIRROR_CENTER_Y;
+        end
+    end
+
+    % Cases for the dropdown: only those at the selected downstream position
+    function case_names = get_case_name_list_for_active_plot_type(obj)
+        case_names = obj.get_case_name_list(obj.source_mode, obj.current_downstream_type);
+    end
+
+    function case_names = get_case_name_list(obj, source_mode, downstream_type)
+        if source_mode == obj.NEW_FLAPPER_SOURCE_MODE
+            stems = obj.phase_new_flapper_stems;
+            all_names = obj.phase_new_flapper_case_name_list;
+        else
+            stems = obj.phase_old_flapper_stems;
+            all_names = obj.phase_old_flapper_case_name_list;
+        end
+
+        downstream_type = string(downstream_type);
+        if strlength(downstream_type) > 0
+            [known_types, known_labels] = obj.get_known_downstream_options(source_mode);
+            label = known_labels(known_types == downstream_type);
+            case_names = obj.get_flapper_case_names(stems, downstream_type, label, source_mode);
+        else
+            case_names = all_names;
+        end
+
+        % position-independent cases (freestream) at every new flapper
+        % position
+        if source_mode == obj.NEW_FLAPPER_SOURCE_MODE
+            case_names = unique([case_names, ...
+                reshape(intersect(stems, position_independent_cases(), 'stable'), 1, [])], 'stable');
+        end
+    end
+
+    function case_names = get_flapper_case_names(obj, phase_avg_stems, downstream_types, distance_labels, source_mode)
+        case_names = strings(0);
+
+        for i = 1:length(downstream_types)
+            downstream_type = downstream_types(i);
+            prefix = downstream_type + "_";
+            matching_stems = phase_avg_stems(phase_avg_stems == downstream_type | startsWith(phase_avg_stems, prefix));
+            if source_mode == obj.OLD_FLAPPER_SOURCE_MODE && ...
+                    i <= length(distance_labels) && distance_labels(i) == obj.OLD_FLAPPER_DISTANCE_LABELS(1)
+                matching_stems = unique([matching_stems, phase_avg_stems(obj.is_legacy_default_distance_stem(phase_avg_stems))], 'stable');
+            end
+            case_names = [case_names, obj.get_case_names_from_stems(matching_stems, downstream_type)];
+        end
+        case_names = unique(case_names, 'stable');
+    end
+
+    function case_names = get_case_names_from_stems(~, stems, downstream_type)
+        case_names = strings(size(stems));
+        prefix = downstream_type + "_";
+
+        for i = 1:length(stems)
+            if stems(i) == downstream_type || ~startsWith(stems(i), prefix)
+                case_names(i) = stems(i);
+            else
+                case_names(i) = extractAfter(stems(i), prefix);
+            end
+        end
+    end
+
+    function case_id = get_current_case_id(obj)
+        case_name = string(obj.case_name);
+        current_downstream_type = string(obj.current_downstream_type);
+
+        if ismember(case_name, position_independent_cases())
+            case_id = case_name; % no position prefix (freestream)
+        elseif current_downstream_type == case_name && ...
+                any(obj.phase_avg_case_ids == case_name)
+            case_id = case_name;
+        elseif strlength(case_name) == 0
+            case_id = current_downstream_type;
+        else
+            case_id = current_downstream_type + "_" + case_name;
+            % old flapper cases at the default position may have no
+            % prefix (body, ring)
+            if ~any(obj.phase_avg_case_ids == case_id) && any(obj.phase_avg_case_ids == case_name)
+                case_id = case_name;
+            end
+        end
+    end
+
+    function plot_types = get_available_plot_types_for_current_case(obj)
+            plot_types = obj.plot_types;
+    end
+
+    % ---------------------------------------------------------------------
+    % Display: draws only from data already in memory (never loads)
+    % ---------------------------------------------------------------------
+    function render_plot(obj, plot_panel)
+        obj.without_stray_figures(@() obj.render_plot_impl(plot_panel));
+    end
+
+    function render_plot_impl(obj, plot_panel)
+        delete(findobj(plot_panel.Children, 'Type', 'axes'));
+        obj.set_placeholder(plot_panel, "");
+
+        if ~obj.data_loaded
+            obj.set_placeholder(plot_panel, "Select a case and bin to preview.");
+            return
+        end
+
+        fields = get_STB_processing_fields();
+        var_name = obj.variable_name_dict(obj.variable_name);
+        var_clims = obj.get_color_limits(obj.variable_name);
+        plot_idx = find(obj.plot_types == obj.plot_type);
+
+        if plot_idx == 2
+            % RPCA separates low-rank and sparse parts across frames, so it
+            % needs the whole bin.
+            if ~obj.loaded_full
+                obj.set_placeholder(plot_panel, ...
+                    "RPCA needs every frame in the bin. Press Load All Frames.");
+                return
+            end
+            if ~obj.ensure_rpca(plot_panel)
+                return
+            end
+        end
+
+        % Pick the requested variable out of the loaded data
+        if plot_idx == 1
+            source = obj.cached_data;
+            source_tag = "frames";
+        elseif obj.RPCA_sparse
+            source = obj.cached_S; % RPCA sparse part: u, v, w only
+            source_tag = "S";
+        else
+            source = obj.cached_L; % RPCA low-rank part: u, v, w, |U|, vorticity
+            source_tag = "L";
+        end
+        val = obj.get_variable_volume(source, source_tag, fields, var_name);
+        if isempty(val)
+            obj.set_placeholder(plot_panel, "'" + obj.variable_name + ...
+                "' is not available for the loaded " + obj.plot_types(plot_idx) + " data.");
+            return
+        end
+
+        % Select the centre x-plane (all frames in the bin)
+        y = obj.cached_y;
+        z = obj.cached_z;
+        y_plane_idx = ceil(size(y, 1) / 2);
+        x_idx = ceil(size(val, 1) / 2);
+        y_tr = squeeze(y(y_plane_idx,:,:));
+        z_tr = squeeze(z(y_plane_idx,:,:));
+        val_tr = reshape(val(x_idx,:,:,:), size(val, 2), size(val, 3), []);
+
+        if obj.trim_bool
+            y_idx = find(y_tr(:,1) > obj.trim_y_bounds(1) & y_tr(:,1) < obj.trim_y_bounds(2));
+            z_idx = find(z_tr(1,:) > obj.trim_z_bounds(1) & z_tr(1,:) < obj.trim_z_bounds(2));
+
+            y_tr = y_tr(y_idx, z_idx);
+            z_tr = z_tr(y_idx, z_idx);
+            val_tr = val_tr(y_idx, z_idx, :);
+        end
+
+        if obj.mirror_bool
+            % Mirror across the centerline to reconstruct the opposite side of the wake.
+            y_idx_m = find(y_tr(:,1) > obj.mirror_center_y);
+
+            y_tr = y_tr(y_idx_m, :);
+            z_tr = z_tr(y_idx_m, :);
+            val_tr = val_tr(y_idx_m, :, :);
+
+            % Shift so the mirror center is the origin.
+            y_tr = y_tr - min(y_tr, [], "all");
+
+            % Reflect and skip the first row to avoid double-counting the centerline.
+            y_add = flip(-y_tr(2:end,:), 1);
+            z_add = flip(z_tr(2:end,:), 1);
+            val_add = flip(val_tr(2:end,:,:), 1);
+
+            y_tr = [y_add; y_tr];
+            z_tr = [z_add; z_tr];
+            val_tr = [val_add; val_tr];
+        end
+
+        num_frames = size(val_tr, 3);
+        obj.frame_ind = min(max(1, round(obj.frame_ind)), num_frames);
+        obj.slider_frame.Value = obj.frame_ind;
+
+        % sparse matrix values are much smaller
+        if plot_idx == 2 && obj.RPCA_sparse
+            var_clims = [min(val_tr, [], "all", "omitnan") max(val_tr, [], "all", "omitnan")];
+            if ~(var_clims(2) > var_clims(1))
+                var_clims = var_clims(1) + [-1 1]*max(abs(var_clims(1)), eps);
+            end
+        end
+
+        params.U = obj.U_INF;
+        if min(var_clims) < -1
+            params.zero = -1;
+        elseif min(var_clims) < 0.5
+            params.zero = 0;
+        else
+            params.zero = 1;
+        end
+        params.cb_lab = obj.label_dict(obj.variable_name);
+        params.clims = var_clims;
+
+        ax = axes(plot_panel);
+        h = PIV_plot(y_tr, z_tr, obj.get_display_frame(val_tr, obj.frame_ind), params, ax);
+        t = title(ax, obj.get_plot_title(), FontSize=18, Interpreter="none");
+
+        if ~isempty(obj.movie_frame_fcn) % Save Movie: first frame
+            drawnow;
+            obj.movie_frame_fcn();
+        end
+
+        while obj.play && (obj.frame_ind < num_frames)
+            obj.frame_ind = obj.frame_ind + 1;
+            obj.slider_frame.Value = obj.frame_ind;
+
+            % Cap the data so it stays within the current color limits.
+            tmp_data = obj.get_display_frame(val_tr, obj.frame_ind);
+            tmp_data(tmp_data < params.clims(1)) = params.clims(1);
+            tmp_data(tmp_data > params.clims(2)) = params.clims(2);
+
+            % Another callback (a load, variable change, ...) may have
+            % replaced these axes while we were paused.
+            if ~isvalid(h) || ~isvalid(t)
+                break
+            end
+
+            % Update the existing contour instead of recreating axes.
+            set(h, 'ZData', tmp_data);
+            set(t, 'String', obj.get_plot_title());
+
+            drawnow;
+            if isempty(obj.movie_frame_fcn)
+                pause(0.1);
+            else
+                obj.movie_frame_fcn(); % Save Movie: add this frame to the .gif
+            end
+
+            if obj.frame_ind == num_frames
+                obj.frame_ind = 0; % reset for next loop iteration
+            end
+        end
+    end
+
+    % Copies the axes and colorbars of the plot panel into fig (Save Movie)
+    function copy_plot_to_figure(~, plot_panel, fig)
+        ax = findobj(plot_panel.Children, 'Type', 'axes');
+        cb = findobj(plot_panel.Children, 'Type', 'colorbar');
+        if ~isempty(ax) || ~isempty(cb)
+            copyobj([ax(:); cb(:)], fig);
+        end
+    end
+
+    % Movie look (MOVIE_*), on a copy of the plot: no title, larger text
+    function style_movie_copy(obj, fignew)
+        if obj.MOVIE_HIDE_TITLE
+            for a = findall(fignew, 'Type', 'axes')'
+                a.Title.String = '';
+            end
+        end
+        if obj.MOVIE_FONT_SCALE ~= 1
+            % sizes read first, then set: labels following their axes'
+            % size would otherwise be scaled twice
+            h = findall(fignew, '-property', 'FontSize');
+            fs = get(h, 'FontSize');
+            if ~iscell(fs)
+                fs = {fs};
+            end
+            for kh = 1:numel(h)
+                h(kh).FontSize = fs{kh} * obj.MOVIE_FONT_SCALE;
+            end
+        end
+    end
+
+    % Pixel box [row_min row_max col_min col_max] of what's drawn in a
+    % frame: pixels differing from the background (corner pixel colour);
+    % [] if nothing
+    function bb = movie_content_bbox(~, img)
+        bg = img(1, 1, :);
+        content = any(abs(int16(img) - int16(bg)) > 8, 3);
+        rows = find(any(content, 2));
+        cols = find(any(content, 1));
+        bb = [];
+        if ~isempty(rows)
+            bb = [rows(1), rows(end), cols(1), cols(end)];
+        end
+    end
+
+    function frame = get_display_frame(obj, val_tr, k)
+        frame = val_tr(:,:,k);
+        if obj.filter_bool
+            frame = obj.nan_safe_medfilt2(frame);
+        end
+    end
+
+    function A = nan_safe_medfilt2(~, A)
+        % medfilt2 is undefined with NaN input: fill NaNs with their
+        % nearest neighbours, filter, then put the NaNs back.
+        nan_mask = isnan(A);
+        if all(nan_mask, "all")
+            return
+        end
+        if any(nan_mask, "all")
+            A = fillmissing(A, "nearest", 1);
+            A = fillmissing(A, "nearest", 2);
+        end
+        A = medfilt2(A);
+        A(nan_mask) = NaN;
+    end
+
+    function str = get_plot_title(obj)
+        str = obj.loaded_case_id + "  |  bin " + obj.loaded_bin_ind + " / " + ...
+            obj.loaded_num_bins + ",  frame " + obj.frame_ind + " / " + obj.bin_count;
+        if ~obj.loaded_full
+            str = str + "  (preview: first frame only)";
+        elseif obj.plot_type == obj.plot_types(2)
+            if obj.RPCA_sparse
+                str = str + "  (RPCA sparse)";
+            else
+                str = str + "  (RPCA low-rank)";
+            end
+        end
+    end
+
+    function set_placeholder(obj, plot_panel, msg)
+        if isempty(obj.placeholder_label) || ~isvalid(obj.placeholder_label)
+            obj.placeholder_label = uilabel(plot_panel, ...
+                "HorizontalAlignment", "center", "FontSize", 20, ...
+                "FontColor", [0.4 0.4 0.4], "WordWrap", "on");
+        end
+        pos = plot_panel.InnerPosition;
+        obj.placeholder_label.Position = [20 pos(4)/2 - 40 max(pos(3) - 40, 100) 80];
+        obj.placeholder_label.Text = msg;
+        obj.placeholder_label.Visible = strlength(msg) > 0;
+    end
+
+    % ---------------------------------------------------------------------
+    % Load All Frames button state and busy indicator
+    % ---------------------------------------------------------------------
+    function tf = is_selection_loaded(obj)
+        tf = obj.data_loaded && ...
+             obj.get_current_case_id() == obj.loaded_case_id && ...
+             obj.bin_ind == obj.loaded_bin_ind;
+    end
+
+    function update_load_button_state(obj)
+        if isempty(obj.load_button) || ~isvalid(obj.load_button)
+            return
+        end
+        obj.load_button.Text = "Load All Frames";
+        obj.load_button.Enable = "on";
+        if obj.is_selection_loaded() && obj.loaded_full
+            obj.load_button.BackgroundColor = obj.INACTIVE_COLOR;
+            obj.load_button.Tooltip = "All frames in this bin are loaded";
+        else
+            obj.load_button.BackgroundColor = obj.PENDING_COLOR;
+            obj.load_button.Tooltip = "Only a one-frame preview is loaded - press to load every frame in the bin";
+        end
+    end
+
+    function set_busy(obj, fig, msg)
+        obj.load_button.Text = msg;
+        obj.load_button.Enable = "off";
+        fig.Pointer = "watch";
+        drawnow;
+    end
+
+    function clear_busy(obj, fig)
+        fig.Pointer = "arrow";
+        obj.update_load_button_state();
+    end
+
+    function set_slider_range(~, slider, n)
+        n = max(1, round(n));
+        slider.Limits = [1 max(n, 2)]; % uislider limits must be increasing
+        slider.MajorTicks = unique([1:5:n, n]);
+        slider.MinorTicks = 1:n;
+        slider.Enable = n > 1;
+    end
+
+    % ---------------------------------------------------------------------
+    % Binning: which frames belong to which phase bin
+    % ---------------------------------------------------------------------
+    % Fast path: read bin_ind_arr/num_bins saved by phase_avg_STB in the
+    % case's _shared.mat file (only these small variables are read). This
+    % is also the exact binning the phase averages were computed with, for
+    % every method (bin, _hr, _RPCA, particle pool).
+    % Slow path (allow_slow): recompute from the DAQ file.
+    % B.piv_case is the recording's case name (the shared file's
+    % PIV_case_name), used to find its .vc7 frames; it differs from the
+    % case id when the case id carries a binning version (<case>_<version>).
+    function B = get_case_binning(obj, case_id, allow_slow)
+        key = char(case_id);
+        if isKey(obj.binning_cache, key)
+            B = obj.binning_cache(key);
+            return
+        end
+
+        B = [];
+        piv_case = string(case_id);
+        shared_file = "";
+        if isKey(obj.shared_file_map, key)
+            shared_file = string(obj.shared_file_map(key));
+        end
+        if strlength(shared_file) > 0 && isfile(shared_file)
+            try
+                vars = who('-file', char(shared_file));
+                if ismember('PIV_case_name', vars)
+                    S = load(shared_file, 'PIV_case_name');
+                    piv_case = string(S.PIV_case_name);
+                end
+                if all(ismember({'bin_ind_arr', 'num_bins'}, vars))
+                    S = load(shared_file, 'bin_ind_arr', 'num_bins');
+                    B.bin_ind_arr = S.bin_ind_arr(:);
+                    B.num_bins = double(S.num_bins);
+                    B.source = "shared file";
+                end
+            catch ME
+                warning("Could not read binning from %s: %s", shared_file, ME.message);
+            end
+        elseif strlength(shared_file) > 0
+            warning("flowFieldInst_UI:noShared", "Shared file not found: %s", shared_file);
+        end
+
+        if isempty(B) && allow_slow
+            B = obj.compute_case_binning(piv_case);
+        end
+
+        if ~isempty(B)
+            B.piv_case = piv_case;
+            obj.binning_cache(key) = B;
+        end
+    end
+
+    function B = compute_case_binning(obj, case_id)
+        FR = obj.get_frames(case_id);
+        num_images = numel(FR.vc7);
+        disp("No binning in the shared file for " + case_id + ...
+            "; recomputing from DAQ data (slow, " + num_images + " images)")
+        [amp, ~, ~] = parse_name(case_id);
+        [daq_data_filename, daq_data_path] = get_daq_paths(case_id);
+        R = load([daq_data_path daq_data_filename], 'results');
+        results = R.results;
+
+        % no load cell mounted, so blank values used
+        offsets = zeros(1, size(results, 2));
+        cal_mat = zeros(6, 6);
+
+        ticksPerRev = 18432;
+        OC_pulse_step = 4;
+        pulsesPerRev = ticksPerRev / OC_pulse_step;
+        [~, ~, voltAdj, curAdj, ~, pos, speed, acc, wing_pos, wing_speed, wing_acc] = ...
+            process_data(results, offsets, cal_mat, ticksPerRev, OC_pulse_step, amp, true);
+
+        % Only freq_avg (first output) is needed for the binning
+        freq_avg = speed_phase_avg(results, voltAdj, curAdj, pos, speed, acc, ...
+            wing_pos, wing_speed, wing_acc, pulsesPerRev, false);
+
+        [~, ~, bin_ind_arr, num_bins] = ...
+            frame_to_bin(case_id, num_images, freq_avg, false, false);
+
+        B.bin_ind_arr = bin_ind_arr(:);
+        B.num_bins = num_bins;
+        B.source = "recomputed from DAQ";
+    end
+
+    % ---------------------------------------------------------------------
+    % Field loading
+    % ---------------------------------------------------------------------
+    function frames = get_bin_frames(~, case_id, B, bin_ind)
+        frames = find(B.bin_ind_arr == bin_ind).';
+        if isempty(frames)
+            error("Bin %d of %s has no frames.", bin_ind, case_id);
+        end
+    end
+
+    % Read the given .vc7 frames (indices into the case's frames in
+    % recording order: its vc7 folder, or its batch folders, see
+    % get_case_frames)
+    function [x, y, z, data] = read_frames(obj, case_id, frames)
+        fields = get_STB_processing_fields();
+        data = cell(1, numel(fields));
+        B = obj.get_case_binning(case_id, false);
+        if isempty(B)
+            piv_case = case_id;
+        else
+            piv_case = B.piv_case;
+        end
+        FR = obj.get_frames(piv_case);
+        file_path = FR.vc7;
+        if ~isempty(B) && numel(B.bin_ind_arr) ~= numel(file_path)
+            warning("flowFieldInst_UI:frameCount", ...
+                "%s: the binning has %d frames but %d .vc7 files were found; frames may not match their bins.", ...
+                case_id, numel(B.bin_ind_arr), numel(file_path));
+        end
+        if max(frames) > numel(file_path)
+            error("%s: frame %d requested but only %d .vc7 files were found.", ...
+                case_id, max(frames), numel(file_path));
+        end
+        [x, y, z, data{:}] = import_STB_data(file_path, true, obj.U_INF, obj.L_CHORD, frames, false);
+    end
+
+    % .vc7 frames of a recording (get_case_frames), cached per session
+    function FR = get_frames(obj, piv_case)
+        key = char(piv_case);
+        if isKey(obj.frames_cache, key)
+            FR = obj.frames_cache(key);
+            return
+        end
+        FR = get_case_frames(piv_case);
+        obj.frames_cache(key) = FR;
+    end
+
+    % [nx ny nz nFrames] volume of a variable from the loaded data (source:
+    % cached_data, cached_L or cached_S). Read variables come straight from
+    % source; Q (Qx, Qy, Qz, Q) is computed per frame with calQlate3D after
+    % filling holes (as inst_Q_avg does in the processing) and div from the
+    % stored gradients. Computed once per loaded data set. [] if the
+    % variable can't be had from this source.
+    function val = get_variable_volume(obj, source, source_tag, fields, var_name)
+        val = [];
+        var_name = string(var_name);
+        var_idx = find(strcmp(fields, var_name), 1);
+        if ~isempty(var_idx)
+            if var_idx <= numel(source)
+                val = source{var_idx};
+            end
+            return
+        end
+
+        key = char(source_tag + "|" + var_name);
+        if isKey(obj.derived_cache, key)
+            val = obj.derived_cache(key);
+            return
+        end
+
+        if any(var_name == obj.Q_FIELDS)
+            iu = find(strcmp(fields, 'u'), 1);
+            iv = find(strcmp(fields, 'v'), 1);
+            iw = find(strcmp(fields, 'w'), 1);
+            if max([iu iv iw]) > numel(source)
+                return
+            end
+            u = source{iu}; v = source{iv}; w = source{iw};
+            x = obj.cached_x; y = obj.cached_y; z = obj.cached_z;
+            dx = abs(x(2,1,1) - x(1,1,1));
+            dy = abs(y(1,2,1) - y(1,1,1));
+            dz = abs(z(1,1,2) - z(1,1,1));
+            n_frames = size(u, 4);
+            Q_all = cell(1, 4);
+            for c = 1:4
+                Q_all{c} = NaN(size(u));
+            end
+            Qk = cell(1, 4);
+            for k = 1:n_frames
+                uk = u(:,:,:,k); vk = v(:,:,:,k); wk = w(:,:,:,k);
+                nan_mask = isnan(uk) | isnan(vk) | isnan(wk);
+                [Qk{1:4}] = calQlate3D(fill3D(uk), fill3D(vk), fill3D(wk), dx, dy, dz);
+                for c = 1:4
+                    Qc = Qk{c};
+                    Qc(nan_mask) = NaN; % no Q where there was no velocity
+                    Q_all{c}(:,:,:,k) = Qc;
+                end
+            end
+            for c = 1:4
+                obj.derived_cache(char(source_tag + "|" + obj.Q_FIELDS(c))) = Q_all{c};
+            end
+            val = Q_all{var_name == obj.Q_FIELDS};
+        elseif var_name == obj.DIV_FIELD
+            idx = [find(strcmp(fields, 'dudx'), 1), find(strcmp(fields, 'dvdy'), 1), ...
+                   find(strcmp(fields, 'dwdz'), 1)];
+            if numel(idx) < 3 || max(idx) > numel(source)
+                return
+            end
+            val = source{idx(1)} + source{idx(2)} + source{idx(3)};
+            obj.derived_cache(key) = val;
+        end
+    end
+
+    function commit_data(obj, case_id, num_bins, frames, x, y, z, data)
+        obj.data_loaded = true;
+        obj.loaded_case_id = case_id;
+        obj.loaded_bin_ind = obj.bin_ind;
+        obj.loaded_num_bins = num_bins;
+        obj.loaded_frames = frames;
+        obj.cached_x = x;
+        obj.cached_y = y;
+        obj.cached_z = z;
+        obj.cached_data = data;
+        obj.cached_L = []; % RPCA is recomputed for the new data on demand
+        obj.cached_S = [];
+        obj.derived_cache = containers.Map('KeyType', 'char', 'ValueType', 'any'); % Q / div too
+        obj.num_bins = num_bins;
+    end
+
+    % RPCA of the loaded bin, computed once the first time it is plotted
+    % (no file reading involved). Returns false if it failed.
+    function ok = ensure_rpca(obj, plot_panel)
+        ok = true;
+        if ~isempty(obj.cached_L)
+            return
+        end
+        fig = ancestor(plot_panel, 'figure');
+        obj.set_busy(fig, "Running RPCA...");
+        try
+            fields = get_STB_processing_fields();
+            data = obj.cached_data;
+            [obj.cached_L, obj.cached_S] = RPCA_vel(obj.cached_x, obj.cached_y, obj.cached_z, ...
+                data{strcmp(fields, 'u')}, data{strcmp(fields, 'v')}, data{strcmp(fields, 'w')});
+        catch ME
+            ok = false;
+            uialert(fig, ME.message, "RPCA failed");
+        end
+        obj.clear_busy(fig);
+    end
+
+    function clim_dict = build_clim_dict(~, var_names, clim_values)
+        keys = cellstr(var_names);
+        values = mat2cell(clim_values, ones(1, size(clim_values, 1)), size(clim_values, 2));
+        clim_dict = containers.Map(keys, values);
+    end
+
+    function clims = get_color_limits(obj, var_name)
+        key = char(var_name);
+        if isKey(obj.clim_dict, key)
+            clims = obj.clim_dict(key);
+            return
+        end
+
+        var_idx = find(string(var_name) == obj.var_name_list, 1);
+        if isempty(var_idx)
+            error("No color limits defined for " + string(var_name))
+        end
+        clims = obj.clims(var_idx,:);
+    end
+end
+
+end

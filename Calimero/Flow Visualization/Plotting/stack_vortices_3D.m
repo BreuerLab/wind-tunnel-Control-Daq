@@ -8,8 +8,11 @@ for k = 1:params.num_bins
 end
 z = z / params.L; % non-dimensionalize z by characterisitic length
 
-% normalize by wingbeat period
-z = z / max(z);
+% normalize by wingbeat period, unless plotting in convective units
+% (x/c = U t / c)
+if ~(isfield(params, 'conv_units') && params.conv_units)
+    z = z / max(z);
+end
 
 [Ny, Nx] = size(x);
 Nz = length(z);
@@ -113,7 +116,13 @@ if params.movie
     cData = interp3(X_fin, Y_fin, Z_fin, C_fin, ...
                 s.vertices(:,1), s.vertices(:,2), s.vertices(:,3));
 else
-    s = isosurface(Z_fin, X_fin, Y_fin, Q_fin, params.isoValue);
+    if isfield(params, 'surface') && ~isempty(params.surface)
+        % same isosurface as before (iso variable, isovalue and shift
+        % unchanged, e.g. only the colour variable changed): just recolour
+        s = params.surface;
+    else
+        s = isosurface(Z_fin, X_fin, Y_fin, Q_fin, params.isoValue);
+    end
     cData = interp3(Z_fin, X_fin, Y_fin, C_fin, ...
                  s.vertices(:,1), s.vertices(:,2), s.vertices(:,3));
     % s = isosurface(X_fin, Y_fin, Z_fin, Q_fin, params.isoValue);

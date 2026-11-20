@@ -12,83 +12,97 @@
 % A .mat file is produced in the directory described by processed_data_path
 % containing a number of variables whose contents describe the results of
 % the experiment in more ways than simply the raw data does.
-function process_trial(file, raw_data_path, offsets_path, processed_data_path, wind_tunnel_path, type)
+function process_trial(file, raw_data_path, offsets_path, processed_data_path, wind_tunnel_path, params)
 
 % I don't want to use wing_type_from_name, I want type from eval_params.m
 [case_name, time_stamp, wing_type_from_name, wing_freq, AoA, wind_speed, amp, ~] = parse_filename(file);
 
-% NUM_WINGBEATS IS CURRENTLY NOT 180 EXACTLY SINCE JUST USING PWM
 [frame_rate, num_wingbeats, rec_wingbeats, ticksPerRev, OC_pulse_step] = get_sampling_info(wing_freq);
 
 % Get force calibration file
 calibration_filepath = "../../DAQ/Calibration Files/Mini40/FT52907.cal"; 
 cal_matrix = obtain_cal(calibration_filepath);
 
-% UNCOMMENT !!!!!!!!!!!!!!!!!!!!!!!
 % find matching offsets file
-offsets_file = findInitialOffsetsFile(offsets_path, case_name);
+offsets_file = findInitialOffsetsFile(offsets_path, case_name, time_stamp);
 load(offsets_path + offsets_file); % load in results var
 offsets = offsets(1,:);
 disp("Matching offsets: " + offsets_file)
 
-% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-% filePattern = fullfile(offsets_path, '*.mat'); % Change to whatever pattern you need.
-% offsets_files = [];
-% for i = 1:length(filePattern)
-%     offsets_files = [offsets_files; dir(filePattern(i))];
-% end
-% 
+filePattern = fullfile(offsets_path, '*.mat'); % Change to whatever pattern you need.
+offsets_files = [];
+for i = 1:length(filePattern)
+    offsets_files = [offsets_files; dir(filePattern(i))];
+end
+
+[drift, offsets_before, offsets_after] = get_drift(file, offsets_files, params.freq_vals);
+
 % offsets_string = "before_offsets";
 % [offsets_cur, offsets_cur_filename] = findMatchingOffset...
 % (offsets_files, offsets_string, wing_freq, AoA, wind_speed, type, time_stamp);
 % disp("Current offsets: " + offsets_cur_filename)
-% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 % Get raw data from file
 load(raw_data_path + file); % load in results var
 
+% DAQ sampling rate: the rate saved in the experiment params (params.rate,
+% set by process_all_trials), checked against the recording's time
+% column. get_sampling_info's 12 kHz is only a fallback for old calls.
+if nargin < 6
+    params = struct();
+end
+frame_rate = get_daq_rate(params, results(:,1));
+disp("DAQ rate: " + frame_rate + " Hz")
+
+% Data are filtered with some padding still attached and only trimmed to
+% the analysed portion (core_idx) afterwards, so the filters' start-up and
+% end transients land in the discarded padding. Filtering the already
+% trimmed data put those transients on the first and last samples, which
+% leaked into the phase averages as a jump between t/T = 0 and t/T = 1.
 if (wing_freq == 0)
 % for gliding case, trim off first and last second of data
-trimmed_results = results(frame_rate:end-frame_rate,:);
+trimmed_results = results;
+core_idx = frame_rate:(size(results,1) - frame_rate);
 else
-% trim off period when acceleration + padding
-trimmed_results = trim_data(results, rec_wingbeats, num_wingbeats);
+% trim off period when acceleration + padding, keeping up to two
+% wingbeats of padding on each side for filtering
+pad_samples = 2 * frame_rate / wing_freq;
+% The iterative learning controller adapts the motor command over the
+% first 20 steady wingbeats of each trial (run_trial uses it for >= 1 Hz,
+% and only since the ILC was added: commit 5708caa, 30 Jul 2026). Those
+% wingbeats are left out of the phase and time averages.
+ILC_LEARNING_REVS = 20;
+ILC_FIRST_DAY = datetime(2026, 7, 30);
+learning_revs = 0;
+if wing_freq >= 1 && timeStr2num(time_stamp) >= ILC_FIRST_DAY
+    learning_revs = ILC_LEARNING_REVS;
 end
-
-% REPLACE WITH PROPER TRIMMING!!!!!!!!!!!!!!!!!!!!!!!
-% trimmed_results = results;
-% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+[trimmed_results, core_idx] = trim_data(results, rec_wingbeats, num_wingbeats, pad_samples, learning_revs);
+num_wingbeats = num_wingbeats - learning_revs; % wingbeats kept for averaging
+end
 
 async = true; % We are doing async method of collecting data
 
-[time_data, force_data, voltAdj, curAdj, speed, OC_pulse_count] = ...
-    process_data(trimmed_results, offsets, cal_matrix, ticksPerRev, OC_pulse_step, async);
-
-dt = time_data(2) - time_data(1);
-% speed = gradient(results(:,11), dt)
-
-order = 3;
-framelen = 21;
-speed = savitskyGolayDiff(OC_pulse_count, order, framelen, dt);
-speed = speed / (ticksPerRev / OC_pulse_step);
+% Wing kinematics (wing_pos, wing_speed, wing_acc) from the optical
+% encoder count through the mechanism (calimero_mechanism), the same way
+% phase_avg_STB gets them for the STB cases. Saved so the UIs can place
+% the stroke reversals of each load cell trial from its own kinematics.
+[time_data, force_data, voltAdj, curAdj, home_signal, ~, speed, ~, ...
+    wing_pos, wing_speed, wing_acc] = ...
+    process_data(trimmed_results, offsets, cal_matrix, ticksPerRev, OC_pulse_step, amp, async);
+OC_pulse_count = trimmed_results(:,11);
 
 % Rotate the data from the force transducer reference frame to the wind
 % tunnel reference frame (body frame to global frame)
 results_lab = coordinate_transformation(force_data, AoA);
 
 % enc_pulse not added because this is the only data that is filtered
-mod_results = [results_lab; voltAdj'; curAdj'];
+mod_results = [results_lab; home_signal'; voltAdj'; curAdj'];
 
 % motor model check
 % if wing_freq ~= 0
 %     motor_model(time_data, voltAdj, curAdj, wing_freq, speed);
 % end
-
-% Non-dimensionalize the data. Newtons to Force Coefficients and
-% Newton*meters to Moment Coefficients
-[norm_data, norm_factors, St, Re] = non_dimensionalize_data(wind_tunnel_path, results_lab, file, type);
 
 % Smooth the data with a butterworth filter
 % fc = 100; % cutoff frequency
@@ -107,7 +121,58 @@ if (wing_freq > 1)
 else
     fc = 10;
 end
+filtered_data_smoother = filter_data(mod_results, frame_rate, fc);
+
+if (wing_freq > 1)
+    % fc = 10*wing_freq; % cutoff frequency
+    fc = 2*wing_freq; % cutoff frequency
+else
+    fc = 4;
+end
 filtered_data_smoothest = filter_data(mod_results, frame_rate, fc);
+
+% Notch: the fc = 10*f data with narrow bands around the wing's structural
+% resonance(s) removed (e.g. the first spanwise bending mode, which rings
+% after each stroke reversal and swamps the drag signal). Unlike lowering
+% the low-pass cutoff, this keeps the wingbeat harmonics below and above
+% each band. Band centres/widths (Hz) come from params.notch_freq and
+% params.notch_bw (set in process_all_trials from the ringdown tests).
+% Only the force/moment rows (1-6) are notched; the home signal, voltage
+% and current rows are the same as in filtered_data.
+[notch_freq, notch_bw] = get_notch_params(params);
+filtered_data_notch = notch_filter_data(filtered_data, frame_rate, ...
+    notch_freq, notch_bw, 1:6);
+if (wing_freq > 0)
+    % Wingbeat harmonics that fall inside a notch band are removed along
+    % with the resonance (aerodynamic content included)
+    for j = 1:length(notch_freq)
+        band = notch_freq(j) + [-1 1]*notch_bw(j)/2;
+        k_in = ceil(band(1)/wing_freq):floor(band(2)/wing_freq);
+        disp("Notch " + band(1) + "-" + band(2) + " Hz removes wingbeat harmonics: " ...
+            + strjoin(string(k_in), ", "))
+    end
+end
+
+% Now trim everything to the analysed wingbeats (drops filter transients,
+% and the Savitzky-Golay edge zeros in speed, along with the padding)
+time_data = time_data(core_idx);
+force_data = force_data(:, core_idx);
+results_lab = results_lab(:, core_idx);
+mod_results = mod_results(:, core_idx);
+filtered_data = filtered_data(:, core_idx);
+filtered_data_smoother = filtered_data_smoother(:, core_idx);
+filtered_data_smoothest = filtered_data_smoothest(:, core_idx);
+filtered_data_notch = filtered_data_notch(:, core_idx);
+speed = speed(core_idx);
+wing_pos = wing_pos(core_idx);
+wing_speed = wing_speed(core_idx);
+wing_acc = wing_acc(core_idx);
+OC_pulse_count = OC_pulse_count(core_idx);
+
+% Non-dimensionalize the data. Newtons to Force Coefficients and
+% Newton*meters to Moment Coefficients
+[norm_data, norm_factors, St, Re, U_act, rho_act] =...
+    non_dimensionalize_data(wind_tunnel_path, results_lab, file, params.freq_vals);
 
 % if (wing_freq > 1)
 %     fc = 5*wing_freq; % cutoff frequency
@@ -124,9 +189,10 @@ filtered_data_smoothest = filter_data(mod_results, frame_rate, fc);
 
 filename = case_name + " " + time_stamp + ".mat"; % file name for processed data
 
-saved_vars = {'time_data', 'force_data', 'results_lab',...
-    'filtered_data','filtered_data_smoothest',...
-    'norm_factors', 'St', 'Re'};
+saved_vars = {'time_data', 'force_data', 'results_lab', 'mod_results',...
+    'filtered_data','filtered_data_smoother','filtered_data_smoothest',...
+    'filtered_data_notch','notch_freq','notch_bw','norm_factors',...
+    'St', 'Re', 'U_act', 'rho_act', 'wing_pos', 'wing_speed', 'wing_acc'};
 
 % If this is a flapping trial, analyze data over each wingbeat rather than
 % just in time
@@ -141,15 +207,40 @@ if (wing_freq > 0)
     cycle_avg_forces]...
     = wingbeat_transformation(num_wingbeats, filtered_data, OC_pulse_count, speed, AoA);
 
-% [wingbeat_forces_smoother, frames_smoother, wingbeat_avg_forces_smoother, wingbeat_std_forces_smoother, ...
-%     wingbeat_rmse_forces_smoother, wingbeat_max_forces_smoother, wingbeat_min_forces_smoother, ...
-%     wingbeat_COP_smoother, cycle_avg_forces_smoother]...
-%     = wingbeat_transformation(num_wingbeats, filtered_data_smooth, AoA);
+[wingbeat_forces_smoother, frames_smoother, wingbeat_avg_forces_smoother, wingbeat_std_forces_smoother, ...
+    wingbeat_rmse_forces_smoother, wingbeat_max_forces_smoother, wingbeat_min_forces_smoother, ...
+    wingbeat_COP_smoother, cycle_avg_forces_smoother]...
+    = wingbeat_transformation(num_wingbeats, filtered_data_smoother, OC_pulse_count, speed, AoA);
 
 [wingbeat_forces_smoothest, frames_smoothest, wingbeat_avg_forces_smoothest, wingbeat_std_forces_smoothest,...
     wingbeat_rmse_forces_smoothest, wingbeat_max_forces_smoothest, wingbeat_min_forces_smoothest, wingbeat_COP_smoothest,...
     cycle_avg_forces_smoothest]...
     = wingbeat_transformation(num_wingbeats, filtered_data_smoothest, OC_pulse_count, speed, AoA);
+
+[wingbeat_forces_notch, frames_notch, wingbeat_avg_forces_notch, wingbeat_std_forces_notch,...
+    wingbeat_rmse_forces_notch, wingbeat_max_forces_notch, wingbeat_min_forces_notch, wingbeat_COP_notch,...
+    cycle_avg_forces_notch]...
+    = wingbeat_transformation(num_wingbeats, filtered_data_notch, OC_pulse_count, speed, AoA);
+
+% Wing kinematics over a wingbeat, on the same phase axis as the forces
+% (frames_kin = frames). Its own call, so the rows of the force arrays
+% (and the OC count / speed rows wingbeat_transformation appends) stay
+% as they were. Rows 1-3 = wing position, speed, acceleration; the COP
+% output means nothing here and is not kept.
+[wingbeat_kin, frames_kin, wingbeat_avg_kin, wingbeat_std_kin] = ...
+    wingbeat_transformation(num_wingbeats, [wing_pos(:)'; wing_speed(:)'; wing_acc(:)'], ...
+    OC_pulse_count, speed, AoA);
+wingbeat_wing_pos = squeeze(wingbeat_kin(1,:,:));   % [wingbeats x frames]
+wingbeat_avg_wing_pos = wingbeat_avg_kin(1,:);
+wingbeat_avg_wing_speed = wingbeat_avg_kin(2,:);
+wingbeat_avg_wing_acc = wingbeat_avg_kin(3,:);
+wingbeat_std_wing_pos = wingbeat_std_kin(1,:);
+wingbeat_std_wing_speed = wingbeat_std_kin(2,:);
+wingbeat_std_wing_acc = wingbeat_std_kin(3,:);
+
+kin_wing_vars = {'frames_kin', 'wingbeat_wing_pos', ...
+    'wingbeat_avg_wing_pos', 'wingbeat_avg_wing_speed', 'wingbeat_avg_wing_acc', ...
+    'wingbeat_std_wing_pos', 'wingbeat_std_wing_speed', 'wingbeat_std_wing_acc'};
 
 raw_wing_vars = {'wingbeat_forces_raw', 'frames_raw',...
     'wingbeat_avg_forces_raw', 'wingbeat_std_forces_raw',...
@@ -163,10 +254,10 @@ filt_wing_vars = {'wingbeat_forces','frames',...
     'wingbeat_min_forces', 'wingbeat_COP', ...
     'cycle_avg_forces'}; % 'upstroke_avg_forces', 'downstroke_avg_forces'
 
-% filt_smooth_wing_vars = {'wingbeat_forces_smoother', 'frames_smoother',...
-%     'wingbeat_avg_forces_smoother', 'wingbeat_std_forces_smoother',...
-%     'wingbeat_rmse_forces_smoother', 'wingbeat_max_forces_smoother',...
-%     'wingbeat_min_forces_smoother', 'wingbeat_COP_smoother', 'cycle_avg_forces_smoother'};
+filt_smoother_wing_vars = {'wingbeat_forces_smoother', 'frames_smoother',...
+    'wingbeat_avg_forces_smoother', 'wingbeat_std_forces_smoother',...
+    'wingbeat_rmse_forces_smoother', 'wingbeat_max_forces_smoother',...
+    'wingbeat_min_forces_smoother', 'wingbeat_COP_smoother', 'cycle_avg_forces_smoother'};
 
 filt_smoothest_wing_vars = {'wingbeat_forces_smoothest', 'frames_smoothest',...
     'wingbeat_avg_forces_smoothest', 'wingbeat_std_forces_smoothest',...
@@ -174,14 +265,23 @@ filt_smoothest_wing_vars = {'wingbeat_forces_smoothest', 'frames_smoothest',...
     'wingbeat_min_forces_smoothest', 'wingbeat_COP_smoothest', ...
     'cycle_avg_forces_smoothest'}; % 'upstroke_avg_forces_smoothest', 'downstroke_avg_forces_smoothest'
 
-vars = [saved_vars, raw_wing_vars, filt_wing_vars, filt_smoothest_wing_vars];
+filt_notch_wing_vars = {'wingbeat_forces_notch', 'frames_notch',...
+    'wingbeat_avg_forces_notch', 'wingbeat_std_forces_notch',...
+    'wingbeat_rmse_forces_notch', 'wingbeat_max_forces_notch',...
+    'wingbeat_min_forces_notch', 'wingbeat_COP_notch', ...
+    'cycle_avg_forces_notch'};
+
+vars = [saved_vars, raw_wing_vars, filt_wing_vars, filt_smoother_wing_vars, ...
+    filt_smoothest_wing_vars, filt_notch_wing_vars, kin_wing_vars];
 
 else
     vars = saved_vars;
 end
 
 disp("Saving " + processed_data_path + filename)
-save(processed_data_path + filename, vars{:})
+% -v7.3 without compression: these files are several hundred MB and
+% compressing them on save was a large share of the processing time
+save(processed_data_path + filename, vars{:}, '-v7.3', '-nocompression')
 % else
 %     cycle_forces = reshape(results_lab, 6, length(results_lab)/24, 24);
 %     cycle_avg_forces = squeeze(mean(cycle_forces,2));
@@ -245,4 +345,24 @@ save(processed_data_path + filename, vars{:})
 % 
 % % ---------------------------------------------------------
 % end
+end
+% Notch band centre(s) and width(s) in Hz from params.notch_freq /
+% params.notch_bw (set in process_all_trials). Falls back to a placeholder
+% band around the ~38 Hz ringing seen in the 4 Hz, 20 deg drag data until
+% the wing ringdown tests give the measured natural frequency.
+function [notch_freq, notch_bw] = get_notch_params(params)
+    notch_freq = 38; % Hz, placeholder
+    notch_bw = 10;   % Hz, placeholder
+    if isfield(params, 'notch_freq') && ~isempty(params.notch_freq)
+        notch_freq = params.notch_freq;
+    else
+        warning("process_trial: params.notch_freq not set, using placeholder " ...
+            + notch_freq + " Hz notch")
+    end
+    if isfield(params, 'notch_bw') && ~isempty(params.notch_bw)
+        notch_bw = params.notch_bw;
+    end
+    if isscalar(notch_bw)
+        notch_bw = notch_bw * ones(size(notch_freq));
+    end
 end

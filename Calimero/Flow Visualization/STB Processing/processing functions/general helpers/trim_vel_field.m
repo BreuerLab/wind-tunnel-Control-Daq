@@ -1,12 +1,21 @@
-function [y, z, u] = trim_vel_field(y, z, u)
+function [y, z, u] = trim_vel_field(y, z, u, bounds)
+    % bounds: struct with the trim limits and center point, all
+    % nondimensional (divided by L):
+    %   bounds.ybounds = [ymin ymax], bounds.zbounds = [zmin zmax]
+    %   bounds.y_cen, bounds.z_cen (data is shifted so these become 0)
+    % Defined at the entry points (process_case and the STB UIs).
 
-    ybounds = [-2.7 2]; % roughly -0.15 to 0.15 meters
-    zbounds = [-2.36 2.55]; % roughly -0.2 to 0.2 meters
-
-    y_cen = -2.26;
-    z_cen = 0.043;
+    ybounds = bounds.ybounds;
+    zbounds = bounds.zbounds;
+    y_cen = bounds.y_cen;
+    z_cen = bounds.z_cen;
     
-    x_ind = 3;
+    % centre plane of the STB slab (plane 3 of 5, plane 2 of 3)
+    x_ind = (size(y, 1) + 1) / 2;
+    if x_ind ~= round(x_ind)
+        error("trim_vel_field:evenPlanes", ...
+            "Expected an odd number of planes to take the centre plane, got %d", size(y, 1))
+    end
     y_idx = find(y(1,:,1) > ybounds(1) & y(1,:,1) < ybounds(2));  % columns
     z_idx = find(z(1,1,:) > zbounds(1) & z(1,1,:) < zbounds(2));  % rows
     

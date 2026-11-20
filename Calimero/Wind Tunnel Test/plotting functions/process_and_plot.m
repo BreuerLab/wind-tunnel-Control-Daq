@@ -1,4 +1,4 @@
-function process_and_plot(force, cur_ind, AoA_vals, AoA_ind, tiles, wing_freq_sel, ind)
+function process_and_plot(force, LC_idx, end_idx, cur_ind, AoA_vals, AoA_ind, tiles, wing_freq_sel)
     wing_freq = wing_freq_sel(cur_ind);
     AoA = AoA_vals(AoA_ind);
     wing_freq_sorted = sort(wing_freq_sel);
@@ -8,7 +8,10 @@ function process_and_plot(force, cur_ind, AoA_vals, AoA_ind, tiles, wing_freq_se
     % tunnel reference frame (body frame to global frame)
     results_lab = coordinate_transformation(force, AoA);
 
-    avg_force = mean(results_lab,2);
+    % Trim data down to that where speed has been met
+    results_lab_tr = results_lab(:,LC_idx:end_idx);
+
+    avg_force = mean(results_lab_tr,2);
 
     %% Plotting
     % colors = ["#67001f"; "#b2182b"; "#d6604d";...

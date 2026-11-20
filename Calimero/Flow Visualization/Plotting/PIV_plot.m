@@ -9,7 +9,7 @@ function h = PIV_plot(x, y, val_tr, params, ax)
     % imagesc(ax, x(:,1), y(1,:), val_tr')
     % set(ax, 'YDir', 'normal'); % This is the crucial line
 
-    % axis(ax, 'equal');
+    axis(ax, 'equal');
     % shading(ax, 'interp');
     % xlim(params.xlims)
     % ylim(params.ylims)
@@ -25,9 +25,14 @@ function h = PIV_plot(x, y, val_tr, params, ax)
     % max_vort = max(vort_phase_avg,[],'all');
     % vort_scale = max(abs([min_vort max_vort]));
 
-    if params.zero ~= 0 % freestream velocity plot
+    % centre value of the diverging map; colorbarpzn needs it strictly
+    % inside the colour limits
+    zero_inside = params.zero > params.clims(1) && params.zero < params.clims(2);
+    if params.zero ~= 0 && zero_inside % freestream velocity plot
         cb = colorbarpzn(ax, params.clims(1), params.clims(2), 'full', params.zero, 'dft', 'gwp','level',nlevels);
-    elseif params.clims(1) == 0 % uncertainty plots
+    elseif params.clims(1) == 0 || (params.zero ~= 0 && params.clims(1) >= 0)
+        % uncertainty plots, and non-negative fields (e.g. particle count)
+        % whose limits no longer contain the centre value
         colormap(ax, jet);
         cb = colorbar(ax);
         clim(ax, params.clims);
@@ -35,4 +40,5 @@ function h = PIV_plot(x, y, val_tr, params, ax)
         cb = colorbarpzn(ax, params.clims(1), params.clims(2),'level', nlevels); % , 'level', 21
     end
     ylabel(cb, params.cb_lab,'Interpreter','Latex','FontSize',18,'Rotation',0)
+    
 end

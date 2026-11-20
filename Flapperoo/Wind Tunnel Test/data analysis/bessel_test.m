@@ -112,12 +112,12 @@ grid(ax, 'on');
 
 cmap = colormap(ax, map);
 minSt = 0;
-maxSt = max(f_U)*chord;
+maxSt = max(f_U)*chord*pi;
 zmap = linspace(minSt, maxSt, length(cmap));
 clim(ax, [minSt, maxSt])
 cb = colorbar(ax);
 cb.Label.Interpreter = 'latex';
-cb.Label.String = '$\frac{fc}{U}$';
+cb.Label.String = '$\frac{\pi fc}{U}$';
 cb.Label.FontSize = 24; % Optional: make it more readable
 cb.Label.Rotation = 0;
 
@@ -144,9 +144,16 @@ St_max = 2*R*z .* bio_f_U_max;
 Fl_max = besselj(0, z) + (2/3) * pi^2 * (St_max.^2 ./ (z*R^2)) * (l^2 - 3*l*R + 3*R^2) .* (besselj(1, z));
 
 
-fill([z flip(z)], [Fl_min flip(Fl_max)], [0.2 0.6 0.8], ... % Custom RGB color
-    'FaceAlpha', 0.3, ...                   % 30% transparency
-    'EdgeColor', 'none');
+% fill([z flip(z)], [Fl_min flip(Fl_max)], [0.2 0.6 0.8], ... % Custom RGB color
+%     'FaceAlpha', 0.3, ...                   % 30% transparency
+%     'EdgeColor', 'none');
+
+p = plot(z, Fl_min);
+p.LineWidth = 2;
+p.Color = "black";
+p = plot(z, Fl_max);
+p.LineWidth = 2;
+p.Color = "black";
 
 xline(pi/6,LineWidth=2,Color="black",LineStyle="--")
 
@@ -164,8 +171,10 @@ for i = 1:length(f_U)
     p = plot(z, Fl);
     p.LineWidth = 2;
 
-    p.Color = interp1(zmap, cmap, f_U(i)*chord);
+    p.Color = interp1(zmap, cmap, f_U(i)*chord*pi);
 end
+
+return
 
 % 2. Define the position of the inset [left, bottom, width, height]
 % These values are fractions of the figure window (0 to 1)

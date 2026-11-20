@@ -10,10 +10,11 @@
 % St - Strouhal number for this trial
 % Re - Reynolds number for this trial
 
-function [norm_data, norm_factors, St, Re] = non_dimensionalize_data(path, results, file_name, type)
+function [norm_data, norm_factors, St, Re, wind_speed, density] =...
+    non_dimensionalize_data(path, results, file_name, freq_vals)
     
 % I don't want to use wing_type_from_name, I want type from eval_params.m
-[case_name, time_stamp, wing_type_from_name, wing_freq, AoA, U, amp, file_type] = parse_filename(file_name);
+[case_name, time_stamp, type, wing_freq, AoA, U, amp, file_type] = parse_filename(file_name);
     
     % angle_up = 21.3153; % degrees
     % angle_down = 21.3153; % degrees
@@ -34,12 +35,15 @@ switch lower(string(type))  % Case-insensitive, converts to string
         wing_span = 0.0885;
         wing_chord = 0.073;
         wing_length = 0.1125;
-    case {"flexible","body"}
+    case {"flexible","body","wings"}
         wing_span = 0.12;
         wing_chord = 0.07;
         wing_length = wing_span + 0.024;
     otherwise
-        error('Oops, wing type "%s" not found', type); % throw error and stop execution
+        warning('Oops, wing type "%s" not found', type);
+        wing_span = 1;
+        wing_chord = 1;
+        wing_length = 10;
 end
 
     % if (strcmp(type,"default") || strcmp(type,"bodyDefault")) 
@@ -61,10 +65,6 @@ end
     %     error('Oops, wing type not found');  % throw error and stop execution
     % 
     % end
-
-    % wing_freqs = [0, 2, 4, 6, 8, 10];
-    % wing_freqs = [10, 4, 8, 0, 2, 6];
-    wing_freqs = [0, 2, 3, 4];
     
     total_area = wing_span * wing_chord * 2; % m^2
     amplitude = wing_length * (abs(sind(angle_up)) + abs(sind(angle_down)));
@@ -75,7 +75,7 @@ end
     disp("Matched wind tunnel filename: ")
     disp(file_name)
         
-    [wind_speed, density, Re] = get_tunnel_file_contents(path, file_name, wing_chord, wing_freqs);
+    [wind_speed, density, Re] = get_tunnel_file_contents(path, file_name, wing_chord, freq_vals);
     
     St = (wing_freq * amplitude) / wind_speed;
     
