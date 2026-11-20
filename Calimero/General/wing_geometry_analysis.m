@@ -1,25 +1,32 @@
 %% wing_geometry_analysis.m
-% Wing planform geometry from photos of each wing lying flat next to a
-% ruler (face up and face down). For every photo: silhouette, chord
-% distribution c(r) and summary statistics (wing_planform_geometry.m). Then
-% the photos of each wing are averaged and the left and right wings
-% compared.
+% MAIN SCRIPT: wing planform geometry from photos and from the CAD file.
 %
-% All planforms are put in the same frame (root at r = 0 on the left,
-% leading edge on top), so face-up / face-down photos and left / right
-% wings overlay directly. The difference between the face-up and face-down
-% photos of one wing is a useful estimate of the measurement error.
+%   photos  -> wing_planform_geometry.m  (photo of each wing next to a
+%              ruler, face up and face down)
+%   CAD     -> cad_planform_geometry.m   (DXF of the laser-cut outline,
+%              with the material beyond the fold lines cut off)
+% Both use wing_mask_geometry.m for the measurements, so the definitions
+% (root edge on r = 0, chord parallel to the root, statistics) are identical
+% and the numbers can be compared one to one.
+%
+% For every photo: silhouette, chord distribution c(r) and summary
+% statistics. The photos of each wing are averaged (the face-up/face-down
+% spread is an estimate of the photo measurement error) and then compared
+% with the CAD geometry: the difference shows how folding along the LE and
+% tip, and scrunching of the membrane, change the real wing.
 %
 % Outputs (in outDir):
 %   <photo>_planform.png      summary figure per photo
 %   <photo>_silhouette.png    binary planform (1 px = 1/pxPerMm mm)
+%   cad_planform.png          summary figure of the CAD outline
 %   wing_geometry_photos.csv  statistics per photo
 %   wing_geometry_wings.csv   statistics per wing (mean of its photos,
 %                             and the face-up/face-down spread)
-%   wing_chord_distributions.csv  c(r) of every photo and wing mean on a
-%                             common 0.25 mm grid
+%   wing_geometry_vs_cad.csv  CAD vs each wing, with % differences
+%   wing_chord_distributions.csv  c(r) of every photo, wing means and CAD
+%                             on a common grid
 %   wing_geometry.mat         everything, including chord functions
-%   chord_comparison.png      c(r) overlay
+%   chord_comparison.png, silhouette_overlay.png
 
 clear; clc; close all
 
@@ -34,6 +41,11 @@ photos = [
     "right_down.jpg", "right", "down"
 ];
 
+% CAD outline: DXF (recommended) of the planform after folding, i.e. cut at
+% the fold-line notches. A file name is looked up in imageDir if it is not
+% found as given. "" = no CAD comparison.
+cadFile = "wing_planform.dxf";
+
 opts = struct();
 opts.rootOffset_mm = 0;       % flapping axis to wing root, for r1hat/r2hat/r3hat
 opts.spanAxis = "rootNormal"; % r = 0 along the root edge; or "ruler" / "leadingEdge"
@@ -44,10 +56,16 @@ opts.manualCalibration = false; % true: click the ruler yourself
 opts.plot = true;
 opts.verbose = true;
 
+cadOpts = opts;               % same measurement settings for the CAD
+cadOpts.units = "auto";       % from the DXF header; "mm"/"in" to override
+cadOpts.layers = [];          % e.g. "CUT" to use only that layer
+cadOpts.resolution = 10;      % px/mm of the raster the CAD outline is measured on
+cadOpts.rotation_deg = [];    % [] = auto (longest straight edge = LE along x)
+
 dr = 0.25;                    % grid for the averaged chord distributions (mm)
 saveOutputs = true;
 
-%% ---------------- run ----------------
+%% ---------------- photos ----------------
 if imageDir == ""
     imageDir = string(uigetdir(pwd, "Folder with the wing photos"));
     if imageDir == "0", return, end
@@ -66,6 +84,24 @@ for k = 1:nP
             exportgraphics(geos{k}.fig, fullfile(outDir, base + "_planform.png"), 'Resolution', 150);
         end
         imwrite(geos{k}.mask, fullfile(outDir, base + "_silhouette.png"));
+    end
+end
+
+%% ---------------- CAD ----------------
+haveCad = strlength(cadFile) > 0;
+geoCAD = [];
+if haveCad
+    if ~isfile(cadFile) && isfile(fullfile(imageDir, cadFile))
+        cadFile = fullfile(imageDir, cadFile);
+    end
+    if ~isfile(cadFile)
+        warning("CAD file '%s' not found; skipping the CAD comparison.", cadFile);
+        haveCad = false;
+    else
+        geoCAD = cad_planform_geometry(cadFile, cadOpts);
+        if saveOutputs && isfield(geoCAD, 'fig') && isgraphics(geoCAD.fig)
+            exportgraphics(geoCAD.fig, fullfile(outDir, "cad_planform.png"), 'Resolution', 150);
+        end
     end
 end
 
@@ -99,8 +135,26 @@ disp(TW(:, ["Wing", "nPhotos", "area_mm2", "area_mm2_spread", "span_mm", "span_m
     "rootChord_mm", "chordMax_mm", "chordMean_mm", "chordMedian_mm", "spanMax_mm", "spanMean_mm", ...
     "spanMedian_mm", "aspectRatio", "r2hat"]));
 
-% chord distributions on a common grid
+%% ---------------- photos vs CAD ----------------
+TCad = table();
+if haveCad
+    TCad = table(numVars.', 'VariableNames', "Quantity");
+    TCad.CAD = arrayfun(@(v) geoCAD.stats.(v), numVars.');
+    for w = 1:numel(wings)
+        wv = arrayfun(@(v) TW.(v)(w), numVars.');
+        TCad.(wings(w)) = wv;
+        TCad.(wings(w) + "_spread") = arrayfun(@(v) TW.(v + "_spread")(w), numVars.');
+        TCad.(wings(w) + "_vs_CAD_pct") = 100*(wv - TCad.CAD)./TCad.CAD;
+    end
+    disp('Photos vs CAD (wing = mean of its photos; % = (wing - CAD)/CAD):');
+    disp(TCad);
+    fprintf('CAD polygon area (exact) %.1f mm^2; raster %.1f mm^2\n', ...
+        geoCAD.stats.areaPolygon_mm2, geoCAD.stats.area_mm2);
+end
+
+%% ---------------- chord distributions on a common grid ----------------
 Rmax = max(T.span_mm);
+if haveCad, Rmax = max(Rmax, geoCAD.stats.span_mm); end
 rGrid = (0:dr:ceil(Rmax/dr)*dr).';
 C = zeros(numel(rGrid), nP);
 for k = 1:nP
@@ -116,6 +170,9 @@ for w = 1:numel(wings)
     cw = Cw(:,w);
     wingChordFun{w} = @(r) interp1(rGrid, cw, r, 'linear', 0);
 end
+if haveCad
+    Ccad = geoCAD.chordFun(rGrid);
+end
 
 %% ---------------- plots ----------------
 cols = lines(nP);
@@ -129,6 +186,9 @@ for k = 1:nP
     plot(ax, geos{k}.r_mm, geos{k}.chordSmooth_mm, ls, 'Color', cols(k,:), 'LineWidth', 1.2, ...
         'DisplayName', photos(k,2) + " / " + photos(k,3));
 end
+if haveCad
+    plot(ax, rGrid, Ccad, 'k-', 'LineWidth', 1.8, 'DisplayName', 'CAD');
+end
 xlabel(ax, 'spanwise r from root (mm)'); ylabel(ax, 'chord c(r) (mm)');
 title(ax, 'Chord distribution, every photo'); legend(ax, 'Location', 'northeast');
 
@@ -141,20 +201,28 @@ for w = 1:numel(wings)
         'EdgeColor', 'none', 'HandleVisibility', 'off');
     plot(ax, rGrid, Cw(:,w), 'Color', wc(w,:), 'LineWidth', 1.8, 'DisplayName', wings(w) + " wing (mean)");
 end
+if haveCad
+    plot(ax, rGrid, Ccad, 'k--', 'LineWidth', 1.8, 'DisplayName', 'CAD');
+end
 xlabel(ax, 'spanwise r from root (mm)'); ylabel(ax, 'chord c(r) (mm)');
 title(ax, 'Mean chord per wing (band = spread between photos)'); legend(ax, 'Location', 'northeast');
 
 % silhouettes overlaid (canonical frame)
 figS = figure('Name', 'Silhouette overlay', 'Color', 'w', 'Position', [150 150 1100 450]);
 axS = axes(figS); hold(axS, 'on'); axis(axS, 'equal'); grid(axS, 'on'); set(axS, 'YDir', 'reverse')
-for k = 1:nP
-    g = geos{k};
+allGeo = geos; names = photos(:,2) + " / " + photos(:,3);
+styles = faceStyles(1 + (photos(:,3) == "down")); colsAll = cols;
+if haveCad
+    allGeo{end+1} = geoCAD; names(end+1) = "CAD";
+    styles(end+1) = "-"; colsAll(end+1,:) = [0 0 0];
+end
+for k = 1:numel(allGeo)
+    g = allGeo{k};
     B = bwboundaries(g.mask, 'noholes');
     [~, kb] = max(cellfun(@(b) size(b,1), B));
     b = B{kb};
-    ls = faceStyles(1 + (photos(k,3) == "down"));
-    plot(axS, (b(:,2) - 0.5)/g.pxPerMm, (b(:,1) - 0.5)/g.pxPerMm, ls, 'Color', cols(k,:), ...
-        'LineWidth', 1.2, 'DisplayName', photos(k,2) + " / " + photos(k,3));
+    plot(axS, (b(:,2) - 0.5)/g.pxPerMm, (b(:,1) - 0.5)/g.pxPerMm, styles(k), 'Color', colsAll(k,:), ...
+        'LineWidth', 1.2 + 0.6*(names(k) == "CAD"), 'DisplayName', names(k));
 end
 xlabel(axS, 'spanwise r from root (mm)'); ylabel(axS, 'chordwise x from LE (mm)');
 title(axS, 'Planforms (root left, leading edge up)'); legend(axS, 'Location', 'southwest');
@@ -163,13 +231,21 @@ title(axS, 'Planforms (root left, leading edge up)'); legend(axS, 'Location', 's
 if saveOutputs
     writetable(T, fullfile(outDir, "wing_geometry_photos.csv"));
     writetable(TW, fullfile(outDir, "wing_geometry_wings.csv"));
-    TC = array2table([rGrid C Cw], 'VariableNames', ...
-        ["r_mm", photos(:,2).' + "_" + photos(:,3).', wings.' + "_mean"]);
-    writetable(TC, fullfile(outDir, "wing_chord_distributions.csv"));
+    chordNames = ["r_mm", photos(:,2).' + "_" + photos(:,3).', wings.' + "_mean"];
+    chordData = [rGrid C Cw];
+    if haveCad
+        writetable(TCad, fullfile(outDir, "wing_geometry_vs_cad.csv"));
+        chordNames(end+1) = "CAD";
+        chordData = [chordData Ccad];
+    end
+    writetable(array2table(chordData, 'VariableNames', chordNames), ...
+        fullfile(outDir, "wing_chord_distributions.csv"));
     exportgraphics(figC, fullfile(outDir, "chord_comparison.png"), 'Resolution', 150);
     exportgraphics(figS, fullfile(outDir, "silhouette_overlay.png"), 'Resolution', 150);
-    geosNoFig = cellfun(@(g) rmfield(g, intersect(fieldnames(g), {'fig'})), geos, 'UniformOutput', false);
-    save(fullfile(outDir, "wing_geometry.mat"), 'geosNoFig', 'T', 'TW', 'rGrid', 'C', 'Cw', ...
-        'wings', 'photos', 'wingChordFun', 'opts');
+    stripFig = @(g) rmfield(g, intersect(fieldnames(g), {'fig'}));
+    geosNoFig = cellfun(stripFig, geos, 'UniformOutput', false);
+    if haveCad, geoCAD = stripFig(geoCAD); end
+    save(fullfile(outDir, "wing_geometry.mat"), 'geosNoFig', 'geoCAD', 'T', 'TW', 'TCad', ...
+        'rGrid', 'C', 'Cw', 'wings', 'photos', 'wingChordFun', 'opts', 'cadOpts');
     fprintf('\nResults saved to %s\n', outDir);
 end
