@@ -4,6 +4,7 @@ properties (Constant, Access = private)
     INACTIVE_COLOR = [1 1 1];
     MOVIE_FRAME_DELAY = 0.1;    % s between frames of the .gif from Save Movie
     MOVIE_CROP_PAD = 10;        % px of margin kept around the plot when Save Movie crops the frames
+    FIGURE_PNG_DPI = 300;       % resolution of the .png saved by Save Figure
     % Save Movie styling, applied to every frame's copy of the plot (the
     % UI itself is unchanged)
     MOVIE_HIDE_TITLE = true;    % no title
@@ -2563,12 +2564,23 @@ methods
             set(fignew,'CreateFcn','set(gcbf,''Visible'',''on'')'); % Make it visible upon loading
             savefig(fignew,filename);
             delete(fignew);
+
+            % plus a high-resolution .png, framed like a flowFieldInst_UI
+            % Save Movie frame
+            png_file = "saved_figure.png";
+            try
+                obj.save_figure_png(plot_panel, png_file);
+                disp("Saved " + filename + " and " + png_file + " (" + obj.FIGURE_PNG_DPI + " dpi)")
+            catch png_error
+                uialert(ancestor(plot_panel, 'figure'), ...
+                    "Saved " + filename + ", but saving the .png failed: " + png_error.message, "Save Figure");
+            end
         end
 
         % Save Figure on the 3D plots: the current bin exactly as its frame
         % of Save Movie (same panel size, movie styling fitted on bin 1,
         % Play's x-limits held at bin 1's, cropped to what's drawn plus
-        % MOVIE_CROP_PAD), as a .png at screen resolution, with a .fig of
+        % MOVIE_CROP_PAD), as a .png at FIGURE_PNG_DPI, with a .fig of
         % the same styled copy next to it.
         function save_3D_frame_image(plot_panel)
             % 3D plot: the plane outline is saved without its label (x3...)
@@ -2616,15 +2628,9 @@ methods
                 obj.copy_plot_to_figure(plot_panel, fignew);
                 drop_plane_label_from(fignew);
                 obj.style_movie_copy(fignew, layout);
-                img = print(fignew, '-RGBImage', '-r0');
-                bb = obj.movie_content_bbox(img);
-                if ~isempty(bb)
-                    pad = obj.MOVIE_CROP_PAD;
-                    [h, w, ~] = size(img);
-                    img = img(max(1, bb(1) - pad):min(h, bb(2) + pad), ...
-                              max(1, bb(3) - pad):min(w, bb(4) + pad), :);
-                end
-                imwrite(img, filename);
+                % cropped as the movie frame, at FIGURE_PNG_DPI
+                img = obj.print_cropped(fignew, obj.FIGURE_PNG_DPI);
+                obj.write_png(img, filename, obj.FIGURE_PNG_DPI);
                 fig_file = regexprep(filename, '\.png$', '', 'ignorecase') + ".fig";
                 set(fignew, 'CreateFcn', 'set(gcbf,''Visible'',''on'')');
                 savefig(fignew, fig_file);
@@ -7576,6 +7582,74 @@ methods (Access = private)
         cb.Units = 'normalized';
         cb.Position = layout.cb_pos;
         ax_m.InnerPosition = layout.ax_pos; % again, in case moving the colorbar moved it
+    end
+
+    % Save Figure (2D plots): .png of the plot at FIGURE_PNG_DPI with the
+    % framing of a flowFieldInst_UI Save Movie frame, so the two have the
+    % same aspect ratio. As there, the plot is copied onto an off-screen
+    % figure the size of the UI's whole plot panel (setupFig's; this UI's
+    % plot area sits inside it with padding and two control rows), text
+    % is MOVIE_FONT_SCALE larger, the title is kept, and the image is
+    % cropped to what's drawn plus MOVIE_CROP_PAD (screen pixels, scaled
+    % to the higher resolution).
+    function save_figure_png(obj, plot_panel, filename)
+        canvas = plot_panel;
+        p = plot_panel.Parent;
+        if isa(p, 'matlab.ui.container.GridLayout') && isa(p.Parent, 'matlab.ui.container.Panel')
+            canvas = p.Parent; % setupFig's plot panel
+        end
+        canvas_units = canvas.Units;
+        canvas.Units = 'pixels';
+        canvas_pos = canvas.Position;
+        canvas.Units = canvas_units;
+
+        fignew = figure('Visible', 'off', 'Units', 'pixels', ...
+            'Position', [100 100 canvas_pos(3) canvas_pos(4)]);
+        cleanup = onCleanup(@() delete(fignew(isvalid(fignew))));
+        obj.copy_plot_to_figure(plot_panel, fignew);
+        if obj.MOVIE_FONT_SCALE ~= 1
+            % sizes read first, then set: labels following their axes'
+            % size would otherwise be scaled twice
+            h = findall(fignew, '-property', 'FontSize');
+            fs = get(h, 'FontSize');
+            if ~iscell(fs)
+                fs = {fs};
+            end
+            for kh = 1:numel(h)
+                h(kh).FontSize = fs{kh} * obj.MOVIE_FONT_SCALE;
+            end
+        end
+        img = obj.print_cropped(fignew, obj.FIGURE_PNG_DPI);
+        obj.write_png(img, filename, obj.FIGURE_PNG_DPI);
+    end
+
+    % Image of fig at dpi, cropped like a Save Movie frame: the box of
+    % what's drawn plus MOVIE_CROP_PAD, found at screen resolution (as the
+    % movie does) and scaled to dpi, so the aspect ratio matches the movie
+    function img = print_cropped(obj, fig, dpi)
+        img0 = print(fig, '-RGBImage', '-r0');
+        img = print(fig, '-RGBImage', sprintf('-r%d', round(dpi)));
+        bb = obj.movie_content_bbox(img0);
+        if isempty(bb)
+            return
+        end
+        pad = obj.MOVIE_CROP_PAD;
+        [h0, w0, ~] = size(img0);
+        [h, w, ~] = size(img);
+        sr = h / h0;
+        sc = w / w0;
+        r0 = [max(1, bb(1) - pad), min(h0, bb(2) + pad)];
+        c0 = [max(1, bb(3) - pad), min(w0, bb(4) + pad)];
+        r = max(1, floor((r0(1) - 1) * sr) + 1) : min(h, ceil(r0(2) * sr));
+        c = max(1, floor((c0(1) - 1) * sc) + 1) : min(w, ceil(c0(2) * sc));
+        img = img(r, c, :);
+    end
+
+    % .png with its resolution (dpi) stored, so it prints / imports at size
+    function write_png(~, img, filename, dpi)
+        ppm = dpi / 0.0254; % pixels per metre
+        imwrite(img, filename, 'png', 'ResolutionUnit', 'meter', ...
+            'XResolution', ppm, 'YResolution', ppm);
     end
 
     % Pixel box [row_min row_max col_min col_max] of what's drawn in a
