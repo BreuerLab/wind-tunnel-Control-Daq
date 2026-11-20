@@ -36,7 +36,7 @@ photos = [
 
 opts = struct();
 opts.rootOffset_mm = 0;       % flapping axis to wing root, for r1hat/r2hat/r3hat
-opts.spanAxis = "ruler";      % or "leadingEdge"
+opts.spanAxis = "rootNormal"; % r = 0 along the root edge; or "ruler" / "leadingEdge"
 opts.rootSide = "auto";       % "left"/"right" if auto gets it wrong
 opts.leadingEdge = "auto";    % "top"/"bottom" if auto gets it wrong
 opts.manualCalibration = false; % true: click the ruler yourself
@@ -80,12 +80,12 @@ T.scaleVariation_pct = cellfun(@(g) 100*g.scaleInfo.localVariation, geos);
 
 disp(' ');
 disp('Per photo:');
-disp(T(:, ["Wing", "Face", "area_mm2", "span_mm", "chordMax_mm", "chordMean_mm", ...
+disp(T(:, ["Wing", "Face", "area_mm2", "span_mm", "rootChord_mm", "chordMax_mm", "chordMean_mm", ...
     "chordMedian_mm", "spanMax_mm", "spanMean_mm", "spanMedian_mm", "aspectRatio", "r2hat"]));
 
 %% ---------------- per-wing average ----------------
 wings = unique(photos(:,2), 'stable');
-numVars = ["area_mm2", "span_mm", "chordMax_mm", "chordMean_mm", "chordMedian_mm", ...
+numVars = ["area_mm2", "span_mm", "rootChord_mm", "chordMax_mm", "chordMean_mm", "chordMedian_mm", ...
     "spanMax_mm", "spanMean_mm", "spanMedian_mm", "meanGeomChord_mm", "aspectRatio", ...
     "r1hat", "r2hat", "r3hat"];
 TW = table(wings, 'VariableNames', "Wing");
@@ -96,7 +96,7 @@ for v = numVars
 end
 disp('Per wing (mean of its photos; *_spread = max - min between photos):');
 disp(TW(:, ["Wing", "nPhotos", "area_mm2", "area_mm2_spread", "span_mm", "span_mm_spread", ...
-    "chordMax_mm", "chordMean_mm", "chordMedian_mm", "spanMax_mm", "spanMean_mm", ...
+    "rootChord_mm", "chordMax_mm", "chordMean_mm", "chordMedian_mm", "spanMax_mm", "spanMean_mm", ...
     "spanMedian_mm", "aspectRatio", "r2hat"]));
 
 % chord distributions on a common grid

@@ -16,11 +16,16 @@ function geo = wing_planform_geometry(imageFile, opts)
 %      double-checks the result;
 %   3. segments the dark membrane, fills holes (washers, bolts), keeps the
 %      largest blob, and rotates it into the ruler frame;
+%      Light-grey printed parts lying ON the membrane (root bar, washers)
+%      are bridged, and tape glare along the leading edge is filled, so
+%      the area under them counts as wing;
 %   4. cuts off whatever sticks out past the straight root edge of the
 %      membrane (3D-printed root parts, bolt heads);
 %   5. orients the planform root-left / leading-edge-up (so face-up and
-%      face-down photos, and left and right wings, are directly comparable)
-%      and measures chord c(r) and span s(x) per pixel column / row.
+%      face-down photos, and left and right wings, are directly comparable),
+%      turns it so the root edge is the chordwise axis (r = 0 along the
+%      root, chord measured parallel to the root) and measures chord c(r)
+%      and span s(x) per pixel column / row.
 %
 % opts (all optional):
 %   .rootSide        'auto' (default) | 'left' | 'right'   which end is the
@@ -29,8 +34,10 @@ function geo = wing_planform_geometry(imageFile, opts)
 %   .leadingEdge     'auto' (default) | 'top' | 'bottom'   in the ruler-
 %                    aligned view, after the root is put on the left.
 %                    auto = the straighter of the two long edges.
-%   .spanAxis        'ruler' (default) | 'leadingEdge'  spanwise direction:
-%                    the ruler, or a line fitted to the leading edge.
+%   .spanAxis        'rootNormal' (default) | 'ruler' | 'leadingEdge'
+%                    spanwise direction: perpendicular to the fitted root
+%                    edge (so the root lies on r = 0 and c(0) is the root
+%                    chord), along the ruler, or along the leading edge.
 %   .pxPerMm         [] (default: measured from the ruler ticks) or a number
 %   .tickSpacing_mm  1 (default) spacing of the finest ticks on the metric
 %                    edge
@@ -39,10 +46,11 @@ function geo = wing_planform_geometry(imageFile, opts)
 %                    (asked for afterwards); gives span direction and scale.
 %   .darkThreshold   [] (default: multithresh) or gray level 0..1 below
 %                    which a pixel counts as membrane
-%   .closeRadius_mm  1 (default) closing radius used before filling holes
-%                    (closes washers sitting on the membrane edge)
+%   .closeRadius_mm  3 (default) gaps up to ~2x this wide that are covered
+%                    by grey/bluish parts (root bar, washers) are bridged.
+%                    Only grey pixels are added, never table pixels.
 %   .rootCut         true (default) cut off parts outside the root edge
-%   .rootCutTol_mm   0.5 (default) material more than this beyond the
+%   .rootCutTol_mm   0 (default) material more than this beyond the
 %                    fitted root edge line is removed
 %   .rootOpen_mm     3 (default) radius of the opening used to find the
 %                    root edge without the root hardware
@@ -66,9 +74,10 @@ function geo = wing_planform_geometry(imageFile, opts)
 %   .chordFun   @(r) chord at spanwise r (mm), 0 outside the wing
 %   .x_mm, .spanAtX_mm  spanwise extent of the membrane at each chordwise
 %               station x
-%   .stats      area, span (root-to-tip length R), chord max/mean/median,
-%               span max/mean/median, mean geometric chord S/R, aspect
-%               ratio R^2/S, centroid, r1hat/r2hat/r3hat, LE angle
+%   .stats      area, span (root-to-tip length R), root chord, chord
+%               max/mean/median, span max/mean/median, mean geometric chord
+%               S/R, aspect ratio R^2/S, centroid, r1hat/r2hat/r3hat,
+%               root and LE angles
 %   .boundaryXY wing outline in original image pixel coordinates
 %   .fig        figure handle (if opts.plot)
 
@@ -95,6 +104,13 @@ function geo = wing_planform_geometry(imageFile, opts)
     end
     dark = gray < darkThr;
 
+    % Lab b*: the wooden table is yellowish, the steel ruler and the grey
+    % 3D-printed parts are bluish-grey
+    lab = rgb2lab(I);
+    bstar = lab(:,:,3);
+    clear lab
+    partThr = multithresh(bstar(~dark), 1);
+
     %% ---------------- ruler: direction and scale ----------------
     c0 = [W H]/2;   % rotation centre (image centre)
     scaleInfo = struct('method', "", 'pxPerMm', NaN, 'edgePeriods_px', [NaN NaN], ...
@@ -102,10 +118,10 @@ function geo = wing_planform_geometry(imageFile, opts)
         'localPxPerMm', [], 'localVariation', NaN, 'rulerAngle_deg', NaN);
 
     if opts.manualCalibration
-        [e, n, vEdges, pxPerMm, rulerMask] = manualRuler(I, dark, c0, opts);
+        [e, n, vEdges, pxPerMm, wingSide] = manualRuler(I, dark, c0, opts);
         scaleInfo.method = "manual";
     else
-        [e, n, vEdges, rulerMask, rulerLen] = findRuler(I, dark, c0);
+        [e, n, vEdges, rulerMask, rulerLen] = findRuler(dark, bstar, partThr, c0);
         scaleInfo.method = "ruler ticks (FFT)";
     end
     scaleInfo.rulerAngle_deg = atan2d(e(2), e(1));
@@ -132,23 +148,31 @@ function geo = wing_planform_geometry(imageFile, opts)
     geo.pxPerMm = pxPerMm;
 
     %% ---------------- wing mask ----------------
+    % dOut: distance from the ruler towards the wing (< 0 on the ruler)
     if opts.manualCalibration
-        rulerSide = rulerMask;              % half-plane beyond the clicked edge
+        dOut = (V - vEdges(1))*wingSide;
+        rulerSide = dOut < 0;
     else
-        marg = max(1, 0.1*pxPerMm);   % ~0.1 mm: keeps the LE that touches the ruler
-        rulerSide = V > min(vEdges) - marg & V < max(vEdges) + marg;
+        dOut = max(min(vEdges) - V, V - max(vEdges));
+        rulerSide = dOut < max(1, 0.1*pxPerMm);  % ~0.1 mm: keeps the LE touching the ruler
     end
-    wing = dark & ~rulerSide;
+    excl = false(H, W);
     for k = 1:numel(opts.excludePolygons)
         P = opts.excludePolygons{k};
-        wing = wing & ~poly2mask(P(:,1), P(:,2), H, W);
+        excl = excl | poly2mask(P(:,1), P(:,2), H, W);
     end
-    wing = bwareafilt(wing, 1);
     rClose = max(1, round(opts.closeRadius_mm*pxPerMm));
-    wing = imclose(wing, strel('disk', rClose));
-    wing = imfill(wing, 'holes');
+    wing0 = dark & ~rulerSide & ~excl;
+    % Grey parts lying on the membrane (root bar, washers): a closing may
+    % bridge across them, but it only adds grey/bluish pixels (never table)
+    % and not along the ruler edge.
+    isPart = ~dark & bstar < partThr & dOut > rClose & ~excl;
+    wing = wing0 | (imclose(wing0, strel('disk', rClose)) & isPart);
+    % Fill holes with the ruler counted as solid, so notches against it
+    % (tape glare along the leading edge) are filled as well.
+    wing = imfill(wing | rulerSide, 'holes') & ~rulerSide & ~excl;
     wing = bwareafilt(wing, 1);
-    clear X Y V
+    clear X Y V dOut isPart wing0 excl
 
     %% ---------------- rotate into the ruler frame ----------------
     % u along the ruler (span), v across it. Grid covers the wing's bbox.
@@ -205,6 +229,11 @@ function geo = wing_planform_geometry(imageFile, opts)
         leFit = topFit;
     end
     leAngle = atand(leFit.slope);   % LE angle relative to the ruler (deg)
+    rootTilt = NaN;                 % root edge angle from the normal to the ruler
+    if all(isfinite(rootLine))
+        rootTilt = atand(rootLine(1));
+        if flipV, rootTilt = -rootTilt; end
+    end
 
     %% ---------------- outline in the original image ----------------
     Mr = M;
@@ -216,16 +245,40 @@ function geo = wing_planform_geometry(imageFile, opts)
     ub = uVec(b(:,2)); vb = vVec(b(:,1));
     geo.boundaryXY = [c0(1) + ub(:)*e(1) + vb(:)*n(1), c0(2) + ub(:)*e(2) + vb(:)*n(2)];
 
-    %% ---------------- optional: span axis = leading edge ----------------
-    if strcmpi(opts.spanAxis, "leadingEdge")
-        % rotate counter-clockwise by the LE angle so the LE is horizontal
-        M = imrotate(double(M), leAngle, 'bilinear', 'loose') > 0.5;
+    %% ---------------- span axis ----------------
+    % imrotate turns counter-clockwise (as displayed) by the given angle
+    switch lower(string(opts.spanAxis))
+        case "rootnormal"
+            if isfinite(rootTilt)
+                axisRot = -rootTilt;          % root edge -> vertical
+            else
+                warning("wing_planform_geometry:noRootLine", ...
+                    "No root edge was fitted; using the ruler as the span axis.");
+                axisRot = 0;
+            end
+        case "leadingedge", axisRot = leAngle;   % LE -> horizontal
+        case "ruler",       axisRot = 0;
+        otherwise, error("opts.spanAxis must be 'rootNormal', 'ruler' or 'leadingEdge'")
+    end
+    if axisRot ~= 0
+        M = imrotate(double(M), axisRot, 'bilinear', 'loose') > 0.5;
         M = bwareafilt(M, 1);
     end
 
     %% ---------------- crop & measure ----------------
     rows = find(any(M, 2)); cols = find(any(M, 1));
     M = M(rows(1):rows(end), cols(1):cols(end));
+    if opts.rootCut
+        % drop partial pixel columns left at the root by the rotation
+        cs = sum(M, 1);
+        k0 = 1;
+        while k0 < min(4, numel(cs)) && cs(k0) < 0.5*cs(k0+1)
+            k0 = k0 + 1;
+        end
+        M = M(:, k0:end);
+        rows = find(any(M, 2));
+        M = M(rows(1):rows(end), :);
+    end
     geo.mask = M;
     [nR, nC] = size(M);
 
@@ -268,6 +321,7 @@ function geo = wing_planform_geometry(imageFile, opts)
     st = struct();
     st.area_mm2          = S;
     st.span_mm           = Rspan;              % root-to-tip length (R)
+    st.rootChord_mm      = mean(chord(1:min(nC, max(1, round(pxPerMm)))));  % first 1 mm
     st.chordMax_mm       = max(cv);
     st.chordMean_mm      = mean(cv);
     st.chordMedian_mm    = median(cv);
@@ -284,11 +338,13 @@ function geo = wing_planform_geometry(imageFile, opts)
     st.r3hat             = (sum(chord.*rAx.^3)*dr/(S*Rtip^3))^(1/3);
     st.rootOffset_mm     = opts.rootOffset_mm;
     st.leAngleToRuler_deg = leAngle;
+    st.rootAngle_deg     = rootTilt;           % root edge vs. normal to the ruler
+    st.leAngleToSpanAxis_deg = leAngle - axisRot;   % > 0: LE slopes back towards the tip
     st.leStraightness_mm = leFit.rms/pxPerMm;  % RMS deviation of LE from a line
     geo.stats = st;
     geo.scaleInfo = scaleInfo;
     geo.orientation = struct('rootFlipped', flipU, 'leFlipped', flipV, ...
-        'rootLine', rootLine, 'spanAxis', string(opts.spanAxis));
+        'rootLine', rootLine, 'spanAxis', string(opts.spanAxis), 'axisRotation_deg', axisRot);
 
     if opts.verbose
         printSummary(geo);
@@ -300,10 +356,10 @@ end
 
 %% ======================================================================
 function opts = setDefaults(opts)
-    d = struct('rootSide', 'auto', 'leadingEdge', 'auto', 'spanAxis', 'ruler', ...
+    d = struct('rootSide', 'auto', 'leadingEdge', 'auto', 'spanAxis', 'rootNormal', ...
         'pxPerMm', [], 'tickSpacing_mm', 1, 'manualCalibration', false, ...
-        'darkThreshold', [], 'closeRadius_mm', 1, 'rootCut', true, ...
-        'rootCutTol_mm', 0.5, 'rootOpen_mm', 3, 'excludePolygons', {{}}, ...
+        'darkThreshold', [], 'closeRadius_mm', 3, 'rootCut', true, ...
+        'rootCutTol_mm', 0, 'rootOpen_mm', 3, 'excludePolygons', {{}}, ...
         'rootOffset_mm', 0, 'plot', true, 'verbose', true);
     f = fieldnames(d);
     for k = 1:numel(f)
@@ -314,13 +370,9 @@ function opts = setDefaults(opts)
 end
 
 %% ======================================================================
-function [e, n, vEdges, rulerMask, rulerLen] = findRuler(I, dark, c0)
+function [e, n, vEdges, rulerMask, rulerLen] = findRuler(dark, bstar, partThr, c0)
 % Ruler = largest light region that is bluer (lower Lab b*) than the table.
-    lab = rgb2lab(I);
-    bstar = lab(:,:,3);
-    light = ~dark;
-    tb = multithresh(bstar(light), 1);
-    rul = light & bstar < tb;
+    rul = ~dark & bstar < partThr;
     rul = imopen(rul, strel('disk', 3));
     rul = bwareafilt(rul, 1);
     rul = imclose(rul, strel('square', 25));    % fill tick marks & text
@@ -458,7 +510,7 @@ function [period, prominence] = tickPeriod(prof, pMin, pMax)
 end
 
 %% ======================================================================
-function [e, n, vEdges, pxPerMm, farSide] = manualRuler(I, dark, c0, opts)
+function [e, n, vEdges, pxPerMm, wingSide] = manualRuler(I, dark, c0, opts)
     hf = figure('Name', 'Ruler calibration');
     imshow(I); hold on
     title({'Click two points on the ruler edge NEXT TO THE WING,', ...
@@ -483,7 +535,6 @@ function [e, n, vEdges, pxPerMm, farSide] = manualRuler(I, dark, c0, opts)
     V = (X - c0(1))*n(1) + (Y - c0(2))*n(2);
     blob = bwareafilt(dark & abs(V - vEdge) > pxPerMm, 1);
     wingSide = sign(mean(V(blob)) - vEdge);
-    farSide = (V - vEdge)*wingSide < 0;
 end
 
 %% ======================================================================
@@ -553,13 +604,14 @@ function printSummary(geo)
     fprintf('  area             %.1f mm^2\n', st.area_mm2);
     fprintf('  span R           %.2f mm   (spanwise extent: max %.2f, mean %.2f, median %.2f)\n', ...
         st.span_mm, st.spanMax_mm, st.spanMean_mm, st.spanMedian_mm);
-    fprintf('  chord            max %.2f, mean %.2f, median %.2f mm (S/R = %.2f mm)\n', ...
-        st.chordMax_mm, st.chordMean_mm, st.chordMedian_mm, st.meanGeomChord_mm);
+    fprintf('  chord            root %.2f, max %.2f, mean %.2f, median %.2f mm (S/R = %.2f mm)\n', ...
+        st.rootChord_mm, st.chordMax_mm, st.chordMean_mm, st.chordMedian_mm, st.meanGeomChord_mm);
     fprintf('  AR = R^2/S       %.3f\n', st.aspectRatio);
     fprintf('  r1hat, r2hat, r3hat  %.3f, %.3f, %.3f (root offset %.1f mm)\n', ...
         st.r1hat, st.r2hat, st.r3hat, st.rootOffset_mm);
-    fprintf('  LE vs ruler      %.2f deg (LE RMS deviation from a line %.2f mm)\n', ...
-        st.leAngleToRuler_deg, st.leStraightness_mm);
+    fprintf('  angles           root edge %.2f deg from ruler normal; LE %.2f deg to ruler, %.2f deg to span axis (%s)\n', ...
+        st.rootAngle_deg, st.leAngleToRuler_deg, st.leAngleToSpanAxis_deg, geo.orientation.spanAxis);
+    fprintf('  LE straightness  %.2f mm RMS from a line\n', st.leStraightness_mm);
 end
 
 %% ======================================================================
@@ -606,7 +658,5 @@ function fig = plotSummary(I, geo, e, n, c0, vEdges, opts)
     title(ax3, sprintf('Chord: max %.1f, mean %.1f, median %.1f mm', ...
         geo.stats.chordMax_mm, geo.stats.chordMean_mm, geo.stats.chordMedian_mm));
     xlim(ax3, [0 geo.stats.span_mm]);
-    if strcmpi(opts.spanAxis, "leadingEdge")
-        subtitle(ax3, 'span axis = leading edge');
-    end
+    subtitle(ax3, "span axis: " + string(opts.spanAxis));
 end
