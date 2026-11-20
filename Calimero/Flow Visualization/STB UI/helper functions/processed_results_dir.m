@@ -13,6 +13,10 @@ function d = processed_results_dir(root)
 %          time_avg subfolder.
 
 root = string(root);
+if ~isscalar(root)
+    error("processed_results_dir:notScalar", ...
+        "processed_results_dir takes one data root, got %d; loop over the roots (see flowField_UI).", numel(root));
+end
 if ~endsWith(root, ["\", "/"])
     root = root + "\";
 end
