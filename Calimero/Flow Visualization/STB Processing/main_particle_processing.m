@@ -13,6 +13,7 @@ cd(fileparts(mfilename('fullpath')));
 addpath(genpath('../../'))
 addpath(genpath('.'))
 addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path (as main_processing)
+check_path_duplicates() % warn if a function name is on the path more than once
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 PIV_case_name       = 'x2_wings_20deg_8Hz';   % as in main_processing

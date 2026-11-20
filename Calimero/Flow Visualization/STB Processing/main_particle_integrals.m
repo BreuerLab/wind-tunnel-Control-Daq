@@ -10,6 +10,7 @@ close all
 cd(fileparts(mfilename('fullpath')));
 addpath(genpath('../../'))
 addpath(genpath('.'))
+check_path_duplicates() % warn if a function name is on the path more than once
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 PIV_case_name       = 'x2_wings_20deg_8Hz';   % as in main_processing
