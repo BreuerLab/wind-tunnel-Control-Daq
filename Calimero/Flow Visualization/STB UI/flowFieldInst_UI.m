@@ -9,7 +9,7 @@ properties (Constant, Access = private)
     % is unchanged)
     MOVIE_FRAME_DELAY = 0.1;    % s between frames of the .gif
     MOVIE_CROP_PAD = 10;        % px of margin kept around the plot
-    MOVIE_HIDE_TITLE = true;    % no title
+    MOVIE_HIDE_TITLE = false;   % keep the title (case, bin, frame number) on each frame
     MOVIE_FONT_SCALE = 1.3;     % all text (ticks, labels, colorbar) this much larger
     U_INF = 4;      % freestream velocity (m/s) used for nondimensionalization
     L_CHORD = 0.07; % guess of mean aerodynamic chord (m)
