@@ -5,7 +5,9 @@ clear phaseAvg_UI
 % Change current working directory to the directory where this file is
 cd(fileparts(mfilename('fullpath')));
 addpath(genpath('../../'))
-addpath(genpath('C:\Users\rgissler\Documents\MATLAB')) % readimx path (as main_processing)
+% readimx path (as main_processing). Added at the end so functions in this
+% repo win over any older copies in Documents\MATLAB.
+addpath(genpath('C:\Users\rgissler\Documents\MATLAB'), '-end')
 
 % Data should be moved locally. Using this GUI with data stored on the LRS
 % is slow

@@ -111,6 +111,11 @@ properties
     binning_cache;
     % Per-case .vc7 frame list (get_case_frames), keyed by case id
     frames_cache;
+
+    % Callers already reported for opening a stray figure window (see
+    % without_stray_figures)
+    stray_figure_callers = strings(0);
+    stray_figure_pending = strings(0);
 end
 
 methods
@@ -645,6 +650,17 @@ methods
     % Called whenever source/distance/case/bin changes: load only the
     % first frame of the selected bin so the plot updates quickly.
     function load_preview(obj, plot_panel)
+        obj.without_stray_figures(@() obj.load_preview_impl(plot_panel));
+    end
+
+    % Load All Frames button
+    function load_all_frames(obj, plot_panel)
+        obj.without_stray_figures(@() obj.load_all_frames_impl(plot_panel));
+    end
+end
+
+methods (Access = private)
+    function load_preview_impl(obj, plot_panel)
         if strlength(obj.case_name) == 0
             return
         end
@@ -693,7 +709,7 @@ methods
 
     % Load All Frames button: load every frame of the selected bin (reusing
     % the preview frame if it is already in memory) and redraw.
-    function load_all_frames(obj, plot_panel)
+    function load_all_frames_impl(obj, plot_panel)
         if strlength(obj.case_name) == 0
             return
         end
@@ -754,9 +770,57 @@ methods
         obj.clear_busy(fig);
         obj.render_plot(plot_panel);
     end
-end
 
-methods (Access = private)
+    % Run fn and close any empty figure window opened while it ran.
+    % Something called during loading/plotting can open an ordinary
+    % figure (a gcf/gca/figure call can't see the UI's uifigure, so MATLAB
+    % creates a new window); the first time a caller does it, it is named
+    % in the Command Window so it can be fixed at the source.
+    function without_stray_figures(obj, fn)
+        before = findall(groot, 'Type', 'figure');
+        old_fcn = get(groot, 'DefaultFigureCreateFcn');
+        set(groot, 'DefaultFigureCreateFcn', @(~, ~) obj.note_stray_figure());
+        restore = onCleanup(@() set(groot, 'DefaultFigureCreateFcn', old_fcn));
+        fn();
+        delete(restore);
+
+        after = findall(groot, 'Type', 'figure');
+        new_figs = after(~ismember(after, before));
+        for k = 1:numel(new_figs)
+            f = new_figs(k);
+            if isvalid(f) && isempty(f.Children)
+                delete(f);
+            end
+        end
+        for c = obj.stray_figure_pending
+            if ~any(obj.stray_figure_callers == c)
+                obj.stray_figure_callers(end + 1) = c;
+                warning("flowFieldInst_UI:strayFigure", ...
+                    "Closed an empty figure window opened by %s", c);
+            end
+        end
+        obj.stray_figure_pending = strings(0);
+    end
+
+    % DefaultFigureCreateFcn while loading/plotting: note who opened the
+    % figure (the deepest stack frame in our code, i.e. not this
+    % callback and not a MATLAB toolbox file such as gca.m)
+    function note_stray_figure(obj)
+        st = dbstack('-completenames');
+        caller = "unknown caller";
+        for k = 1:numel(st)
+            name = string(st(k).name);
+            file = string(st(k).file);
+            if contains(name, "note_stray_figure") || contains(name, "@") || ...
+                    startsWith(file, string(matlabroot))
+                continue
+            end
+            caller = name + " (" + file + ", line " + st(k).line + ")";
+            break
+        end
+        obj.stray_figure_pending(end + 1) = caller;
+    end
+
     function file_stems = get_file_stems(~, files, suffix)
         file_names = string({files.name});
         avg_files = endsWith(file_names, suffix + ".mat");
@@ -986,6 +1050,10 @@ methods (Access = private)
     % Display: draws only from data already in memory (never loads)
     % ---------------------------------------------------------------------
     function render_plot(obj, plot_panel)
+        obj.without_stray_figures(@() obj.render_plot_impl(plot_panel));
+    end
+
+    function render_plot_impl(obj, plot_panel)
         delete(findobj(plot_panel.Children, 'Type', 'axes'));
         obj.set_placeholder(plot_panel, "");
 
