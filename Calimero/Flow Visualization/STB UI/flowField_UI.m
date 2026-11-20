@@ -380,6 +380,9 @@ properties
     % [lower upper] % of its length from the robot's (upstream) end, so
     % [0 25] shows the quarter most recently shed
     fix_xpct;
+    % "phase avg: 3D all planes" Fix Limits x: upper x-limit of the whole
+    % plot in x/c (Inf: none), in the same row as fix_xpct
+    fix_xmax_merged;
     % "phase avg: 3D all planes": per-plane fields (trimmed / mirrored /
     % filtered) of the last plot and the settings they depend on (key),
     % so moving through the bins only rebuilds the isosurfaces
@@ -523,6 +526,7 @@ methods
         obj.fix_ylim = [-5 5];
         obj.fix_zlim = [-3 3];
         obj.fix_xpct = [0 100];
+        obj.fix_xmax_merged = Inf;
         obj.fix_lims_set = false;
         obj.trim_bool = true;
         obj.extrapolate_bool = false;
@@ -2125,6 +2129,23 @@ methods
         % shift or stroke labels)
         function set_merged_controls()
             is_merged = obj.plot_type == obj.MERGED_3D_PLOT;
+            % Fix Limits x row: % of the wake on the 3D plot; on the
+            % all-planes plot only an upper limit of the whole plot, x/c
+            if is_merged
+                xpct_label.Text = "x/c";
+                xpct_fields(1).Visible = "off";
+                xpct_fields(2).Limits = [0 Inf];
+                xpct_fields(2).Value = obj.fix_xmax_merged;
+                xpct_fields(2).Tooltip = "phase avg: 3D all planes: upper x/c limit of the plot " + ...
+                    "(x/c from the robot; Inf = none; Fix Limits)";
+            else
+                xpct_label.Text = "x %";
+                xpct_fields(1).Visible = "on";
+                xpct_fields(2).Value = obj.fix_xpct(2);
+                xpct_fields(2).Limits = [0 100];
+                xpct_fields(2).Tooltip = "phase avg: 3D plot: upper end of the wake shown, " + ...
+                    "% of its length from the robot's end (0 to 25 = the quarter most recently shed; Fix Limits)";
+            end
             conv_units_button.Enable = ~is_merged;
             equal_axes_button.Enable = ~is_merged && obj.conv_units_bool; % all planes: always equal
             conv_shift_button.Enable = ~is_merged;
@@ -3027,6 +3048,7 @@ methods
             end
             if obj.is_3D_plot_type()
                 obj.apply_fixed_lims(ax);
+                refresh_merged_xlim();
             end
         end
 
@@ -3047,6 +3069,12 @@ methods
         end
 
         function fix_xpct_change(~, ~, plot_panel)
+            if obj.plot_type == obj.MERGED_3D_PLOT
+                % all planes: the upper box is the plot's upper x/c limit
+                obj.fix_xmax_merged = xpct_fields(2).Value;
+                refresh_merged_xlim();
+                return
+            end
             pct_new = [xpct_fields(1).Value, xpct_fields(2).Value];
             if pct_new(1) >= pct_new(2)
                 xpct_fields(1).Value = obj.fix_xpct(1); % lower must be below upper: undo
@@ -3057,6 +3085,13 @@ methods
             if obj.fix_lims_bool && obj.is_3D_plot_type()
                 ax = findobj(plot_panel.Children, 'Type', 'axes');
                 obj.apply_fixed_lims(ax);
+            end
+        end
+
+        % all planes: x-limits (Fix Limits x/c) on the plot as it is
+        function refresh_merged_xlim()
+            if obj.plot_type == obj.MERGED_3D_PLOT && ~obj.play && obj.can_play_merged()
+                obj.show_merged_frame(false);
             end
         end
 
@@ -6257,6 +6292,10 @@ methods (Access = private)
         if ~isempty(rx)
             xl = ax.XLim;
             xlim(ax, [min(xl(1), rx(1) - 0.5), max(xl(2), rx(2) + 0.5)]);
+        end
+        % Fix Limits: upper x/c limit of the whole plot
+        if obj.fix_lims_bool && isfinite(obj.fix_xmax_merged) && obj.fix_xmax_merged > ax.XLim(1)
+            ax.XLim = [ax.XLim(1), obj.fix_xmax_merged];
         end
     end
 
