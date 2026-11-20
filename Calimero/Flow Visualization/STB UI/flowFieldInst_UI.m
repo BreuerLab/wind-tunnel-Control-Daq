@@ -5,23 +5,31 @@ properties (Constant, Access = private)
     PENDING_COLOR = [1.0000 0.8000 0.3500]; % Load All Frames: only a preview is loaded
     U_INF = 4;      % freestream velocity (m/s) used for nondimensionalization
     L_CHORD = 0.07; % guess of mean aerodynamic chord (m)
-    NUM_IMAGES_FALLBACK = 2500; % only used if the phase-avg file has no binning
-    TRIM_Y_BOUNDS = [-2.26 2]; % roughly -0.15 to 0.15 m
-    TRIM_Z_BOUNDS = [-2.36 2.55]; % roughly -0.2 to 0.2 m
-    MIRROR_CENTER_Y = -2.26;
-    secondary_vars = ["Q_x","Q_y","Q_z","|Q|","div",...
-        "KE", "power"];
+    % Trim bounds and mirror centerline for each flapper source mode (same
+    % values as flowField_UI). The active set is copied into trim_y_bounds
+    % / trim_z_bounds / mirror_center_y by set_trim_settings_for_source_mode().
+    OLD_FLAPPER_TRIM_Y_BOUNDS = [-2.26 2]; % roughly -0.15 to 0.15 m
+    OLD_FLAPPER_TRIM_Z_BOUNDS = [-2.36 2.55]; % roughly -0.2 to 0.2 m
+    OLD_FLAPPER_MIRROR_CENTER_Y = -2.26;
+    NEW_FLAPPER_TRIM_Y_BOUNDS = [-2.4 2.8];
+    NEW_FLAPPER_TRIM_Z_BOUNDS = [-2.9 3.1];
+    NEW_FLAPPER_MIRROR_CENTER_Y = -2.06;
+    % Variables not read from the .vc7 files but computed from the loaded
+    % frames (see get_variable_volume)
+    Q_FIELDS = ["Qx","Qy","Qz","Q"];
+    DIV_FIELD = "div";
     OLD_FLAPPER_SOURCE_MODE = "old flapper";
     NEW_FLAPPER_SOURCE_MODE = "new flapper";
     OLD_FLAPPER_DOWNSTREAM_TYPES = ["flexible";"UP_one_flexible";"UP_two_flexible"];
     OLD_FLAPPER_DISTANCE_LABELS = ["x = 0.9m";"x = 1.3m";"x = 1.7m"];
-    NEW_FLAPPER_DOWNSTREAM_TYPES = ["x1";"x2";"x3";"x4";"x5"];
-    NEW_FLAPPER_DISTANCE_LABELS = ["x1";"x2";"x3";"x4";"x5"];
+    NEW_FLAPPER_DOWNSTREAM_TYPES = ["x1";"x2";"x3";"x4";"x5";"MPS"];
+    NEW_FLAPPER_DISTANCE_LABELS = ["x1";"x2";"x3";"x4";"x5";"MPS"];
 end
 
 properties
     % Display and dataset selection
-    phase_avg_file_path;
+    data_roots;             % data roots given to the UI (string array)
+    shared_file_map;        % case id (<case>[_<version>]) -> its _shared.mat
     source_mode;
     source_modes;
     case_name;
@@ -29,6 +37,8 @@ properties
     phase_flapper_case_name_list;
     phase_old_flapper_case_name_list;
     phase_new_flapper_case_name_list;
+    phase_old_flapper_stems;
+    phase_new_flapper_stems;
     phase_avg_case_ids;
     current_downstream_type;
     downstream_types;
@@ -73,6 +83,9 @@ properties
     mirror_bool;
     filter_bool;
     trim_bool;
+    trim_y_bounds;      % active set, see set_trim_settings_for_source_mode
+    trim_z_bounds;
+    mirror_center_y;
 
     RPCA_sparse;
 
@@ -91,20 +104,29 @@ properties
     cached_data;
     cached_L;               % RPCA, only computed after a full load
     cached_S;
+    derived_cache;          % Q / div computed from the loaded frames
 
     % Per-case binning (frame -> bin), keyed by case id, so it is computed
     % or read at most once per case per session.
     binning_cache;
+    % Per-case .vc7 frame list (get_case_frames), keyed by case id
+    frames_cache;
 end
 
 methods
     % Constructor Function
     % Defines constants and default values for parameters
     function obj = flowFieldInst_UI(file_path)
+        % file_path: one data root, or several as a string array (e.g. the
+        % new flapper data and the old flapper STB Round 1 folder). Cases
+        % from all roots are listed; a case in more than one root comes
+        % from the first.
+        obj.data_roots = string(file_path(:))';
         obj.case_name = "";
         obj.variable_name = "";
-        obj.phase_avg_file_path = processed_results_dir(file_path) + "phase_avg\";
         obj.binning_cache = containers.Map('KeyType', 'char', 'ValueType', 'any');
+        obj.frames_cache = containers.Map('KeyType', 'char', 'ValueType', 'any');
+        obj.derived_cache = containers.Map('KeyType', 'char', 'ValueType', 'any');
 
         obj.num_bins = 5;
         obj.bin_ind = 1;
@@ -120,17 +142,36 @@ methods
         obj.filter_bool = false;
         obj.trim_bool = true;
 
-        phase_avg_files = dir(obj.phase_avg_file_path + "*.mat");
-
-        phase_avg_stems = obj.get_file_stems(phase_avg_files, "_phase_avg");
-        % remove ones that have RPCA in name
-        phase_avg_stems = phase_avg_stems(~contains(phase_avg_stems, "RPCA"));
+        % Phase-averaged cases of every data root (new layout:
+        % <stem>_<method>_fields.mat + <stem>_shared.mat, see
+        % stb_list_phase_avg). All methods of a case (bin, _hr, _RPCA,
+        % particle pool) share one binning, kept in its _shared file, so
+        % each case is listed once, by its stem.
+        obj.shared_file_map = containers.Map('KeyType', 'char', 'ValueType', 'char');
+        phase_avg_stems = strings(1, 0);
+        for r = 1:numel(obj.data_roots)
+            phase_dir = processed_results_dir(obj.data_roots(r)) + "phase_avg\";
+            if ~isfolder(phase_dir)
+                warning("flowFieldInst_UI:noPhaseAvg", "No phase_avg folder in %s", obj.data_roots(r));
+                continue
+            end
+            cases = stb_list_phase_avg(phase_dir);
+            for k = 1:numel(cases)
+                stem = string(cases(k).stem);
+                if ~isKey(obj.shared_file_map, char(stem))
+                    obj.shared_file_map(char(stem)) = char(cases(k).files.shared);
+                    phase_avg_stems(end + 1) = stem; %#ok<AGROW>
+                end
+            end
+        end
         obj.phase_avg_case_ids = phase_avg_stems;
 
         flapper_stems = phase_avg_stems(~contains(phase_avg_stems, "turbine"));
 
         old_flapper_stems = obj.get_old_flapper_stems(flapper_stems);
         new_flapper_stems = obj.get_new_flapper_stems(flapper_stems);
+        obj.phase_old_flapper_stems = old_flapper_stems;
+        obj.phase_new_flapper_stems = new_flapper_stems;
 
         [obj.old_flapper_downstream_types, obj.old_flapper_distance_labels] = ...
             obj.get_available_downstream_options(old_flapper_stems, obj.OLD_FLAPPER_SOURCE_MODE);
@@ -155,12 +196,17 @@ methods
             obj.source_mode = obj.source_modes(1);
         end
         obj.set_downstream_options_for_source_mode(obj.source_mode);
+        obj.set_trim_settings_for_source_mode(obj.source_mode);
         obj.case_name_list = obj.get_case_name_list_for_active_plot_type();
 
+        % Instantaneous variables: those import_STB_data reads from the
+        % .vc7 files, plus Q (calQlate3D on each frame, as inst_Q_avg)
+        % and div computed from the loaded frames. (KE and power are
+        % phase-average quantities, so they aren't offered here.)
         obj.movie_3D_avg_vars = ["u","v","w","|U|","ω_x","ω_y","ω_z","|ω|",...
                     "Q_x","Q_y","Q_z","|Q|","u_unc","v_unc","w_unc","|unc|","helicity", "# particles",...
                     "du/dx","du/dy","du/dz","dv/dx","dv/dy","dv/dz","dw/dx","dw/dy","dw/dz",...
-                    "div", "KE", "power"];
+                    "div"];
         movie_3D_avg_values = ["u","v","w","Utot",...
         "vortX","vortY","vortZ","vortTot",...
         "Qx","Qy","Qz","Q","uncU","uncV","uncW",...
@@ -168,7 +214,7 @@ methods
         "dudx","dudy","dudz",...
         "dvdx","dvdy","dvdz",...
         "dwdx","dwdy","dwdz",...
-        "div", "KE_diff_field", "power_field"];
+        "div"];
         
         obj.var_name_list = obj.movie_3D_avg_vars;
         obj.mean_clims = [-1.1, -0.9;...
@@ -188,7 +234,7 @@ methods
                       0, 0.04;...
                       0, 0.04;...
                       -1, 1;...
-                      0, 75;
+                      0, 150;      % # particles (as flowField_UI)
                       -0.1, 0.1;
                       -1, 1;
                       -1, 1;
@@ -198,9 +244,7 @@ methods
                       -0.2, 0.2;
                       -1, 1;
                       -1, 1;
-                      -0.3, 0.3;
-                      0, 0.1;
-                      0, 0.1];
+                      -0.1, 0.1];  % div (as flowField_UI)
 
         obj.clims = obj.mean_clims;
         obj.clim_dict = obj.build_clim_dict(obj.movie_3D_avg_vars, obj.mean_clims);
@@ -212,7 +256,10 @@ methods
                             "\boldmath$\frac{\omega_y c}{U_{\infty}}$",...
                             "\boldmath$\frac{\omega_z c}{U_{\infty}}$",...
                             "\boldmath$\frac{\omega c}{U_{\infty}}$",...
-                            "","","","",...
+                            "\boldmath$Q_x \frac{c^2}{U_{\infty}^2}$",...
+                            "\boldmath$Q_y \frac{c^2}{U_{\infty}^2}$",...
+                            "\boldmath$Q_z \frac{c^2}{U_{\infty}^2}$",...
+                            "\boldmath$Q \frac{c^2}{U_{\infty}^2}$",...
                             "\boldmath$\frac{u}{U_{\infty}}$",...
                             "\boldmath$\frac{v}{U_{\infty}}$",...
                             "\boldmath$\frac{w}{U_{\infty}}$",...
@@ -227,8 +274,7 @@ methods
                             "\boldmath$\frac{\partial w}{\partial x} \frac{c}{U_{\infty}}$",...
                             "\boldmath$\frac{\partial w}{\partial y} \frac{c}{U_{\infty}}$",...
                             "\boldmath$\frac{\partial w}{\partial z} \frac{c}{U_{\infty}}$",...
-                            "\boldmath$\nabla \cdot u \frac{c}{U_{\infty}}$",...
-                            "KE","power"];
+                            "\boldmath$\nabla \cdot u \frac{c}{U_{\infty}}$"];
 
         keys = cellstr(obj.movie_3D_avg_vars);
         values = movie_3D_avg_values;
@@ -386,6 +432,7 @@ methods
 
         function source_change(src, ~, plot_panel)
             obj.source_mode = src.Value;
+            obj.set_trim_settings_for_source_mode(obj.source_mode);
             refresh_distance_dropdown();
             refresh_case_dropdown();
             refresh_plot_type_dropdown();
@@ -468,7 +515,11 @@ methods
 
             case_dropdown.Items = obj.case_name_list;
             if ~any(obj.case_name_list == obj.case_name)
-                obj.case_name = string(case_dropdown.Value);
+                if isempty(obj.case_name_list)
+                    obj.case_name = "";
+                else
+                    obj.case_name = string(case_dropdown.Value);
+                end
             else
                 case_dropdown.Value = obj.case_name;
             end
@@ -724,7 +775,8 @@ methods (Access = private)
 
     function mask = is_new_flapper_stem(obj, stems)
         stems = string(stems);
-        mask = false(size(stems));
+        % position-independent cases (freestream) belong to the new set
+        mask = ismember(stems, position_independent_cases());
         for i = 1:length(obj.NEW_FLAPPER_DOWNSTREAM_TYPES)
             downstream_type = obj.NEW_FLAPPER_DOWNSTREAM_TYPES(i);
             mask = mask | stems == downstream_type | startsWith(stems, downstream_type + "_");
@@ -823,24 +875,56 @@ methods (Access = private)
     function source_modes = get_available_source_modes(obj)
         source_modes = strings(0);
 
-        if ~isempty(obj.phase_old_flapper_case_name_list)
-            source_modes(end + 1) = obj.OLD_FLAPPER_SOURCE_MODE;
-        end
-
+        % new flapper first, so it is the default (as flowField_UI)
         if ~isempty(obj.phase_new_flapper_case_name_list)
             source_modes(end + 1) = obj.NEW_FLAPPER_SOURCE_MODE;
         end
+
+        if ~isempty(obj.phase_old_flapper_case_name_list)
+            source_modes(end + 1) = obj.OLD_FLAPPER_SOURCE_MODE;
+        end
     end
 
-    function case_names = get_case_name_list_for_active_plot_type(obj)
-        case_names = obj.get_case_name_list(obj.source_mode);
-    end
-
-    function case_names = get_case_name_list(obj, source_mode)
-        if source_mode == obj.NEW_FLAPPER_SOURCE_MODE
-            case_names = obj.phase_new_flapper_case_name_list;
+    function set_trim_settings_for_source_mode(obj, source_mode)
+        if source_mode == obj.OLD_FLAPPER_SOURCE_MODE
+            obj.trim_y_bounds = obj.OLD_FLAPPER_TRIM_Y_BOUNDS;
+            obj.trim_z_bounds = obj.OLD_FLAPPER_TRIM_Z_BOUNDS;
+            obj.mirror_center_y = obj.OLD_FLAPPER_MIRROR_CENTER_Y;
         else
-            case_names = obj.phase_old_flapper_case_name_list;
+            obj.trim_y_bounds = obj.NEW_FLAPPER_TRIM_Y_BOUNDS;
+            obj.trim_z_bounds = obj.NEW_FLAPPER_TRIM_Z_BOUNDS;
+            obj.mirror_center_y = obj.NEW_FLAPPER_MIRROR_CENTER_Y;
+        end
+    end
+
+    % Cases for the dropdown: only those at the selected downstream position
+    function case_names = get_case_name_list_for_active_plot_type(obj)
+        case_names = obj.get_case_name_list(obj.source_mode, obj.current_downstream_type);
+    end
+
+    function case_names = get_case_name_list(obj, source_mode, downstream_type)
+        if source_mode == obj.NEW_FLAPPER_SOURCE_MODE
+            stems = obj.phase_new_flapper_stems;
+            all_names = obj.phase_new_flapper_case_name_list;
+        else
+            stems = obj.phase_old_flapper_stems;
+            all_names = obj.phase_old_flapper_case_name_list;
+        end
+
+        downstream_type = string(downstream_type);
+        if strlength(downstream_type) > 0
+            [known_types, known_labels] = obj.get_known_downstream_options(source_mode);
+            label = known_labels(known_types == downstream_type);
+            case_names = obj.get_flapper_case_names(stems, downstream_type, label, source_mode);
+        else
+            case_names = all_names;
+        end
+
+        % position-independent cases (freestream) at every new flapper
+        % position
+        if source_mode == obj.NEW_FLAPPER_SOURCE_MODE
+            case_names = unique([case_names, ...
+                reshape(intersect(stems, position_independent_cases(), 'stable'), 1, [])], 'stable');
         end
     end
 
@@ -877,13 +961,20 @@ methods (Access = private)
         case_name = string(obj.case_name);
         current_downstream_type = string(obj.current_downstream_type);
 
-        if current_downstream_type == case_name && ...
+        if ismember(case_name, position_independent_cases())
+            case_id = case_name; % no position prefix (freestream)
+        elseif current_downstream_type == case_name && ...
                 any(obj.phase_avg_case_ids == case_name)
             case_id = case_name;
         elseif strlength(case_name) == 0
             case_id = current_downstream_type;
         else
             case_id = current_downstream_type + "_" + case_name;
+            % old flapper cases at the default position may have no
+            % prefix (body, ring)
+            if ~any(obj.phase_avg_case_ids == case_id) && any(obj.phase_avg_case_ids == case_name)
+                case_id = case_name;
+            end
         end
     end
 
@@ -924,18 +1015,20 @@ methods (Access = private)
         % Pick the requested variable out of the loaded data
         if plot_idx == 1
             source = obj.cached_data;
+            source_tag = "frames";
         elseif obj.RPCA_sparse
             source = obj.cached_S; % RPCA sparse part: u, v, w only
+            source_tag = "S";
         else
             source = obj.cached_L; % RPCA low-rank part: u, v, w, |U|, vorticity
+            source_tag = "L";
         end
-        var_idx = find(strcmp(fields, var_name), 1);
-        if isempty(var_idx) || var_idx > numel(source)
+        val = obj.get_variable_volume(source, source_tag, fields, var_name);
+        if isempty(val)
             obj.set_placeholder(plot_panel, "'" + obj.variable_name + ...
                 "' is not available for the loaded " + obj.plot_types(plot_idx) + " data.");
             return
         end
-        val = source{var_idx};
 
         % Select the centre x-plane (all frames in the bin)
         y = obj.cached_y;
@@ -947,8 +1040,8 @@ methods (Access = private)
         val_tr = reshape(val(x_idx,:,:,:), size(val, 2), size(val, 3), []);
 
         if obj.trim_bool
-            y_idx = find(y_tr(:,1) > obj.TRIM_Y_BOUNDS(1) & y_tr(:,1) < obj.TRIM_Y_BOUNDS(2));
-            z_idx = find(z_tr(1,:) > obj.TRIM_Z_BOUNDS(1) & z_tr(1,:) < obj.TRIM_Z_BOUNDS(2));
+            y_idx = find(y_tr(:,1) > obj.trim_y_bounds(1) & y_tr(:,1) < obj.trim_y_bounds(2));
+            z_idx = find(z_tr(1,:) > obj.trim_z_bounds(1) & z_tr(1,:) < obj.trim_z_bounds(2));
 
             y_tr = y_tr(y_idx, z_idx);
             z_tr = z_tr(y_idx, z_idx);
@@ -957,7 +1050,7 @@ methods (Access = private)
 
         if obj.mirror_bool
             % Mirror across the centerline to reconstruct the opposite side of the wake.
-            y_idx_m = find(y_tr(:,1) > obj.MIRROR_CENTER_Y);
+            y_idx_m = find(y_tr(:,1) > obj.mirror_center_y);
 
             y_tr = y_tr(y_idx_m, :);
             z_tr = z_tr(y_idx_m, :);
@@ -1127,9 +1220,13 @@ methods (Access = private)
     % Binning: which frames belong to which phase bin
     % ---------------------------------------------------------------------
     % Fast path: read bin_ind_arr/num_bins saved by phase_avg_STB in the
-    % phase-avg file (only these small variables are read, not the file).
-    % This is also the exact binning the phase averages were computed with.
-    % Slow path (allow_slow): recompute from the DAQ file like before.
+    % case's _shared.mat file (only these small variables are read). This
+    % is also the exact binning the phase averages were computed with, for
+    % every method (bin, _hr, _RPCA, particle pool).
+    % Slow path (allow_slow): recompute from the DAQ file.
+    % B.piv_case is the recording's case name (the shared file's
+    % PIV_case_name), used to find its .vc7 frames; it differs from the
+    % case id when the case id carries a binning version (<case>_<version>).
     function B = get_case_binning(obj, case_id, allow_slow)
         key = char(case_id);
         if isKey(obj.binning_cache, key)
@@ -1138,33 +1235,46 @@ methods (Access = private)
         end
 
         B = [];
-        phase_file = obj.phase_avg_file_path + case_id + "_phase_avg.mat";
-        if isfile(phase_file)
+        piv_case = string(case_id);
+        shared_file = "";
+        if isKey(obj.shared_file_map, key)
+            shared_file = string(obj.shared_file_map(key));
+        end
+        if strlength(shared_file) > 0 && isfile(shared_file)
             try
-                vars = who('-file', char(phase_file));
+                vars = who('-file', char(shared_file));
+                if ismember('PIV_case_name', vars)
+                    S = load(shared_file, 'PIV_case_name');
+                    piv_case = string(S.PIV_case_name);
+                end
                 if all(ismember({'bin_ind_arr', 'num_bins'}, vars))
-                    S = load(phase_file, 'bin_ind_arr', 'num_bins');
+                    S = load(shared_file, 'bin_ind_arr', 'num_bins');
                     B.bin_ind_arr = S.bin_ind_arr(:);
                     B.num_bins = double(S.num_bins);
-                    B.source = "phase-avg file";
+                    B.source = "shared file";
                 end
             catch ME
-                warning("Could not read binning from %s: %s", phase_file, ME.message);
+                warning("Could not read binning from %s: %s", shared_file, ME.message);
             end
+        elseif strlength(shared_file) > 0
+            warning("flowFieldInst_UI:noShared", "Shared file not found: %s", shared_file);
         end
 
         if isempty(B) && allow_slow
-            B = obj.compute_case_binning(case_id);
+            B = obj.compute_case_binning(piv_case);
         end
 
         if ~isempty(B)
+            B.piv_case = piv_case;
             obj.binning_cache(key) = B;
         end
     end
 
     function B = compute_case_binning(obj, case_id)
-        disp("No binning in phase-avg file for " + case_id + ...
-            "; recomputing from DAQ data (slow, assumes " + obj.NUM_IMAGES_FALLBACK + " images)")
+        FR = obj.get_frames(case_id);
+        num_images = numel(FR.vc7);
+        disp("No binning in the shared file for " + case_id + ...
+            "; recomputing from DAQ data (slow, " + num_images + " images)")
         [amp, ~, ~] = parse_name(case_id);
         [daq_data_filename, daq_data_path] = get_daq_paths(case_id);
         R = load([daq_data_path daq_data_filename], 'results');
@@ -1185,7 +1295,7 @@ methods (Access = private)
             wing_pos, wing_speed, wing_acc, pulsesPerRev, false);
 
         [~, ~, bin_ind_arr, num_bins] = ...
-            frame_to_bin(case_id, obj.NUM_IMAGES_FALLBACK, freq_avg, false, false);
+            frame_to_bin(case_id, num_images, freq_avg, false, false);
 
         B.bin_ind_arr = bin_ind_arr(:);
         B.num_bins = num_bins;
@@ -1208,9 +1318,101 @@ methods (Access = private)
     function [x, y, z, data] = read_frames(obj, case_id, frames)
         fields = get_STB_processing_fields();
         data = cell(1, numel(fields));
-        FR = get_case_frames(case_id);
+        B = obj.get_case_binning(case_id, false);
+        if isempty(B)
+            piv_case = case_id;
+        else
+            piv_case = B.piv_case;
+        end
+        FR = obj.get_frames(piv_case);
         file_path = FR.vc7;
+        if ~isempty(B) && numel(B.bin_ind_arr) ~= numel(file_path)
+            warning("flowFieldInst_UI:frameCount", ...
+                "%s: the binning has %d frames but %d .vc7 files were found; frames may not match their bins.", ...
+                case_id, numel(B.bin_ind_arr), numel(file_path));
+        end
+        if max(frames) > numel(file_path)
+            error("%s: frame %d requested but only %d .vc7 files were found.", ...
+                case_id, max(frames), numel(file_path));
+        end
         [x, y, z, data{:}] = import_STB_data(file_path, true, obj.U_INF, obj.L_CHORD, frames, false);
+    end
+
+    % .vc7 frames of a recording (get_case_frames), cached per session
+    function FR = get_frames(obj, piv_case)
+        key = char(piv_case);
+        if isKey(obj.frames_cache, key)
+            FR = obj.frames_cache(key);
+            return
+        end
+        FR = get_case_frames(piv_case);
+        obj.frames_cache(key) = FR;
+    end
+
+    % [nx ny nz nFrames] volume of a variable from the loaded data (source:
+    % cached_data, cached_L or cached_S). Read variables come straight from
+    % source; Q (Qx, Qy, Qz, Q) is computed per frame with calQlate3D after
+    % filling holes (as inst_Q_avg does in the processing) and div from the
+    % stored gradients. Computed once per loaded data set. [] if the
+    % variable can't be had from this source.
+    function val = get_variable_volume(obj, source, source_tag, fields, var_name)
+        val = [];
+        var_name = string(var_name);
+        var_idx = find(strcmp(fields, var_name), 1);
+        if ~isempty(var_idx)
+            if var_idx <= numel(source)
+                val = source{var_idx};
+            end
+            return
+        end
+
+        key = char(source_tag + "|" + var_name);
+        if isKey(obj.derived_cache, key)
+            val = obj.derived_cache(key);
+            return
+        end
+
+        if any(var_name == obj.Q_FIELDS)
+            iu = find(strcmp(fields, 'u'), 1);
+            iv = find(strcmp(fields, 'v'), 1);
+            iw = find(strcmp(fields, 'w'), 1);
+            if max([iu iv iw]) > numel(source)
+                return
+            end
+            u = source{iu}; v = source{iv}; w = source{iw};
+            x = obj.cached_x; y = obj.cached_y; z = obj.cached_z;
+            dx = abs(x(2,1,1) - x(1,1,1));
+            dy = abs(y(1,2,1) - y(1,1,1));
+            dz = abs(z(1,1,2) - z(1,1,1));
+            n_frames = size(u, 4);
+            Q_all = cell(1, 4);
+            for c = 1:4
+                Q_all{c} = NaN(size(u));
+            end
+            Qk = cell(1, 4);
+            for k = 1:n_frames
+                uk = u(:,:,:,k); vk = v(:,:,:,k); wk = w(:,:,:,k);
+                nan_mask = isnan(uk) | isnan(vk) | isnan(wk);
+                [Qk{1:4}] = calQlate3D(fill3D(uk), fill3D(vk), fill3D(wk), dx, dy, dz);
+                for c = 1:4
+                    Qc = Qk{c};
+                    Qc(nan_mask) = NaN; % no Q where there was no velocity
+                    Q_all{c}(:,:,:,k) = Qc;
+                end
+            end
+            for c = 1:4
+                obj.derived_cache(char(source_tag + "|" + obj.Q_FIELDS(c))) = Q_all{c};
+            end
+            val = Q_all{var_name == obj.Q_FIELDS};
+        elseif var_name == obj.DIV_FIELD
+            idx = [find(strcmp(fields, 'dudx'), 1), find(strcmp(fields, 'dvdy'), 1), ...
+                   find(strcmp(fields, 'dwdz'), 1)];
+            if numel(idx) < 3 || max(idx) > numel(source)
+                return
+            end
+            val = source{idx(1)} + source{idx(2)} + source{idx(3)};
+            obj.derived_cache(key) = val;
+        end
     end
 
     function commit_data(obj, case_id, num_bins, frames, x, y, z, data)
@@ -1225,6 +1427,7 @@ methods (Access = private)
         obj.cached_data = data;
         obj.cached_L = []; % RPCA is recomputed for the new data on demand
         obj.cached_S = [];
+        obj.derived_cache = containers.Map('KeyType', 'char', 'ValueType', 'any'); % Q / div too
         obj.num_bins = num_bins;
     end
 
